@@ -1,6 +1,6 @@
 {
-  "name": "Chef d'État — Simulateur géopolitique",
-  "short_name": "Chef d'État",
+  "name": "Hakvision Président — Simulateur géopolitique",
+  "short_name": "Hakvision Président",
   "description": "Dirigez n'importe quel pays du monde : économie, diplomatie, armée, ressources, institutions.",
   "start_url": "./index.html",
   "scope": "./",

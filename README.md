@@ -1,6 +1,6 @@
-# Chef d'État — Simulateur géopolitique
+# Hakvision Président
 
-Simulateur de chef d'État jouable dans le navigateur : choisissez l'un des 195 pays du monde et gérez son économie, sa diplomatie, ses ressources, sa sécurité et ses institutions. Un mode Éditeur permet de tout modifier librement (bac à sable).
+Simulateur de chef d'État jouable dans le navigateur : choisissez l'un des 195 pays du monde et gérez son économie, sa diplomatie, ses ressources, sa sécurité et ses institutions. Un mode Éditeur permet de tout modifier librement (bac à sable), et une carte du monde interactive permet de visualiser vos relations internationales.
 
 ## Lancer le jeu
 
@@ -35,6 +35,10 @@ Ce dossier peut être déployé tel quel sur n'importe quel hébergeur de fichie
 ## Portée & limites (volontaires)
 
 Ce projet est un simulateur jouable et cohérent, pas une reconstitution économique réaliste au niveau d'un titre commercial (type Geopolitical Simulator / Power & Revolution). Les formules économiques sont simplifiées pour rester amusantes et compréhensibles. C'est une base solide, facilement extensible (le code est un seul fichier `index.html` commenté par sections).
+
+## Crédits
+
+Carte du monde SVG : « Simple World Map » par Al MacDonald, éditée par Fritz Lekschas ([flekschas/simple-world-map](https://github.com/flekschas/simple-world-map)), sous licence [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
 
 ## Structure
 
