@@ -112,6 +112,18 @@ button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-
 }
 .icon-btn:hover{background:var(--surface-3);}
 .icon-btn.on{background:var(--brass-dim);border-color:var(--brass-soft);color:var(--parchment);}
+.menu-dropdown{position:relative;}
+.menu-panel{
+  display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:220px;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:6px;
+  flex-direction:column;gap:2px;box-shadow:var(--shadow);
+}
+.menu-panel.open{display:flex;}
+.menu-panel button, .menu-panel label{
+  all:unset;padding:9px 11px;border-radius:7px;font-size:12.5px;color:var(--parchment);cursor:pointer;display:block;
+}
+.menu-panel button:hover, .menu-panel label:hover{background:var(--surface-3);}
+.menu-panel input[type=file]{display:none;}
 
 .shell{display:flex;flex:1;min-height:0;}
 .sidenav{
@@ -421,11 +433,12 @@ const CEO_FIRST_NAMES = ['Amara','Jean','Fatou','Carlos','Wei','Ingrid','Kwame',
 const CEO_LAST_NAMES = ['Mbeki','Dubois','Silva','Nakamura','Traoré','Kowalski','Haddad','Okafor','Petrov','Fernández','Lindqvist','Diallo','Rossi','Kamau','Novak','Osei','Álvarez','Chen','Moreau','Aziz'];
 function randomCeoName(rng){ return `${pick(rng,CEO_FIRST_NAMES)} ${pick(rng,CEO_LAST_NAMES)}`; }
 const INFRA_TYPES = [
-  {key:'roads', label:'Réseau routier', cost:5e6, step:8, requiresCoastal:false},
-  {key:'highways', label:'Autoroute', cost:6e7, step:1, requiresCoastal:false},
-  {key:'airports', label:'Aéroport', cost:2.2e8, step:1, requiresCoastal:false},
-  {key:'ports', label:'Port', cost:3.2e8, step:1, requiresCoastal:true},
+  {key:'roads', label:'Réseau routier', gdpFraction:0.000015, floor:1.5e6, step:8, requiresCoastal:false},
+  {key:'highways', label:'Autoroute', gdpFraction:0.00008, floor:1e7, step:1, requiresCoastal:false},
+  {key:'airports', label:'Aéroport', gdpFraction:0.00025, floor:4e7, step:1, requiresCoastal:false},
+  {key:'ports', label:'Port', gdpFraction:0.0003, floor:5e7, step:1, requiresCoastal:true},
 ];
+function infraCost(type, country){ return Math.max(type.floor, country.gdp*1e9*type.gdpFraction); }
 const DIPLO_ACTIONS = [
   {id:'alliance', label:'Alliance'},
   {id:'commerce', label:'Accord commercial'},
@@ -902,8 +915,9 @@ function buildInfra(cityId, typeKey){
   const type = INFRA_TYPES.find(t=>t.key===typeKey);
   if(type.requiresCoastal && !city.coastal){ toast(`${city.name} n'a pas d'accès maritime ou fluvial : port impossible.`); return; }
   if(type.key==='roads' && city.infra.roads>=100){ toast('Réseau routier déjà au maximum.'); return; }
-  if(c.budget.treasury < type.cost){ toast(`Trésor insuffisant (${fmtMoney(type.cost)} nécessaires).`); return; }
-  c.budget.treasury -= type.cost;
+  const cost = infraCost(type, c);
+  if(c.budget.treasury < cost){ toast(`Trésor insuffisant (${fmtMoney(cost)} nécessaires).`); return; }
+  c.budget.treasury -= cost;
   if(type.key==='roads') city.infra.roads = clamp(city.infra.roads+type.step,0,100);
   else city.infra[type.key] += type.step;
   c.economy.approval = clamp(c.economy.approval+0.6,0,100);
@@ -1025,7 +1039,8 @@ function editText(countryId, path, label){
 }
 function editSelect(countryId, path, label, options){
   const v = getPath(getCountryQuiet(countryId), path);
-  return `<div class="field"><label>${label}</label><select onchange="editField('${countryId}','${path}',this.value,'text')">${options.map(o=>`<option ${o===v?'selected':''}>${escapeHtml(o)}</option>`).join('')}</select></div>`;
+  const opts = options.map(o=> typeof o==='object' ? o : {value:o, label:o});
+  return `<div class="field"><label>${label}</label><select onchange="editField('${countryId}','${path}',this.value,'text')">${opts.map(o=>`<option value="${escapeHtml(o.value)}" ${o.value===v?'selected':''}>${escapeHtml(o.label)}</option>`).join('')}</select></div>`;
 }
 function statusPill(status){
   const map = { paix:['neutral','Paix'], alliance:['good','Alliance'], 'accord commercial':['info','Accord commercial'], sanctions:['warn','Sanctions'], guerre:['bad','Guerre'] };
@@ -1073,14 +1088,29 @@ function render(){
   app.innerHTML = renderShell();
   if(state.activeTab==='map') initMap();
 }
+function peekSave(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return null;
+    const s = JSON.parse(raw);
+    const c = s.countries[s.player.countryId];
+    if(!c) return null;
+    const d = new Date(GAME_START); d.setUTCMonth(d.getUTCMonth()+s.player.turn);
+    return { name: c.name, iso2: c.iso2, dateLabel: `${MONTHS_FR[d.getUTCMonth()]} ${d.getUTCFullYear()}` };
+  }catch(e){ return null; }
+}
 function renderSelectScreen(){
   const groups = {};
   COUNTRIES_DATA.forEach(c=>{ (groups[c.continent] = groups[c.continent]||[]).push(c); });
   const order = ['Afrique','Amérique du Nord','Amérique du Sud','Asie','Europe','Océanie'];
   let resumeHtml = '';
-  if(hasSave()){
+  const preview = peekSave();
+  if(preview){
     resumeHtml = `<div class="resume-bar">
-      <div><b>Une partie est en cours.</b><div style="color:var(--muted);font-size:12px;margin-top:2px;">Reprenez où vous en étiez, ou choisissez un nouveau pays ci-dessous pour recommencer.</div></div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span style="font-size:28px;">${flagEmoji(preview.iso2)}</span>
+        <div><b>Vous dirigez ${escapeHtml(preview.name)}.</b><div style="color:var(--muted);font-size:12px;margin-top:2px;">Partie en cours — ${preview.dateLabel}. Reprenez où vous en étiez, ou choisissez un nouveau pays ci-dessous pour recommencer.</div></div>
+      </div>
       <button class="btn primary" onclick="resumeGame()">Reprendre la partie</button>
     </div>`;
   }
@@ -1111,6 +1141,20 @@ function confirmStart(id){
   render();
 }
 function resumeGame(){ loadGame(); render(); }
+function quitToMenu(){
+  saveGame();
+  state.screen = 'select';
+  render();
+}
+function toggleTopMenu(e){
+  e.stopPropagation();
+  const panel = document.getElementById('topMenuPanel');
+  if(panel) panel.classList.toggle('open');
+}
+document.addEventListener('click', ()=>{
+  const panel = document.getElementById('topMenuPanel');
+  if(panel) panel.classList.remove('open');
+});
 
 function renderShell(){
   const p = playerState();
@@ -1121,9 +1165,15 @@ function renderShell(){
     <div class="country-chip"><span class="flag">${flagEmoji(p.iso2)}</span><span>${escapeHtml(p.name)}</span></div>
     <div class="ticker" id="ticker">${tickerHtml(p)}</div>
     <button class="icon-btn ${state.editMode?'on':''}" onclick="toggleEditMode()">${state.editMode?'✓ Éditeur actif':'Mode Éditeur'}</button>
-    <button class="icon-btn" onclick="exportSave()">Exporter</button>
-    <label class="icon-btn" style="position:relative;overflow:hidden;">Importer<input type="file" accept="application/json" onchange="importSaveFile(this.files[0])" style="position:absolute;inset:0;opacity:0;cursor:pointer;"></label>
-    <button class="icon-btn" onclick="resetGame()">Nouvelle partie</button>
+    <button class="icon-btn" onclick="quitToMenu()" title="Retourner au menu — votre partie reste sauvegardée">Quitter</button>
+    <div class="menu-dropdown">
+      <button class="icon-btn" onclick="toggleTopMenu(event)">Menu ▾</button>
+      <div class="menu-panel" id="topMenuPanel">
+        <button onclick="exportSave()">Exporter la sauvegarde</button>
+        <label>Importer une sauvegarde<input type="file" accept="application/json" onchange="importSaveFile(this.files[0])"></label>
+        <button onclick="resetGame()">Nouvelle partie (efface tout)</button>
+      </div>
+    </div>
   </div>
   <div class="shell">
     <nav class="sidenav">
@@ -1477,7 +1527,7 @@ function renderInfra(){
           <div class="ig"><span>Ports</span><b class="num">${city.infra.ports}${city.coastal?'':' (n/d)'}</b></div>
         </div>
         <div class="btn-row">
-          ${INFRA_TYPES.map(t=>`<button class="btn sm" ${t.requiresCoastal&&!city.coastal?'disabled':''} onclick="buildInfra('${city.id}','${t.key}')" title="${fmtMoney(t.cost)}">+ ${t.label}</button>`).join('')}
+          ${INFRA_TYPES.map(t=>`<button class="btn sm" ${t.requiresCoastal&&!city.coastal?'disabled':''} onclick="buildInfra('${city.id}','${t.key}')" title="${fmtMoney(infraCost(t,c))}">+ ${t.label} (${fmtMoney(infraCost(t,c))})</button>`).join('')}
         </div>
       </div>`).join('')}
   </div>`;
@@ -1569,7 +1619,7 @@ function renderEditor(){
       ${editNumber(targetId,'economy.approval','Popularité (%)')}
     </div>
     <div class="card"><h3>Social</h3>
-      ${editSelect(targetId,'social.immigration','Politique migratoire', IMMIGRATION_POLICIES.map(p=>p.id))}
+      ${editSelect(targetId,'social.immigration','Politique migratoire', IMMIGRATION_POLICIES.map(p=>({value:p.id, label:p.label})))}
       ${editNumber(targetId,'social.healthIndex','Indice santé')}
       ${editNumber(targetId,'social.educationIndex','Indice éducation')}
       ${editNumber(targetId,'social.pensionLevel','Pensions (%)')}
