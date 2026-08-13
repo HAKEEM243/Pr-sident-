@@ -550,7 +550,7 @@ let state = null;
 function newGame(countryId){
   state = {
     screen: 'game', activeTab: 'dashboard', editMode: false, editorTargetId: countryId,
-    player: { countryId, turn: 0 }, countries: {}, relations: {}, contracts: [], diploFilter: '',
+    player: { countryId, turn: 0 }, countries: {}, relations: {}, contracts: [], diploFilter: '', achievements: [],
     startedAt: Date.now(),
   };
   COUNTRIES_DATA.forEach(c=> state.countries[c.id] = deriveCountry(c.id));
@@ -563,6 +563,8 @@ function loadGame(){
     if(!raw) return false;
     state = JSON.parse(raw);
     if(!state.diploFilter) state.diploFilter = '';
+    if(!state.achievements) state.achievements = [];
+    Object.values(state.countries).forEach(c=>{ if(c.budget.debt==null) c.budget.debt = 0; c.companies.forEach(co=>{ if(!co.ceo) co.ceo = randomCeoName(rngFor(co.id)); }); });
     return true;
   }catch(e){ return false; }
 }
@@ -722,12 +724,65 @@ function processContracts(){
     return true;
   });
 }
+function militaryStrength(c){ return c.military.troops * (0.4 + c.military.arms/100); }
+function processWars(){
+  const p = playerState();
+  const rng = mulberry32((hashCode(p.id) ^ (state.player.turn*40503)) >>> 0);
+  const warKeys = Object.keys(state.relations).filter(k=> state.relations[k].status==='guerre' && k.split('|').includes(p.id));
+  warKeys.forEach(k=>{
+    const otherId = k.split('|').find(id=>id!==p.id);
+    const other = getCountryQuiet(otherId);
+    if(!other) return;
+    p.military.troops = Math.max(0, Math.round(p.military.troops - p.military.troops*rand(rng,.006,.02)));
+    p.budget.treasury = Math.max(0, p.budget.treasury - p.gdp*1e9*0.0015);
+    p.economy.approval = clamp(p.economy.approval - rand(rng,.3,1), 0, 100);
+    if(rng() < 0.1){
+      const strength = militaryStrength(p), oppStrength = militaryStrength(other);
+      if(strength > oppStrength*1.15){
+        setRelation(p.id, otherId, {status:'paix', score:clamp(getRelation(p.id,otherId).score+20,0,100)});
+        p.budget.treasury += p.gdp*1e9*0.01;
+        p.economy.approval = clamp(p.economy.approval+6,0,100);
+        pushLog(`Victoire militaire face à ${countryName(otherId)} : cessez-le-feu et réparations obtenues.`, p);
+      } else if(oppStrength > strength*1.3){
+        setRelation(p.id, otherId, {status:'paix', score:clamp(getRelation(p.id,otherId).score-10,0,100)});
+        p.economy.approval = clamp(p.economy.approval-8,0,100);
+        pushLog(`Défaite face à ${countryName(otherId)} : un cessez-le-feu est négocié dans la douleur.`, p);
+      }
+    }
+  });
+}
+const ACHIEVEMENTS = [
+  {id:'debt_free', label:'Zéro dette', desc:"Ramener la dette publique à 0.", check:c=> c.budget.debt<=0},
+  {id:'full_employment', label:'Plein emploi', desc:'Chômage sous 5 %.', check:c=> c.economy.unemployment<5},
+  {id:'beloved', label:"Plébiscité", desc:'Popularité au-dessus de 85 %.', check:c=> c.economy.approval>85},
+  {id:'boom', label:'Miracle économique', desc:'Croissance du PIB au-dessus de 8 % sur un mois.', check:c=> c.economy.growth>8},
+  {id:'peacekeeper', label:'Artisan de paix', desc:"10 relations en alliance ou accord commercial.", check:c=>{
+    const keys = Object.keys(state.relations).filter(k=>k.split('|').includes(c.id) && ['alliance','accord commercial'].includes(state.relations[k].status));
+    return keys.length>=10;
+  }},
+  {id:'infra_master', label:'Bâtisseur', desc:'Réseau routier à 90+ dans toutes les villes.', check:c=> c.cities.every(city=>city.infra.roads>=90)},
+  {id:'safe_streets', label:'Rues sûres', desc:'Criminalité sous 10 %.', check:c=> c.police.crimeIndex<10},
+  {id:'long_reign', label:'Longévité', desc:'Trois mandats accomplis.', check:c=> c.mandate.term>=3},
+];
+function checkAchievements(){
+  const p = playerState();
+  state.achievements = state.achievements || [];
+  ACHIEVEMENTS.forEach(a=>{
+    if(!state.achievements.includes(a.id) && a.check(p)){
+      state.achievements.push(a.id);
+      pushLog(`Distinction obtenue : « ${a.label} ».`, p);
+      toast(`🏅 Distinction débloquée : ${a.label}`);
+    }
+  });
+}
 function advanceTurn(){
   state.player.turn++;
   const p = playerState();
   simulateCountry(p, true, state.player.turn);
   Object.values(state.countries).forEach(c=>{ if(c.id!==p.id) simulateCountry(c,false,state.player.turn); });
   processContracts();
+  processWars();
+  checkAchievements();
   saveGame();
   render();
 }
@@ -955,6 +1010,30 @@ function statusPill(status){
   return `<span class="pill ${pair[0]}">${pair[1]}</span>`;
 }
 function activeContracts(){ return state.contracts.filter(ct=>ct.a===state.player.countryId||ct.b===state.player.countryId); }
+function headOfStateTitle(regime){
+  const map = {
+    'République':"Président(e)", 'Fédération':"Président(e) fédéral(e)",
+    'Monarchie':'Roi / Reine', 'Monarchie constitutionnelle':'Roi / Reine',
+    'Théocratie':'Guide suprême', 'Régime militaire':'Général en chef',
+  };
+  return map[regime] || "Chef d'État";
+}
+function activeWarsCount(id){
+  return Object.keys(state.relations).filter(k=> state.relations[k].status==='guerre' && k.split('|').includes(id)).length;
+}
+function computeAlerts(c){
+  const alerts = [];
+  const debtRatio = c.budget.debt/(c.gdp*1e9)*100;
+  if(c.economy.approval<30) alerts.push({level:'bad', msg:'Popularité critique : risque de troubles sociaux.'});
+  if(debtRatio>80) alerts.push({level:'bad', msg:'Dette publique alarmante ('+round1(debtRatio)+'% du PIB).'});
+  else if(debtRatio>40) alerts.push({level:'warn', msg:'Dette publique élevée ('+round1(debtRatio)+'% du PIB).'});
+  if(c.economy.unemployment>25) alerts.push({level:'bad', msg:'Chômage de masse ('+fmtPct(c.economy.unemployment)+').'});
+  if(c.police.crimeIndex>70) alerts.push({level:'bad', msg:'Criminalité hors de contrôle.'});
+  const wars = activeWarsCount(c.id);
+  if(wars>0) alerts.push({level:'bad', msg:`En guerre avec ${wars} pays.`});
+  if(c.economy.inflation>20) alerts.push({level:'warn', msg:'Inflation galopante ('+fmtPct(c.economy.inflation)+').'});
+  return alerts;
+}
 function tabGlyph(id){
   return {dashboard:'◆',economy:'$',resources:'⛏',diplomacy:'✦',social:'♥',security:'⛨',infra:'⌂',government:'⚖',editor:'✎'}[id]||'•';
 }
@@ -1074,9 +1153,14 @@ function renderDashboard(){
     {label:'Popularité', value: fmtPct(c.economy.approval), cls: c.economy.approval>=50?'pos':(c.economy.approval>=30?'warn':'neg')},
     {label:'Population', value: fmtNum(c.population), cls:''},
   ];
+  const alerts = computeAlerts(c);
+  const unlocked = (state.achievements||[]);
   return `
-  <h1>Tableau de bord — ${escapeHtml(c.name)}</h1>
+  <h1>Tableau de bord — ${headOfStateTitle(c.regime)} de ${escapeHtml(c.name)}</h1>
   <div class="subtitle">${escapeHtml(c.regime)} · Capitale : ${escapeHtml(cityById(c,c.capitalCityId).name)} · ${turnDateLabel(state.player.turn)} · Mandat n°${c.mandate.term}</div>
+  ${alerts.length ? `<div class="grid" style="grid-template-columns:1fr;gap:8px;margin-bottom:14px;">
+    ${alerts.map(a=>`<div class="editor-banner" style="background:${a.level==='bad'?'var(--seal-red-soft)':'var(--warn-soft)'};border-color:${a.level==='bad'?'var(--seal-red)':'var(--warn)'};color:${a.level==='bad'?'#ffcabf':'#f0c98a'};margin-bottom:0;">⚠ ${a.msg}</div>`).join('')}
+  </div>` : ''}
   <div class="grid kpis" style="margin-bottom:14px;">
     ${kpis.map(k=>`<div class="card kpi"><div class="label">${k.label}</div><div class="value num ${k.cls}">${k.value}</div></div>`).join('')}
   </div>
@@ -1090,6 +1174,12 @@ function renderDashboard(){
     <div class="card">
       <h3>Journal du gouvernement</h3>
       <div class="log">${renderLog(c)}</div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px;">
+    <h3>Distinctions (${unlocked.length}/${ACHIEVEMENTS.length})</h3>
+    <div class="grid kpis">
+      ${ACHIEVEMENTS.map(a=>`<div class="pill ${unlocked.includes(a.id)?'good':'neutral'}" style="justify-content:flex-start;padding:8px 12px;" title="${escapeHtml(a.desc)}">${unlocked.includes(a.id)?'🏅':'🔒'} ${escapeHtml(a.label)}</div>`).join('')}
     </div>
   </div>`;
 }
