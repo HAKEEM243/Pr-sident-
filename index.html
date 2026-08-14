@@ -715,6 +715,11 @@ function simulateCountry(c, isPlayer, turn){
       c.budget.treasury -= payoff;
     }
     c.budget.debt = Math.round(Math.max(0,(c.budget.debt||0)) * 1.0025);
+    c.resources.forEach(r=>{
+      if(!r.exploited || r.amount<=0) return;
+      r.amount = Math.max(0, r.amount - Math.max(1, Math.round(r.amount*0.004)));
+      if(r.amount<=0){ r.exploited = false; pushLog(`Le gisement de ${r.name} est épuisé.`, c); }
+    });
   }
   let gd = 0;
   gd += (c.budget.spending.infra-50)/450;
@@ -892,11 +897,28 @@ function diploAction(otherId, action){
   } else if(action==='guerre'){
     status='guerre'; score=clamp(score-45,0,100); playerState().economy.approval=clamp(playerState().economy.approval-4,0,100);
     msg = `Déclaration de guerre à ${oName} !`;
+    const cancelled = state.contracts.filter(ct=>(ct.a===player&&ct.b===otherId)||(ct.b===player&&ct.a===otherId));
+    if(cancelled.length){
+      state.contracts = state.contracts.filter(ct=>!cancelled.includes(ct));
+      msg += ` Les contrats commerciaux avec ${oName} sont rompus.`;
+    }
+    const conf = playerConfederation();
+    if(conf && conf.members.includes(otherId)){
+      conf.members = conf.members.filter(id=>id!==otherId);
+      getCountryQuiet(otherId).confederationId = null;
+      msg += ` ${oName} est exclu de la confédération « ${conf.name} ».`;
+      if(conf.members.length<2){
+        conf.members.forEach(id=>{ const c=getCountryQuiet(id); if(c) c.confederationId=null; });
+        state.confederations = state.confederations.filter(x=>x.id!==conf.id);
+        msg += ` La confédération est dissoute.`;
+      }
+    }
   } else if(action==='paix'){
     status='paix'; score=clamp(score+8,0,100); msg = `Retour à la paix avec ${oName}.`;
   }
   setRelation(player, otherId, {score, status});
   pushLog(msg);
+  checkAchievements();
   saveGame();
   refreshDiplomacyTable();
   refreshTicker();
@@ -932,6 +954,7 @@ function createConfederation(name, currency, partnerId){
   getCountryQuiet(partnerId).confederationId = conf.id;
   setRelation(state.player.countryId, partnerId, {status:'alliance', score: clamp(rel.score+10,0,100)});
   pushLog(`Fondation de la confédération « ${name} » avec ${countryName(partnerId)}. Monnaie commune : ${currency}.`);
+  checkAchievements();
   saveGame(); render();
 }
 function inviteToConfederation(countryId){
@@ -1138,18 +1161,23 @@ function setCapital(cityId){
   pushLog(`${cityById(c,cityId).name} devient la nouvelle capitale.`, c);
   saveGame(); render();
 }
+function recruitAmount(kind, c){
+  const current = kind==='police' ? c.police.officers : c.military.troops;
+  return Math.max(50, Math.round(current*0.05));
+}
 function recruit(kind){
   const c = playerState();
+  const amount = recruitAmount(kind, c);
   if(kind==='police'){
-    const cost = 8000*200;
-    if(c.budget.treasury<cost){ toast('Trésor insuffisant.'); return; }
-    c.budget.treasury -= cost; c.police.officers += 200;
-    pushLog('200 policiers supplémentaires recrutés.', c);
+    const cost = amount*8000;
+    if(c.budget.treasury<cost){ toast(`Trésor insuffisant (${fmtMoney(cost)} nécessaires).`); return; }
+    c.budget.treasury -= cost; c.police.officers += amount;
+    pushLog(`${fmtNum(amount)} policiers supplémentaires recrutés.`, c);
   } else {
-    const cost = 15000*300;
-    if(c.budget.treasury<cost){ toast('Trésor insuffisant.'); return; }
-    c.budget.treasury -= cost; c.military.troops += 300;
-    pushLog('300 soldats supplémentaires enrôlés.', c);
+    const cost = amount*15000;
+    if(c.budget.treasury<cost){ toast(`Trésor insuffisant (${fmtMoney(cost)} nécessaires).`); return; }
+    c.budget.treasury -= cost; c.military.troops += amount;
+    pushLog(`${fmtNum(amount)} soldats supplémentaires enrôlés.`, c);
   }
   saveGame(); render();
 }
@@ -1772,7 +1800,7 @@ function renderSecurity(){
       <div class="row" style="margin-top:8px;"><span class="rl">Indice de criminalité</span><span class="rv">${fmtPct(c.police.crimeIndex)}</span></div>
       <div class="bar bad"><i style="width:${c.police.crimeIndex}%"></i></div>
       <div class="btn-row">
-        <button class="btn sm" onclick="recruit('police')">Recruter 200 policiers</button>
+        <button class="btn sm" onclick="recruit('police')">Recruter ${fmtNum(recruitAmount('police',c))} policiers (${fmtMoney(recruitAmount('police',c)*8000)})</button>
         <button class="btn sm" onclick="modernize('police')">Moderniser l'équipement</button>
       </div>
     </div>
@@ -1782,7 +1810,7 @@ function renderSecurity(){
       <div class="row"><span class="rl">Niveau d'armement</span><span class="rv">${fmtPct(c.military.arms)}</span></div>
       <div class="bar"><i style="width:${c.military.arms}%"></i></div>
       <div class="btn-row">
-        <button class="btn sm" onclick="recruit('military')">Enrôler 300 soldats</button>
+        <button class="btn sm" onclick="recruit('military')">Enrôler ${fmtNum(recruitAmount('military',c))} soldats (${fmtMoney(recruitAmount('military',c)*15000)})</button>
         <button class="btn sm" onclick="modernize('military')">Moderniser l'arsenal</button>
       </div>
     </div>
