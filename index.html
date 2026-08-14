@@ -415,12 +415,12 @@ const DRC_RESOURCE_TYPES = ['cuivre','cobalt','diamant','or','coltan','bois','pe
 
 const REGIMES = ['République','Monarchie constitutionnelle','Monarchie','Fédération','Théocratie','Régime militaire'];
 const REGIME_EFFECTS = {
-  'République': { approvalSwing: 1, crimeBonus: 0, growthBonus: 0 },
-  'Monarchie constitutionnelle': { approvalSwing: 0.8, crimeBonus: -2, growthBonus: 0 },
-  'Monarchie': { approvalSwing: 0.7, crimeBonus: -3, growthBonus: 0, approvalCeiling: 90 },
-  'Fédération': { approvalSwing: 1, crimeBonus: 0, growthBonus: 0.1 },
-  'Théocratie': { approvalSwing: 0.85, crimeBonus: -5, growthBonus: 0 },
-  'Régime militaire': { approvalSwing: 0.6, crimeBonus: -8, growthBonus: 0, approvalCeiling: 70 },
+  'République': { approvalSwing: 1, crimeBonus: 0, growthBonus: 0, liberty: 74, religiosity: 42 },
+  'Monarchie constitutionnelle': { approvalSwing: 0.8, crimeBonus: -2, growthBonus: 0, liberty: 66, religiosity: 52 },
+  'Monarchie': { approvalSwing: 0.7, crimeBonus: -3, growthBonus: 0, approvalCeiling: 90, liberty: 48, religiosity: 62 },
+  'Fédération': { approvalSwing: 1, crimeBonus: 0, growthBonus: 0.1, liberty: 78, religiosity: 40 },
+  'Théocratie': { approvalSwing: 0.85, crimeBonus: -5, growthBonus: 0, liberty: 32, religiosity: 88 },
+  'Régime militaire': { approvalSwing: 0.6, crimeBonus: -8, growthBonus: 0, approvalCeiling: 70, liberty: 20, religiosity: 48 },
 };
 const REGIME_DESC = {
   'République': "Équilibré : ni bonus ni malus particulier.",
@@ -429,6 +429,88 @@ const REGIME_DESC = {
   'Fédération': "Régions autonomes : léger bonus de croissance économique.",
   'Théocratie': "Ordre moral : criminalité nettement réduite, popularité plus stable.",
   'Régime militaire': "Poigne de fer : criminalité très faible et grande stabilité, mais la popularité ne dépasse jamais 70 %.",
+};
+/* ---- Structure sociale de la population ----
+   La population n'est jamais un simple chiffre : elle est découpée en classes
+   sociales, en professions et en générations, et chaque groupe a ses propres
+   attentes. Une même décision peut donc satisfaire une partie du pays et en
+   mécontenter une autre. */
+const SOCIAL_CLASSES = [
+  {key:'tresPauvres', label:'Très pauvres'},
+  {key:'pauvres', label:'Pauvres'},
+  {key:'moyenne', label:'Classe moyenne'},
+  {key:'moyenneSup', label:'Classe moyenne supérieure'},
+  {key:'riches', label:'Riches'},
+  {key:'ultraRiches', label:'Ultra-riches'},
+];
+const PROFESSIONS = [
+  {key:'agriculteurs', label:'Agriculteurs', salaryMult:0.7, publicPay:false},
+  {key:'ouvriers', label:'Ouvriers', salaryMult:0.9, publicPay:false},
+  {key:'fonctionnaires', label:'Fonctionnaires', salaryMult:1.1, publicPay:true},
+  {key:'entrepreneurs', label:'Entrepreneurs', salaryMult:2.6, publicPay:false},
+  {key:'commercants', label:'Commerçants', salaryMult:1.2, publicPay:false},
+  {key:'enseignants', label:'Enseignants', salaryMult:1.15, publicPay:true},
+  {key:'medecins', label:'Médecins', salaryMult:2.4, publicPay:true},
+  {key:'ingenieurs', label:'Ingénieurs', salaryMult:2.0, publicPay:false},
+  {key:'militaires', label:'Militaires', salaryMult:1.05, publicPay:true},
+  {key:'etudiants', label:'Étudiants', salaryMult:0, publicPay:false},
+  {key:'retraites', label:'Retraités', salaryMult:0, publicPay:true},
+  {key:'chomeurs', label:'Chômeurs', salaryMult:0, publicPay:true},
+];
+const GENERATIONS = [
+  {key:'enfants', label:'Enfants (0-14 ans)'},
+  {key:'adolescents', label:'Adolescents (15-19 ans)'},
+  {key:'jeunesAdultes', label:'Jeunes adultes (20-34 ans)'},
+  {key:'adultes', label:'Adultes (35-64 ans)'},
+  {key:'seniors', label:'Seniors (65 ans et +)'},
+];
+/* Sujets « performance » : plus l'indicateur est haut, mieux c'est pour tout le monde. */
+const PERF_TOPICS = [
+  {key:'economie', label:'Économie'},
+  {key:'travail', label:'Travail & salaires'},
+  {key:'sante', label:'Santé'},
+  {key:'education', label:'Éducation'},
+  {key:'securite', label:'Sécurité'},
+  {key:'justice', label:'Justice'},
+  {key:'integrite', label:'Lutte anticorruption'},
+  {key:'diplomatie', label:'Diplomatie'},
+];
+/* Sujets « préférence » : chaque groupe a un niveau idéal, s'en écarter mécontente. */
+const PREF_TOPICS = [
+  {key:'impots', label:'Impôts'},
+  {key:'immigration', label:'Immigration'},
+  {key:'armee', label:'Armée'},
+  {key:'environnement', label:'Environnement'},
+  {key:'liberte', label:'Libertés'},
+  {key:'religion', label:'Place de la religion'},
+];
+const OPINION_TOPICS = PERF_TOPICS.concat(PREF_TOPICS);
+/* ideals : niveau souhaité (0-100) sur les sujets de préférence.
+   weights : importance accordée à un sujet (1 = normale). */
+const GROUP_PROFILES = {
+  tresPauvres:  {ideals:{impots:62,immigration:45,armee:25,environnement:45,liberte:60,religion:55}, weights:{travail:2.4,sante:2,economie:1.6,impots:0.5}},
+  pauvres:      {ideals:{impots:56,immigration:40,armee:30,environnement:45,liberte:62,religion:55}, weights:{travail:2.2,sante:1.8,economie:1.5,impots:0.7}},
+  moyenne:      {ideals:{impots:45,immigration:50,armee:45,environnement:55,liberte:70,religion:50}, weights:{economie:1.5,travail:1.5,education:1.4,securite:1.3}},
+  moyenneSup:   {ideals:{impots:34,immigration:55,armee:50,environnement:60,liberte:75,religion:45}, weights:{economie:1.6,impots:1.5,education:1.4}},
+  riches:       {ideals:{impots:20,immigration:60,armee:55,environnement:48,liberte:70,religion:40}, weights:{impots:2.4,economie:1.8,securite:1.4}},
+  ultraRiches:  {ideals:{impots:10,immigration:65,armee:58,environnement:38,liberte:66,religion:35}, weights:{impots:3,economie:1.8,integrite:0.5}},
+  agriculteurs: {ideals:{impots:30,immigration:38,armee:40,environnement:44,liberte:60,religion:65}, weights:{economie:1.6,travail:1.8,environnement:1.4}},
+  ouvriers:     {ideals:{impots:46,immigration:32,armee:40,environnement:48,liberte:64,religion:55}, weights:{travail:2.4,economie:1.6,sante:1.4}},
+  fonctionnaires:{ideals:{impots:60,immigration:55,armee:45,environnement:60,liberte:70,religion:45}, weights:{travail:1.8,integrite:1.6,justice:1.4}},
+  entrepreneurs:{ideals:{impots:15,immigration:65,armee:45,environnement:44,liberte:80,religion:40}, weights:{impots:2.6,economie:2,integrite:1.4}},
+  commercants:  {ideals:{impots:25,immigration:55,armee:40,environnement:45,liberte:75,religion:50}, weights:{impots:2,economie:1.8,securite:1.5}},
+  enseignants:  {ideals:{impots:60,immigration:70,armee:30,environnement:75,liberte:85,religion:35}, weights:{education:2.8,travail:1.6,liberte:1.5}},
+  medecins:     {ideals:{impots:55,immigration:65,armee:35,environnement:70,liberte:80,religion:40}, weights:{sante:2.8,travail:1.5,education:1.3}},
+  ingenieurs:   {ideals:{impots:40,immigration:65,armee:50,environnement:70,liberte:75,religion:35}, weights:{economie:1.8,education:1.6,travail:1.5}},
+  militaires:   {ideals:{impots:46,immigration:30,armee:85,environnement:40,liberte:45,religion:55}, weights:{armee:3,securite:2,travail:1.5}},
+  etudiants:    {ideals:{impots:55,immigration:75,armee:25,environnement:85,liberte:90,religion:25}, weights:{education:2.8,liberte:2,environnement:1.8}},
+  retraites:    {ideals:{impots:50,immigration:28,armee:50,environnement:50,liberte:55,religion:70}, weights:{sante:2.8,securite:1.8,travail:0.5}},
+  chomeurs:     {ideals:{impots:60,immigration:40,armee:25,environnement:50,liberte:65,religion:55}, weights:{travail:3,economie:1.8,sante:1.5}},
+  enfants:      {ideals:{}, weights:{}},
+  adolescents:  {ideals:{impots:55,immigration:75,armee:25,environnement:90,liberte:90,religion:25}, weights:{education:2.5,liberte:1.8,environnement:2}},
+  jeunesAdultes:{ideals:{impots:50,immigration:70,armee:30,environnement:80,liberte:85,religion:30}, weights:{travail:2.2,education:1.6,liberte:1.6}},
+  adultes:      {ideals:{impots:40,immigration:45,armee:50,environnement:55,liberte:70,religion:50}, weights:{economie:1.8,travail:1.8,securite:1.4}},
+  seniors:      {ideals:{impots:45,immigration:25,armee:55,environnement:45,liberte:55,religion:70}, weights:{sante:2.8,securite:2,justice:1.4}},
 };
 const IMMIGRATION_POLICIES = [
   {id:'ouverte', label:'Frontières ouvertes'},
@@ -466,6 +548,7 @@ const DIPLO_ACTIONS = [
 const TABS = [
   {id:'dashboard', label:'Tableau de bord'},
   {id:'map', label:'Carte du monde'},
+  {id:'population', label:'Population'},
   {id:'economy', label:'Économie'},
   {id:'resources', label:'Ressources'},
   {id:'diplomacy', label:'Diplomatie'},
@@ -546,6 +629,179 @@ function generateCompanies(base, rng){
   });
 }
 const POP_MILESTONES = [1e6,5e6,10e6,25e6,50e6,100e6,250e6,500e6,1e9,1.5e9,2e9];
+
+/* ============================================================
+   POPULATION — classes, professions, générations, opinions
+   ============================================================ */
+function normalizePct(obj){
+  const total = Object.values(obj).reduce((a,b)=>a+(isFinite(b)?b:0),0);
+  if(!(total>0)){ const keys=Object.keys(obj); keys.forEach(k=> obj[k]=round1(100/keys.length)); return obj; }
+  Object.keys(obj).forEach(k=> obj[k] = round1(Math.max(0,obj[k])/total*100));
+  return obj;
+}
+function deriveDemographics(gdpPerCapita, rng){
+  const dev = clamp(gdpPerCapita/40000, 0, 1);
+  const classes = normalizePct({
+    tresPauvres: clamp(34 - dev*30 + rand(rng,-3,3), 0.5, 45),
+    pauvres:     clamp(30 - dev*16 + rand(rng,-3,3), 4, 40),
+    moyenne:     clamp(20 + dev*22 + rand(rng,-3,3), 8, 48),
+    moyenneSup:  clamp(9  + dev*15 + rand(rng,-2,2), 3, 30),
+    riches:      clamp(5  + dev*7  + rand(rng,-1,1.5), 1, 15),
+    ultraRiches: clamp(0.6+ dev*1.2+ rand(rng,-0.3,0.4), 0.1, 3),
+  });
+  const professions = normalizePct({
+    agriculteurs:  clamp(30 - dev*26 + rand(rng,-3,3), 1, 42),
+    ouvriers:      clamp(18 + dev*2  + rand(rng,-3,3), 5, 30),
+    fonctionnaires:clamp(5  + dev*6  + rand(rng,-1,2), 2, 16),
+    entrepreneurs: clamp(2  + dev*4  + rand(rng,-0.5,1), 1, 9),
+    commercants:   clamp(8  + dev*3  + rand(rng,-2,2), 3, 16),
+    enseignants:   clamp(2.5+ dev*2.5+ rand(rng,-0.5,1), 1, 8),
+    medecins:      clamp(0.6+ dev*2  + rand(rng,-0.2,0.5), 0.2, 4),
+    ingenieurs:    clamp(1  + dev*4  + rand(rng,-0.4,1), 0.4, 8),
+    militaires:    clamp(1  + dev*1  + rand(rng,-0.3,0.8), 0.3, 5),
+    etudiants:     clamp(12 + dev*4  + rand(rng,-2,2), 5, 24),
+    retraites:     clamp(4  + dev*14 + rand(rng,-1,2), 2, 26),
+    chomeurs:      clamp(9  - dev*3  + rand(rng,-2,3), 2, 30),
+  });
+  const generations = normalizePct({
+    enfants:       clamp(38 - dev*22 + rand(rng,-2,2), 12, 46),
+    adolescents:   clamp(11 - dev*3  + rand(rng,-1,1), 5, 15),
+    jeunesAdultes: clamp(24 - dev*3  + rand(rng,-2,2), 14, 30),
+    adultes:       clamp(23 + dev*13 + rand(rng,-2,2), 15, 44),
+    seniors:       clamp(4  + dev*15 + rand(rng,-1,2), 2, 28),
+  });
+  return { classes, professions, generations };
+}
+function deriveSalaries(gdpPerCapita){
+  const base = Math.max(40, Math.round(gdpPerCapita/12*0.62));
+  const byProfession = {};
+  PROFESSIONS.forEach(p=>{ byProfession[p.key] = p.salaryMult>0 ? Math.max(1, Math.round(base*p.salaryMult)) : 0; });
+  return { minWage: Math.max(20, Math.round(base*0.55)), byProfession };
+}
+function costOfLiving(c){ return Math.max(20, Math.round((c.gdp*1e9/Math.max(1,c.population))/12*0.5)); }
+/* Rapport entre les salaires décidés par le joueur et le salaire « naturel »
+   du pays. >1 = le joueur paie mieux que ce que l'économie porte naturellement. */
+function salaryPressure(c){
+  if(!c.salaries || !c.salaries.byProfession) return 1;
+  const nat = deriveSalaries(c.gdp*1e9/Math.max(1,c.population));
+  let cur=0, ref=0;
+  PROFESSIONS.forEach(p=>{
+    if(p.salaryMult<=0) return;
+    const w = (c.demographics && c.demographics.professions[p.key]) || 1;
+    cur += (c.salaries.byProfession[p.key]||0)*w;
+    ref += (nat.byProfession[p.key]||0)*w;
+  });
+  return ref>0 ? clamp(cur/ref, 0.2, 6) : 1;
+}
+/* Masse salariale publique mensuelle (indicative, affichée au joueur). */
+function publicPayroll(c){
+  if(!c.demographics || !c.salaries) return 0;
+  let total = 0;
+  PROFESSIONS.forEach(p=>{
+    if(!p.publicPay) return;
+    const count = c.population*((c.demographics.professions[p.key]||0)/100);
+    if(p.key==='retraites') total += count*(c.salaries.minWage*((c.social.pensionLevel||40)/100));
+    else if(p.key==='chomeurs') total += count*(c.salaries.minWage*((c.social.unemploymentBenefit||30)/100));
+    else total += count*(c.salaries.byProfession[p.key]||0);
+  });
+  return Math.max(0, total);
+}
+function nationalIndicators(c){
+  const sp = salaryPressure(c);
+  const purchasing = clamp(50 + (sp-1)*70, 0, 100);
+  const avgTax = ((c.budget.taxIncome||0)+(c.budget.taxCorporate||0))/2;
+  let openness = c.social.immigration==='ouverte' ? 80 : (c.social.immigration==='quotas' ? 50 : 15);
+  openness += (c.social.refugeePolicy==='accueil' ? 8 : -4);
+  const exploited = c.resources ? c.resources.filter(r=>r.exploited).length : 0;
+  return {
+    perf: {
+      economie:   clamp(50 + c.economy.growth*5 - Math.max(0,c.economy.inflation-4)*1.6, 0, 100),
+      travail:    clamp(purchasing*0.6 + (100 - c.economy.unemployment*2.4)*0.4, 0, 100),
+      sante:      clamp(c.social.healthIndex, 0, 100),
+      education:  clamp(c.social.educationIndex, 0, 100),
+      securite:   clamp(100 - c.police.crimeIndex, 0, 100),
+      justice:    clamp(c.police.justiceIndex!=null ? c.police.justiceIndex : 50, 0, 100),
+      integrite:  clamp(100 - (c.social.corruption!=null ? c.social.corruption : 40), 0, 100),
+      diplomatie: clamp(avgRelationScore(c.id), 0, 100),
+    },
+    pref: {
+      impots:        clamp(avgTax*2, 0, 100),
+      immigration:   clamp(openness, 0, 100),
+      armee:         clamp(c.budget.spending.defense, 0, 100),
+      environnement: clamp(60 - exploited*6 + (c.budget.spending.infra-50)*0.2, 0, 100),
+      liberte:       clamp(c.social.liberty!=null ? c.social.liberty : 60, 0, 100),
+      religion:      clamp(c.social.religiosity!=null ? c.social.religiosity : 45, 0, 100),
+    },
+  };
+}
+function groupTopicScore(groupKey, ind, topicKey){
+  const prof = GROUP_PROFILES[groupKey] || {ideals:{}, weights:{}};
+  if(ind.perf[topicKey]!=null) return clamp(ind.perf[topicKey], 0, 100);
+  const ideal = (prof.ideals && prof.ideals[topicKey]!=null) ? prof.ideals[topicKey] : 50;
+  return clamp(100 - Math.abs((ind.pref[topicKey]||0) - ideal)*1.5, 0, 100);
+}
+function groupSatisfaction(groupKey, ind){
+  const prof = GROUP_PROFILES[groupKey] || {ideals:{}, weights:{}};
+  let sum=0, wsum=0;
+  OPINION_TOPICS.forEach(t=>{
+    const w = (prof.weights && prof.weights[t.key]!=null) ? prof.weights[t.key] : 1;
+    if(w<=0) return;
+    sum += groupTopicScore(groupKey, ind, t.key)*w;
+    wsum += w;
+  });
+  return wsum>0 ? clamp(sum/wsum, 0, 100) : 50;
+}
+/* Popularité nationale déduite des opinions réelles de chaque groupe,
+   pondérée par son poids démographique (classes et professions). */
+function opinionApproval(c){
+  const d = c.demographics;
+  if(!d) return null;
+  const ind = nationalIndicators(c);
+  let cs=0, cw=0, ps=0, pw=0;
+  SOCIAL_CLASSES.forEach(g=>{ const w=d.classes[g.key]||0; cs += groupSatisfaction(g.key, ind)*w; cw += w; });
+  PROFESSIONS.forEach(g=>{ const w=d.professions[g.key]||0; ps += groupSatisfaction(g.key, ind)*w; pw += w; });
+  const cls = cw>0 ? cs/cw : 50;
+  const pro = pw>0 ? ps/pw : 50;
+  const v = (cls+pro)/2;
+  return isFinite(v) ? clamp(v, 0, 100) : null;
+}
+/* Le chômage officiel et la part de chômeurs dans la population restent cohérents. */
+/* L'ascenseur social : de bons salaires et une économie saine font monter les
+   ménages d'une classe à l'autre ; la stagnation et l'inflation les font descendre. */
+function driftClasses(c, salPressure){
+  const d = c.demographics;
+  if(!d || !d.classes) return;
+  const up = clamp((salPressure-1)*0.5 + c.economy.growth*0.04 - Math.max(0,c.economy.inflation-6)*0.02, -0.35, 0.35);
+  if(!isFinite(up) || Math.abs(up) < 0.005) return;
+  const order = ['tresPauvres','pauvres','moyenne','moyenneSup','riches','ultraRiches'];
+  for(let i=0;i<order.length-1;i++){
+    const from = up>0 ? order[i] : order[i+1];
+    const to   = up>0 ? order[i+1] : order[i];
+    const move = (d.classes[from]||0)*Math.abs(up)*0.06;
+    if(!(move>0) || !isFinite(move)) continue;
+    d.classes[from] = Math.max(0, d.classes[from]-move);
+    d.classes[to] = Math.max(0, (d.classes[to]||0)+move);
+  }
+  normalizePct(d.classes);
+}
+function syncProfessions(c){
+  const d = c.demographics;
+  if(!d || !d.professions) return;
+  const kids = d.generations ? (d.generations.enfants||0) : 25;
+  const workingShare = clamp((100 - kids)/100, 0.3, 0.9);
+  const target = clamp(c.economy.unemployment*workingShare, 0.5, 40);
+  const prev = d.professions.chomeurs||0;
+  const delta = target - prev;
+  if(!isFinite(delta) || Math.abs(delta) < 0.01) return;
+  const movable = PROFESSIONS.filter(p=>['chomeurs','retraites','etudiants'].indexOf(p.key)<0).map(p=>p.key);
+  const movableTotal = movable.reduce((a,k)=>a+(d.professions[k]||0),0);
+  if(!(movableTotal>0)) return;
+  d.professions.chomeurs = round1(target);
+  movable.forEach(k=>{
+    d.professions[k] = round1(clamp(d.professions[k] - delta*((d.professions[k]||0)/movableTotal), 0.1, 100));
+  });
+  normalizePct(d.professions);
+}
 function deriveCountry(id){
   const base = COUNTRY_INDEX[id];
   const rng = rngFor(id);
@@ -592,7 +848,10 @@ function deriveCountry(id){
       officers: Math.round(base.pop*rand(rng,.001,.004)), equipment: randInt(rng,15,70), crimeIndex: round1(rand(rng,10,60)),
       prisonCapacity: Math.round(base.pop*rand(rng,.0005,.0015)),
       inmates: Math.round(base.pop*rand(rng,.0005,.0015)*rand(rng,.5,.95)),
+      justiceIndex: round1(clamp(25 + gdpPerCapita/900 + rand(rng,-10,10), 5, 95)),
     },
+    demographics: deriveDemographics(gdpPerCapita, rng),
+    salaries: deriveSalaries(gdpPerCapita),
     social: {
       immigration: pick(rng,['ouverte','quotas','fermee']), visaQuota: randInt(rng,5,80)*1000,
       pensionLevel: randInt(rng,30,65), unemploymentBenefit: randInt(rng,20,60),
@@ -605,6 +864,9 @@ function deriveCountry(id){
       ageElderly: round1(clamp(3 + gdpPerCapita/2500, 3, 25)),
       lifeExpectancy: round1(clamp(50 + (initialHealthIndex-50)/2, 40, 90)),
       popMilestoneIdx: POP_MILESTONES.filter(m=>m<=base.pop).length,
+      corruption: round1(clamp(72 - gdpPerCapita/700 + rand(rng,-10,10), 3, 95)),
+      liberty: round1(clamp(35 + gdpPerCapita/900 + rand(rng,-12,12), 5, 95)),
+      religiosity: round1(clamp(75 - gdpPerCapita/900 + rand(rng,-15,15), 5, 95)),
     },
     sport: {
       disciplines: { football: randInt(rng,15,55), athletisme: randInt(rng,15,55), basketball: randInt(rng,15,55), natation: randInt(rng,15,55) },
@@ -668,6 +930,18 @@ function loadGame(){
       if(c.social.popMilestoneIdx==null) c.social.popMilestoneIdx = POP_MILESTONES.filter(m=>m<=c.population).length;
       if(c.police.prisonCapacity==null) c.police.prisonCapacity = Math.round(c.population*0.001);
       if(c.police.inmates==null) c.police.inmates = Math.round(c.police.prisonCapacity*0.7);
+      const gpc = c.gdp*1e9/Math.max(1,c.population);
+      if(c.police.justiceIndex==null) c.police.justiceIndex = round1(clamp(25+gpc/900,5,95));
+      if(c.social.corruption==null) c.social.corruption = round1(clamp(72-gpc/700,3,95));
+      if(c.social.liberty==null) c.social.liberty = round1(clamp(35+gpc/900,5,95));
+      if(c.social.religiosity==null) c.social.religiosity = round1(clamp(75-gpc/900,5,95));
+      if(!c.demographics) c.demographics = deriveDemographics(gpc, rngFor(c.id+'-demo'));
+      SOCIAL_CLASSES.forEach(g=>{ if(c.demographics.classes[g.key]==null) c.demographics.classes[g.key]=0; });
+      PROFESSIONS.forEach(g=>{ if(c.demographics.professions[g.key]==null) c.demographics.professions[g.key]=0; });
+      GENERATIONS.forEach(g=>{ if(c.demographics.generations[g.key]==null) c.demographics.generations[g.key]=0; });
+      if(!c.salaries || !c.salaries.byProfession) c.salaries = deriveSalaries(gpc);
+      PROFESSIONS.forEach(p=>{ if(c.salaries.byProfession[p.key]==null) c.salaries.byProfession[p.key] = p.salaryMult>0 ? Math.max(1,Math.round(gpc/12*0.62*p.salaryMult)) : 0; });
+      if(c.salaries.minWage==null) c.salaries.minWage = Math.max(20, Math.round(gpc/12*0.34));
     });
     if(!state.confederations.some(cf=>cf.preset)){
       PRESET_CONFEDERATIONS.forEach(preset=>{
@@ -788,7 +1062,8 @@ function simulateCountry(c, isPlayer, turn){
   const revenue = c.gdp*1e9/12*0.26*(avgTax/50);
   const sectors=['sante','education','defense','police','social','infra'];
   const avgSpend = sectors.reduce((a,s)=>a+c.budget.spending[s],0)/sectors.length;
-  const spending = c.gdp*1e9/12*0.26*(avgSpend/50);
+  const salPressure = isPlayer ? salaryPressure(c) : 1;
+  const spending = c.gdp*1e9/12*0.26*(avgSpend/50) * (1 + (salPressure-1)*0.45);
   const resourceIncome = c.resources.reduce((a,r)=> a + (r.exploited ? r.amount*r.price*0.02 : 0), 0);
   const companyIncome = c.companies.reduce((a,co)=> a + (co.ownership==='public' ? co.value*0.02 : 0), 0);
   const infraMaint = totalInfraCount(c) * 400000;
@@ -830,9 +1105,9 @@ function simulateCountry(c, isPlayer, turn){
   gd += rand(rng,-1,1)*0.35;
   c.economy.growth = round1(clamp(c.economy.growth*0.85 + gd, -9, 13));
   c.gdp = Math.max(0.05, c.gdp * (1 + c.economy.growth/100/12));
-  let ud = -c.economy.growth*0.06 - (c.budget.spending.social-50)/60 + rand(rng,-.4,.4);
+  let ud = -c.economy.growth*0.06 - (c.budget.spending.social-50)/60 + rand(rng,-.4,.4) + (salPressure-1)*0.6;
   c.economy.unemployment = round1(clamp(c.economy.unemployment+ud, 1, 45));
-  let idl = rand(rng,-.35,.35) + (c.budget.debt > c.gdp*1e9*0.6 ? 0.35 : 0);
+  let idl = rand(rng,-.35,.35) + (c.budget.debt > c.gdp*1e9*0.6 ? 0.35 : 0) + (salPressure-1)*0.25;
   c.economy.inflation = round1(clamp(c.economy.inflation+idl, -2, 70));
   let cd = -(c.budget.spending.police-50)*0.025 + (c.economy.unemployment-10)*0.045 + rand(rng,-.6,.6) + (regimeFx.crimeBonus||0)*0.03 + cabFx.crime;
   c.police.crimeIndex = round1(clamp(c.police.crimeIndex+cd, 0, 100));
@@ -843,6 +1118,15 @@ function simulateCountry(c, isPlayer, turn){
   }
   c.social.healthIndex = round1(clamp(c.social.healthIndex + ((c.budget.spending.sante-50)/40) + cabFx.health + rand(rng,-.3,.3), 0, 100));
   c.social.educationIndex = round1(clamp(c.social.educationIndex + ((c.budget.spending.education-50)/40) + cabFx.education + rand(rng,-.3,.3), 0, 100));
+  /* Justice, corruption, libertés : indicateurs vivants, pas décoratifs. */
+  const jd = (c.budget.spending.police-50)/70 + (c.social.educationIndex-50)/300 - (c.social.corruption!=null?(c.social.corruption-50):0)/220 + rand(rng,-.25,.25);
+  c.police.justiceIndex = round1(clamp((c.police.justiceIndex!=null?c.police.justiceIndex:50) + jd, 0, 100));
+  const corrD = -(c.police.justiceIndex-50)/240 - (c.social.educationIndex-50)/400 - (salPressure-1)*0.35 + rand(rng,-.22,.22);
+  c.social.corruption = round1(clamp((c.social.corruption!=null?c.social.corruption:40) + corrD, 0, 100));
+  const libTarget = regimeFx.liberty!=null ? regimeFx.liberty : 65;
+  const relTarget = regimeFx.religiosity!=null ? regimeFx.religiosity : 45;
+  c.social.liberty = round1(clamp((c.social.liberty!=null?c.social.liberty:60) + clamp(libTarget-(c.social.liberty!=null?c.social.liberty:60), -2, 2)*0.25, 0, 100));
+  c.social.religiosity = round1(clamp((c.social.religiosity!=null?c.social.religiosity:45) + clamp(relTarget-(c.social.religiosity!=null?c.social.religiosity:45), -2, 2)*0.15, 0, 100));
   let ad = 0;
   ad -= (c.economy.unemployment-10)*0.13;
   ad -= Math.max(0,c.economy.inflation-5)*0.09;
@@ -853,6 +1137,11 @@ function simulateCountry(c, isPlayer, turn){
   ad += (c.budget.debt < c.gdp*1e9*0.4 ? 0.25 : -0.4);
   if((c.social.ageElderly||0)>15 && c.social.pensionLevel<40) ad -= ((c.social.ageElderly||0)-15)*0.03;
   ad += cabFx.approval;
+  /* La popularité converge vers l'opinion réelle des groupes sociaux. */
+  if(isPlayer && c.demographics){
+    const target = opinionApproval(c);
+    if(target!=null && isFinite(target)) ad += (target - c.economy.approval)*0.18;
+  }
   ad += rand(rng,-1.3,1.3);
   ad *= regimeFx.approvalSwing!=null ? regimeFx.approvalSwing : 1;
   c.economy.approval = round1(clamp(c.economy.approval+ad, 0, regimeFx.approvalCeiling!=null ? regimeFx.approvalCeiling : 100));
@@ -887,6 +1176,16 @@ function simulateCountry(c, isPlayer, turn){
   c.social.ageYoung = round1(clamp((c.social.ageYoung!=null?c.social.ageYoung:25) + (c.social.birthRate-20)/2500, 10, 48));
   c.social.ageElderly = round1(clamp((c.social.ageElderly!=null?c.social.ageElderly:12) + (18-c.social.mortalityRate)/3500, 3, 30));
   c.social.lifeExpectancy = round1(clamp(50 + (c.social.healthIndex-50)/2 - (c.social.mortalityRate-10)*0.6, 40, 92));
+  if(c.demographics){
+    syncProfessions(c);
+    driftClasses(c, salPressure);
+    const g = c.demographics.generations;
+    if(g){
+      g.enfants = clamp((g.enfants||0) + (c.social.birthRate-20)/900, 5, 55);
+      g.seniors = clamp((g.seniors||0) + (c.social.lifeExpectancy-65)/1400, 1, 35);
+      normalizePct(g);
+    }
+  }
   if(isPlayer){
     if(c.social.popMilestoneIdx==null) c.social.popMilestoneIdx = POP_MILESTONES.filter(m=>m<=c.population).length;
     while(c.social.popMilestoneIdx < POP_MILESTONES.length && c.population >= POP_MILESTONES[c.social.popMilestoneIdx]){
@@ -1261,6 +1560,27 @@ function generateWorldNews(){
    ============================================================ */
 function setTax(field, value){ playerState().budget[field] = Math.max(0,Math.round(value)||0); saveGame(); render(); }
 function setSpending(field, value){ playerState().budget.spending[field] = Math.max(0,Math.round(value)||0); saveGame(); render(); }
+function setSalary(profKey, value){
+  const c = playerState();
+  if(!c.salaries || !c.salaries.byProfession) return;
+  c.salaries.byProfession[profKey] = Math.max(0, Math.round(value)||0);
+  saveGame(); render();
+}
+function setMinWage(value){
+  const c = playerState();
+  if(!c.salaries) return;
+  c.salaries.minWage = Math.max(0, Math.round(value)||0);
+  saveGame(); render();
+}
+function alignSalariesToMinWage(){
+  const c = playerState();
+  if(!c.salaries || !c.salaries.byProfession) return;
+  PROFESSIONS.forEach(p=>{
+    if(p.salaryMult>0) c.salaries.byProfession[p.key] = Math.max(c.salaries.minWage, Math.round(c.salaries.minWage*p.salaryMult/0.55));
+  });
+  saveGame(); render();
+  toast('Grille salariale réalignée sur le salaire minimum.');
+}
 function toggleExploit(resId){
   const r = playerState().resources.find(x=>x.id===resId);
   r.exploited = !r.exploited; saveGame(); render();
@@ -1491,7 +1811,7 @@ function computeAlerts(c){
   return alerts;
 }
 function tabGlyph(id){
-  return {dashboard:'◆',map:'⊚',economy:'$',resources:'⛏',diplomacy:'✦',confederations:'☍',social:'♥',sport:'⚑',security:'⛨',infra:'⌂',government:'⚖',editor:'✎'}[id]||'•';
+  return {dashboard:'◆',map:'⊚',population:'☗',economy:'$',resources:'⛏',diplomacy:'✦',confederations:'☍',social:'♥',sport:'⚑',security:'⛨',infra:'⌂',government:'⚖',editor:'✎'}[id]||'•';
 }
 
 /* ============================================================
@@ -1620,6 +1940,7 @@ function renderTab(){
   switch(state.activeTab){
     case 'dashboard': return renderDashboard();
     case 'map': return renderMap();
+    case 'population': return renderPopulation();
     case 'economy': return renderEconomy();
     case 'resources': return renderResources();
     case 'diplomacy': return renderDiplomacy();
@@ -1910,6 +2231,123 @@ function renderEconomy(){
         <div class="row"><span class="rl">${escapeHtml(countryName(ct.a===c.id?ct.b:ct.a))}</span><span class="rv num pos">+${fmtMoney(ct.income)}/mois · ${ct.turnsLeft} mois</span></div>
       `).join('') : '<div class="empty">Aucun contrat actif. Proposez un accord commercial depuis l’onglet Diplomatie.</div>'}
     </div>
+  </div>`;
+}
+
+/* ---- Population ---- */
+function satisfPill(v){
+  return `<span class="pill ${v>=60?'good':(v>=45?'warn':'bad')}">${Math.round(v)}/100</span>`;
+}
+function popGroupRows(groups, dist, ind, total, withSatisfaction){
+  return groups.map(g=>{
+    const pct = dist[g.key]||0;
+    const heads = Math.round(total*pct/100);
+    const sat = withSatisfaction ? groupSatisfaction(g.key, ind) : null;
+    return `<div class="row" style="align-items:flex-start;">
+      <span class="rl">${escapeHtml(g.label)}<br><span style="font-size:11px;color:var(--muted-2);">${fmtNum(heads)} personnes</span>
+        <span class="bar" style="margin-top:5px;"><i style="width:${clamp(pct,0,100)}%"></i></span>
+      </span>
+      <span style="text-align:right;white-space:nowrap;">
+        <span class="rv num" style="display:block;">${round1(pct)} %</span>
+        ${sat!=null ? `<span style="display:block;margin-top:5px;">${satisfPill(sat)}</span>` : ''}
+      </span>
+    </div>`;
+  }).join('');
+}
+function renderPopulation(){
+  const c = playerState();
+  const d = c.demographics;
+  if(!d) return `<h1>Population</h1><div class="empty">Données démographiques indisponibles pour ce pays.</div>`;
+  const ind = nationalIndicators(c);
+  const poverty = round1((d.classes.tresPauvres||0)+(d.classes.pauvres||0));
+  const overall = opinionApproval(c);
+  const col = costOfLiving(c);
+  const payroll = publicPayroll(c);
+  const sp = salaryPressure(c);
+  const allGroups = SOCIAL_CLASSES.concat(PROFESSIONS).concat(GENERATIONS.filter(g=>g.key!=='enfants'));
+  const groupSats = allGroups.map(g=>({label:g.label, sat:groupSatisfaction(g.key, ind)})).sort((a,b)=>b.sat-a.sat);
+  const happiest = groupSats.slice(0,3), angriest = groupSats.slice(-3).reverse();
+  return `
+  <h1>Population</h1>
+  <div class="subtitle">${fmtNum(c.population)} habitants — répartis en classes sociales, professions et générations, chacune avec ses propres attentes.</div>
+  <div class="grid cols2">
+    <div class="card">
+      <h3>Vue d'ensemble</h3>
+      <div class="row"><span class="rl">Population totale</span><span class="rv num">${fmtNum(c.population)}</span></div>
+      <div class="row"><span class="rl">Taux de pauvreté</span><span class="rv num ${poverty>45?'neg':(poverty>25?'':'pos')}">${poverty} %</span></div>
+      <div class="row"><span class="rl">Satisfaction générale</span><span class="rv">${overall!=null?satisfPill(overall):'—'}</span></div>
+      <div class="row"><span class="rl">Espérance de vie</span><span class="rv num">${c.social.lifeExpectancy} ans</span></div>
+      <div class="row"><span class="rl">Coût de la vie estimé</span><span class="rv num">${fmtMoney(col)}/mois</span></div>
+      <p class="hint" style="margin-top:8px;">Une décision qui plaît à un groupe peut en mécontenter un autre : surveillez les deux colonnes ci-dessous.</p>
+    </div>
+    <div class="card">
+      <h3>Qui vous soutient, qui vous en veut</h3>
+      <div class="row"><span class="rl" style="color:var(--parchment)">Groupes les plus satisfaits</span><span></span></div>
+      ${happiest.map(g=>`<div class="row"><span class="rl">${escapeHtml(g.label)}</span><span class="rv">${satisfPill(g.sat)}</span></div>`).join('')}
+      <div class="row" style="margin-top:10px;"><span class="rl" style="color:var(--parchment)">Groupes les plus mécontents</span><span></span></div>
+      ${angriest.map(g=>`<div class="row"><span class="rl">${escapeHtml(g.label)}</span><span class="rv">${satisfPill(g.sat)}</span></div>`).join('')}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h3>Salaire brut mensuel par métier</h3>
+    <p class="hint" style="margin-top:-4px;">Aucun plafond : fixez librement le salaire brut de chaque profession. Payer davantage améliore le pouvoir d'achat et la satisfaction, mais alourdit la dépense publique, pousse l'inflation et le chômage.</p>
+    <div class="grid cols2" style="margin-top:6px;">
+      ${numberField('Salaire minimum national', c.salaries.minWage, 'setMinWage(this.value)', '$ brut/mois')}
+      <div class="field"><label>Grille salariale</label>
+        <div class="slider-row"><button class="btn sm" onclick="alignSalariesToMinWage()">Réaligner sur le salaire minimum</button></div>
+      </div>
+    </div>
+    <div class="row"><span class="rl">Niveau des salaires vs. économie du pays</span><span class="rv"><span class="pill ${sp>1.35?'bad':(sp>1.1?'warn':(sp<0.75?'warn':'good'))}">×${round1(sp)}</span></span></div>
+    <div class="row"><span class="rl">Masse salariale publique estimée</span><span class="rv num">${fmtMoney(payroll)}/mois</span></div>
+    <div class="grid cols2" style="margin-top:10px;">
+      ${PROFESSIONS.filter(p=>p.salaryMult>0).map(p=>numberField(p.label, c.salaries.byProfession[p.key]||0, `setSalary('${p.key}',this.value)`, '$ brut/mois')).join('')}
+    </div>
+    <p class="hint">Retraités et chômeurs sont rémunérés via le niveau des pensions et des allocations (onglet Social), calculés sur le salaire minimum.</p>
+  </div>
+
+  <div class="grid cols2" style="margin-top:14px;">
+    <div class="card">
+      <h3>Classes sociales</h3>
+      ${popGroupRows(SOCIAL_CLASSES, d.classes, ind, c.population, true)}
+    </div>
+    <div class="card">
+      <h3>Générations</h3>
+      ${popGroupRows(GENERATIONS, d.generations, ind, c.population, false)}
+      <p class="hint" style="margin-top:8px;">Les enfants ne sont pas comptés dans l'opinion politique.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h3>Professions</h3>
+    <div class="grid cols2">
+      ${popGroupRows(PROFESSIONS, d.professions, ind, c.population, true)}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h3>Opinion du pays par sujet</h3>
+    <p class="hint" style="margin-top:-4px;">Note moyenne du pays sur chaque sujet, pondérée par le poids de chaque groupe.</p>
+    <div class="grid cols2">
+      ${OPINION_TOPICS.map(t=>{
+        let sum=0, w=0;
+        SOCIAL_CLASSES.forEach(g=>{ const gw=d.classes[g.key]||0; sum += groupTopicScore(g.key, ind, t.key)*gw; w+=gw; });
+        PROFESSIONS.forEach(g=>{ const gw=d.professions[g.key]||0; sum += groupTopicScore(g.key, ind, t.key)*gw; w+=gw; });
+        const v = w>0 ? sum/w : 50;
+        return `<div class="row"><span class="rl">${escapeHtml(t.label)}<span class="bar" style="margin-top:5px;"><i style="width:${clamp(v,0,100)}%"></i></span></span><span class="rv">${satisfPill(v)}</span></div>`;
+      }).join('')}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h3>Institutions &amp; société</h3>
+    <div class="grid cols2">
+      <div class="row"><span class="rl">Corruption <span style="font-size:11px;color:var(--muted-2);">(bas = mieux)</span></span><span class="rv"><span class="pill ${c.social.corruption<30?'good':(c.social.corruption<60?'warn':'bad')}">${c.social.corruption}/100</span></span></div>
+      <div class="row"><span class="rl">Indépendance de la justice</span><span class="rv"><span class="pill ${c.police.justiceIndex>=60?'good':(c.police.justiceIndex>=40?'warn':'bad')}">${c.police.justiceIndex}/100</span></span></div>
+      <div class="row"><span class="rl">Libertés publiques</span><span class="rv"><span class="pill ${c.social.liberty>=60?'good':(c.social.liberty>=35?'warn':'bad')}">${c.social.liberty}/100</span></span></div>
+      <div class="row"><span class="rl">Place de la religion</span><span class="rv num">${c.social.religiosity}/100</span></div>
+    </div>
+    <p class="hint" style="margin-top:8px;">Le régime politique tire progressivement les libertés et la religiosité vers son propre niveau ; la justice et l'éducation font reculer la corruption.</p>
   </div>`;
 }
 
