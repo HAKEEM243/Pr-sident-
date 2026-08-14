@@ -453,7 +453,9 @@ const TABS = [
   {id:'economy', label:'Économie'},
   {id:'resources', label:'Ressources'},
   {id:'diplomacy', label:'Diplomatie'},
+  {id:'confederations', label:'Confédérations'},
   {id:'social', label:'Social'},
+  {id:'sport', label:'Sport'},
   {id:'security', label:'Sécurité'},
   {id:'infra', label:'Infrastructures'},
   {id:'government', label:'Institutions'},
@@ -566,7 +568,14 @@ function deriveCountry(id){
       immigration: pick(rng,['ouverte','quotas','fermee']), visaQuota: randInt(rng,5,80)*1000,
       pensionLevel: randInt(rng,30,65), unemploymentBenefit: randInt(rng,20,60),
       healthIndex: round1(rand(rng,35,80)), educationIndex: round1(rand(rng,35,80)),
+      workVisaLevel: randInt(rng,10,40), refugeePolicy: pick(rng,['accueil','restreint']),
+      totalImmigrants: 0,
     },
+    sport: {
+      disciplines: { football: randInt(rng,15,55), athletisme: randInt(rng,15,55), basketball: randInt(rng,15,55), natation: randInt(rng,15,55) },
+      prestige: randInt(rng,10,40), medals: { or: 0, argent: 0, bronze: 0 },
+    },
+    confederationId: null,
     companies: generateCompanies(base, rng),
     log: [ {msg:`Prise de fonction à la tête de ${base.name}.`, turn:0} ],
   };
@@ -582,6 +591,7 @@ function newGame(countryId){
   state = {
     screen: 'game', activeTab: 'dashboard', editMode: false, editorTargetId: countryId,
     player: { countryId, turn: 0 }, countries: {}, relations: {}, contracts: [], diploFilter: '', achievements: [],
+    confederations: [], worldNews: [], logView: 'domestic', nextSportEvent: 12,
     startedAt: Date.now(),
   };
   COUNTRIES_DATA.forEach(c=> state.countries[c.id] = deriveCountry(c.id));
@@ -595,7 +605,19 @@ function loadGame(){
     state = JSON.parse(raw);
     if(!state.diploFilter) state.diploFilter = '';
     if(!state.achievements) state.achievements = [];
-    Object.values(state.countries).forEach(c=>{ if(c.budget.debt==null) c.budget.debt = 0; c.companies.forEach(co=>{ if(!co.ceo) co.ceo = randomCeoName(rngFor(co.id)); }); });
+    if(!state.confederations) state.confederations = [];
+    if(!state.worldNews) state.worldNews = [];
+    if(!state.logView) state.logView = 'domestic';
+    if(!state.nextSportEvent) state.nextSportEvent = 12;
+    Object.values(state.countries).forEach(c=>{
+      if(c.budget.debt==null) c.budget.debt = 0;
+      c.companies.forEach(co=>{ if(!co.ceo) co.ceo = randomCeoName(rngFor(co.id)); });
+      if(c.confederationId===undefined) c.confederationId = null;
+      if(!c.sport) c.sport = { disciplines:{football:25,athletisme:25,basketball:25,natation:25}, prestige:20, medals:{or:0,argent:0,bronze:0} };
+      if(c.social.workVisaLevel==null) c.social.workVisaLevel = 20;
+      if(!c.social.refugeePolicy) c.social.refugeePolicy = 'restreint';
+      if(c.social.totalImmigrants==null) c.social.totalImmigrants = 0;
+    });
     return true;
   }catch(e){ return false; }
 }
@@ -722,6 +744,17 @@ function simulateCountry(c, isPlayer, turn){
   let gr = 0.0014;
   if(c.social.immigration==='ouverte') gr += 0.0009;
   if(c.social.immigration==='fermee') gr -= 0.0003;
+  const workVisaEffect = Math.min(200,c.social.workVisaLevel||0)/100;
+  gr += workVisaEffect*0.0006;
+  if(c.social.refugeePolicy==='accueil') gr += 0.0004;
+  const netMigration = Math.round(c.population * Math.max(0, gr - 0.0014));
+  if(isPlayer){
+    c.social.totalImmigrants = (c.social.totalImmigrants||0) + netMigration;
+    c.social.lastNetMigration = netMigration;
+    const visaProgramCost = c.gdp*1e9 * workVisaEffect * 0.00002;
+    c.budget.treasury = Math.max(0, c.budget.treasury - visaProgramCost);
+    if(workVisaEffect>0) c.economy.growth = round1(c.economy.growth + workVisaEffect*0.05);
+  }
   c.population = Math.max(1000, Math.round(c.population*(1+gr)));
   if(isPlayer && rng() < 0.22){
     const ev = pick(rng, EVENTS);
@@ -794,6 +827,8 @@ const ACHIEVEMENTS = [
   {id:'infra_master', label:'Bâtisseur', desc:'Réseau routier à 90+ dans toutes les villes.', check:c=> c.cities.every(city=>city.infra.roads>=90)},
   {id:'safe_streets', label:'Rues sûres', desc:'Criminalité sous 10 %.', check:c=> c.police.crimeIndex<10},
   {id:'long_reign', label:'Longévité', desc:'Trois mandats accomplis.', check:c=> c.mandate.term>=3},
+  {id:'currency_union', label:'Union monétaire', desc:'Fonder ou rejoindre une confédération.', check:c=> !!c.confederationId},
+  {id:'olympian', label:'Nation sportive', desc:'Remporter une médaille internationale.', check:c=> c.sport.medals.or+c.sport.medals.argent+c.sport.medals.bronze>0},
 ];
 function checkAchievements(){
   const p = playerState();
@@ -813,6 +848,9 @@ function advanceTurn(){
   Object.values(state.countries).forEach(c=>{ if(c.id!==p.id) simulateCountry(c,false,state.player.turn); });
   processContracts();
   processWars();
+  processConfederations();
+  processSport();
+  generateWorldNews();
   checkAchievements();
   saveGame();
   render();
@@ -872,6 +910,155 @@ function refreshDiplomacyTable(){
   const tbody = document.getElementById('diploTbody');
   if(!tbody) return;
   tbody.innerHTML = diplomacyRows();
+}
+
+/* ============================================================
+   ACTIONS — Confédérations (unions monétaires)
+   ============================================================ */
+const CONFEDERATION_MIN_SCORE = 50;
+function playerConfederation(){ return state.confederations.find(cf=>cf.members.includes(state.player.countryId)); }
+function createConfederation(name, currency, partnerId){
+  name = (name||'').trim(); currency = (currency||'').trim();
+  if(!name || !currency){ toast('Donnez un nom et une monnaie à la confédération.'); return; }
+  if(playerConfederation()){ toast('Vous appartenez déjà à une confédération : quittez-la d\'abord.'); return; }
+  if(!partnerId){ toast('Choisissez un pays partenaire pour fonder la confédération.'); return; }
+  const rel = getRelation(state.player.countryId, partnerId);
+  if(rel.status==='guerre'){ toast('Impossible de fonder une confédération avec un pays en guerre.'); return; }
+  if(rel.score<CONFEDERATION_MIN_SCORE){ toast(`${countryName(partnerId)} refuse : relations insuffisantes (score requis : ${CONFEDERATION_MIN_SCORE}).`); return; }
+  if(getCountryQuiet(partnerId).confederationId){ toast(`${countryName(partnerId)} appartient déjà à une autre confédération.`); return; }
+  const conf = { id: uid('conf'), name, currency, members: [state.player.countryId, partnerId], founded: state.player.turn };
+  state.confederations.push(conf);
+  playerState().confederationId = conf.id;
+  getCountryQuiet(partnerId).confederationId = conf.id;
+  setRelation(state.player.countryId, partnerId, {status:'alliance', score: clamp(rel.score+10,0,100)});
+  pushLog(`Fondation de la confédération « ${name} » avec ${countryName(partnerId)}. Monnaie commune : ${currency}.`);
+  saveGame(); render();
+}
+function inviteToConfederation(countryId){
+  const conf = playerConfederation();
+  if(!conf){ toast('Vous ne faites partie d\'aucune confédération.'); return; }
+  if(!countryId){ toast('Choisissez un pays à inviter.'); return; }
+  if(conf.members.includes(countryId)){ toast('Ce pays est déjà membre.'); return; }
+  if(getCountryQuiet(countryId).confederationId){ toast(`${countryName(countryId)} appartient déjà à une autre confédération.`); return; }
+  const rel = getRelation(state.player.countryId, countryId);
+  if(rel.status==='guerre'){ toast('Impossible d\'inviter un pays en guerre.'); return; }
+  if(rel.score<CONFEDERATION_MIN_SCORE){ toast(`${countryName(countryId)} refuse l'invitation (score requis : ${CONFEDERATION_MIN_SCORE}).`); return; }
+  conf.members.push(countryId);
+  getCountryQuiet(countryId).confederationId = conf.id;
+  setRelation(state.player.countryId, countryId, {status:'alliance', score: clamp(rel.score+10,0,100)});
+  pushLog(`${countryName(countryId)} rejoint la confédération « ${conf.name} ».`);
+  saveGame(); render();
+}
+function leaveConfederation(){
+  const conf = playerConfederation();
+  if(!conf) return;
+  if(!confirm(`Quitter la confédération « ${conf.name} » ?`)) return;
+  conf.members = conf.members.filter(id=>id!==state.player.countryId);
+  playerState().confederationId = null;
+  if(conf.members.length<2){
+    conf.members.forEach(id=>{ const c=getCountryQuiet(id); if(c) c.confederationId=null; });
+    state.confederations = state.confederations.filter(x=>x.id!==conf.id);
+    pushLog(`La confédération « ${conf.name} » est dissoute faute de membres.`);
+  } else {
+    pushLog(`Vous quittez la confédération « ${conf.name} ».`);
+  }
+  saveGame(); render();
+}
+function processConfederations(){
+  state.confederations.forEach(conf=>{
+    const members = conf.members.filter(id=>state.countries[id]);
+    if(members.length<2) return;
+    const avgInflation = members.reduce((a,id)=>a+state.countries[id].economy.inflation,0)/members.length;
+    members.forEach(id=>{
+      const c = state.countries[id];
+      c.economy.inflation = round1(c.economy.inflation + (avgInflation-c.economy.inflation)*0.15);
+      c.economy.growth = round1(c.economy.growth + 0.15);
+    });
+    for(let i=0;i<members.length;i++){
+      for(let j=i+1;j<members.length;j++){
+        const rel = getRelation(members[i],members[j]);
+        if(rel.status!=='guerre') setRelation(members[i],members[j], {score: clamp(rel.score+0.5,0,100)});
+      }
+    }
+  });
+}
+
+/* ============================================================
+   ACTIONS — Sport
+   ============================================================ */
+const SPORT_LABELS = { football:'Football', athletisme:'Athlétisme', basketball:'Basketball', natation:'Natation' };
+function sportInvestCost(c){ return Math.max(2e6, c.gdp*1e9*0.0004); }
+function investSport(discipline){
+  const c = playerState();
+  if(c.sport.disciplines[discipline] >= 100){ toast('Niveau déjà maximal.'); return; }
+  const cost = sportInvestCost(c);
+  if(c.budget.treasury < cost){ toast(`Trésor insuffisant (${fmtMoney(cost)} nécessaires).`); return; }
+  c.budget.treasury -= cost;
+  c.sport.disciplines[discipline] = clamp(c.sport.disciplines[discipline]+5, 0, 100);
+  c.economy.approval = clamp(c.economy.approval+0.3,0,100);
+  pushLog(`Investissement dans le ${SPORT_LABELS[discipline]} national.`, c);
+  saveGame(); render();
+}
+function processSport(){
+  const p = playerState();
+  state.nextSportEvent--;
+  if(state.nextSportEvent > 0) return;
+  const rng = mulberry32((state.player.turn*97531) >>> 0);
+  state.nextSportEvent = randInt(rng, 10, 16);
+  const scored = COUNTRIES_DATA.map(base=>{
+    const c = state.countries[base.id];
+    const d = c.sport.disciplines;
+    const avg = (d.football+d.athletisme+d.basketball+d.natation)/4;
+    return { id: c.id, score: avg + rand(rng,-15,15) };
+  }).sort((a,b)=>b.score-a.score);
+  const podium = scored.slice(0,3);
+  const medalKeys = ['or','argent','bronze'];
+  podium.forEach((entry,i)=>{
+    const c = state.countries[entry.id];
+    c.sport.medals[medalKeys[i]]++;
+    c.sport.prestige = clamp(c.sport.prestige + (3-i)*2, 0, 100);
+  });
+  pushWorldNews(`Compétition sportive internationale : 🥇 ${countryName(podium[0].id)}, 🥈 ${countryName(podium[1].id)}, 🥉 ${countryName(podium[2].id)}.`);
+  const rank = podium.findIndex(e=>e.id===p.id);
+  if(rank>=0){
+    p.economy.approval = clamp(p.economy.approval + (3-rank)*3, 0, 100);
+    const medalLabel = medalKeys[rank]==='or' ? "d'or" : (medalKeys[rank]==='argent' ? "d'argent" : 'de bronze');
+    pushLog(`Votre équipe nationale monte sur le podium international : médaille ${medalLabel} !`, p);
+  }
+}
+
+/* ============================================================
+   Journal mondial
+   ============================================================ */
+const WORLD_EVENT_TEMPLATES = [
+  (c,o)=>`${c} enregistre une forte croissance économique ce mois-ci.`,
+  (c,o)=>`Ralentissement économique observé en ${c}.`,
+  (c,o)=>`${c} et ${o} signent un accord commercial bilatéral.`,
+  (c,o)=>`Des élections animées se déroulent en ${c}.`,
+  (c,o)=>`Une catastrophe naturelle touche ${c}.`,
+  (c,o)=>`${c} annonce la découverte de nouvelles ressources naturelles.`,
+  (c,o)=>`Manifestations sociales dans les rues de ${c}.`,
+  (c,o)=>`${c} inaugure de nouvelles infrastructures majeures.`,
+  (c,o)=>`Une avancée scientifique est saluée en ${c}.`,
+  (c,o)=>`Tensions diplomatiques croissantes entre ${c} et ${o}.`,
+  (c,o)=>`${c} annonce un plan de relance économique.`,
+  (c,o)=>`Sommet international réunissant ${c} et ${o} sur les enjeux climatiques.`,
+];
+function pushWorldNews(msg){
+  state.worldNews.push({ msg, turn: state.player.turn });
+  if(state.worldNews.length>60) state.worldNews.shift();
+}
+function generateWorldNews(){
+  const rng = mulberry32((state.player.turn*777131) >>> 0);
+  const pool = COUNTRIES_DATA.filter(c=>c.id!==state.player.countryId);
+  const n = randInt(rng,2,4);
+  for(let i=0;i<n;i++){
+    const c1 = pick(rng, pool);
+    const rest = pool.filter(x=>x.id!==c1.id);
+    const c2 = pick(rng, rest);
+    const tpl = pick(rng, WORLD_EVENT_TEMPLATES);
+    pushWorldNews(tpl(c1.name, c2.name));
+  }
 }
 
 /* ============================================================
@@ -979,6 +1166,8 @@ function modernize(kind){
 function setImmigration(policy){ playerState().social.immigration = policy; saveGame(); render(); }
 function setVisaQuota(v){ playerState().social.visaQuota = Math.max(0,Math.round(v)||0); saveGame(); render(); }
 function setSocialLevel(field, v){ playerState().social[field] = Math.max(0,Math.round(v)||0); saveGame(); render(); }
+function setWorkVisaLevel(v){ playerState().social.workVisaLevel = Math.max(0,Math.round(v)||0); saveGame(); render(); }
+function setRefugeePolicy(policy){ playerState().social.refugeePolicy = policy; saveGame(); render(); }
 
 /* ============================================================
    ACTIONS — Editor (god mode)
@@ -1073,7 +1262,7 @@ function computeAlerts(c){
   return alerts;
 }
 function tabGlyph(id){
-  return {dashboard:'◆',map:'⊚',economy:'$',resources:'⛏',diplomacy:'✦',social:'♥',security:'⛨',infra:'⌂',government:'⚖',editor:'✎'}[id]||'•';
+  return {dashboard:'◆',map:'⊚',economy:'$',resources:'⛏',diplomacy:'✦',confederations:'☍',social:'♥',sport:'⚑',security:'⛨',infra:'⌂',government:'⚖',editor:'✎'}[id]||'•';
 }
 
 /* ============================================================
@@ -1205,7 +1394,9 @@ function renderTab(){
     case 'economy': return renderEconomy();
     case 'resources': return renderResources();
     case 'diplomacy': return renderDiplomacy();
+    case 'confederations': return renderConfederations();
     case 'social': return renderSocial();
+    case 'sport': return renderSport();
     case 'security': return renderSecurity();
     case 'infra': return renderInfra();
     case 'government': return renderGovernment();
@@ -1247,8 +1438,12 @@ function renderDashboard(){
       <div class="btn-row"><button class="btn primary" onclick="advanceTurn()">Avancer d'un mois ▸</button></div>
     </div>
     <div class="card">
-      <h3>Journal du gouvernement</h3>
-      <div class="log">${renderLog(c)}</div>
+      <h3>Journal</h3>
+      <div class="tabs-inline">
+        <button class="${state.logView!=='world'?'active':''}" onclick="setLogView('domestic')">Mon pays</button>
+        <button class="${state.logView==='world'?'active':''}" onclick="setLogView('world')">Monde</button>
+      </div>
+      <div class="log">${state.logView==='world' ? renderWorldLog() : renderLog(c)}</div>
     </div>
   </div>
   <div class="card" style="margin-top:14px;">
@@ -1262,6 +1457,11 @@ function renderLog(c){
   if(!c.log.length) return `<div class="empty">Aucun événement pour l'instant.</div>`;
   return c.log.slice(-25).map(l=>`<div class="entry">${escapeHtml(l.msg)}<time>${turnDateLabel(l.turn)}</time></div>`).join('');
 }
+function renderWorldLog(){
+  if(!state.worldNews.length) return `<div class="empty">Aucune actualité mondiale pour l'instant. Avancez le temps pour voir le monde évoluer.</div>`;
+  return state.worldNews.slice(-25).map(l=>`<div class="entry">${escapeHtml(l.msg)}<time>${turnDateLabel(l.turn)}</time></div>`).join('');
+}
+function setLogView(v){ state.logView = v; saveGame(); render(); }
 
 /* ---- Carte du monde ---- */
 function renderMap(){
@@ -1446,6 +1646,52 @@ function renderDiplomacy(){
   </table></div>`;
 }
 
+/* ---- Confédérations ---- */
+function renderConfederations(){
+  const conf = playerConfederation();
+  const others = COUNTRIES_DATA.filter(c=>c.id!==state.player.countryId);
+  if(!conf){
+    const sorted = others.slice().sort((a,b)=>a.name.localeCompare(b.name));
+    return `
+    <h1>Confédérations</h1>
+    <div class="subtitle">Formez une union monétaire avec d'autres pays, à la manière de l'Union européenne : monnaie commune, inflation partagée, relations renforcées.</div>
+    <div class="card">
+      <h3>Fonder une confédération</h3>
+      <div class="field"><label>Nom</label><input type="text" id="confName" placeholder="Confédération d'Afrique"></div>
+      <div class="field"><label>Monnaie commune</label><input type="text" id="confCurrency" placeholder="Franc Africain Uni"></div>
+      <div class="field"><label>Pays partenaire (score relationnel ≥ ${CONFEDERATION_MIN_SCORE} requis)</label>
+        <select id="confPartner">${sorted.map(o=>`<option value="${o.id}">${flagEmoji(o.iso2)} ${escapeHtml(o.name)} — score ${Math.round(getRelation(state.player.countryId,o.id).score)}</option>`).join('')}</select>
+      </div>
+      <div class="btn-row"><button class="btn primary" onclick="createConfederation(document.getElementById('confName').value, document.getElementById('confCurrency').value, document.getElementById('confPartner').value)">Fonder la confédération</button></div>
+    </div>`;
+  }
+  const memberRows = conf.members.map(id=>{
+    const c = state.countries[id];
+    return `<div class="row"><span class="rl">${flagEmoji(c.iso2)} ${escapeHtml(c.name)}</span><span class="rv num">Inflation ${fmtPct(c.economy.inflation)}</span></div>`;
+  }).join('');
+  const candidates = others.filter(o=>!conf.members.includes(o.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  return `
+  <h1>Confédérations</h1>
+  <div class="subtitle">Membre de « ${escapeHtml(conf.name)} » depuis ${turnDateLabel(conf.founded)} · Monnaie commune : ${escapeHtml(conf.currency)}</div>
+  <div class="grid cols2">
+    <div class="card">
+      <h3>Pays membres (${conf.members.length})</h3>
+      ${memberRows}
+      <p class="hint" style="margin-top:10px;">L'inflation des membres converge progressivement, et la croissance bénéficie d'un léger bonus lié au marché commun.</p>
+      <div class="btn-row"><button class="btn danger sm" onclick="leaveConfederation()">Quitter la confédération</button></div>
+    </div>
+    <div class="card">
+      <h3>Inviter un pays</h3>
+      ${candidates.length ? `
+      <div class="field"><label>Pays (score ≥ ${CONFEDERATION_MIN_SCORE} requis)</label>
+        <select id="confInvite">${candidates.map(o=>`<option value="${o.id}">${flagEmoji(o.iso2)} ${escapeHtml(o.name)} — score ${Math.round(getRelation(state.player.countryId,o.id).score)}</option>`).join('')}</select>
+      </div>
+      <div class="btn-row"><button class="btn" onclick="inviteToConfederation(document.getElementById('confInvite').value)">Inviter</button></div>
+      ` : '<div class="empty">Tous les pays disponibles appartiennent déjà à une confédération.</div>'}
+    </div>
+  </div>`;
+}
+
 /* ---- Social ---- */
 function renderSocial(){
   const c = playerState();
@@ -1462,7 +1708,16 @@ function renderSocial(){
       </div>
       ${c.social.immigration==='quotas' ? `<div class="field"><label>Quota annuel de visas</label>
         <input type="number" value="${c.social.visaQuota}" step="1000" onchange="setVisaQuota(this.value)"></div>` : ''}
-      <p class="hint">La politique migratoire influence la croissance démographique et la popularité.</p>
+      <div class="field"><label>Politique d'accueil des réfugiés</label>
+        <select onchange="setRefugeePolicy(this.value)">
+          <option value="accueil" ${c.social.refugeePolicy==='accueil'?'selected':''}>Accueil</option>
+          <option value="restreint" ${c.social.refugeePolicy==='restreint'?'selected':''}>Restreint</option>
+        </select>
+      </div>
+      ${numberField("Programme de visas de travail qualifié", c.social.workVisaLevel, "setWorkVisaLevel(this.value)", '%')}
+      <div class="row"><span class="rl">Solde migratoire (dernier mois)</span><span class="rv num">${c.social.lastNetMigration!=null ? (c.social.lastNetMigration>=0?'+':'')+fmtNum(c.social.lastNetMigration) : '—'}</span></div>
+      <div class="row"><span class="rl">Immigrants accueillis (cumul du mandat)</span><span class="rv num">${fmtNum(c.social.totalImmigrants||0)}</span></div>
+      <p class="hint" style="margin-top:8px;">Un accueil plus ouvert et un programme de visas qualifiés dynamisent la croissance, mais coûtent au budget.</p>
     </div>
     <div class="card">
       <h3>Sécurité sociale &amp; santé</h3>
@@ -1473,6 +1728,32 @@ function renderSocial(){
       <div class="row" style="margin-top:8px;"><span class="rl">Indice d'éducation</span><span class="rv">${fmtPct(c.social.educationIndex)}</span></div>
       <div class="bar good"><i style="width:${c.social.educationIndex}%"></i></div>
       <p class="hint" style="margin-top:8px;">Le budget Santé/Éducation se règle dans l'onglet Économie.</p>
+    </div>
+  </div>`;
+}
+
+/* ---- Sport ---- */
+function renderSport(){
+  const c = playerState();
+  const cost = sportInvestCost(c);
+  return `
+  <h1>Sport</h1>
+  <div class="subtitle">Prestige international : ${Math.round(c.sport.prestige)}/100 · Prochaine compétition internationale dans ${state.nextSportEvent} mois.</div>
+  <div class="grid cols2">
+    <div class="card">
+      <h3>Disciplines nationales</h3>
+      ${Object.keys(c.sport.disciplines).map(k=>`
+        <div class="row"><span class="rl">${SPORT_LABELS[k]}</span><span class="rv">${c.sport.disciplines[k]}/100</span></div>
+        <div class="bar"><i style="width:${c.sport.disciplines[k]}%"></i></div>
+        <div class="btn-row" style="margin-top:6px;margin-bottom:12px;"><button class="btn sm" onclick="investSport('${k}')" ${c.sport.disciplines[k]>=100?'disabled':''}>Investir (${fmtMoney(cost)})</button></div>
+      `).join('')}
+    </div>
+    <div class="card">
+      <h3>Palmarès international</h3>
+      <div class="row"><span class="rl">🥇 Or</span><span class="rv num">${c.sport.medals.or}</span></div>
+      <div class="row"><span class="rl">🥈 Argent</span><span class="rv num">${c.sport.medals.argent}</span></div>
+      <div class="row"><span class="rl">🥉 Bronze</span><span class="rv num">${c.sport.medals.bronze}</span></div>
+      <p class="hint" style="margin-top:10px;">Des compétitions internationales opposent les 195 pays à intervalles réguliers. Plus vos disciplines sont développées, plus vous avez de chances de monter sur le podium — ce qui renforce votre prestige et votre popularité.</p>
     </div>
   </div>`;
 }
@@ -1620,10 +1901,19 @@ function renderEditor(){
     </div>
     <div class="card"><h3>Social</h3>
       ${editSelect(targetId,'social.immigration','Politique migratoire', IMMIGRATION_POLICIES.map(p=>({value:p.id, label:p.label})))}
+      ${editSelect(targetId,'social.refugeePolicy','Accueil des réfugiés', [{value:'accueil',label:'Accueil'},{value:'restreint',label:'Restreint'}])}
+      ${editNumber(targetId,'social.workVisaLevel','Programme de visas de travail (%)')}
       ${editNumber(targetId,'social.healthIndex','Indice santé')}
       ${editNumber(targetId,'social.educationIndex','Indice éducation')}
       ${editNumber(targetId,'social.pensionLevel','Pensions (%)')}
       ${editNumber(targetId,'social.unemploymentBenefit','Allocations chômage (%)')}
+    </div>
+    <div class="card"><h3>Sport</h3>
+      ${editNumber(targetId,'sport.disciplines.football','Football')}
+      ${editNumber(targetId,'sport.disciplines.athletisme','Athlétisme')}
+      ${editNumber(targetId,'sport.disciplines.basketball','Basketball')}
+      ${editNumber(targetId,'sport.disciplines.natation','Natation')}
+      ${editNumber(targetId,'sport.prestige','Prestige international')}
     </div>
     <div class="card"><h3>Sécurité</h3>
       ${editNumber(targetId,'police.officers','Effectifs policiers')}
