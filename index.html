@@ -770,6 +770,18 @@ function creditRating(c){
   const ratio = (c.budget.debt||0)/(c.gdp*1e9)*100;
   return CREDIT_RATINGS.find(r=>ratio>=r.min && ratio<r.max) || CREDIT_RATINGS[CREDIT_RATINGS.length-1];
 }
+function cabinetBonus(c){
+  const m = c.government && c.government.ministers || {};
+  const has = k => m[k] && m[k] !== 'Poste vacant';
+  let growth=0, crime=0, health=0, education=0, approval=0, warDefense=0, filledCount=0;
+  if(has('economie')){ growth+=0.05; filledCount++; } else growth-=0.04;
+  if(has('interieur')){ crime-=0.5; filledCount++; } else crime+=0.4;
+  if(has('sante')){ health+=0.35; filledCount++; } else health-=0.25;
+  if(has('education')){ education+=0.35; filledCount++; } else education-=0.25;
+  if(has('defense')){ warDefense+=0.25; filledCount++; } else warDefense-=0.15;
+  if(has('affairesEtrangeres')){ approval+=0.06; filledCount++; } else approval-=0.04;
+  return {growth, crime, health, education, approval, warDefense, filledCount};
+}
 function simulateCountry(c, isPlayer, turn){
   const rng = mulberry32((hashCode(c.id) ^ (turn*2654435761)) >>> 0);
   const avgTax = (c.budget.taxIncome + c.budget.taxCorporate)/2;
@@ -804,11 +816,17 @@ function simulateCountry(c, isPlayer, turn){
     });
   }
   const regimeFx = REGIME_EFFECTS[c.regime] || REGIME_EFFECTS['République'];
+  const cabFx = cabinetBonus(c);
+  const monthlyGdp = c.gdp*1e9/12;
+  const tradeIncome = resourceIncome + companyIncome;
+  if(isPlayer) c.economy.tradeIncomeMonthly = round1(tradeIncome);
   let gd = 0;
   gd += (c.budget.spending.infra-50)/450;
   gd += (c.social.educationIndex-50)/900;
   gd += (avgRelationScore(c.id)-50)/1800;
   gd += regimeFx.growthBonus||0;
+  gd += cabFx.growth;
+  gd += clamp(tradeIncome/monthlyGdp*3, -0.15, 0.4);
   gd += rand(rng,-1,1)*0.35;
   c.economy.growth = round1(clamp(c.economy.growth*0.85 + gd, -9, 13));
   c.gdp = Math.max(0.05, c.gdp * (1 + c.economy.growth/100/12));
@@ -816,15 +834,15 @@ function simulateCountry(c, isPlayer, turn){
   c.economy.unemployment = round1(clamp(c.economy.unemployment+ud, 1, 45));
   let idl = rand(rng,-.35,.35) + (c.budget.debt > c.gdp*1e9*0.6 ? 0.35 : 0);
   c.economy.inflation = round1(clamp(c.economy.inflation+idl, -2, 70));
-  let cd = -(c.budget.spending.police-50)*0.025 + (c.economy.unemployment-10)*0.045 + rand(rng,-.6,.6) + (regimeFx.crimeBonus||0)*0.03;
+  let cd = -(c.budget.spending.police-50)*0.025 + (c.economy.unemployment-10)*0.045 + rand(rng,-.6,.6) + (regimeFx.crimeBonus||0)*0.03 + cabFx.crime;
   c.police.crimeIndex = round1(clamp(c.police.crimeIndex+cd, 0, 100));
   const inmateChange = Math.round(c.population*0.000015*(c.police.crimeIndex/50));
   c.police.inmates = Math.max(0, Math.round((c.police.inmates||0) + inmateChange - (c.police.inmates||0)*0.02));
   if(c.police.inmates > (c.police.prisonCapacity||1)){
     c.police.crimeIndex = round1(clamp(c.police.crimeIndex + 0.25, 0, 100));
   }
-  c.social.healthIndex = round1(clamp(c.social.healthIndex + ((c.budget.spending.sante-50)/40) + rand(rng,-.3,.3), 0, 100));
-  c.social.educationIndex = round1(clamp(c.social.educationIndex + ((c.budget.spending.education-50)/40) + rand(rng,-.3,.3), 0, 100));
+  c.social.healthIndex = round1(clamp(c.social.healthIndex + ((c.budget.spending.sante-50)/40) + cabFx.health + rand(rng,-.3,.3), 0, 100));
+  c.social.educationIndex = round1(clamp(c.social.educationIndex + ((c.budget.spending.education-50)/40) + cabFx.education + rand(rng,-.3,.3), 0, 100));
   let ad = 0;
   ad -= (c.economy.unemployment-10)*0.13;
   ad -= Math.max(0,c.economy.inflation-5)*0.09;
@@ -834,6 +852,7 @@ function simulateCountry(c, isPlayer, turn){
   ad += c.economy.growth*0.28;
   ad += (c.budget.debt < c.gdp*1e9*0.4 ? 0.25 : -0.4);
   if((c.social.ageElderly||0)>15 && c.social.pensionLevel<40) ad -= ((c.social.ageElderly||0)-15)*0.03;
+  ad += cabFx.approval;
   ad += rand(rng,-1.3,1.3);
   ad *= regimeFx.approvalSwing!=null ? regimeFx.approvalSwing : 1;
   c.economy.approval = round1(clamp(c.economy.approval+ad, 0, regimeFx.approvalCeiling!=null ? regimeFx.approvalCeiling : 100));
@@ -923,7 +942,8 @@ function processWars(){
     const otherId = k.split('|').find(id=>id!==p.id);
     const other = getCountryQuiet(otherId);
     if(!other) return;
-    p.military.troops = Math.max(0, Math.round(p.military.troops - p.military.troops*rand(rng,.006,.02)));
+    const defMult = clamp(1 - cabinetBonus(p).warDefense, 0.7, 1.3);
+    p.military.troops = Math.max(0, Math.round(p.military.troops - p.military.troops*rand(rng,.006,.02)*defMult));
     p.budget.treasury = Math.max(0, p.budget.treasury - p.gdp*1e9*0.0015);
     p.economy.approval = clamp(p.economy.approval - rand(rng,.3,1), 0, 100);
     if(rng() < 0.1){
@@ -1851,6 +1871,8 @@ function renderEconomy(){
       <div class="row" style="margin-top:6px;"><span class="rl">Dette publique</span><span class="rv num">${fmtMoney(c.budget.debt)}</span></div>
       <div class="row"><span class="rl">Notation de crédit</span><span class="rv"><span class="pill ${creditRating(c).mult<=1?'good':(creditRating(c).mult<=1.25?'warn':'bad')}">${creditRating(c).grade}</span></span></div>
       <p class="hint" style="margin-top:4px;">Une notation dégradée alourdit les intérêts sur la dette.</p>
+      <div class="row" style="margin-top:6px;"><span class="rl">Revenus du commerce (ressources + entreprises)</span><span class="rv num pos">+${fmtMoney(c.economy.tradeIncomeMonthly||0)}/mois</span></div>
+      <p class="hint" style="margin-top:4px;">Un commerce extérieur actif dynamise aussi la croissance.</p>
     </div>
     <div class="card">
       <h3>Effort de dépenses par secteur</h3>
@@ -2193,7 +2215,9 @@ function renderGovernment(){
   </div>
   <div class="card" style="margin-top:14px;">
     <h3>Cabinet ministériel</h3>
-    <div class="grid cols2">
+    <p class="hint" style="margin-top:-4px;">Chaque poste pourvu améliore réellement le secteur qu'il dirige (économie, sécurité, santé, éducation, défense, diplomatie) ; un poste vacant le pénalise légèrement.</p>
+    <div class="row"><span class="rl">Postes pourvus</span><span class="rv"><span class="pill ${cabinetBonus(c).filledCount>=6?'good':(cabinetBonus(c).filledCount>=3?'warn':'bad')}">${cabinetBonus(c).filledCount} / ${MINISTRIES.length}</span></span></div>
+    <div class="grid cols2" style="margin-top:8px;">
       <div class="field"><label>Premier ministre</label><input type="text" id="pmInput" value="${escapeHtml(c.government.pm)}"></div>
       ${MINISTRIES.map(m=>`<div class="field"><label>${m.label}</label><input type="text" id="min_${m.key}" value="${escapeHtml(c.government.ministers[m.key])}"></div>`).join('')}
     </div>
