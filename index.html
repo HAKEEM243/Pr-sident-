@@ -517,11 +517,17 @@ function generateResources(base, rng){
 function generateCompanies(base, rng){
   const n = randInt(rng,2,4);
   const sectors = pickN(rng, COMPANY_SECTORS, n);
-  return sectors.map(sector=>({
-    id: uid('co'), name: sector+' '+pick(rng,['Group','National','Holding','& Associés','Corp']),
-    sector, ownership: rng()>.5?'public':'privée', value: Math.round(rand(rng, base.gdp*1e6*0.5, base.gdp*1e6*3)),
-    ceo: randomCeoName(rng),
-  }));
+  const gdpPerCapita = base.gdp*1e9/base.pop;
+  return sectors.map(sector=>{
+    const value = Math.round(rand(rng, base.gdp*1e6*0.5, base.gdp*1e6*3));
+    const salary = Math.max(50, Math.round(gdpPerCapita*rand(rng,0.5,1.3)/12));
+    const employees = Math.max(30, Math.round(value/(salary*36)));
+    return {
+      id: uid('co'), name: sector+' '+pick(rng,['Group','National','Holding','& Associés','Corp']),
+      sector, ownership: rng()>.5?'public':'privée', value, ceo: randomCeoName(rng),
+      salary, employees,
+    };
+  });
 }
 function deriveCountry(id){
   const base = COUNTRY_INDEX[id];
@@ -542,6 +548,8 @@ function deriveCountry(id){
   }
   const capitalCity = cities.find(c=>c.isCapital) || cities[0];
   const treasuryBase = base.gdp*1e9*rand(rng,.04,.10);
+  const gdpPerCapita = base.gdp*1e9/base.pop;
+  const initialHealthIndex = round1(rand(rng,35,80));
   return {
     id: base.id, iso2: base.iso2, name: base.name, continent: base.continent,
     population: base.pop, area: base.area, gdp: base.gdp, landlocked: !!base.landlocked,
@@ -563,13 +571,19 @@ function deriveCountry(id){
     },
     resources: generateResources(base, rng),
     military: { troops: Math.round(base.pop*rand(rng,.0015,.006)), arms: randInt(rng,15,70) },
-    police: { officers: Math.round(base.pop*rand(rng,.001,.004)), equipment: randInt(rng,15,70), crimeIndex: round1(rand(rng,10,60)) },
+    police: {
+      officers: Math.round(base.pop*rand(rng,.001,.004)), equipment: randInt(rng,15,70), crimeIndex: round1(rand(rng,10,60)),
+      prisonCapacity: Math.round(base.pop*rand(rng,.0005,.0015)),
+      inmates: Math.round(base.pop*rand(rng,.0005,.0015)*rand(rng,.5,.95)),
+    },
     social: {
       immigration: pick(rng,['ouverte','quotas','fermee']), visaQuota: randInt(rng,5,80)*1000,
       pensionLevel: randInt(rng,30,65), unemploymentBenefit: randInt(rng,20,60),
-      healthIndex: round1(rand(rng,35,80)), educationIndex: round1(rand(rng,35,80)),
+      healthIndex: initialHealthIndex, educationIndex: round1(rand(rng,35,80)),
       workVisaLevel: randInt(rng,10,40), refugeePolicy: pick(rng,['accueil','restreint']),
-      totalImmigrants: 0,
+      totalImmigrants: 0, totalArrivals: 0, totalDepartures: 0,
+      birthRate: round1(clamp(35 - gdpPerCapita/2000, 8, 42)),
+      mortalityRate: round1(clamp(15 - (initialHealthIndex-50)/6, 3, 22)),
     },
     sport: {
       disciplines: { football: randInt(rng,15,55), athletisme: randInt(rng,15,55), basketball: randInt(rng,15,55), natation: randInt(rng,15,55) },
@@ -591,10 +605,11 @@ function newGame(countryId){
   state = {
     screen: 'game', activeTab: 'dashboard', editMode: false, editorTargetId: countryId,
     player: { countryId, turn: 0 }, countries: {}, relations: {}, contracts: [], diploFilter: '', achievements: [],
-    confederations: [], worldNews: [], logView: 'domestic', nextSportEvent: 12,
+    confederations: [], worldNews: [], logView: 'domestic', nextSportEvent: 12, mapLayer: 'relations',
     startedAt: Date.now(),
   };
   COUNTRIES_DATA.forEach(c=> state.countries[c.id] = deriveCountry(c.id));
+  seedPresetConfederations();
   saveGame();
 }
 function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){} }
@@ -609,15 +624,38 @@ function loadGame(){
     if(!state.worldNews) state.worldNews = [];
     if(!state.logView) state.logView = 'domestic';
     if(!state.nextSportEvent) state.nextSportEvent = 12;
+    if(!state.mapLayer) state.mapLayer = 'relations';
     Object.values(state.countries).forEach(c=>{
       if(c.budget.debt==null) c.budget.debt = 0;
-      c.companies.forEach(co=>{ if(!co.ceo) co.ceo = randomCeoName(rngFor(co.id)); });
+      c.companies.forEach(co=>{
+        if(!co.ceo) co.ceo = randomCeoName(rngFor(co.id));
+        if(co.salary==null) co.salary = Math.max(50, Math.round((c.gdp*1e9/c.population)/12));
+        if(co.employees==null) co.employees = Math.max(30, Math.round(co.value/(co.salary*36)));
+      });
       if(c.confederationId===undefined) c.confederationId = null;
       if(!c.sport) c.sport = { disciplines:{football:25,athletisme:25,basketball:25,natation:25}, prestige:20, medals:{or:0,argent:0,bronze:0} };
       if(c.social.workVisaLevel==null) c.social.workVisaLevel = 20;
       if(!c.social.refugeePolicy) c.social.refugeePolicy = 'restreint';
       if(c.social.totalImmigrants==null) c.social.totalImmigrants = 0;
+      if(c.social.totalArrivals==null) c.social.totalArrivals = Math.max(0, c.social.totalImmigrants||0);
+      if(c.social.totalDepartures==null) c.social.totalDepartures = 0;
+      if(c.social.birthRate==null) c.social.birthRate = round1(clamp(35-(c.gdp*1e9/c.population)/2000,8,42));
+      if(c.social.mortalityRate==null) c.social.mortalityRate = round1(clamp(15-(c.social.healthIndex-50)/6,3,22));
+      if(c.police.prisonCapacity==null) c.police.prisonCapacity = Math.round(c.population*0.001);
+      if(c.police.inmates==null) c.police.inmates = Math.round(c.police.prisonCapacity*0.7);
     });
+    if(!state.confederations.some(cf=>cf.preset)){
+      PRESET_CONFEDERATIONS.forEach(preset=>{
+        const members = preset.isoCodes.map(code=>COUNTRIES_DATA.find(x=>x.iso2===code)).filter(Boolean).map(x=>x.id).filter(id=>state.countries[id] && !state.countries[id].confederationId);
+        if(members.length<2) return;
+        const conf = { id: uid('conf'), name: preset.name, currency: preset.currency, members, founded: 0, preset: true };
+        state.confederations.push(conf);
+        members.forEach(id=>{ state.countries[id].confederationId = conf.id; });
+        for(let i=0;i<members.length;i++){
+          for(let j=i+1;j<members.length;j++) setRelation(members[i], members[j], {status:'alliance', score:70});
+        }
+      });
+    }
     return true;
   }catch(e){ return false; }
 }
@@ -734,6 +772,11 @@ function simulateCountry(c, isPlayer, turn){
   c.economy.inflation = round1(clamp(c.economy.inflation+idl, -2, 70));
   let cd = -(c.budget.spending.police-50)*0.025 + (c.economy.unemployment-10)*0.045 + rand(rng,-.6,.6);
   c.police.crimeIndex = round1(clamp(c.police.crimeIndex+cd, 0, 100));
+  const inmateChange = Math.round(c.population*0.000015*(c.police.crimeIndex/50));
+  c.police.inmates = Math.max(0, Math.round((c.police.inmates||0) + inmateChange - (c.police.inmates||0)*0.02));
+  if(c.police.inmates > (c.police.prisonCapacity||1)){
+    c.police.crimeIndex = round1(clamp(c.police.crimeIndex + 0.25, 0, 100));
+  }
   c.social.healthIndex = round1(clamp(c.social.healthIndex + ((c.budget.spending.sante-50)/40) + rand(rng,-.3,.3), 0, 100));
   c.social.educationIndex = round1(clamp(c.social.educationIndex + ((c.budget.spending.education-50)/40) + rand(rng,-.3,.3), 0, 100));
   let ad = 0;
@@ -746,21 +789,34 @@ function simulateCountry(c, isPlayer, turn){
   ad += (c.budget.debt < c.gdp*1e9*0.4 ? 0.25 : -0.4);
   ad += rand(rng,-1.3,1.3);
   c.economy.approval = round1(clamp(c.economy.approval+ad, 0, 100));
-  let gr = 0.0014;
-  if(c.social.immigration==='ouverte') gr += 0.0009;
-  if(c.social.immigration==='fermee') gr -= 0.0003;
+  c.social.birthRate = round1(clamp((c.social.birthRate!=null?c.social.birthRate:20) - (c.social.educationIndex-50)/400 + rand(rng,-.15,.15), 6, 45));
+  c.social.mortalityRate = round1(clamp((c.social.mortalityRate!=null?c.social.mortalityRate:10) - (c.social.healthIndex-50)/120 + rand(rng,-.15,.15), 2, 25));
+  const naturalRate = (c.social.birthRate - c.social.mortalityRate)/1000/12;
+  let arrivalRate = 0.0003;
+  if(c.social.immigration==='ouverte') arrivalRate += 0.0010;
+  if(c.social.immigration==='fermee') arrivalRate = Math.max(0, arrivalRate-0.00025);
   const workVisaEffect = Math.min(200,c.social.workVisaLevel||0)/100;
-  gr += workVisaEffect*0.0006;
-  if(c.social.refugeePolicy==='accueil') gr += 0.0004;
-  const netMigration = Math.round(c.population * Math.max(0, gr - 0.0014));
+  arrivalRate += workVisaEffect*0.0007;
+  if(c.social.refugeePolicy==='accueil') arrivalRate += 0.0004;
+  let departureRate = 0.0002;
+  if(c.economy.unemployment>20) departureRate += 0.0004;
+  if(c.economy.approval<30) departureRate += 0.0003;
+  if(c.social.immigration==='fermee') departureRate += 0.0002;
+  const arrivals = Math.round(c.population*arrivalRate);
+  const departures = Math.round(c.population*departureRate);
+  const naturalChange = Math.round(c.population*naturalRate);
   if(isPlayer){
-    c.social.totalImmigrants = (c.social.totalImmigrants||0) + netMigration;
-    c.social.lastNetMigration = netMigration;
+    c.social.totalArrivals = (c.social.totalArrivals||0) + arrivals;
+    c.social.totalDepartures = (c.social.totalDepartures||0) + departures;
+    c.social.totalImmigrants = c.social.totalArrivals - c.social.totalDepartures;
+    c.social.lastArrivals = arrivals;
+    c.social.lastDepartures = departures;
+    c.social.lastNetMigration = arrivals - departures;
     const visaProgramCost = c.gdp*1e9 * workVisaEffect * 0.00002;
     c.budget.treasury = Math.max(0, c.budget.treasury - visaProgramCost);
     if(workVisaEffect>0) c.economy.growth = round1(c.economy.growth + workVisaEffect*0.05);
   }
-  c.population = Math.max(1000, Math.round(c.population*(1+gr)));
+  c.population = Math.max(1000, c.population + naturalChange + arrivals - departures);
   if(isPlayer && rng() < 0.22){
     const ev = pick(rng, EVENTS);
     ev.fx(c, rng);
@@ -938,6 +994,26 @@ function refreshDiplomacyTable(){
    ACTIONS — Confédérations (unions monétaires)
    ============================================================ */
 const CONFEDERATION_MIN_SCORE = 50;
+const CONF_PALETTE = ['#d3ac3a','#5b8fc9','#4f9d6e','#c1503a','#9a6fd1','#d98a3e','#4fb8b0','#c957a0'];
+const PRESET_CONFEDERATIONS = [
+  { name: 'Union Européenne — Zone Euro', currency: 'Euro', isoCodes: ['AT','BE','CY','DE','EE','ES','FI','FR','GR','HR','IE','IT','LT','LU','LV','MT','NL','PT','SI','SK'] },
+  { name: "Zone Franc CFA — Afrique de l'Ouest (UEMOA)", currency: 'Franc CFA (XOF)', isoCodes: ['BJ','BF','CI','GW','ML','NE','SN','TG'] },
+  { name: 'Zone Franc CFA — Afrique Centrale (CEMAC)', currency: 'Franc CFA (XAF)', isoCodes: ['CM','CF','TD','CG','GQ','GA'] },
+];
+function seedPresetConfederations(){
+  PRESET_CONFEDERATIONS.forEach(preset=>{
+    const members = preset.isoCodes.map(code=>COUNTRIES_DATA.find(c=>c.iso2===code)).filter(Boolean).map(c=>c.id);
+    if(members.length<2) return;
+    const conf = { id: uid('conf'), name: preset.name, currency: preset.currency, members, founded: 0, preset: true };
+    state.confederations.push(conf);
+    members.forEach(id=>{ state.countries[id].confederationId = conf.id; });
+    for(let i=0;i<members.length;i++){
+      for(let j=i+1;j<members.length;j++){
+        setRelation(members[i], members[j], {status:'alliance', score:70});
+      }
+    }
+  });
+}
 function playerConfederation(){ return state.confederations.find(cf=>cf.members.includes(state.player.countryId)); }
 function createConfederation(name, currency, partnerId){
   name = (name||'').trim(); currency = (currency||'').trim();
@@ -1111,8 +1187,25 @@ function foundCompany(name, sector, ownership, ceo){
   const cost = c.gdp*1e6*2;
   if(c.budget.treasury<cost){ toast('Trésor insuffisant pour fonder cette entreprise.'); return; }
   c.budget.treasury -= cost;
-  c.companies.push({ id: uid('co'), name: (name||'').trim()||`${sector} Nationale`, sector, ownership, value: Math.round(cost), ceo: (ceo||'').trim()||randomCeoName(mulberry32(randSeed())) });
-  pushLog(`Fondation de l'entreprise « ${(name||'').trim()||sector} ».`, c);
+  const salary = Math.max(50, Math.round((c.gdp*1e9/c.population)/12));
+  const employees = Math.max(30, Math.round(cost/(salary*36)));
+  c.companies.push({ id: uid('co'), name: (name||'').trim()||`${sector} Nationale`, sector, ownership, value: Math.round(cost), ceo: (ceo||'').trim()||randomCeoName(mulberry32(randSeed())), salary, employees });
+  pushLog(`Fondation de l'entreprise « ${(name||'').trim()||sector} », ${fmtNum(employees)} emplois créés.`, c);
+  saveGame(); render();
+}
+function hireEmployees(companyId){
+  const c = playerState();
+  const co = c.companies.find(x=>x.id===companyId);
+  if(!co) return;
+  const amount = Math.max(20, Math.round(co.employees*0.08));
+  const cost = amount * co.salary * 3;
+  if(c.budget.treasury < cost){ toast(`Trésor insuffisant (${fmtMoney(cost)} nécessaires).`); return; }
+  c.budget.treasury -= cost;
+  co.employees += amount;
+  co.value = Math.round(co.value * 1.02);
+  const unemploymentDrop = Math.min(0.5, (amount / c.population) * 500);
+  c.economy.unemployment = round1(Math.max(1, c.economy.unemployment - unemploymentDrop));
+  pushLog(`${co.name} embauche ${fmtNum(amount)} employés supplémentaires.`, c);
   saveGame(); render();
 }
 
@@ -1191,6 +1284,15 @@ function modernize(kind){
   pushLog(kind==='police' ? "Modernisation de l'équipement policier." : "Modernisation de l'arsenal militaire.", c);
   saveGame(); render();
 }
+function buildPrison(){
+  const c = playerState();
+  const cost = Math.max(3e7, c.gdp*1e9*0.0005);
+  if(c.budget.treasury<cost){ toast(`Trésor insuffisant (${fmtMoney(cost)} nécessaires).`); return; }
+  c.budget.treasury -= cost;
+  c.police.prisonCapacity = Math.round(c.police.prisonCapacity*1.25);
+  pushLog('Extension du système carcéral national.', c);
+  saveGame(); render();
+}
 function setImmigration(policy){ playerState().social.immigration = policy; saveGame(); render(); }
 function setVisaQuota(v){ playerState().social.visaQuota = Math.max(0,Math.round(v)||0); saveGame(); render(); }
 function setSocialLevel(field, v){ playerState().social[field] = Math.max(0,Math.round(v)||0); saveGame(); render(); }
@@ -1219,7 +1321,10 @@ function editAddResource(countryId, type, amount){
 }
 function editAddCompany(countryId, name, sector, ownership, value, ceo){
   const c = getCountryQuiet(countryId);
-  c.companies.push({ id: uid('co'), name: (name||'').trim()||sector, sector, ownership, value: Math.round(value)||1e6, ceo: (ceo||'').trim()||randomCeoName(mulberry32(randSeed())) });
+  const v = Math.round(value)||1e6;
+  const salary = Math.max(50, Math.round((c.gdp*1e9/c.population)/12));
+  const employees = Math.max(30, Math.round(v/(salary*36)));
+  c.companies.push({ id: uid('co'), name: (name||'').trim()||sector, sector, ownership, value: v, ceo: (ceo||'').trim()||randomCeoName(mulberry32(randSeed())), salary, employees });
   saveGame(); render();
 }
 function editAddCity(countryId, name, pop, coastal){
@@ -1474,12 +1579,12 @@ function renderDashboard(){
       <div class="log">${state.logView==='world' ? renderWorldLog() : renderLog(c)}</div>
     </div>
   </div>
-  <div class="card" style="margin-top:14px;">
-    <h3>Distinctions (${unlocked.length}/${ACHIEVEMENTS.length})</h3>
-    <div class="grid kpis">
+  <details class="card" style="margin-top:14px;">
+    <summary style="cursor:pointer;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);">Distinctions (${unlocked.length}/${ACHIEVEMENTS.length})</summary>
+    <div class="grid kpis" style="margin-top:12px;">
       ${ACHIEVEMENTS.map(a=>`<div class="pill ${unlocked.includes(a.id)?'good':'neutral'}" style="justify-content:flex-start;padding:8px 12px;" title="${escapeHtml(a.desc)}">${unlocked.includes(a.id)?'🏅':'🔒'} ${escapeHtml(a.label)}</div>`).join('')}
     </div>
-  </div>`;
+  </details>`;
 }
 function renderLog(c){
   if(!c.log.length) return `<div class="empty">Aucun événement pour l'instant.</div>`;
@@ -1492,38 +1597,87 @@ function renderWorldLog(){
 function setLogView(v){ state.logView = v; saveGame(); render(); }
 
 /* ---- Carte du monde ---- */
+const MAP_LAYERS = [
+  {id:'relations', label:'Relations diplomatiques'},
+  {id:'confederations', label:'Confédérations'},
+  {id:'gdppc', label:'PIB par habitant'},
+  {id:'mortality', label:'Taux de mortalité'},
+];
+function mapLayerValue(layer, c){
+  if(layer==='gdppc') return c.gdp*1e9/c.population;
+  if(layer==='mortality') return c.social.mortalityRate;
+  return null;
+}
+function heatColor(t){
+  t = Math.max(0,Math.min(1,t));
+  const stops = [[58,90,128],[211,172,58],[193,80,58]];
+  let c1,c2,lt;
+  if(t<0.5){ c1=stops[0]; c2=stops[1]; lt=t*2; } else { c1=stops[1]; c2=stops[2]; lt=(t-0.5)*2; }
+  const r = Math.round(c1[0]+(c2[0]-c1[0])*lt);
+  const g = Math.round(c1[1]+(c2[1]-c1[1])*lt);
+  const b = Math.round(c1[2]+(c2[2]-c1[2])*lt);
+  return `rgb(${r},${g},${b})`;
+}
 function renderMap(){
+  const layer = state.mapLayer || 'relations';
   return `
   <h1>Carte du monde</h1>
-  <div class="subtitle">Cliquez sur un pays pour consulter ses informations et agir directement depuis la carte (${Object.keys(COUNTRY_INDEX).length} pays au total, 174 représentés sur la carte).</div>
+  <div class="subtitle">Cliquez sur un pays pour consulter ses informations et agir directement depuis la carte (195 pays au total, 174 représentés sur la carte).</div>
+  <div class="tabs-inline">
+    ${MAP_LAYERS.map(l=>`<button class="${layer===l.id?'active':''}" onclick="setMapLayer('${l.id}')">${l.label}</button>`).join('')}
+  </div>
   <div class="grid cols2" style="align-items:start;">
     <div class="map-wrap">${WORLD_MAP_SVG}</div>
     <div class="card">
       <h3>Pays sélectionné</h3>
       <div id="mapInfo">${state.mapSelected ? renderMapInfoCard(state.mapSelected) : '<div class="empty">Cliquez sur un pays pour voir ses informations.</div>'}</div>
       <h3 style="margin-top:18px;">Légende</h3>
-      <div class="row"><span class="rl"><i class="dot" style="background:var(--brass)"></i> Votre pays</span></div>
-      <div class="row"><span class="rl"><i class="dot" style="background:var(--good)"></i> Alliance</span></div>
-      <div class="row"><span class="rl"><i class="dot" style="background:var(--info)"></i> Accord commercial</span></div>
-      <div class="row"><span class="rl"><i class="dot" style="background:var(--warn)"></i> Sanctions</span></div>
-      <div class="row"><span class="rl"><i class="dot" style="background:var(--seal-red)"></i> Guerre</span></div>
-      <div class="row"><span class="rl"><i class="dot" style="background:var(--surface-3)"></i> Paix (neutre)</span></div>
+      <div id="mapLegend">${renderMapLegend(layer)}</div>
     </div>
   </div>`;
 }
+function renderMapLegend(layer){
+  if(layer==='relations'){
+    return `
+    <div class="row"><span class="rl"><i class="dot" style="background:var(--brass)"></i> Votre pays</span></div>
+    <div class="row"><span class="rl"><i class="dot" style="background:var(--good)"></i> Alliance</span></div>
+    <div class="row"><span class="rl"><i class="dot" style="background:var(--info)"></i> Accord commercial</span></div>
+    <div class="row"><span class="rl"><i class="dot" style="background:var(--warn)"></i> Sanctions</span></div>
+    <div class="row"><span class="rl"><i class="dot" style="background:var(--seal-red)"></i> Guerre</span></div>
+    <div class="row"><span class="rl"><i class="dot" style="background:var(--surface-3)"></i> Paix (neutre)</span></div>`;
+  }
+  if(layer==='confederations'){
+    if(!state.confederations.length) return `<div class="empty">Aucune confédération pour l'instant.</div>`;
+    return state.confederations.map((cf,i)=>`<div class="row"><span class="rl"><i class="dot" style="background:${CONF_PALETTE[i%CONF_PALETTE.length]}"></i> ${escapeHtml(cf.name)}</span><span class="rv num">${cf.members.length} pays</span></div>`).join('')
+      + `<div class="row"><span class="rl"><i class="dot" style="background:var(--surface-3)"></i> Non affilié</span></div>`;
+  }
+  const values = Object.values(state.countries).map(c=>mapLayerValue(layer,c)).filter(v=>isFinite(v));
+  const min = values.length?Math.min(...values):0, max = values.length?Math.max(...values):0;
+  const fmt = layer==='gdppc' ? (v)=>fmtMoney(v) : (v)=>round1(v)+' ‰';
+  return `
+  <div class="row"><span class="rl">Minimum</span><span class="rv num">${fmt(min)}</span></div>
+  <div class="bar" style="background:linear-gradient(90deg, rgb(58,90,128), rgb(211,172,58), rgb(193,80,58));height:10px;border-radius:5px;margin:8px 0;"></div>
+  <div class="row"><span class="rl">Maximum</span><span class="rv num">${fmt(max)}</span></div>
+  <p class="hint" style="margin-top:8px;">Couleur froide = valeur basse, couleur chaude = valeur haute.</p>`;
+}
+function setMapLayer(layer){ state.mapLayer = layer; saveGame(); render(); }
 function renderMapInfoCard(id){
   const base = COUNTRY_INDEX[id];
   if(!base) return '<div class="empty">Ce pays n\'est pas représenté sur la carte.</div>';
+  const c = state.countries[id];
   const isPlayer = id===state.player.countryId;
   const rel = isPlayer ? null : getRelation(state.player.countryId, id);
+  const conf = c.confederationId ? state.confederations.find(cf=>cf.id===c.confederationId) : null;
   return `
   <div class="row" style="border:none;padding-bottom:10px;">
     <span style="display:flex;align-items:center;gap:10px;"><span style="font-size:26px;">${flagEmoji(base.iso2)}</span><b style="font-size:15px;">${escapeHtml(countryName(id))}</b></span>
     ${isPlayer ? '<span class="pill info">Votre pays</span>' : statusPill(rel.status)}
   </div>
   <div class="row"><span class="rl">Capitale</span><span class="rv">${escapeHtml(base.capital)}</span></div>
-  <div class="row"><span class="rl">Population</span><span class="rv num">${fmtNum(base.pop)}</span></div>
-  <div class="row"><span class="rl">Continent</span><span class="rv">${base.continent}</span></div>
+  <div class="row"><span class="rl">Population</span><span class="rv num">${fmtNum(c.population)}</span></div>
+  <div class="row"><span class="rl">PIB par habitant</span><span class="rv num">${fmtMoney(c.gdp*1e9/c.population)}</span></div>
+  <div class="row"><span class="rl">Taux de mortalité</span><span class="rv num">${round1(c.social.mortalityRate)} ‰/an</span></div>
+  <div class="row"><span class="rl">Confédération</span><span class="rv">${conf ? escapeHtml(conf.name) : 'Aucune'}</span></div>
   ${isPlayer ? `<div class="btn-row"><button class="btn sm" onclick="setTab('dashboard')">Voir le tableau de bord</button></div>` : `
   <div class="row"><span class="rl">Score relationnel</span><span class="rv num">${Math.round(rel.score)}/100</span></div>
   <div class="btn-row">${DIPLO_ACTIONS.map(a=>`<button class="btn sm" onclick="diploAction('${id}','${a.id}')">${a.label}</button>`).join('')}</div>
@@ -1544,18 +1698,43 @@ function initMap(){
 function paintMapColors(){
   const svg = document.getElementById('worldMapSvg');
   if(!svg) return;
+  const layer = state.mapLayer || 'relations';
   const playerId = state.player.countryId;
-  svg.querySelectorAll('[data-country-id]').forEach(el=>{
-    el.classList.remove('map-player','map-ally','map-war','map-sanctions','map-trade','map-selected');
-    const id = el.dataset.countryId;
-    if(id===state.mapSelected) el.classList.add('map-selected');
-    if(id===playerId){ el.classList.add('map-player'); return; }
-    const rel = getRelation(playerId, id);
-    if(rel.status==='guerre') el.classList.add('map-war');
-    else if(rel.status==='alliance') el.classList.add('map-ally');
-    else if(rel.status==='sanctions') el.classList.add('map-sanctions');
-    else if(rel.status==='accord commercial') el.classList.add('map-trade');
-  });
+  const els = svg.querySelectorAll('[data-country-id]');
+  if(layer==='relations'){
+    els.forEach(el=>{
+      el.classList.remove('map-player','map-ally','map-war','map-sanctions','map-trade','map-selected');
+      el.style.fill = '';
+      const id = el.dataset.countryId;
+      if(id===state.mapSelected) el.classList.add('map-selected');
+      if(id===playerId){ el.classList.add('map-player'); return; }
+      const rel = getRelation(playerId, id);
+      if(rel.status==='guerre') el.classList.add('map-war');
+      else if(rel.status==='alliance') el.classList.add('map-ally');
+      else if(rel.status==='sanctions') el.classList.add('map-sanctions');
+      else if(rel.status==='accord commercial') el.classList.add('map-trade');
+    });
+  } else if(layer==='confederations'){
+    const confColor = {};
+    state.confederations.forEach((cf,i)=>{ confColor[cf.id] = CONF_PALETTE[i%CONF_PALETTE.length]; });
+    els.forEach(el=>{
+      el.classList.remove('map-player','map-ally','map-war','map-sanctions','map-trade');
+      el.classList.toggle('map-selected', el.dataset.countryId===state.mapSelected);
+      const c = state.countries[el.dataset.countryId];
+      el.style.fill = c && c.confederationId ? confColor[c.confederationId] : '';
+    });
+  } else {
+    const values = Object.values(state.countries).map(c=>mapLayerValue(layer,c)).filter(v=>isFinite(v));
+    const min = values.length?Math.min(...values):0, max = values.length?Math.max(...values):1;
+    els.forEach(el=>{
+      el.classList.remove('map-player','map-ally','map-war','map-sanctions','map-trade');
+      el.classList.toggle('map-selected', el.dataset.countryId===state.mapSelected);
+      const c = state.countries[el.dataset.countryId];
+      const v = c ? mapLayerValue(layer,c) : null;
+      const t = (isFinite(v) && max>min) ? (v-min)/(max-min) : 0.5;
+      el.style.fill = isFinite(v) ? heatColor(t) : '';
+    });
+  }
 }
 function selectMapCountry(id){
   state.mapSelected = id;
@@ -1601,7 +1780,15 @@ function renderEconomy(){
     <div class="card">
       <h3>Entreprises (${c.companies.length})</h3>
       ${c.companies.length? c.companies.map(co=>`
-        <div class="row"><span class="rl">${escapeHtml(co.name)} <span class="pill ${co.ownership==='public'?'info':'neutral'}">${co.ownership}</span><br><span style="font-size:11px;color:var(--muted-2);">PDG : ${escapeHtml(co.ceo||'—')}</span></span><span class="rv num">${fmtMoney(co.value)}</span></div>
+        <div class="row" style="align-items:flex-start;">
+          <span class="rl">${escapeHtml(co.name)} <span class="pill ${co.ownership==='public'?'info':'neutral'}">${co.ownership}</span><br>
+            <span style="font-size:11px;color:var(--muted-2);">PDG : ${escapeHtml(co.ceo||'—')} · ${fmtNum(co.employees||0)} employés · salaire moyen ${fmtMoney(co.salary||0)}/mois</span>
+          </span>
+          <span style="text-align:right;">
+            <span class="rv num" style="display:block;">${fmtMoney(co.value)}</span>
+            <button class="btn sm" style="margin-top:6px;" onclick="hireEmployees('${co.id}')">Embaucher</button>
+          </span>
+        </div>
       `).join('') : '<div class="empty">Aucune entreprise fondée.</div>'}
       <div class="field" style="margin-top:12px;"><label>Fonder une entreprise</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -1688,7 +1875,7 @@ function renderConfederations(){
       <div class="field"><label>Nom</label><input type="text" id="confName" placeholder="Confédération d'Afrique"></div>
       <div class="field"><label>Monnaie commune</label><input type="text" id="confCurrency" placeholder="Franc Africain Uni"></div>
       <div class="field"><label>Pays partenaire (score relationnel ≥ ${CONFEDERATION_MIN_SCORE} requis)</label>
-        <select id="confPartner">${sorted.map(o=>`<option value="${o.id}">${flagEmoji(o.iso2)} ${escapeHtml(o.name)} — score ${Math.round(getRelation(state.player.countryId,o.id).score)}</option>`).join('')}</select>
+        <select id="confPartner">${sorted.map(o=>`<option value="${o.id}">${flagEmoji(o.iso2)} ${escapeHtml(o.name)} — score ${Math.round(getRelation(state.player.countryId,o.id).score)}${state.countries[o.id].confederationId?' (déjà affilié)':''}</option>`).join('')}</select>
       </div>
       <div class="btn-row"><button class="btn primary" onclick="createConfederation(document.getElementById('confName').value, document.getElementById('confCurrency').value, document.getElementById('confPartner').value)">Fonder la confédération</button></div>
     </div>`;
@@ -1712,7 +1899,7 @@ function renderConfederations(){
       <h3>Inviter un pays</h3>
       ${candidates.length ? `
       <div class="field"><label>Pays (score ≥ ${CONFEDERATION_MIN_SCORE} requis)</label>
-        <select id="confInvite">${candidates.map(o=>`<option value="${o.id}">${flagEmoji(o.iso2)} ${escapeHtml(o.name)} — score ${Math.round(getRelation(state.player.countryId,o.id).score)}</option>`).join('')}</select>
+        <select id="confInvite">${candidates.map(o=>`<option value="${o.id}">${flagEmoji(o.iso2)} ${escapeHtml(o.name)} — score ${Math.round(getRelation(state.player.countryId,o.id).score)}${state.countries[o.id].confederationId?' (déjà affilié)':''}</option>`).join('')}</select>
       </div>
       <div class="btn-row"><button class="btn" onclick="inviteToConfederation(document.getElementById('confInvite').value)">Inviter</button></div>
       ` : '<div class="empty">Tous les pays disponibles appartiennent déjà à une confédération.</div>'}
@@ -1743,9 +1930,19 @@ function renderSocial(){
         </select>
       </div>
       ${numberField("Programme de visas de travail qualifié", c.social.workVisaLevel, "setWorkVisaLevel(this.value)", '%')}
-      <div class="row"><span class="rl">Solde migratoire (dernier mois)</span><span class="rv num">${c.social.lastNetMigration!=null ? (c.social.lastNetMigration>=0?'+':'')+fmtNum(c.social.lastNetMigration) : '—'}</span></div>
-      <div class="row"><span class="rl">Immigrants accueillis (cumul du mandat)</span><span class="rv num">${fmtNum(c.social.totalImmigrants||0)}</span></div>
-      <p class="hint" style="margin-top:8px;">Un accueil plus ouvert et un programme de visas qualifiés dynamisent la croissance, mais coûtent au budget.</p>
+      <div class="row"><span class="rl">Arrivées (dernier mois)</span><span class="rv num pos">+${fmtNum(c.social.lastArrivals||0)}</span></div>
+      <div class="row"><span class="rl">Départs (dernier mois)</span><span class="rv num neg">−${fmtNum(c.social.lastDepartures||0)}</span></div>
+      <div class="row"><span class="rl">Solde migratoire net</span><span class="rv num">${c.social.lastNetMigration!=null ? (c.social.lastNetMigration>=0?'+':'')+fmtNum(c.social.lastNetMigration) : '—'}</span></div>
+      <div class="row"><span class="rl">Total arrivées (cumul du mandat)</span><span class="rv num">${fmtNum(c.social.totalArrivals||0)}</span></div>
+      <div class="row"><span class="rl">Total départs (cumul du mandat)</span><span class="rv num">${fmtNum(c.social.totalDepartures||0)}</span></div>
+      <p class="hint" style="margin-top:8px;">Un accueil plus ouvert et un programme de visas qualifiés attirent plus d'arrivées ; le chômage et l'impopularité poussent des habitants à partir.</p>
+    </div>
+    <div class="card">
+      <h3>Démographie</h3>
+      <div class="row"><span class="rl">Natalité</span><span class="rv num">${round1(c.social.birthRate)} <span style="color:var(--muted-2);">‰/an</span></span></div>
+      <div class="row"><span class="rl">Mortalité</span><span class="rv num">${round1(c.social.mortalityRate)} <span style="color:var(--muted-2);">‰/an</span></span></div>
+      <div class="row"><span class="rl">Croissance naturelle</span><span class="rv num">${round1(c.social.birthRate-c.social.mortalityRate)} <span style="color:var(--muted-2);">‰/an</span></span></div>
+      <p class="hint" style="margin-top:8px;">La natalité baisse avec l'éducation, la mortalité baisse avec la santé publique — des tendances démographiques qui évoluent avec vos politiques.</p>
     </div>
     <div class="card">
       <h3>Sécurité sociale &amp; santé</h3>
@@ -1812,6 +2009,20 @@ function renderSecurity(){
       <div class="btn-row">
         <button class="btn sm" onclick="recruit('military')">Enrôler ${fmtNum(recruitAmount('military',c))} soldats (${fmtMoney(recruitAmount('military',c)*15000)})</button>
         <button class="btn sm" onclick="modernize('military')">Moderniser l'arsenal</button>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px;">
+    <h3>Système carcéral</h3>
+    <div class="grid cols2">
+      <div>
+        <div class="row"><span class="rl">Détenus</span><span class="rv num">${fmtNum(c.police.inmates)}</span></div>
+        <div class="row"><span class="rl">Capacité</span><span class="rv num">${fmtNum(c.police.prisonCapacity)}</span></div>
+        <div class="bar ${c.police.inmates>c.police.prisonCapacity?'bad':''}"><i style="width:${clamp(c.police.inmates/Math.max(1,c.police.prisonCapacity)*100,0,100)}%"></i></div>
+        ${c.police.inmates>c.police.prisonCapacity ? '<p class="hint" style="color:var(--seal-red);margin-top:6px;">Surpopulation carcérale : la criminalité en pâtit.</p>' : ''}
+      </div>
+      <div class="btn-row" style="align-items:flex-start;">
+        <button class="btn sm" onclick="buildPrison()">Étendre les capacités (${fmtMoney(Math.max(3e7, c.gdp*1e9*0.0005))})</button>
       </div>
     </div>
   </div>
