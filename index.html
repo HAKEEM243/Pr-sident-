@@ -549,6 +549,7 @@ const TABS = [
   {id:'dashboard', label:'Tableau de bord'},
   {id:'map', label:'Carte du monde'},
   {id:'population', label:'Population'},
+  {id:'parliament', label:'Parlement'},
   {id:'economy', label:'Économie'},
   {id:'resources', label:'Ressources'},
   {id:'diplomacy', label:'Diplomatie'},
@@ -802,6 +803,157 @@ function syncProfessions(c){
   });
   normalizePct(d.professions);
 }
+/* ============================================================
+   PARLEMENT, PARTIS, LOIS ET ÉLECTIONS
+   ============================================================ */
+const PARTIES = [
+  {key:'conservateur', label:'Conservateurs',  color:'#5b8fc9', ideals:{impots:35,immigration:30,armee:65,environnement:40,liberte:55,religion:70}},
+  {key:'liberal',      label:'Libéraux',       color:'#d3ac3a', ideals:{impots:15,immigration:65,armee:45,environnement:45,liberte:85,religion:35}},
+  {key:'socialiste',   label:'Socialistes',    color:'#c1503a', ideals:{impots:65,immigration:60,armee:30,environnement:65,liberte:75,religion:30}},
+  {key:'ecologiste',   label:'Écologistes',    color:'#4f9d6e', ideals:{impots:60,immigration:70,armee:20,environnement:95,liberte:85,religion:25}},
+  {key:'nationaliste', label:'Nationalistes',  color:'#9a6fd1', ideals:{impots:40,immigration:10,armee:85,environnement:35,liberte:40,religion:65}},
+  {key:'centriste',    label:'Centristes',     color:'#4fb8b0', ideals:{impots:45,immigration:50,armee:50,environnement:55,liberte:70,religion:45}},
+];
+function partyByKey(k){ return PARTIES.find(p=>p.key===k) || PARTIES[5]; }
+/* Un groupe social ne vote pas d'un seul bloc : il répartit ses voix entre les
+   partis, d'autant plus volontiers que le parti est proche de ses attentes. */
+function partyWeights(groupKey){
+  const g = GROUP_PROFILES[groupKey] || {ideals:{}};
+  const w = {};
+  let sum = 0;
+  PARTIES.forEach(p=>{
+    let d = 0;
+    PREF_TOPICS.forEach(t=>{
+      const gi = (g.ideals && g.ideals[t.key]!=null) ? g.ideals[t.key] : 50;
+      d += Math.abs(gi - p.ideals[t.key]);
+    });
+    const a = Math.pow(1/(1 + d/40), 3);
+    w[p.key] = a;
+    sum += a;
+  });
+  if(sum>0) PARTIES.forEach(p=> w[p.key] = w[p.key]/sum);
+  else PARTIES.forEach(p=> w[p.key] = 1/PARTIES.length);
+  return w;
+}
+/* Les sièges découlent du vote réel des professions : chaque groupe soutient son
+   parti naturel, et prête d'autant plus de voix au camp présidentiel qu'il est satisfait. */
+function computeSeats(c){
+  const d = c.demographics;
+  if(!d || !state.parliament) return null;
+  const ind = nationalIndicators(c);
+  const pres = state.parliament.presidentialParty;
+  const raw = {}; PARTIES.forEach(p=> raw[p.key]=0);
+  PROFESSIONS.forEach(g=>{
+    const w = d.professions[g.key]||0;
+    if(!(w>0)) return;
+    const weights = partyWeights(g.key);
+    const swing = clamp((groupSatisfaction(g.key, ind)-50)/140, -0.3, 0.3);
+    const toPres = (pres && swing>0) ? w*swing : 0;
+    if(toPres>0) raw[pres] += toPres;
+    const rest = Math.max(0, w - toPres);
+    PARTIES.forEach(p=> raw[p.key] += rest*weights[p.key]);
+  });
+  const total = Object.values(raw).reduce((a,b)=>a+b,0);
+  const seatsTotal = state.parliament.total || 300;
+  if(!(total>0)) return null;
+  const seats = {};
+  PARTIES.forEach(p=> seats[p.key] = Math.max(0, Math.round(raw[p.key]/total*seatsTotal)));
+  let drift = seatsTotal - Object.values(seats).reduce((a,b)=>a+b,0);
+  if(drift!==0){
+    const k = pres || 'centriste';
+    seats[k] = Math.max(0, (seats[k]||0) + drift);
+  }
+  return seats;
+}
+function coalitionSeats(){
+  const pl = state.parliament;
+  if(!pl || !pl.seats) return 0;
+  const members = [pl.presidentialParty].concat(pl.coalition||[]);
+  return members.reduce((a,k)=> a + (pl.seats[k]||0), 0);
+}
+function hasMajority(){
+  const pl = state.parliament;
+  if(!pl || !pl.seats) return false;
+  return coalitionSeats() > (pl.total||300)/2;
+}
+function refreshParliament(){
+  if(!state.parliament) return;
+  const seats = computeSeats(playerState());
+  if(seats) state.parliament.seats = seats;
+}
+/* Lois : chaque parti a une position, la majorité décide, les effets sont réels. */
+const LAWS = [
+  {key:'salaireMin', label:'Loi de revalorisation du salaire minimum',
+   desc:'Augmente de 15 % le salaire minimum et toute la grille salariale.',
+   stance:{socialiste:1, ecologiste:0.8, centriste:0.1, conservateur:-0.6, liberal:-1, nationaliste:0.2},
+   fx:c=>{ c.salaries.minWage = Math.round(c.salaries.minWage*1.15);
+           PROFESSIONS.forEach(p=>{ if(p.salaryMult>0) c.salaries.byProfession[p.key] = Math.round((c.salaries.byProfession[p.key]||0)*1.15); }); }},
+  {key:'baisseImpots', label:'Réforme fiscale — baisse des impôts',
+   desc:"Réduit de 6 points l'impôt sur le revenu et sur les sociétés.",
+   stance:{liberal:1, conservateur:0.8, centriste:0.2, nationaliste:0.1, socialiste:-1, ecologiste:-0.7},
+   fx:c=>{ c.budget.taxIncome = Math.max(0, c.budget.taxIncome-6); c.budget.taxCorporate = Math.max(0, c.budget.taxCorporate-6); }},
+  {key:'planSante', label:'Grand plan pour la santé publique',
+   desc:"Porte l'effort santé à +20 et améliore immédiatement l'indice de santé.",
+   stance:{socialiste:1, ecologiste:0.8, centriste:0.6, conservateur:0.1, nationaliste:0.2, liberal:-0.5},
+   fx:c=>{ c.budget.spending.sante = Math.min(200, spendLevel(c,'sante')+20);
+           c.social.healthIndex = round1(clamp(c.social.healthIndex+6, 0, 100)); }},
+  {key:'retraites', label:'Réforme des retraites',
+   desc:"Réduit de 12 points l'effort retraites : des économies, mais une opinion furieuse.",
+   stance:{liberal:1, conservateur:0.6, centriste:0.2, nationaliste:-0.4, socialiste:-1, ecologiste:-0.8},
+   fx:c=>{ c.budget.spending.retraites = Math.max(0, spendLevel(c,'retraites')-12);
+           c.economy.approval = round1(clamp(c.economy.approval-7, 0, 100)); }},
+  {key:'anticorruption', label:'Loi anticorruption',
+   desc:'Renforce la justice et fait reculer nettement la corruption.',
+   stance:{ecologiste:1, socialiste:0.7, centriste:0.8, liberal:0.6, conservateur:0.2, nationaliste:0.1},
+   fx:c=>{ c.social.corruption = round1(clamp((c.social.corruption||40)-12, 0, 100));
+           c.police.justiceIndex = round1(clamp((c.police.justiceIndex||50)+8, 0, 100));
+           c.budget.spending.justice = Math.min(200, spendLevel(c,'justice')+10); }},
+  {key:'securite', label:'Loi sécurité renforcée',
+   desc:'Fait chuter la criminalité, au prix des libertés publiques.',
+   stance:{nationaliste:1, conservateur:0.8, centriste:0.1, liberal:-0.6, socialiste:-0.5, ecologiste:-0.8},
+   fx:c=>{ c.police.crimeIndex = round1(clamp(c.police.crimeIndex-9, 0, 100));
+           c.social.liberty = round1(clamp((c.social.liberty||60)-10, 0, 100));
+           c.budget.spending.police = Math.min(200, spendLevel(c,'police')+10); }},
+  {key:'immigrationOuverte', label:"Loi d'ouverture migratoire",
+   desc:'Ouvre les frontières et double les visas de travail.',
+   stance:{ecologiste:1, socialiste:0.8, liberal:0.7, centriste:0.1, conservateur:-0.7, nationaliste:-1},
+   fx:c=>{ c.social.immigration='ouverte'; c.social.refugeePolicy='accueil';
+           c.social.workVisaLevel = Math.min(200, (c.social.workVisaLevel||20)*2); }},
+  {key:'planClimat', label:'Plan climat national',
+   desc:'Investit massivement dans les infrastructures vertes et la recherche.',
+   stance:{ecologiste:1, socialiste:0.7, centriste:0.3, liberal:-0.2, conservateur:-0.5, nationaliste:-0.6},
+   fx:c=>{ c.budget.spending.infra = Math.min(200, spendLevel(c,'infra')+12);
+           c.budget.spending.recherche = Math.min(200, spendLevel(c,'recherche')+12); }},
+  {key:'planRecherche', label:'Loi de programmation de la recherche',
+   desc:"Porte l'effort de recherche à +18 et stimule durablement la croissance.",
+   stance:{liberal:0.8, ecologiste:0.7, centriste:0.7, socialiste:0.5, conservateur:0.2, nationaliste:0},
+   fx:c=>{ c.budget.spending.recherche = Math.min(200, spendLevel(c,'recherche')+18);
+           c.social.educationIndex = round1(clamp(c.social.educationIndex+4, 0, 100)); }},
+  {key:'planEducation', label:"Grande loi sur l'éducation",
+   desc:"Porte l'effort éducation à +18 et relève immédiatement le niveau scolaire.",
+   stance:{socialiste:1, ecologiste:0.8, centriste:0.6, liberal:0.2, conservateur:0.1, nationaliste:0},
+   fx:c=>{ c.budget.spending.education = Math.min(200, spendLevel(c,'education')+18);
+           c.social.educationIndex = round1(clamp(c.social.educationIndex+6, 0, 100)); }},
+];
+function lawVote(law){
+  const pl = state.parliament;
+  if(!pl || !pl.seats) return {yes:0, no:0, passed:false, total:0};
+  let yes=0, no=0;
+  PARTIES.forEach(p=>{
+    const s = pl.seats[p.key]||0;
+    if(!s) return;
+    let stance = law.stance[p.key]!=null ? law.stance[p.key] : 0;
+    /* Un parti allié suit plus volontiers le gouvernement ; l'opposition, elle,
+       résiste par principe même quand le texte lui plaît à moitié. */
+    const allied = p.key===pl.presidentialParty || (pl.coalition||[]).indexOf(p.key)>=0;
+    stance += allied ? 0.4 : -0.35;
+    if(stance > 0.05) yes += s;
+    else if(stance < -0.05) no += s;
+    else { yes += s*0.5; no += s*0.5; }
+  });
+  const total = pl.total||300;
+  return {yes:Math.round(yes), no:Math.round(no), passed: yes > total/2, total};
+}
 function deriveCountry(id){
   const base = COUNTRY_INDEX[id];
   const rng = rngFor(id);
@@ -911,6 +1063,8 @@ function newGame(countryId){
       military: Math.round(militaryStrength(p0)),
     };
   }
+  state.parliament = { total: 300, presidentialParty: 'centriste', coalition: [], seats: null, passedLaws: [], lastVote: null, electionsEnabled: true };
+  refreshParliament();
   saveGame();
 }
 function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){} }
@@ -968,6 +1122,16 @@ function loadGame(){
       if(!c.personality) c.personality = derivePersonality(c, rngFor(c.id+'-pers'));
     });
     if(!state.history) state.history = [];
+    if(!state.parliament){
+      state.parliament = { total: 300, presidentialParty: 'centriste', coalition: [], seats: null, passedLaws: [], lastVote: null, electionsEnabled: true };
+    }
+    if(!state.parliament.coalition) state.parliament.coalition = [];
+    if(!state.parliament.passedLaws) state.parliament.passedLaws = [];
+    if(!state.parliament.total) state.parliament.total = 300;
+    if(!state.parliament.presidentialParty) state.parliament.presidentialParty = 'centriste';
+    if(state.parliament.electionsEnabled==null) state.parliament.electionsEnabled = true;
+    if(state.defeated==null) state.defeated = false;
+    try{ refreshParliament(); }catch(e){}
     if(!state.confederations.some(cf=>cf.preset)){
       PRESET_CONFEDERATIONS.forEach(preset=>{
         const members = preset.isoCodes.map(code=>COUNTRIES_DATA.find(x=>x.iso2===code)).filter(Boolean).map(x=>x.id).filter(id=>state.countries[id] && !state.countries[id].confederationId);
@@ -1294,17 +1458,7 @@ function simulateCountry(c, isPlayer, turn){
   }
   if(isPlayer){
     c.mandate.turnsElapsed++;
-    if(c.mandate.turnsElapsed >= c.mandate.length){
-      c.mandate.turnsElapsed = 0; c.mandate.term++;
-      if(c.economy.approval >= 38){
-        c.economy.approval = clamp(c.economy.approval+3,0,100);
-        pushLog(`Fin de mandat : la population reconduit votre gouvernement pour un nouveau mandat.`, c);
-      } else {
-        c.economy.approval = clamp(c.economy.approval+12,0,100);
-        c.police.crimeIndex = clamp(c.police.crimeIndex+6,0,100);
-        pushLog(`Fin de mandat mouvementée : des contestations éclatent, mais vous restez en fonction pour un nouveau mandat.`, c);
-      }
-    }
+    if(c.mandate.turnsElapsed >= c.mandate.length) runElection(c);
   }
 }
 function processContracts(){
@@ -1384,6 +1538,7 @@ function advanceTurn(skipRender){
   processDiplomacyDrift();
   processForeignAI();
   processSport();
+  refreshParliament();
   recordHistory();
   generateWorldNews();
   checkAchievements();
@@ -1396,6 +1551,76 @@ function advanceTurns(n){
   for(let i=0;i<count;i++) advanceTurn(true);
   render();
   if(count>1) toast(`${count} mois simulés.`);
+}
+/* Élection de fin de mandat : votre popularité décide de votre sort. */
+function runElection(c){
+  const rng = mulberry32((hashCode(c.id) ^ (state.player.turn*104729)) >>> 0);
+  const enabled = !state.parliament || state.parliament.electionsEnabled !== false;
+  const score = round1(clamp(c.economy.approval + rand(rng,-6,6), 0, 100));
+  const won = !enabled || score >= 42;
+  c.mandate.turnsElapsed = 0;
+  state.lastElection = { turn: state.player.turn, score, won, term: c.mandate.term, forced: !enabled };
+  refreshParliament();
+  if(won){
+    c.mandate.term++;
+    c.economy.approval = round1(clamp(c.economy.approval + (score>=60?4:2), 0, 100));
+    pushLog(`Élection : vous êtes reconduit(e) à la tête du pays avec ${score} % des suffrages.`, c);
+    pushWorldNews(`${c.name} : le chef de l'État est reconduit avec ${score} % des voix.`);
+  } else {
+    state.defeated = true;
+    pushLog(`Élection : vous êtes battu(e) avec ${score} % des suffrages.`, c);
+    pushWorldNews(`${c.name} : alternance politique, le chef de l'État sortant est battu.`);
+  }
+}
+function continueAfterDefeat(){
+  state.defeated = false;
+  if(state.parliament) state.parliament.electionsEnabled = false;
+  const c = playerState();
+  c.mandate.term++;
+  pushLog('Vous poursuivez la partie en mode bac à sable : les élections sont désactivées.', c);
+  saveGame(); render();
+}
+function setElectionsEnabled(on){
+  if(!state.parliament) return;
+  state.parliament.electionsEnabled = !!on;
+  saveGame(); render();
+}
+function setPresidentialParty(key){
+  if(!state.parliament) return;
+  state.parliament.presidentialParty = key;
+  state.parliament.coalition = (state.parliament.coalition||[]).filter(k=>k!==key);
+  refreshParliament();
+  saveGame(); render();
+}
+function toggleCoalition(key){
+  const pl = state.parliament;
+  if(!pl || key===pl.presidentialParty) return;
+  pl.coalition = pl.coalition||[];
+  const i = pl.coalition.indexOf(key);
+  if(i>=0) pl.coalition.splice(i,1); else pl.coalition.push(key);
+  saveGame(); render();
+}
+function proposeLaw(key){
+  const law = LAWS.find(l=>l.key===key);
+  const pl = state.parliament;
+  if(!law || !pl) return;
+  const c = playerState();
+  if((pl.passedLaws||[]).indexOf(key)>=0){ toast('Cette loi a déjà été adoptée.'); return; }
+  const v = lawVote(law);
+  pl.lastVote = { key, label: law.label, yes: v.yes, no: v.no, passed: v.passed, turn: state.player.turn };
+  if(v.passed){
+    try{ law.fx(c); }catch(e){}
+    pl.passedLaws = (pl.passedLaws||[]).concat([key]);
+    c.economy.approval = round1(clamp(c.economy.approval+1.5, 0, 100));
+    pushLog(`Le Parlement adopte « ${law.label} » par ${v.yes} voix contre ${v.no}.`, c);
+    toast('Loi adoptée par le Parlement.');
+  } else {
+    c.economy.approval = round1(clamp(c.economy.approval-1, 0, 100));
+    pushLog(`Le Parlement rejette « ${law.label} » (${v.yes} pour, ${v.no} contre).`, c);
+    toast('Loi rejetée par le Parlement.');
+  }
+  refreshParliament();
+  saveGame(); render();
 }
 /* Bilan chiffré de la présidence, comparé au pays dont vous avez hérité. */
 function presidencyReport(){
@@ -2039,7 +2264,7 @@ function computeAlerts(c){
   return alerts;
 }
 function tabGlyph(id){
-  return {dashboard:'◆',map:'⊚',population:'☗',economy:'$',resources:'⛏',diplomacy:'✦',confederations:'☍',social:'♥',sport:'⚑',security:'⛨',infra:'⌂',government:'⚖',editor:'✎'}[id]||'•';
+  return {dashboard:'◆',map:'⊚',population:'☗',parliament:'▤',economy:'$',resources:'⛏',diplomacy:'✦',confederations:'☍',social:'♥',sport:'⚑',security:'⛨',infra:'⌂',government:'⚖',editor:'✎'}[id]||'•';
 }
 
 /* ============================================================
@@ -2049,6 +2274,10 @@ function render(){
   const app = document.getElementById('app');
   if(!state || state.screen==='select'){
     app.innerHTML = renderSelectScreen();
+    return;
+  }
+  if(state.defeated){
+    app.innerHTML = renderDefeat();
     return;
   }
   app.innerHTML = renderShell();
@@ -2169,6 +2398,7 @@ function renderTab(){
     case 'dashboard': return renderDashboard();
     case 'map': return renderMap();
     case 'population': return renderPopulation();
+    case 'parliament': return renderParliament();
     case 'economy': return renderEconomy();
     case 'resources': return renderResources();
     case 'diplomacy': return renderDiplomacy();
@@ -2597,6 +2827,106 @@ function renderPopulation(){
     </div>
     <p class="hint" style="margin-top:8px;">Le régime politique tire progressivement les libertés et la religiosité vers son propre niveau ; la justice et l'éducation font reculer la corruption.</p>
   </div>`;
+}
+
+/* ---- Parlement ---- */
+function renderParliament(){
+  const c = playerState();
+  const pl = state.parliament;
+  if(!pl || !pl.seats) return `<h1>Parlement</h1><div class="empty">Le Parlement n'est pas encore constitué.</div>`;
+  const total = pl.total||300;
+  const coal = coalitionSeats();
+  const maj = hasMajority();
+  const sorted = PARTIES.slice().sort((a,b)=>(pl.seats[b.key]||0)-(pl.seats[a.key]||0));
+  const el = state.lastElection;
+  const mandatePct = Math.round(c.mandate.turnsElapsed/c.mandate.length*100);
+  return `
+  <h1>Parlement</h1>
+  <div class="subtitle">${total} sièges — la composition découle du vote réel des professions et de leur satisfaction.</div>
+  <div class="grid cols2">
+    <div class="card">
+      <h3>Composition de l'Assemblée</h3>
+      <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin:8px 0 12px;">
+        ${sorted.map(p=>`<div title="${escapeHtml(p.label)}" style="width:${(pl.seats[p.key]||0)/total*100}%;background:${p.color};"></div>`).join('')}
+      </div>
+      ${sorted.map(p=>{
+        const s = pl.seats[p.key]||0;
+        const isPres = p.key===pl.presidentialParty;
+        const inCoal = (pl.coalition||[]).indexOf(p.key)>=0;
+        return `<div class="row">
+          <span class="rl"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${p.color};margin-right:6px;"></span>${escapeHtml(p.label)}
+            ${isPres?'<span class="pill info">Parti présidentiel</span>':(inCoal?'<span class="pill good">Coalition</span>':'')}</span>
+          <span style="text-align:right;white-space:nowrap;">
+            <span class="rv num">${s} sièges</span>
+            ${!isPres?`<button class="btn sm" style="margin-left:8px;" onclick="toggleCoalition('${p.key}')">${inCoal?'Quitter':'Allier'}</button>`:''}
+          </span>
+        </div>`;
+      }).join('')}
+      <div class="row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px;">
+        <span class="rl" style="color:var(--parchment)">Majorité présidentielle</span>
+        <span class="rv"><span class="pill ${maj?'good':'bad'}">${coal} / ${total} — ${maj?'majorité absolue':'minorité'}</span></span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Votre camp politique</h3>
+      <div class="field"><label>Parti présidentiel</label>
+        <select onchange="setPresidentialParty(this.value)">
+          ${PARTIES.map(p=>`<option value="${p.key}" ${pl.presidentialParty===p.key?'selected':''}>${escapeHtml(p.label)}</option>`).join('')}
+        </select>
+      </div>
+      <p class="hint" style="margin-top:-6px;">Les groupes satisfaits prêtent leurs voix à votre camp ; les mécontents retournent vers leur parti naturel.</p>
+      <div class="field"><label>Élections de fin de mandat</label>
+        <select onchange="setElectionsEnabled(this.value==='1')">
+          <option value="1" ${pl.electionsEnabled!==false?'selected':''}>Activées — vous pouvez perdre le pouvoir</option>
+          <option value="0" ${pl.electionsEnabled===false?'selected':''}>Désactivées (bac à sable)</option>
+        </select>
+      </div>
+      ${el ? `<div class="row" style="margin-top:8px;"><span class="rl">Dernière élection</span><span class="rv"><span class="pill ${el.won?'good':'bad'}">${el.score} % — ${el.won?'réélu(e)':'battu(e)'}</span></span></div>` : ''}
+      <div class="row"><span class="rl">Progression du mandat</span><span class="rv num">${mandatePct} %</span></div>
+      <div class="bar"><i style="width:${mandatePct}%"></i></div>
+      ${pl.lastVote ? `<p class="hint" style="margin-top:10px;">Dernier vote : « ${escapeHtml(pl.lastVote.label)} » — <b style="color:${pl.lastVote.passed?'var(--gain)':'var(--loss)'}">${pl.lastVote.passed?'adoptée':'rejetée'}</b> (${pl.lastVote.yes} pour / ${pl.lastVote.no} contre).</p>` : ''}
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px;">
+    <h3>Propositions de loi</h3>
+    <p class="hint" style="margin-top:-4px;">Chaque loi est soumise au vote : elle passe si elle réunit plus de la moitié des sièges. Sans majorité, il faut élargir la coalition.</p>
+    <div class="grid cols2" style="margin-top:6px;">
+      ${LAWS.map(l=>{
+        const done = (pl.passedLaws||[]).indexOf(l.key)>=0;
+        const v = lawVote(l);
+        return `<div class="row" style="align-items:flex-start;">
+          <span class="rl">${escapeHtml(l.label)}<br><span style="font-size:11px;color:var(--muted-2);">${escapeHtml(l.desc)}</span>
+            <span style="display:block;font-size:11px;margin-top:4px;color:${v.passed?'var(--gain)':'var(--loss)'};">Vote estimé : ${v.yes} pour / ${v.no} contre</span></span>
+          <span style="text-align:right;white-space:nowrap;">
+            ${done ? '<span class="pill good">Adoptée</span>'
+                   : `<button class="btn sm" onclick="proposeLaw('${l.key}')">Soumettre au vote</button>`}
+          </span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+function renderDefeat(){
+  const c = playerState();
+  const rep = presidencyReport();
+  const el = state.lastElection || {score:0};
+  const sign = v => (v>0?'+':'')+v;
+  return `<div class="select-screen"><div class="select-inner" style="max-width:760px;">
+    <h1>Défaite électorale</h1>
+    <div class="subtitle">Vous avez été battu(e) avec ${el.score} % des suffrages après ${c.mandate.term} mandat(s) à la tête de ${escapeHtml(c.name)}.</div>
+    ${rep ? `<div class="card" style="margin-top:16px;text-align:left;">
+      <h3>Bilan de votre présidence</h3>
+      <div class="grid cols2" style="margin-top:8px;">
+        ${rep.metrics.map(m=>`<div class="row"><span class="rl">${escapeHtml(m.label)}</span><span class="rv num ${m.value*m.good>0?'pos':(m.value*m.good<0?'neg':'')}">${sign(m.value)}${m.unit}</span></div>`).join('')}
+      </div>
+      <p class="hint" style="margin-top:10px;line-height:1.6;color:var(--parchment);">${escapeHtml(presidencyNarrative(rep))}</p>
+    </div>` : ''}
+    <div class="btn-row" style="margin-top:18px;justify-content:center;flex-wrap:wrap;gap:8px;">
+      <button class="btn primary" onclick="continueAfterDefeat()">Continuer quand même (bac à sable)</button>
+      <button class="btn" onclick="resetGame()">Nouvelle partie</button>
+      <button class="btn" onclick="exportSave()">Exporter la sauvegarde</button>
+    </div>
+  </div></div>`;
 }
 
 /* ---- Resources ---- */
