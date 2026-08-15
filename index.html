@@ -394,23 +394,55 @@ const DRC_CITIES = [
   {name:"Boma", pop:300000, coastal:true},
 ];
 
+/* ============================================================
+   RESSOURCES NATURELLES
+   worldValue = chiffre d'affaires mensuel approximatif du 1er producteur mondial.
+   producers  = vrais principaux pays producteurs, dans l'ordre du classement.
+   ============================================================ */
 const RESOURCE_POOL = [
-  {type:'petrole', name:'Pétrole', price:70},
-  {type:'gaz', name:'Gaz naturel', price:40},
-  {type:'or', name:'Or', price:60},
-  {type:'diamant', name:'Diamants', price:90},
-  {type:'cuivre', name:'Cuivre', price:8},
-  {type:'cobalt', name:'Cobalt', price:35},
-  {type:'coltan', name:'Coltan', price:50},
-  {type:'fer', name:'Minerai de fer', price:5},
-  {type:'charbon', name:'Charbon', price:6},
-  {type:'bois', name:'Bois', price:4},
-  {type:'agriculture', name:'Terres agricoles', price:3},
-  {type:'peche', name:'Ressources halieutiques', price:5},
-  {type:'uranium', name:'Uranium', price:80},
-  {type:'lithium', name:'Lithium', price:65},
-  {type:'etain', name:'Étain', price:20},
+  {type:'petrole',    name:'Pétrole',                  price:70,  worldValue:12e9, producers:['US','SA','RU','CA','IQ','CN','AE','IR']},
+  {type:'gaz',        name:'Gaz naturel',              price:40,  worldValue:6e9,  producers:['US','RU','IR','CN','QA','CA','AU','NO']},
+  {type:'charbon',    name:'Charbon',                  price:6,   worldValue:4e9,  producers:['CN','IN','ID','US','AU','RU','ZA']},
+  {type:'fer',        name:'Minerai de fer',           price:5,   worldValue:8e9,  producers:['AU','BR','CN','IN','RU','UA','ZA']},
+  {type:'cuivre',     name:'Cuivre',                   price:8,   worldValue:4e9,  producers:['CL','PE','CD','CN','US','RU','ZM']},
+  {type:'cobalt',     name:'Cobalt',                   price:35,  worldValue:1.2e9,producers:['CD','ID','RU','AU','PH','CA','CU']},
+  {type:'coltan',     name:'Coltan (tantale)',         price:50,  worldValue:0.3e9,producers:['CD','RW','BR','NG','CN']},
+  {type:'or',         name:'Or',                       price:60,  worldValue:3e9,  producers:['CN','RU','AU','CA','US','GH','PE']},
+  {type:'diamant',    name:'Diamants',                 price:90,  worldValue:0.4e9,producers:['RU','BW','CD','AO','CA','ZA','NA']},
+  {type:'uranium',    name:'Uranium',                  price:80,  worldValue:0.3e9,producers:['KZ','CA','NA','AU','UZ','RU','NE']},
+  {type:'lithium',    name:'Lithium',                  price:65,  worldValue:1e9,  producers:['AU','CL','CN','AR','ZW','BR']},
+  {type:'etain',      name:'Étain',                    price:20,  worldValue:0.2e9,producers:['CN','ID','MM','PE','BO','CD']},
+  {type:'nickel',     name:'Nickel',                   price:18,  worldValue:1.2e9,producers:['ID','PH','RU','NC','CA','AU']},
+  {type:'zinc',       name:'Zinc',                     price:12,  worldValue:0.8e9,producers:['CN','PE','AU','IN','US','MX']},
+  {type:'argent',     name:'Argent',                   price:55,  worldValue:0.5e9,producers:['MX','PE','CN','PL','CL','AU']},
+  {type:'bauxite',    name:'Bauxite',                  price:3,   worldValue:0.8e9,producers:['AU','GN','CN','BR','IN','JM']},
+  {type:'manganese',  name:'Manganèse',                price:9,   worldValue:0.3e9,producers:['ZA','GA','AU','CN','GH','BR']},
+  {type:'phosphate',  name:'Phosphate',                price:4,   worldValue:0.5e9,producers:['CN','MA','US','RU','JO','EG']},
+  {type:'terresrares',name:'Terres rares',             price:120, worldValue:0.4e9,producers:['CN','US','MM','AU','TH','IN']},
+  {type:'bois',       name:'Bois',                     price:4,   worldValue:1.5e9,producers:['US','RU','CA','BR','CN','CD','SE']},
+  {type:'agriculture',name:'Terres agricoles',         price:3,   worldValue:6e9,  producers:['CN','IN','US','BR','RU','FR','AR']},
+  {type:'ble',        name:'Blé',                      price:7,   worldValue:2e9,  producers:['CN','IN','RU','US','FR','CA','UA']},
+  {type:'cacao',      name:'Cacao',                    price:25,  worldValue:0.5e9,producers:['CI','GH','ID','EC','NG','CM']},
+  {type:'cafe',       name:'Café',                     price:22,  worldValue:0.6e9,producers:['BR','VN','CO','ID','ET','HN']},
+  {type:'caoutchouc', name:'Caoutchouc',               price:14,  worldValue:0.5e9,producers:['TH','ID','VN','CI','IN','MY']},
+  {type:'coton',      name:'Coton',                    price:16,  worldValue:0.6e9,producers:['CN','IN','US','BR','PK','UZ']},
+  {type:'peche',      name:'Ressources halieutiques',  price:5,   worldValue:1e9,  producers:['CN','ID','PE','IN','RU','US','VN']},
 ];
+/* Part de la capacité du 1er producteur, selon le rang mondial. */
+const RANK_SHARE = [1, 0.62, 0.45, 0.33, 0.25, 0.20, 0.16, 0.13];
+/* La RD Congo est volontairement surpuissante sur son sous-sol : c'est un choix
+   de jeu assumé, pas une donnée réaliste. */
+const DRC_BOOST = 1.6;
+function resourceDef(type){ return RESOURCE_POOL.find(r=>r.type===type); }
+/* Capacité de production mensuelle de base d'un pays pour une ressource. */
+function baseCapacityFor(def, iso2, rng){
+  const rank = def.producers.indexOf(iso2);
+  const share = rank>=0 ? (RANK_SHARE[rank]!=null ? RANK_SHARE[rank] : 0.1) : 0;
+  const capTop = def.worldValue/Math.max(1, def.price);
+  if(rank>=0) return Math.round(capTop*share);
+  /* Producteur mineur : une fraction marginale. */
+  return Math.round(capTop*(rng?rand(rng,0.004,0.03):0.015));
+}
 const DRC_RESOURCE_TYPES = ['cuivre','cobalt','diamant','or','coltan','bois','petrole','etain'];
 
 const REGIMES = ['République','Monarchie constitutionnelle','Monarchie','Fédération','Théocratie','Régime militaire'];
@@ -644,16 +676,87 @@ function makeCity(idBase, name, pop, coastal, isCapital, rng){
     },
   };
 }
+function makeResource(def, iso2, rng, boost){
+  const cap = Math.max(1, Math.round(baseCapacityFor(def, iso2, rng)*(boost||1)));
+  /* Pour les vrais grands producteurs, l'aléa reste étroit : le podium mondial
+     doit refléter la réalité (le fer, c'est l'Australie, le cobalt la RDC...). */
+  const ranked = def.producers.indexOf(iso2) >= 0;
+  return {
+    id: uid('res'), type: def.type, name: def.name,
+    reserves: Math.round(cap*randInt(rng,220,620)),
+    baseCapacity: cap,
+    extraction: ranked ? randInt(rng,98,102) : randInt(rng,60,110),
+    refining: randInt(rng,0,25),
+    grade: ranked ? round1(rand(rng,0.98,1.02)) : round1(rand(rng,0.75,1.35)),
+    price: def.price, prevPrice: def.price,
+    exploited: true,
+  };
+}
 function generateResources(base, rng){
   if(base.id === DRC_ID){
+    /* Cheat assumé : la RDC reçoit tout son sous-sol réel, gonflé. */
     return DRC_RESOURCE_TYPES.map(type=>{
-      const def = RESOURCE_POOL.find(r=>r.type===type);
-      return { id: uid('res'), type, name: def.name, amount: randInt(rng,4000,20000), price: def.price, exploited:true };
-    });
+      const def = resourceDef(type);
+      if(!def) return null;
+      const r = makeResource(def, base.iso2, rng, DRC_BOOST);
+      r.extraction = randInt(rng,100,115);
+      r.grade = round1(rand(rng,1.15,1.35));
+      return r;
+    }).filter(Boolean);
   }
-  const n = randInt(rng,2,4);
-  const chosen = pickN(rng, RESOURCE_POOL, n);
-  return chosen.map(def=>({ id: uid('res'), type: def.type, name: def.name, amount: randInt(rng,500,8000), price: def.price, exploited:true }));
+  /* Un pays reçoit d'abord les ressources dont il est réellement producteur. */
+  const real = RESOURCE_POOL.filter(def=> def.producers.indexOf(base.iso2)>=0);
+  const extraCount = Math.max(0, randInt(rng,1,3) - Math.min(real.length,2));
+  const others = pickN(rng, RESOURCE_POOL.filter(def=> real.indexOf(def)<0), extraCount);
+  const chosen = real.concat(others);
+  if(!chosen.length) chosen.push(pick(rng, RESOURCE_POOL));
+  return chosen.map(def=> makeResource(def, base.iso2, rng, 1));
+}
+/* Production mensuelle réelle : capacité × niveau d'exploitation × qualité,
+   plafonnée par ce qu'il reste dans le sol. */
+function resourceProduction(c, r){
+  if(!r || !r.exploited) return 0;
+  const reserves = Math.max(0, r.reserves||0);
+  if(reserves <= 0) return 0;
+  const cap = Math.max(0, r.baseCapacity||0);
+  const ext = clamp(r.extraction!=null?r.extraction:100, 0, 200)/100;
+  const grade = clamp(r.grade!=null?r.grade:1, 0.1, 3);
+  return Math.max(0, Math.min(reserves, Math.round(cap*ext*grade)));
+}
+/* Le raffinage augmente la valeur de vente (pétrole -> carburant, etc.). */
+function resourceUnitValue(r){
+  const refining = clamp(r.refining!=null?r.refining:0, 0, 100);
+  return Math.max(0, (r.price||0)*(1 + refining/100*0.8));
+}
+function resourceRevenue(c, r){ return resourceProduction(c, r)*resourceUnitValue(r); }
+function totalResourceRevenue(c){
+  return (c.resources||[]).reduce((a,r)=> a + resourceRevenue(c,r), 0);
+}
+/* Classement mondial des producteurs, ressource par ressource. */
+function resourceRanking(type, limit){
+  const rows = [];
+  for(const id in state.countries){
+    const c = state.countries[id];
+    const r = (c.resources||[]).find(x=>x.type===type);
+    if(!r) continue;
+    const prod = resourceProduction(c, r);
+    if(prod<=0) continue;
+    rows.push({ id, name:c.name, iso2:c.iso2, production:prod, value:prod*resourceUnitValue(r) });
+  }
+  rows.sort((a,b)=> b.production-a.production);
+  return limit ? rows.slice(0, limit) : rows;
+}
+function resourceRankOf(countryId, type){
+  const rows = resourceRanking(type);
+  const i = rows.findIndex(r=>r.id===countryId);
+  return { rank: i>=0 ? i+1 : null, total: rows.length };
+}
+/* Coût d'un palier d'amélioration : proportionnel à ce que la ressource rapporte. */
+function resourceUpgradeCost(c, r, kind){
+  const annual = resourceRevenue(c, r)*12;
+  const level = kind==='extraction' ? (r.extraction||0) : (r.refining||0);
+  const base = Math.max(annual*0.35, c.gdp*1e9*0.0008);
+  return Math.round(base*(1 + level/100));
 }
 function generateCompanies(base, rng){
   const n = randInt(rng,2,4);
@@ -1303,6 +1406,17 @@ function loadGame(){
       if(c.media.publicFunding==null) c.media.publicFunding = 40;
       if(c.media.pressFreedom==null) c.media.pressFreedom = 60;
       if(c.sanctions==null) c.sanctions = 0;
+      (c.resources||[]).forEach(r=>{
+        const def = resourceDef(r.type);
+        if(r.reserves==null) r.reserves = Math.max(0, r.amount||0);
+        if(r.baseCapacity==null) r.baseCapacity = def ? Math.max(1, baseCapacityFor(def, c.iso2, null)) : 1;
+        if(r.extraction==null) r.extraction = 100;
+        if(r.refining==null) r.refining = 0;
+        if(r.grade==null) r.grade = 1;
+        if(r.price==null && def) r.price = def.price;
+        if(r.prevPrice==null) r.prevPrice = r.price;
+        delete r.amount;
+      });
       if(!c.social.origins) c.social.origins = {};
       if(!c.social.destinations) c.social.destinations = {};
       (c.cities||[]).forEach(city=>{
@@ -1426,7 +1540,7 @@ function budgetBreakdown(c){
     amount: Math.max(0, base*l.w*((c.budget[l.rate]!=null?c.budget[l.rate]:0)/50)*collection),
   }));
   revenues.push({key:'ressources', label:'Ressources naturelles',
-    amount: c.resources.reduce((a,r)=> a + (r.exploited ? r.amount*r.price*0.02 : 0), 0)});
+    amount: totalResourceRevenue(c)});
   revenues.push({key:'dividendes', label:'Dividendes des entreprises publiques',
     amount: c.companies.reduce((a,co)=> a + (co.ownership==='public' ? co.value*0.02 : 0), 0)});
   revenues.push({key:'tourisme', label:'Tourisme', amount: base*tourismFactor(c)});
@@ -1460,7 +1574,7 @@ function totalInfraCount(c){
 function discoverResource(c, rng){
   if(rng() < 0.5 && c.resources.length){
     const r = pick(rng, c.resources);
-    r.amount = Math.round(r.amount * rand(rng,1.15,1.4));
+    r.reserves = Math.round((r.reserves||0) * rand(rng,1.15,1.4));
   } else {
     const existingTypes = c.resources.map(r=>r.type);
     const options = RESOURCE_POOL.filter(r=>!existingTypes.includes(r.type));
@@ -1469,7 +1583,7 @@ function discoverResource(c, rng){
       c.resources.push({ id: uid('res'), type: def.type, name: def.name, amount: randInt(rng,1000,6000), price: def.price, exploited:true });
     } else if(c.resources.length){
       const r = pick(rng, c.resources);
-      r.amount = Math.round(r.amount * 1.1);
+      r.reserves = Math.round((r.reserves||0) * 1.1);
     }
   }
 }
@@ -1516,7 +1630,7 @@ function simulateCountry(c, isPlayer, turn){
   const avgSpend = sectors.reduce((a,s)=>a+spendLevel(c,s),0)/sectors.length;
   const salPressure = isPlayer ? salaryPressure(c) : 1;
   const spending = c.gdp*1e9/12*0.26*(avgSpend/50) * (1 + (salPressure-1)*0.45);
-  const resourceIncome = c.resources.reduce((a,r)=> a + (r.exploited ? r.amount*r.price*0.02 : 0), 0);
+  const resourceIncome = totalResourceRevenue(c);
   const companyIncome = c.companies.reduce((a,co)=> a + (co.ownership==='public' ? co.value*0.02 : 0), 0);
   const infraMaint = infraMaintenance(c);
   if(isPlayer){
@@ -1542,9 +1656,10 @@ function simulateCountry(c, isPlayer, turn){
       r.prevPrice = r.price;
       const newPrice = Math.round(r.price*(1+rand(rng,-0.04,0.04)));
       r.price = Math.max(Math.round(basePrice*0.4), Math.min(Math.round(basePrice*2.2), newPrice));
-      if(!r.exploited || r.amount<=0) return;
-      r.amount = Math.max(0, r.amount - Math.max(1, Math.round(r.amount*0.004)));
-      if(r.amount<=0){ r.exploited = false; pushLog(`Le gisement de ${r.name} est épuisé.`, c); }
+      if(!r.exploited || (r.reserves||0)<=0) return;
+      const extracted = resourceProduction(c, r);
+      r.reserves = Math.max(0, (r.reserves||0) - extracted);
+      if(r.reserves<=0){ r.exploited = false; pushLog(`Le gisement de ${r.name} est épuisé.`, c); }
     });
   }
   const regimeFx = REGIME_EFFECTS[c.regime] || REGIME_EFFECTS['République'];
@@ -2313,6 +2428,23 @@ function setSalary(profKey, value){
   c.salaries.byProfession[profKey] = Math.max(0, Math.round(value)||0);
   saveGame(); render();
 }
+function investResource(resId, kind){
+  const c = playerState();
+  const r = (c.resources||[]).find(x=>x.id===resId);
+  if(!r) return;
+  const level = kind==='extraction' ? (r.extraction||0) : (r.refining||0);
+  const max = kind==='extraction' ? 200 : 100;
+  if(level >= max){ toast(kind==='extraction' ? "Exploitation déjà au maximum." : "Raffinage déjà au maximum."); return; }
+  const cost = resourceUpgradeCost(c, r, kind);
+  if(c.budget.treasury < cost){ toast(`Trésor insuffisant (${fmtMoney(cost)} nécessaires).`); return; }
+  c.budget.treasury -= cost;
+  if(kind==='extraction') r.extraction = clamp(level+10, 0, max);
+  else r.refining = clamp(level+10, 0, max);
+  pushLog(kind==='extraction'
+    ? `Investissement dans l'exploitation de ${r.name} : capacité portée à ${r.extraction} %.`
+    : `Nouvelle unité de transformation pour ${r.name} : raffinage à ${r.refining} %.`, c);
+  saveGame(); render();
+}
 function setMediaFunding(value){
   const c = playerState();
   c.media = c.media || {};
@@ -2412,7 +2544,7 @@ function toggleExploit(resId){
 }
 function setResourceAmount(resId, value){
   const r = playerState().resources.find(x=>x.id===resId);
-  r.amount = Math.max(0, Math.round(value)||0); saveGame(); render();
+  r.reserves = Math.max(0, Math.round(value)||0); saveGame(); render();
 }
 function prospect(){
   const c = playerState();
@@ -3308,23 +3440,76 @@ function renderDefeat(){
 /* ---- Resources ---- */
 function renderResources(){
   const c = playerState();
+  const rs = (c.resources||[]).slice().sort((a,b)=> resourceRevenue(c,b)-resourceRevenue(c,a));
+  const total = totalResourceRevenue(c);
+  const monthlyGdp = c.gdp*1e9/12;
   return `
   <h1>Ressources naturelles</h1>
-  <div class="subtitle">${escapeHtml(c.name)} exploite ${c.resources.filter(r=>r.exploited).length} ressource(s) sur ${c.resources.length}.</div>
-  <div class="grid cols2">
-    ${c.resources.map(r=>`
+  <div class="subtitle">${escapeHtml(c.name)} exploite ${rs.filter(r=>r.exploited).length} gisement(s) sur ${rs.length}.</div>
+  <div class="card">
+    <h3>Revenus des ressources</h3>
+    <div class="row"><span class="rl">Ventes totales</span><span class="rv num pos">${fmtMoney(total)}/mois</span></div>
+    <div class="row"><span class="rl">Soit par an</span><span class="rv num pos">${fmtMoney(total*12)}</span></div>
+    <div class="row"><span class="rl">Part du PIB mensuel</span><span class="rv num">${monthlyGdp>0?round1(total/monthlyGdp*100):0} %</span></div>
+    <p class="hint" style="margin-top:6px;">Investir dans l'exploitation augmente la production (jusqu'à ×2). Investir dans le raffinage transforme la matière brute et augmente le prix de vente (pétrole → carburant, minerai → métal).</p>
+  </div>
+  <div class="grid cols2" style="margin-top:14px;">
+    ${rs.map(r=>{
+      const prod = resourceProduction(c, r);
+      const rev = resourceRevenue(c, r);
+      const rk = resourceRankOf(c.id, r.type);
+      const top = resourceRanking(r.type, 3);
+      const months = prod>0 ? Math.round((r.reserves||0)/prod) : null;
+      const extCost = resourceUpgradeCost(c, r, 'extraction');
+      const refCost = resourceUpgradeCost(c, r, 'refining');
+      const trend = r.prevPrice!=null ? (r.price>r.prevPrice?'▲':(r.price<r.prevPrice?'▼':'—')) : '';
+      return `
       <div class="card">
-        <h3>${escapeHtml(r.name)}</h3>
-        ${numberField('Réserves (unités)', r.amount, `setResourceAmount('${r.id}',this.value)`, '')}
-        <div class="row"><span class="rl">Cours mondial</span><span class="rv num ${r.prevPrice!=null && r.price>r.prevPrice?'pos':(r.prevPrice!=null && r.price<r.prevPrice?'neg':'')}">${r.price} $ / unité ${r.prevPrice!=null ? (r.price>r.prevPrice?'▲':(r.price<r.prevPrice?'▼':'—')) : ''}</span></div>
-        <div class="row"><span class="rl">Statut</span><span class="rv"><span class="pill ${r.exploited?'good':'neutral'}">${r.exploited?'Exploitée':'En réserve'}</span></span></div>
-        <div class="btn-row"><button class="btn sm" onclick="toggleExploit('${r.id}')">${r.exploited?"Suspendre l'exploitation":"Lancer l'exploitation"}</button></div>
-      </div>`).join('')}
+        <h3>${escapeHtml(r.name)} ${rk.rank && rk.rank<=3 ? `<span class="pill good">${rk.rank}${rk.rank===1?'er':'e'} mondial</span>` : ''}</h3>
+        <div class="row"><span class="rl">Production</span><span class="rv num">${fmtNum(prod)} <span style="color:var(--muted-2);">unités/mois</span></span></div>
+        <div class="row"><span class="rl">Revenu de vente</span><span class="rv num pos">${fmtMoney(rev)}/mois</span></div>
+        <div class="row"><span class="rl">Cours mondial</span><span class="rv num ${r.prevPrice!=null && r.price>r.prevPrice?'pos':(r.prevPrice!=null && r.price<r.prevPrice?'neg':'')}">${r.price} $ ${trend}</span></div>
+        <div class="row"><span class="rl">Prix de vente après raffinage</span><span class="rv num">${round1(resourceUnitValue(r))} $</span></div>
+        <div class="row"><span class="rl">Réserves</span><span class="rv num">${fmtNum(r.reserves||0)}${months!=null?` <span style="color:var(--muted-2);">(~${months} mois)</span>`:''}</span></div>
+        <div class="row"><span class="rl">Qualité du gisement</span><span class="rv num">×${round1(r.grade!=null?r.grade:1)}</span></div>
+        <div class="row"><span class="rl">Exploitation</span><span class="rv num">${r.extraction||0} / 200 %</span></div>
+        <div class="bar"><i style="width:${clamp((r.extraction||0)/2,0,100)}%"></i></div>
+        <div class="row" style="margin-top:6px;"><span class="rl">Raffinage</span><span class="rv num">${r.refining||0} / 100 %</span></div>
+        <div class="bar good"><i style="width:${clamp(r.refining||0,0,100)}%"></i></div>
+        <div class="row" style="margin-top:8px;"><span class="rl">Rang mondial</span><span class="rv num">${rk.rank ? `${rk.rank}${rk.rank===1?'er':'e'} sur ${rk.total}` : '—'}</span></div>
+        <div style="font-size:11px;color:var(--muted-2);margin-top:4px;">
+          ${top.map((t,i)=>`${i+1}. ${flagEmoji(t.iso2)} ${escapeHtml(t.name)} — ${fmtNum(t.production)}`).join('<br>')}
+        </div>
+        <div class="btn-row" style="margin-top:10px;flex-wrap:wrap;gap:6px;">
+          <button class="btn sm" onclick="investResource('${r.id}','extraction')">+10 % exploitation (${fmtMoney(extCost)})</button>
+          <button class="btn sm" onclick="investResource('${r.id}','refining')">+10 % raffinage (${fmtMoney(refCost)})</button>
+          <button class="btn sm" onclick="toggleExploit('${r.id}')">${r.exploited?'Suspendre':'Exploiter'}</button>
+        </div>
+      </div>`;
+    }).join('')}
   </div>
   <div class="card" style="margin-top:14px;">
     <h3>Prospection</h3>
     <p>Financez une campagne de prospection pour découvrir de nouveaux gisements ou étendre les réserves existantes.</p>
     <div class="btn-row"><button class="btn primary" onclick="prospect()">Lancer une prospection (${fmtMoney(c.gdp*1e9*0.002)})</button></div>
+  </div>
+  <div class="card" style="margin-top:14px;">
+    <h3>Classement mondial des producteurs</h3>
+    <p class="hint" style="margin-top:-4px;">Les trois premiers producteurs de chaque ressource, sur les 195 pays. Votre pays est mis en évidence.</p>
+    <div class="grid cols2" style="margin-top:6px;">
+      ${RESOURCE_POOL.map(def=>{
+        const top = resourceRanking(def.type, 3);
+        if(!top.length) return '';
+        return `<div class="row" style="align-items:flex-start;">
+          <span class="rl">${escapeHtml(def.name)}<br>
+            <span style="font-size:11px;color:var(--muted-2);">
+              ${top.map((t,i)=>`${i+1}. ${flagEmoji(t.iso2)} ${t.id===c.id?'<b style="color:var(--brass)">'+escapeHtml(t.name)+'</b>':escapeHtml(t.name)}`).join('<br>')}
+            </span>
+          </span>
+          <span class="rv num" style="white-space:nowrap;">${fmtNum(top[0].production)}</span>
+        </div>`;
+      }).join('')}
+    </div>
   </div>`;
 }
 
