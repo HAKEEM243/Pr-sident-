@@ -531,12 +531,47 @@ const CEO_FIRST_NAMES = ['Amara','Jean','Fatou','Carlos','Wei','Ingrid','Kwame',
 const CEO_LAST_NAMES = ['Mbeki','Dubois','Silva','Nakamura','Traoré','Kowalski','Haddad','Okafor','Petrov','Fernández','Lindqvist','Diallo','Rossi','Kamau','Novak','Osei','Álvarez','Chen','Moreau','Aziz'];
 function randomCeoName(rng){ return `${pick(rng,CEO_FIRST_NAMES)} ${pick(rng,CEO_LAST_NAMES)}`; }
 const INFRA_TYPES = [
-  {key:'roads', label:'Réseau routier', gdpFraction:0.000015, floor:1.5e6, step:8, requiresCoastal:false},
-  {key:'highways', label:'Autoroute', gdpFraction:0.00008, floor:1e7, step:1, requiresCoastal:false},
-  {key:'airports', label:'Aéroport', gdpFraction:0.00025, floor:4e7, step:1, requiresCoastal:false},
-  {key:'ports', label:'Port', gdpFraction:0.0003, floor:5e7, step:1, requiresCoastal:true},
+  {key:'roads',        label:'Réseau routier',  group:'Transport', gdpFraction:0.000015, floor:1.5e6, step:8, capped:true},
+  {key:'highways',     label:'Autoroute',       group:'Transport', gdpFraction:0.00008,  floor:1e7,   step:1},
+  {key:'railways',     label:'Chemin de fer',   group:'Transport', gdpFraction:0.00012,  floor:2e7,   step:1},
+  {key:'metro',        label:'Métro',           group:'Transport', gdpFraction:0.00040,  floor:8e7,   step:1, minCityPop:800000},
+  {key:'bridges',      label:'Pont',            group:'Transport', gdpFraction:0.00006,  floor:8e6,   step:1},
+  {key:'airports',     label:'Aéroport',        group:'Transport', gdpFraction:0.00025,  floor:4e7,   step:1},
+  {key:'ports',        label:'Port',            group:'Transport', gdpFraction:0.0003,   floor:5e7,   step:1, requiresCoastal:true},
+  {key:'schools',      label:'École',           group:'Social',    gdpFraction:0.00002,  floor:2e6,   step:1},
+  {key:'universities', label:'Université',      group:'Social',    gdpFraction:0.00018,  floor:3e7,   step:1, minCityPop:300000},
+  {key:'hospitals',    label:'Hôpital',         group:'Social',    gdpFraction:0.00015,  floor:2.5e7, step:1},
+  {key:'housing',      label:'Logements',       group:'Social',    gdpFraction:0.00005,  floor:6e6,   step:1},
 ];
+const INFRA_GROUPS = ['Transport','Social'];
 function infraCost(type, country){ return Math.max(type.floor, country.gdp*1e9*type.gdpFraction); }
+/* Chaque équipement produit un effet réel, proportionnel à la couverture du
+   pays (nombre d'équipements rapporté à la population desservie). */
+function infraTotals(c){
+  const t = {};
+  INFRA_TYPES.forEach(x=> t[x.key]=0);
+  (c.cities||[]).forEach(city=>{
+    INFRA_TYPES.forEach(x=>{ t[x.key] += (city.infra && city.infra[x.key]) || 0; });
+  });
+  return t;
+}
+function infraEffects(c){
+  const t = infraTotals(c);
+  const perMillion = n => c.population>0 ? n/(c.population/1e6) : 0;
+  const roadsAvg = (c.cities&&c.cities.length) ? t.roads/c.cities.length : 0;
+  return {
+    totals: t,
+    /* Transport : croissance et échanges */
+    growth: clamp(roadsAvg/2200 + perMillion(t.highways)*0.05 + perMillion(t.railways)*0.07
+                + perMillion(t.bridges)*0.03 + perMillion(t.metro)*0.04, 0, 0.9),
+    trade:  clamp(perMillion(t.ports)*0.09 + perMillion(t.airports)*0.06, 0, 1.2),
+    /* Social : santé, éducation, logement */
+    health:    clamp(perMillion(t.hospitals)*0.09, 0, 0.9),
+    education: clamp(perMillion(t.schools)*0.05 + perMillion(t.universities)*0.10, 0, 0.9),
+    housing:   clamp(perMillion(t.housing)*0.06, 0, 0.8),
+    metroBonus:clamp(perMillion(t.metro)*0.03, 0, 0.5),
+  };
+}
 const DIPLO_ACTIONS = [
   {id:'alliance', label:'Alliance'},
   {id:'commerce', label:'Accord commercial'},
@@ -600,7 +635,13 @@ function makeCity(idBase, name, pop, coastal, isCapital, rng){
   return {
     id: idBase+'-'+uid('c'),
     name, population: Math.round(pop), coastal: !!coastal, isCapital: !!isCapital,
-    infra: { roads: randInt(rng,15,55), highways: randInt(rng,0,3), airports: isCapital?1:(coastal? randInt(rng,0,1):0), ports: (coastal && rng()>.5)?1:0 },
+    infra: {
+      roads: randInt(rng,15,55), highways: randInt(rng,0,3),
+      railways: randInt(rng,0,2), metro: (pop>1500000 && rng()>.6)?1:0, bridges: randInt(rng,0,4),
+      airports: isCapital?1:(coastal? randInt(rng,0,1):0), ports: (coastal && rng()>.5)?1:0,
+      schools: Math.max(1, Math.round(pop/60000)), universities: pop>300000 ? randInt(rng,1,3) : 0,
+      hospitals: Math.max(1, Math.round(pop/220000)), housing: Math.max(1, Math.round(pop/90000)),
+    },
   };
 }
 function generateResources(base, rng){
@@ -820,10 +861,10 @@ function topFlows(map, n){
 }
 /* L'ascenseur social : de bons salaires et une économie saine font monter les
    ménages d'une classe à l'autre ; la stagnation et l'inflation les font descendre. */
-function driftClasses(c, salPressure){
+function driftClasses(c, salPressure, housingBonus){
   const d = c.demographics;
   if(!d || !d.classes) return;
-  const up = clamp((salPressure-1)*0.5 + c.economy.growth*0.04 - Math.max(0,c.economy.inflation-6)*0.02, -0.35, 0.35);
+  const up = clamp((salPressure-1)*0.5 + c.economy.growth*0.04 - Math.max(0,c.economy.inflation-6)*0.02 + (housingBonus||0)*0.5, -0.35, 0.35);
   if(!isFinite(up) || Math.abs(up) < 0.005) return;
   const order = ['tresPauvres','pauvres','moyenne','moyenneSup','riches','ultraRiches'];
   for(let i=0;i<order.length-1;i++){
@@ -1194,6 +1235,16 @@ function loadGame(){
       if(c.social.lastNaturalized==null) c.social.lastNaturalized = 0;
       if(!c.social.origins) c.social.origins = {};
       if(!c.social.destinations) c.social.destinations = {};
+      (c.cities||[]).forEach(city=>{
+        city.infra = city.infra || {};
+        const pop = city.population||0;
+        const defaults = {
+          roads:30, highways:0, railways:0, metro:0, bridges:0, airports:0, ports:0,
+          schools: Math.max(1, Math.round(pop/60000)), universities: pop>300000?1:0,
+          hospitals: Math.max(1, Math.round(pop/220000)), housing: Math.max(1, Math.round(pop/90000)),
+        };
+        INFRA_TYPES.forEach(t=>{ if(city.infra[t.key]==null) city.infra[t.key] = defaults[t.key]||0; });
+      });
     });
     if(!state.history) state.history = [];
     if(!state.parliament){
@@ -1313,15 +1364,27 @@ function budgetBreakdown(c){
     key:l.key, label:l.label,
     amount: Math.max(0, base*l.w*(spendLevel(c,l.key)/50)*(l.salaried ? salMult : 1)),
   }));
-  expenses.push({key:'infraMaint', label:'Entretien des infrastructures', amount: totalInfraCount(c)*400000});
+  expenses.push({key:'infraMaint', label:'Entretien des infrastructures', amount: infraMaintenance(c)});
   const interest = Math.max(0,(c.budget.debt||0))*0.0025*creditRating(c).mult;
   expenses.push({key:'dette', label:'Intérêts de la dette (capitalisés)', amount: interest, capitalized:true});
   const totalRevenue = revenues.reduce((a,x)=>a+x.amount, 0);
   const totalExpense = expenses.reduce((a,x)=>a+(x.capitalized?0:x.amount), 0);
   return { revenues, expenses, totalRevenue, totalExpense, balance: totalRevenue-totalExpense, interest, collection };
 }
+/* Coût d'entretien mensuel d'un équipement : indexé sur la richesse du pays,
+   sinon les grands pays pauvres seraient étranglés par leur propre réseau. */
+function infraMaintUnitCost(c){
+  const gpc = c.gdp*1e9/Math.max(1,c.population);
+  return clamp(gpc*12, 20000, 400000);
+}
+function infraMaintenance(c){ return totalInfraCount(c)*infraMaintUnitCost(c); }
 function totalInfraCount(c){
-  return c.cities.reduce((a,city)=> a + Math.round(city.infra.roads/20) + city.infra.highways + city.infra.airports + city.infra.ports, 0);
+  return (c.cities||[]).reduce((a,city)=>{
+    const inf = city.infra || {};
+    let n = Math.round((inf.roads||0)/20);
+    INFRA_TYPES.forEach(t=>{ if(!t.capped) n += (inf[t.key]||0); });
+    return a + n;
+  }, 0);
 }
 function discoverResource(c, rng){
   if(rng() < 0.5 && c.resources.length){
@@ -1384,7 +1447,7 @@ function simulateCountry(c, isPlayer, turn){
   const spending = c.gdp*1e9/12*0.26*(avgSpend/50) * (1 + (salPressure-1)*0.45);
   const resourceIncome = c.resources.reduce((a,r)=> a + (r.exploited ? r.amount*r.price*0.02 : 0), 0);
   const companyIncome = c.companies.reduce((a,co)=> a + (co.ownership==='public' ? co.value*0.02 : 0), 0);
-  const infraMaint = totalInfraCount(c) * 400000;
+  const infraMaint = infraMaintenance(c);
   if(isPlayer){
     /* Le joueur est simulé sur le budget détaillé, ligne par ligne. */
     const bd = budgetBreakdown(c);
@@ -1425,6 +1488,8 @@ function simulateCountry(c, isPlayer, turn){
   gd += regimeFx.growthBonus||0;
   gd += cabFx.growth;
   gd += (spendLevel(c,'recherche')-50)/600;
+  const infraFx = infraEffects(c);
+  gd += infraFx.growth + infraFx.trade*0.35;
   gd += clamp(tradeIncome/monthlyGdp*3, -0.15, 0.4);
   gd += rand(rng,-1,1)*0.35;
   c.economy.growth = round1(clamp(c.economy.growth*0.85 + gd, -9, 13));
@@ -1444,8 +1509,8 @@ function simulateCountry(c, isPlayer, turn){
   if(c.police.inmates > (c.police.prisonCapacity||1)){
     c.police.crimeIndex = round1(clamp(c.police.crimeIndex + 0.25, 0, 100));
   }
-  c.social.healthIndex = round1(clamp(c.social.healthIndex + ((c.budget.spending.sante-50)/40) + cabFx.health + rand(rng,-.3,.3), 0, 100));
-  c.social.educationIndex = round1(clamp(c.social.educationIndex + ((c.budget.spending.education-50)/40) + (spendLevel(c,'recherche')-50)/220 + cabFx.education + rand(rng,-.3,.3), 0, 100));
+  c.social.healthIndex = round1(clamp(c.social.healthIndex + ((c.budget.spending.sante-50)/40) + cabFx.health + infraFx.health + rand(rng,-.3,.3), 0, 100));
+  c.social.educationIndex = round1(clamp(c.social.educationIndex + ((c.budget.spending.education-50)/40) + (spendLevel(c,'recherche')-50)/220 + cabFx.education + infraFx.education + rand(rng,-.3,.3), 0, 100));
   /* Justice, corruption, libertés : indicateurs vivants, pas décoratifs. */
   const jd = (spendLevel(c,'justice')-50)/55 + (c.social.educationIndex-50)/300 - (c.social.corruption!=null?(c.social.corruption-50):0)/220 + rand(rng,-.25,.25);
   c.police.justiceIndex = round1(clamp((c.police.justiceIndex!=null?c.police.justiceIndex:50) + jd, 0, 100));
@@ -1465,6 +1530,8 @@ function simulateCountry(c, isPlayer, turn){
   ad += (c.budget.debt < c.gdp*1e9*0.4 ? 0.25 : -0.4);
   if((c.social.ageElderly||0)>15 && c.social.pensionLevel<40) ad -= ((c.social.ageElderly||0)-15)*0.03;
   ad += (spendLevel(c,'retraites')-50)*0.006*clamp((c.social.ageElderly||10)/12, 0.3, 2.5);
+  /* Se loger et se déplacer compte autant que les grands indicateurs. */
+  ad += infraFx.housing + infraFx.metroBonus;
   ad += cabFx.approval;
   /* La popularité converge vers l'opinion réelle des groupes sociaux. */
   if(isPlayer && c.demographics){
@@ -1554,7 +1621,7 @@ function simulateCountry(c, isPlayer, turn){
   c.social.lifeExpectancy = round1(clamp(50 + (c.social.healthIndex-50)/2 - (c.social.mortalityRate-10)*0.6, 40, 92));
   if(c.demographics){
     syncProfessions(c);
-    driftClasses(c, salPressure);
+    driftClasses(c, salPressure, infraFx.housing);
     const g = c.demographics.generations;
     if(g){
       g.enfants = clamp((g.enfants||0) + (c.social.birthRate-20)/900, 5, 55);
@@ -1572,13 +1639,24 @@ function simulateCountry(c, isPlayer, turn){
   if(isPlayer && rng() < 0.22){
     const ev = pick(rng, EVENTS);
     ev.fx(c, rng);
+    /* Les effets d'evenements sont appliques sans borne : on re-borne ici TOUT
+       ce qu'un evenement peut toucher, sinon une valeur peut sortir de sa plage. */
     c.economy.approval = round1(clamp(c.economy.approval, 0, regimeFx.approvalCeiling!=null ? regimeFx.approvalCeiling : 100));
     c.economy.growth = round1(clamp(c.economy.growth, -9, 13));
     c.economy.inflation = round1(clamp(c.economy.inflation, -2, 70));
+    c.economy.unemployment = round1(clamp(c.economy.unemployment, 1, 45));
     c.police.crimeIndex = round1(clamp(c.police.crimeIndex, 0, 100));
+    c.police.justiceIndex = round1(clamp(c.police.justiceIndex!=null?c.police.justiceIndex:50, 0, 100));
+    c.police.inmates = Math.max(0, Math.round(c.police.inmates||0));
     c.social.healthIndex = round1(clamp(c.social.healthIndex, 0, 100));
+    c.social.educationIndex = round1(clamp(c.social.educationIndex, 0, 100));
+    c.social.corruption = round1(clamp(c.social.corruption!=null?c.social.corruption:40, 0, 100));
+    c.social.liberty = round1(clamp(c.social.liberty!=null?c.social.liberty:60, 0, 100));
+    c.social.religiosity = round1(clamp(c.social.religiosity!=null?c.social.religiosity:45, 0, 100));
     c.budget.debt = Math.max(0, c.budget.debt||0);
     c.budget.treasury = Math.max(0, c.budget.treasury||0);
+    c.gdp = Math.max(0.05, c.gdp);
+    c.population = Math.max(1000, Math.round(c.population));
     pushLog(ev.msg(c), c);
   }
   if(isPlayer){
@@ -2231,13 +2309,17 @@ function buildInfra(cityId, typeKey){
   const c = playerState();
   const city = c.cities.find(x=>x.id===cityId);
   const type = INFRA_TYPES.find(t=>t.key===typeKey);
+  if(!city || !type) return;
   if(type.requiresCoastal && !city.coastal){ toast(`${city.name} n'a pas d'accès maritime ou fluvial : port impossible.`); return; }
-  if(type.key==='roads' && city.infra.roads>=100){ toast('Réseau routier déjà au maximum.'); return; }
+  if(type.minCityPop && city.population < type.minCityPop){
+    toast(`${city.name} est trop peu peuplée pour un projet de ce type (${fmtNum(type.minCityPop)} habitants requis).`); return;
+  }
+  if(type.capped && (city.infra.roads||0)>=100){ toast('Réseau routier déjà au maximum.'); return; }
   const cost = infraCost(type, c);
   if(c.budget.treasury < cost){ toast(`Trésor insuffisant (${fmtMoney(cost)} nécessaires).`); return; }
   c.budget.treasury -= cost;
-  if(type.key==='roads') city.infra.roads = clamp(city.infra.roads+type.step,0,100);
-  else city.infra[type.key] += type.step;
+  if(type.capped) city.infra.roads = clamp((city.infra.roads||0)+type.step,0,100);
+  else city.infra[type.key] = ((city.infra[type.key])||0) + type.step;
   c.economy.approval = clamp(c.economy.approval+0.6,0,100);
   pushLog(`${type.label} amélioré à ${city.name}.`, c);
   saveGame(); render();
@@ -3386,16 +3468,36 @@ function renderInfra(){
         <h4>${escapeHtml(city.name)} ${city.isCapital?'<span class="pill info">Capitale</span>':''}</h4>
         <div class="row"><span class="rl">Population</span><span class="rv num">${fmtNum(city.population)}</span></div>
         <div class="infra-grid" style="margin-top:8px;">
-          <div class="ig"><span>Routes</span><b class="num">${city.infra.roads}/100</b></div>
-          <div class="ig"><span>Autoroutes</span><b class="num">${city.infra.highways}</b></div>
-          <div class="ig"><span>Aéroports</span><b class="num">${city.infra.airports}</b></div>
-          <div class="ig"><span>Ports</span><b class="num">${city.infra.ports}${city.coastal?'':' (n/d)'}</b></div>
+          <div class="ig"><span>Routes</span><b class="num">${city.infra.roads||0}/100</b></div>
+          ${INFRA_TYPES.filter(t=>!t.capped).map(t=>`<div class="ig"><span>${escapeHtml(t.label)}</span><b class="num">${(city.infra[t.key])||0}${t.requiresCoastal&&!city.coastal?' (n/d)':''}</b></div>`).join('')}
         </div>
-        <div class="btn-row">
-          ${INFRA_TYPES.map(t=>`<button class="btn sm" ${t.requiresCoastal&&!city.coastal?'disabled':''} onclick="buildInfra('${city.id}','${t.key}')" title="${fmtMoney(infraCost(t,c))}">+ ${t.label} (${fmtMoney(infraCost(t,c))})</button>`).join('')}
-        </div>
+        ${INFRA_GROUPS.map(g=>`
+          <div style="font-size:11px;color:var(--muted-2);margin-top:8px;">${g}</div>
+          <div class="btn-row" style="margin-top:4px;">
+            ${INFRA_TYPES.filter(t=>t.group===g).map(t=>{
+              const blocked = (t.requiresCoastal&&!city.coastal) || (t.minCityPop&&city.population<t.minCityPop);
+              const why = t.requiresCoastal&&!city.coastal ? 'Accès maritime requis'
+                        : (t.minCityPop&&city.population<t.minCityPop ? `${fmtNum(t.minCityPop)} habitants requis` : fmtMoney(infraCost(t,c)));
+              return `<button class="btn sm" ${blocked?'disabled':''} onclick="buildInfra('${city.id}','${t.key}')" title="${escapeHtml(why)}">+ ${t.label} (${fmtMoney(infraCost(t,c))})</button>`;
+            }).join('')}
+          </div>`).join('')}
       </div>`).join('')}
-  </div>`;
+  </div>
+  ${(()=>{
+    const fx = infraEffects(c);
+    const t = fx.totals;
+    return `<div class="card" style="margin-top:14px;">
+      <h3>Couverture nationale &amp; effets</h3>
+      <div class="grid cols2">
+        ${INFRA_TYPES.map(x=>`<div class="row"><span class="rl">${escapeHtml(x.label)}</span><span class="rv num">${x.capped?round1((c.cities.length?t[x.key]/c.cities.length:0))+'/100 (moy.)':fmtNum(t[x.key])}</span></div>`).join('')}
+      </div>
+      <div class="row" style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px;"><span class="rl">Effet sur la croissance</span><span class="rv num pos">+${round1(fx.growth+fx.trade*0.35)} pts/mois</span></div>
+      <div class="row"><span class="rl">Effet sur la santé</span><span class="rv num pos">+${round1(fx.health)} pts/mois</span></div>
+      <div class="row"><span class="rl">Effet sur l'éducation</span><span class="rv num pos">+${round1(fx.education)} pts/mois</span></div>
+      <div class="row"><span class="rl">Effet sur la popularité (logement + métro)</span><span class="rv num pos">+${round1(fx.housing+fx.metroBonus)} pts/mois</span></div>
+      <p class="hint" style="margin-top:8px;">Routes, autoroutes, rails, ponts et métros portent la croissance ; ports et aéroports le commerce ; hôpitaux la santé ; écoles et universités l'éducation ; les logements font reculer la pauvreté. Chaque équipement construit coûte aussi de l'entretien chaque mois.</p>
+    </div>`;
+  })()}`;
 }
 
 /* ---- Government ---- */
