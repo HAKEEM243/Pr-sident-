@@ -513,6 +513,11 @@ const RANK_SHARE = [1, 0.62, 0.45, 0.33, 0.25, 0.20, 0.16, 0.13];
 /* La RD Congo est volontairement surpuissante sur son sous-sol : c'est un choix
    de jeu assumé, pas une donnée réaliste. */
 const DRC_BOOST = 1.6;
+/* Version du modèle de ressources. Les gisements d'une sauvegarde antérieure
+   sont exprimés dans une autre échelle et doivent être reconstruits, sinon la
+   capacité (millions d'unités/mois) vide des réserves de quelques milliers
+   d'unités dès le premier tour. */
+const RESOURCE_MODEL_VERSION = 2;
 function resourceDef(type){ return RESOURCE_POOL.find(r=>r.type===type); }
 /* Capacité de production mensuelle de base d'un pays pour une ressource. */
 function baseCapacityFor(def, iso2, rng){
@@ -770,6 +775,7 @@ function makeResource(def, iso2, rng, boost){
     grade: ranked ? round1(rand(rng,0.98,1.02)) : round1(rand(rng,0.75,1.35)),
     price: def.price, prevPrice: def.price,
     exploited: true,
+    modelV: RESOURCE_MODEL_VERSION,
   };
 }
 function generateResources(base, rng){
@@ -1488,14 +1494,31 @@ function loadGame(){
       if(c.sanctions==null) c.sanctions = 0;
       (c.resources||[]).forEach(r=>{
         const def = resourceDef(r.type);
-        if(r.reserves==null) r.reserves = Math.max(0, r.amount||0);
-        if(r.baseCapacity==null) r.baseCapacity = def ? Math.max(1, baseCapacityFor(def, c.iso2, null)) : 1;
-        if(r.extraction==null) r.extraction = 100;
-        if(r.refining==null) r.refining = 0;
-        if(r.grade==null) r.grade = 1;
-        if(r.price==null && def) r.price = def.price;
-        if(r.prevPrice==null) r.prevPrice = r.price;
-        delete r.amount;
+        if(r.modelV !== RESOURCE_MODEL_VERSION){
+          /* Ancienne sauvegarde : on reconstruit le gisement à la bonne échelle
+             en conservant sa richesse relative d'origine. */
+          const rrng = rngFor(c.id+'-res-'+r.type);
+          const boost = (c.id===DRC_ID) ? DRC_BOOST : 1;
+          const rebuilt = def ? makeResource(def, c.iso2, rrng, boost) : null;
+          if(rebuilt){
+            r.baseCapacity = rebuilt.baseCapacity;
+            r.reserves = rebuilt.reserves;
+            if(r.extraction==null) r.extraction = rebuilt.extraction;
+            if(r.refining==null) r.refining = rebuilt.refining;
+            if(r.grade==null) r.grade = rebuilt.grade;
+            if(r.price==null) r.price = rebuilt.price;
+            r.exploited = true;
+          } else {
+            if(r.reserves==null) r.reserves = Math.max(0, r.amount||0);
+            if(r.baseCapacity==null) r.baseCapacity = 1;
+            if(r.extraction==null) r.extraction = 100;
+            if(r.refining==null) r.refining = 0;
+            if(r.grade==null) r.grade = 1;
+          }
+          if(r.prevPrice==null) r.prevPrice = r.price;
+          r.modelV = RESOURCE_MODEL_VERSION;
+          delete r.amount;
+        }
       });
       if(!c.social.origins) c.social.origins = {};
       if(!c.social.destinations) c.social.destinations = {};
