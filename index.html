@@ -836,7 +836,13 @@ function deriveCountry(id){
       treasury: Math.round(treasuryBase),
       debt: Math.round(base.gdp*1e9*rand(rng,.05,.35)),
       taxIncome: randInt(rng,18,32), taxCorporate: randInt(rng,15,30),
-      spending: { sante: randInt(rng,30,60), education: randInt(rng,30,60), defense: randInt(rng,20,50), police: randInt(rng,20,50), social: randInt(rng,30,60), infra: randInt(rng,20,55) },
+      taxVat: randInt(rng,10,25), taxCustoms: randInt(rng,5,20),
+      spending: {
+        sante: randInt(rng,30,60), education: randInt(rng,30,60), defense: randInt(rng,20,50),
+        police: randInt(rng,20,50), social: randInt(rng,30,60), infra: randInt(rng,20,55),
+        justice: randInt(rng,25,55), recherche: randInt(rng,15,50),
+        administration: randInt(rng,30,60), retraites: randInt(rng,25,60),
+      },
     },
     economy: {
       growth: round1(rand(rng,-1,4)), unemployment: round1(rand(rng,3,22)),
@@ -852,6 +858,7 @@ function deriveCountry(id){
     },
     demographics: deriveDemographics(gdpPerCapita, rng),
     salaries: deriveSalaries(gdpPerCapita),
+    personality: derivePersonality(base, rng),
     social: {
       immigration: pick(rng,['ouverte','quotas','fermee']), visaQuota: randInt(rng,5,80)*1000,
       pensionLevel: randInt(rng,30,65), unemploymentBenefit: randInt(rng,20,60),
@@ -889,10 +896,21 @@ function newGame(countryId){
     screen: 'game', activeTab: 'dashboard', editMode: false, editorTargetId: countryId,
     player: { countryId, turn: 0 }, countries: {}, relations: {}, contracts: [], diploFilter: '', achievements: [],
     confederations: [], worldNews: [], logView: 'domestic', nextSportEvent: 12, mapLayer: 'relations',
-    startedAt: Date.now(),
+    history: [], startedAt: Date.now(),
   };
   COUNTRIES_DATA.forEach(c=> state.countries[c.id] = deriveCountry(c.id));
   seedPresetConfederations();
+  const p0 = state.countries[countryId];
+  if(p0){
+    const d0 = p0.demographics;
+    state.baseline = {
+      gdp: p0.gdp, approval: p0.economy.approval, unemployment: p0.economy.unemployment,
+      poverty: d0 ? round1((d0.classes.tresPauvres||0)+(d0.classes.pauvres||0)) : null,
+      debtRatio: round1(p0.budget.debt/(p0.gdp*1e9)*100), lifeExpectancy: p0.social.lifeExpectancy,
+      population: p0.population, liberty: p0.social.liberty, corruption: p0.social.corruption,
+      military: Math.round(militaryStrength(p0)),
+    };
+  }
   saveGame();
 }
 function saveGame(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){} }
@@ -931,6 +949,11 @@ function loadGame(){
       if(c.police.prisonCapacity==null) c.police.prisonCapacity = Math.round(c.population*0.001);
       if(c.police.inmates==null) c.police.inmates = Math.round(c.police.prisonCapacity*0.7);
       const gpc = c.gdp*1e9/Math.max(1,c.population);
+      if(c.budget.taxVat==null) c.budget.taxVat = 18;
+      if(c.budget.taxCustoms==null) c.budget.taxCustoms = 12;
+      [['justice',40],['recherche',30],['administration',45],['retraites',42]].forEach(([k,v])=>{
+        if(c.budget.spending[k]==null) c.budget.spending[k] = v;
+      });
       if(c.police.justiceIndex==null) c.police.justiceIndex = round1(clamp(25+gpc/900,5,95));
       if(c.social.corruption==null) c.social.corruption = round1(clamp(72-gpc/700,3,95));
       if(c.social.liberty==null) c.social.liberty = round1(clamp(35+gpc/900,5,95));
@@ -942,7 +965,9 @@ function loadGame(){
       if(!c.salaries || !c.salaries.byProfession) c.salaries = deriveSalaries(gpc);
       PROFESSIONS.forEach(p=>{ if(c.salaries.byProfession[p.key]==null) c.salaries.byProfession[p.key] = p.salaryMult>0 ? Math.max(1,Math.round(gpc/12*0.62*p.salaryMult)) : 0; });
       if(c.salaries.minWage==null) c.salaries.minWage = Math.max(20, Math.round(gpc/12*0.34));
+      if(!c.personality) c.personality = derivePersonality(c, rngFor(c.id+'-pers'));
     });
+    if(!state.history) state.history = [];
     if(!state.confederations.some(cf=>cf.preset)){
       PRESET_CONFEDERATIONS.forEach(preset=>{
         const members = preset.isoCodes.map(code=>COUNTRIES_DATA.find(x=>x.iso2===code)).filter(Boolean).map(x=>x.id).filter(id=>state.countries[id] && !state.countries[id].confederationId);
@@ -1002,6 +1027,61 @@ function avgRelationScore(id){
   if(!keys.length) return 50;
   return keys.reduce((a,k)=>a+state.relations[k].score,0)/keys.length;
 }
+/* ============================================================
+   BUDGET DÉTAILLÉ — recettes et dépenses ligne par ligne
+   Les chiffres affichés au joueur sont exactement ceux qui pilotent la
+   simulation : aucune recette ni dépense n'est décorative.
+   ============================================================ */
+const REVENUE_LINES = [
+  {key:'impotRevenu',   label:'Impôt sur le revenu',    rate:'taxIncome',    w:0.110},
+  {key:'tva',           label:'TVA',                    rate:'taxVat',       w:0.085},
+  {key:'impotSocietes', label:'Impôt sur les sociétés', rate:'taxCorporate', w:0.060},
+  {key:'douanes',       label:'Droits de douane',       rate:'taxCustoms',   w:0.020},
+];
+const EXPENSE_LINES = [
+  {key:'sante',          label:'Santé',            w:0.042, salaried:true},
+  {key:'education',      label:'Éducation',        w:0.038, salaried:true},
+  {key:'defense',        label:'Armée',            w:0.030, salaried:true},
+  {key:'police',         label:'Police',           w:0.020, salaried:true},
+  {key:'justice',        label:'Justice',          w:0.012, salaried:true},
+  {key:'social',         label:'Aides sociales',   w:0.032, salaried:false},
+  {key:'retraites',      label:'Retraites',        w:0.029, salaried:false},
+  {key:'infra',          label:'Infrastructures',  w:0.028, salaried:false},
+  {key:'recherche',      label:'Recherche',        w:0.011, salaried:true},
+  {key:'administration', label:'Administration',   w:0.018, salaried:true},
+];
+function tourismFactor(c){
+  const coastal = c.cities && c.cities.some(ci=>ci.coastal);
+  const f = 0.006 + (coastal?0.004:0) + (c.social.healthIndex-50)/8000
+          - c.police.crimeIndex/9000 + ((c.social.liberty!=null?c.social.liberty:60)-50)/12000;
+  return clamp(f, 0.0005, 0.03);
+}
+function spendLevel(c, key){ const v = c.budget.spending[key]; return v!=null ? v : 50; }
+function budgetBreakdown(c){
+  const base = c.gdp*1e9/12;
+  /* Une administration financée et peu corrompue collecte mieux l'impôt. */
+  const collection = clamp(0.85 + (spendLevel(c,'administration')-50)/330 - ((c.social.corruption!=null?c.social.corruption:40)-40)/500, 0.5, 1.25);
+  const revenues = REVENUE_LINES.map(l=>({
+    key:l.key, label:l.label,
+    amount: Math.max(0, base*l.w*((c.budget[l.rate]!=null?c.budget[l.rate]:0)/50)*collection),
+  }));
+  revenues.push({key:'ressources', label:'Ressources naturelles',
+    amount: c.resources.reduce((a,r)=> a + (r.exploited ? r.amount*r.price*0.02 : 0), 0)});
+  revenues.push({key:'dividendes', label:'Dividendes des entreprises publiques',
+    amount: c.companies.reduce((a,co)=> a + (co.ownership==='public' ? co.value*0.02 : 0), 0)});
+  revenues.push({key:'tourisme', label:'Tourisme', amount: base*tourismFactor(c)});
+  const salMult = 1 + (salaryPressure(c)-1)*0.45;
+  const expenses = EXPENSE_LINES.map(l=>({
+    key:l.key, label:l.label,
+    amount: Math.max(0, base*l.w*(spendLevel(c,l.key)/50)*(l.salaried ? salMult : 1)),
+  }));
+  expenses.push({key:'infraMaint', label:'Entretien des infrastructures', amount: totalInfraCount(c)*400000});
+  const interest = Math.max(0,(c.budget.debt||0))*0.0025*creditRating(c).mult;
+  expenses.push({key:'dette', label:'Intérêts de la dette (capitalisés)', amount: interest, capitalized:true});
+  const totalRevenue = revenues.reduce((a,x)=>a+x.amount, 0);
+  const totalExpense = expenses.reduce((a,x)=>a+(x.capitalized?0:x.amount), 0);
+  return { revenues, expenses, totalRevenue, totalExpense, balance: totalRevenue-totalExpense, interest, collection };
+}
 function totalInfraCount(c){
   return c.cities.reduce((a,city)=> a + Math.round(city.infra.roads/20) + city.infra.highways + city.infra.airports + city.infra.ports, 0);
 }
@@ -1060,15 +1140,20 @@ function simulateCountry(c, isPlayer, turn){
   const rng = mulberry32((hashCode(c.id) ^ (turn*2654435761)) >>> 0);
   const avgTax = (c.budget.taxIncome + c.budget.taxCorporate)/2;
   const revenue = c.gdp*1e9/12*0.26*(avgTax/50);
-  const sectors=['sante','education','defense','police','social','infra'];
-  const avgSpend = sectors.reduce((a,s)=>a+c.budget.spending[s],0)/sectors.length;
+  const sectors = EXPENSE_LINES.map(l=>l.key);
+  const avgSpend = sectors.reduce((a,s)=>a+spendLevel(c,s),0)/sectors.length;
   const salPressure = isPlayer ? salaryPressure(c) : 1;
   const spending = c.gdp*1e9/12*0.26*(avgSpend/50) * (1 + (salPressure-1)*0.45);
   const resourceIncome = c.resources.reduce((a,r)=> a + (r.exploited ? r.amount*r.price*0.02 : 0), 0);
   const companyIncome = c.companies.reduce((a,co)=> a + (co.ownership==='public' ? co.value*0.02 : 0), 0);
   const infraMaint = totalInfraCount(c) * 400000;
   if(isPlayer){
-    const net = revenue - spending + resourceIncome + companyIncome - infraMaint;
+    /* Le joueur est simulé sur le budget détaillé, ligne par ligne. */
+    const bd = budgetBreakdown(c);
+    const net = bd.balance;
+    c.budget.lastRevenue = Math.round(bd.totalRevenue);
+    c.budget.lastExpense = Math.round(bd.totalExpense);
+    c.budget.lastBalance = Math.round(bd.balance);
     if(c.budget.treasury + net < 0){
       c.budget.debt = Math.max(0,(c.budget.debt||0)) + (-(c.budget.treasury+net));
       c.budget.treasury = 0;
@@ -1101,6 +1186,7 @@ function simulateCountry(c, isPlayer, turn){
   gd += (avgRelationScore(c.id)-50)/1800;
   gd += regimeFx.growthBonus||0;
   gd += cabFx.growth;
+  gd += (spendLevel(c,'recherche')-50)/600;
   gd += clamp(tradeIncome/monthlyGdp*3, -0.15, 0.4);
   gd += rand(rng,-1,1)*0.35;
   c.economy.growth = round1(clamp(c.economy.growth*0.85 + gd, -9, 13));
@@ -1117,11 +1203,11 @@ function simulateCountry(c, isPlayer, turn){
     c.police.crimeIndex = round1(clamp(c.police.crimeIndex + 0.25, 0, 100));
   }
   c.social.healthIndex = round1(clamp(c.social.healthIndex + ((c.budget.spending.sante-50)/40) + cabFx.health + rand(rng,-.3,.3), 0, 100));
-  c.social.educationIndex = round1(clamp(c.social.educationIndex + ((c.budget.spending.education-50)/40) + cabFx.education + rand(rng,-.3,.3), 0, 100));
+  c.social.educationIndex = round1(clamp(c.social.educationIndex + ((c.budget.spending.education-50)/40) + (spendLevel(c,'recherche')-50)/220 + cabFx.education + rand(rng,-.3,.3), 0, 100));
   /* Justice, corruption, libertés : indicateurs vivants, pas décoratifs. */
-  const jd = (c.budget.spending.police-50)/70 + (c.social.educationIndex-50)/300 - (c.social.corruption!=null?(c.social.corruption-50):0)/220 + rand(rng,-.25,.25);
+  const jd = (spendLevel(c,'justice')-50)/55 + (c.social.educationIndex-50)/300 - (c.social.corruption!=null?(c.social.corruption-50):0)/220 + rand(rng,-.25,.25);
   c.police.justiceIndex = round1(clamp((c.police.justiceIndex!=null?c.police.justiceIndex:50) + jd, 0, 100));
-  const corrD = -(c.police.justiceIndex-50)/240 - (c.social.educationIndex-50)/400 - (salPressure-1)*0.35 + rand(rng,-.22,.22);
+  const corrD = -(c.police.justiceIndex-50)/240 - (c.social.educationIndex-50)/400 - (spendLevel(c,'administration')-50)/300 - (salPressure-1)*0.35 + rand(rng,-.22,.22);
   c.social.corruption = round1(clamp((c.social.corruption!=null?c.social.corruption:40) + corrD, 0, 100));
   const libTarget = regimeFx.liberty!=null ? regimeFx.liberty : 65;
   const relTarget = regimeFx.religiosity!=null ? regimeFx.religiosity : 45;
@@ -1136,6 +1222,7 @@ function simulateCountry(c, isPlayer, turn){
   ad += c.economy.growth*0.28;
   ad += (c.budget.debt < c.gdp*1e9*0.4 ? 0.25 : -0.4);
   if((c.social.ageElderly||0)>15 && c.social.pensionLevel<40) ad -= ((c.social.ageElderly||0)-15)*0.03;
+  ad += (spendLevel(c,'retraites')-50)*0.006*clamp((c.social.ageElderly||10)/12, 0.3, 2.5);
   ad += cabFx.approval;
   /* La popularité converge vers l'opinion réelle des groupes sociaux. */
   if(isPlayer && c.demographics){
@@ -1286,7 +1373,7 @@ function checkAchievements(){
     }
   });
 }
-function advanceTurn(){
+function advanceTurn(skipRender){
   state.player.turn++;
   const p = playerState();
   simulateCountry(p, true, state.player.turn);
@@ -1295,11 +1382,93 @@ function advanceTurn(){
   processWars();
   processConfederations();
   processDiplomacyDrift();
+  processForeignAI();
   processSport();
+  recordHistory();
   generateWorldNews();
   checkAchievements();
   saveGame();
+  if(!skipRender) render();
+}
+/* Vitesse de simulation : ×1, ×2, ×5, ×10 mois d'un coup. */
+function advanceTurns(n){
+  const count = clamp(Math.round(n)||1, 1, 52);
+  for(let i=0;i<count;i++) advanceTurn(true);
   render();
+  if(count>1) toast(`${count} mois simulés.`);
+}
+/* Bilan chiffré de la présidence, comparé au pays dont vous avez hérité. */
+function presidencyReport(){
+  const c = playerState();
+  const b = state.baseline || (state.history && state.history[0]) || null;
+  if(!b) return null;
+  const d = c.demographics;
+  const poverty = d ? round1((d.classes.tresPauvres||0)+(d.classes.pauvres||0)) : null;
+  const pct = (now, then)=> (then>0 ? round1((now-then)/then*100) : 0);
+  const metrics = [
+    {label:'Croissance économique (PIB)', value: pct(c.gdp, b.gdp), unit:' %', good:1,
+     pos:"le redressement de l'économie", neg:"le recul de l'économie"},
+    {label:'Pauvreté', value: (poverty!=null && b.poverty!=null) ? round1(poverty-b.poverty) : 0, unit:' pts', good:-1,
+     pos:'la montée de la pauvreté', neg:'le recul de la pauvreté'},
+    {label:'Chômage', value: round1(c.economy.unemployment-b.unemployment), unit:' pts', good:-1,
+     pos:'la hausse du chômage', neg:'la baisse du chômage'},
+    {label:'Dette (part du PIB)', value: round1(c.budget.debt/(c.gdp*1e9)*100 - b.debtRatio), unit:' pts', good:-1,
+     pos:'une forte hausse de la dette publique', neg:'un assainissement des finances publiques'},
+    {label:'Espérance de vie', value: round1(c.social.lifeExpectancy-b.lifeExpectancy), unit:' ans', good:1,
+     pos:"l'allongement de l'espérance de vie", neg:"la baisse de l'espérance de vie"},
+    {label:'Population', value: pct(c.population, b.population), unit:' %', good:1,
+     pos:'la croissance démographique du pays', neg:'le déclin démographique du pays'},
+    {label:'Libertés publiques', value: round1((c.social.liberty||0)-(b.liberty||0)), unit:' pts', good:1,
+     pos:"l'élargissement des libertés publiques", neg:'le recul des libertés publiques'},
+    {label:'Corruption', value: round1((c.social.corruption||0)-(b.corruption||0)), unit:' pts', good:-1,
+     pos:'la montée de la corruption', neg:'le recul de la corruption'},
+    {label:'Puissance militaire', value: pct(Math.round(militaryStrength(c)), b.military), unit:' %', good:1,
+     pos:"le renforcement de l'armée", neg:"l'affaiblissement de l'armée"},
+  ].filter(m=>isFinite(m.value));
+  return { metrics, approval: c.economy.approval };
+}
+function presidencyNarrative(rep){
+  const c = playerState();
+  const scored = rep.metrics.map(m=>({phrase: m.value>0?m.pos:m.neg, value:m.value, unit:m.unit, score:m.value*m.good}))
+                            .filter(m=>isFinite(m.score) && m.phrase).sort((a,b)=>b.score-a.score);
+  if(!scored.length) return '';
+  const best = scored[0], worst = scored[scored.length-1];
+  const sign = v => (v>0?'+':'')+v;
+  let txt = 'Votre gouvernement restera principalement dans les mémoires pour ';
+  txt += (best && best.score>0)
+    ? `${best.phrase} (${sign(best.value)}${best.unit}).`
+    : 'une gestion sans grand relief.';
+  if(worst && worst.score<0 && worst.phrase!==best.phrase){
+    txt += ` Votre mandat fut cependant marqué par ${worst.phrase} (${sign(worst.value)}${worst.unit}).`;
+  }
+  const a = c.economy.approval;
+  txt += a>=60 ? " Vous gouvernez avec le soutien d'une large majorité."
+       : (a>=40 ? " L'opinion reste partagée sur votre bilan."
+                : ' Vous laissez un pays profondément divisé.');
+  return txt;
+}
+/* Chronologie de la présidence : un instantané par année de mandat. */
+function recordHistory(){
+  if(!state.history) state.history = [];
+  const turn = state.player.turn;
+  if(turn % 12 !== 0) return;
+  const c = playerState();
+  const d = c.demographics;
+  state.history.push({
+    turn,
+    year: Math.floor(turn/12),
+    gdp: round1(c.gdp),
+    approval: c.economy.approval,
+    unemployment: c.economy.unemployment,
+    poverty: d ? round1((d.classes.tresPauvres||0)+(d.classes.pauvres||0)) : null,
+    debtRatio: round1(c.budget.debt/(c.gdp*1e9)*100),
+    lifeExpectancy: c.social.lifeExpectancy,
+    population: c.population,
+    liberty: c.social.liberty,
+    corruption: c.social.corruption,
+    military: Math.round(militaryStrength(c)),
+  });
+  if(state.history.length > 200) state.history.shift();
 }
 
 /* ============================================================
@@ -1463,6 +1632,65 @@ function processConfederations(){
         const rel = getRelation(members[i],members[j]);
         if(rel.status!=='guerre') setRelation(members[i],members[j], {score: clamp(rel.score+0.5,0,100)});
       }
+    }
+  });
+}
+/* ============================================================
+   IA DES AUTRES PAYS — chaque nation a sa propre personnalité
+   ============================================================ */
+const PERSONALITIES = [
+  {key:'agressif',       label:'Agressif',        warBias: 2.2, tradeBias:0.5, aidBias:0.3, driftBias:-0.6},
+  {key:'pacifique',      label:'Pacifique',       warBias: 0.1, tradeBias:1.2, aidBias:1.8, driftBias: 0.8},
+  {key:'commercial',     label:'Commerçant',      warBias: 0.2, tradeBias:2.4, aidBias:0.9, driftBias: 0.5},
+  {key:'isolationniste', label:'Isolationniste',  warBias: 0.5, tradeBias:0.3, aidBias:0.2, driftBias:-0.2},
+  {key:'opportuniste',   label:'Opportuniste',    warBias: 1.1, tradeBias:1.5, aidBias:0.6, driftBias: 0.0},
+];
+function personalityOf(c){
+  if(c.personality) return PERSONALITIES.find(p=>p.key===c.personality) || PERSONALITIES[4];
+  return PERSONALITIES[4];
+}
+function derivePersonality(base, rng){
+  const r = rng();
+  const rich = base.gdp/Math.max(1,base.pop)*1e9 > 15000;
+  if(r < 0.16) return 'agressif';
+  if(r < 0.40) return rich ? 'commercial' : 'opportuniste';
+  if(r < 0.62) return 'pacifique';
+  if(r < 0.78) return 'isolationniste';
+  return 'commercial';
+}
+/* Les autres pays agissent d'eux-mêmes envers le joueur selon leur caractère. */
+function processForeignAI(){
+  const p = playerState();
+  const rng = mulberry32((hashCode(p.id) ^ (state.player.turn*7919)) >>> 0);
+  const ids = Object.keys(state.countries).filter(id=>id!==p.id);
+  if(!ids.length) return;
+  const actors = pickN(rng, ids, Math.min(3, ids.length));
+  actors.forEach(id=>{
+    const other = state.countries[id];
+    if(!other) return;
+    const pers = personalityOf(other);
+    const rel = getRelation(p.id, id);
+    if(rel.status === 'guerre') return;
+    const roll = rng();
+    const strong = militaryStrength(other) > militaryStrength(p)*1.25;
+    if(roll < 0.05*pers.warBias && rel.score < 32 && strong){
+      setRelation(p.id, id, {status:'guerre', score:Math.max(0, rel.score-15)});
+      pushLog(`${countryName(id)} déclare la guerre à votre pays.`, p);
+      pushWorldNews(`${countryName(id)} déclare la guerre à ${p.name}.`);
+    } else if(roll < 0.05*pers.warBias + 0.05*pers.tradeBias && rel.score >= 55 && rel.status!=='alliance'){
+      const income = Math.round(p.gdp*1e9*rand(rng,0.0004,0.0016));
+      state.contracts.push({id:uid('ct'), a:p.id, b:id, income, turnsLeft:randInt(rng,8,26)});
+      setRelation(p.id, id, {status:'accord commercial', score:clamp(rel.score+4,0,100)});
+      pushLog(`${countryName(id)} vous propose un accord commercial : +${fmtMoney(income)}/mois.`, p);
+    } else if(roll < 0.05*pers.warBias + 0.05*pers.tradeBias + 0.04*pers.aidBias && p.economy.approval < 40){
+      const aid = Math.round(p.gdp*1e9*rand(rng,0.0006,0.0025));
+      p.budget.treasury += aid;
+      setRelation(p.id, id, {status:rel.status==='paix'?'paix':rel.status, score:clamp(rel.score+3,0,100)});
+      pushLog(`${countryName(id)} vous accorde une aide internationale de ${fmtMoney(aid)}.`, p);
+    } else if(roll > 0.94 && rel.score < 40 && pers.key!=='pacifique'){
+      setRelation(p.id, id, {status:'sanctions', score:clamp(rel.score-6,0,100)});
+      pushLog(`${countryName(id)} impose des sanctions à votre pays.`, p);
+      pushWorldNews(`${countryName(id)} sanctionne ${p.name}.`);
     }
   });
 }
@@ -1986,7 +2214,13 @@ function renderDashboard(){
       <h3>Mandat présidentiel</h3>
       <div class="row"><span class="rl">Progression du mandat en cours</span><span class="rv">${mandatePct}%</span></div>
       <div class="bar"><i style="width:${mandatePct}%"></i></div>
-      <div class="btn-row"><button class="btn primary" onclick="advanceTurn()">Avancer d'un mois ▸</button></div>
+      <div class="btn-row" style="flex-wrap:wrap;gap:6px;">
+        <button class="btn primary" onclick="advanceTurns(1)">Avancer d'un mois ▸</button>
+        <button class="btn sm" onclick="advanceTurns(2)">×2</button>
+        <button class="btn sm" onclick="advanceTurns(5)">×5</button>
+        <button class="btn sm" onclick="advanceTurns(10)">×10</button>
+        <button class="btn sm" onclick="advanceTurns(12)">1 an</button>
+      </div>
     </div>
     <div class="card">
       <h3>Journal</h3>
@@ -2175,11 +2409,9 @@ function refreshMapIfActive(){
 /* ---- Economy ---- */
 function renderEconomy(){
   const c = playerState();
-  const sectors = [
-    {key:'sante', label:'Santé'}, {key:'education', label:'Éducation'}, {key:'defense', label:'Défense'},
-    {key:'police', label:'Police'}, {key:'social', label:'Protection sociale'}, {key:'infra', label:'Infrastructures'},
-  ];
+  const sectors = EXPENSE_LINES;
   const contracts = activeContracts();
+  const bd = budgetBreakdown(c);
   return `
   <h1>Économie</h1>
   <div class="subtitle">Fiscalité, budget de l'État, entreprises et contrats internationaux.</div>
@@ -2187,7 +2419,9 @@ function renderEconomy(){
     <div class="card">
       <h3>Fiscalité</h3>
       ${numberField('Impôt sur le revenu', c.budget.taxIncome, "setTax('taxIncome',this.value)", '%')}
+      ${numberField('TVA', c.budget.taxVat!=null?c.budget.taxVat:18, "setTax('taxVat',this.value)", '%')}
       ${numberField('Impôt sur les sociétés', c.budget.taxCorporate, "setTax('taxCorporate',this.value)", '%')}
+      ${numberField('Droits de douane', c.budget.taxCustoms!=null?c.budget.taxCustoms:12, "setTax('taxCustoms',this.value)", '%')}
       <p class="hint">PIB actuel : <b class="num" style="color:var(--parchment)">${fmtMoney(c.gdp*1e9)}</b> · PIB/habitant : <b class="num" style="color:var(--parchment)">${fmtMoney(c.gdp*1e9/c.population)}</b></p>
       <div class="row" style="margin-top:6px;"><span class="rl">Dette publique</span><span class="rv num">${fmtMoney(c.budget.debt)}</span></div>
       <div class="row"><span class="rl">Notation de crédit</span><span class="rv"><span class="pill ${creditRating(c).mult<=1?'good':(creditRating(c).mult<=1.25?'warn':'bad')}">${creditRating(c).grade}</span></span></div>
@@ -2198,7 +2432,21 @@ function renderEconomy(){
     <div class="card">
       <h3>Effort de dépenses par secteur</h3>
       <p class="hint" style="margin-top:-4px;">Aucun plafond : entrez le chiffre exact que vous voulez.</p>
-      ${sectors.map(s=>numberField(s.label, c.budget.spending[s.key], `setSpending('${s.key}',this.value)`, '%')).join('')}
+      ${sectors.map(s=>numberField(s.label, spendLevel(c,s.key), `setSpending('${s.key}',this.value)`, '%')).join('')}
+    </div>
+  </div>
+  <div class="grid cols2" style="margin-top:14px;">
+    <div class="card">
+      <h3>Recettes de l'État</h3>
+      ${bd.revenues.map(r=>`<div class="row"><span class="rl">${escapeHtml(r.label)}</span><span class="rv num pos">${fmtMoney(r.amount)}</span></div>`).join('')}
+      <div class="row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px;"><span class="rl" style="color:var(--parchment)">Total mensuel</span><span class="rv num pos">${fmtMoney(bd.totalRevenue)}</span></div>
+      <p class="hint" style="margin-top:6px;">Efficacité de la collecte : <b style="color:var(--parchment)">${Math.round(bd.collection*100)} %</b> — une administration financée et peu corrompue récolte davantage.</p>
+    </div>
+    <div class="card">
+      <h3>Dépenses de l'État</h3>
+      ${bd.expenses.map(e=>`<div class="row"><span class="rl">${escapeHtml(e.label)}</span><span class="rv num ${e.capitalized?'':'neg'}">${fmtMoney(e.amount)}</span></div>`).join('')}
+      <div class="row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:8px;"><span class="rl" style="color:var(--parchment)">Total mensuel</span><span class="rv num neg">${fmtMoney(bd.totalExpense)}</span></div>
+      <div class="row"><span class="rl" style="color:var(--parchment)">Solde budgétaire</span><span class="rv num ${bd.balance>=0?'pos':'neg'}">${bd.balance>=0?'+':'−'}${fmtMoney(Math.abs(bd.balance))}</span></div>
     </div>
   </div>
   <div class="grid cols2" style="margin-top:14px;">
@@ -2382,8 +2630,9 @@ function diplomacyRows(){
   if(!others.length) return '<tr><td colspan="4" class="empty">Aucun pays trouvé.</td></tr>';
   return others.map(o=>{
     const rel = getRelation(player,o.id);
+    const pers = personalityOf(state.countries[o.id]||{});
     return `<tr>
-      <td>${flagEmoji(o.iso2)} ${escapeHtml(o.name)}</td>
+      <td>${flagEmoji(o.iso2)} ${escapeHtml(o.name)}<br><span style="font-size:11px;color:var(--muted-2);">${escapeHtml(pers.label)}</span></td>
       <td>${statusPill(rel.status)}</td>
       <td class="num">${Math.round(rel.score)}/100</td>
       <td><div class="btn-row" style="margin:0;">
@@ -2660,6 +2909,48 @@ function renderGovernment(){
       ${MINISTRIES.map(m=>`<div class="field"><label>${m.label}</label><input type="text" id="min_${m.key}" value="${escapeHtml(c.government.ministers[m.key])}"></div>`).join('')}
     </div>
     <div class="btn-row"><button class="btn primary" onclick="submitCabinet()">Nommer le gouvernement</button></div>
+  </div>
+  ${renderPresidencyReport()}`;
+}
+function renderPresidencyReport(){
+  const c = playerState();
+  const rep = presidencyReport();
+  if(!rep) return '';
+  const hist = (state.history||[]);
+  const sign = v => (v>0?'+':'')+v;
+  return `
+  <div class="card" style="margin-top:14px;">
+    <h3>Bilan de votre présidence</h3>
+    <div class="subtitle" style="margin-top:-2px;">${escapeHtml(headOfStateTitle(c))} de ${escapeHtml(c.name)} · ${turnDateLabel(state.player.turn)} · mandat n°${c.mandate.term}</div>
+    <div class="grid cols2" style="margin-top:8px;">
+      ${rep.metrics.map(m=>`<div class="row"><span class="rl">${escapeHtml(m.label)}</span><span class="rv num ${m.value*m.good>0?'pos':(m.value*m.good<0?'neg':'')}">${sign(m.value)}${m.unit}</span></div>`).join('')}
+      <div class="row"><span class="rl">Popularité actuelle</span><span class="rv num">${rep.approval} %</span></div>
+    </div>
+    <p class="hint" style="margin-top:10px;line-height:1.6;color:var(--parchment);">${escapeHtml(presidencyNarrative(rep))}</p>
+    ${hist.length ? `
+      <h3 style="margin-top:14px;">Chronologie année par année</h3>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr>
+            <th style="text-align:left;padding:6px 8px;">Année</th>
+            <th style="text-align:right;padding:6px 8px;">PIB</th>
+            <th style="text-align:right;padding:6px 8px;">Popularité</th>
+            <th style="text-align:right;padding:6px 8px;">Chômage</th>
+            <th style="text-align:right;padding:6px 8px;">Pauvreté</th>
+            <th style="text-align:right;padding:6px 8px;">Dette/PIB</th>
+          </tr></thead>
+          <tbody>
+            ${hist.slice(-15).map(h=>`<tr>
+              <td style="padding:5px 8px;">An ${h.year}</td>
+              <td style="text-align:right;padding:5px 8px;" class="num">${fmtMoney(h.gdp*1e9)}</td>
+              <td style="text-align:right;padding:5px 8px;" class="num">${h.approval} %</td>
+              <td style="text-align:right;padding:5px 8px;" class="num">${h.unemployment} %</td>
+              <td style="text-align:right;padding:5px 8px;" class="num">${h.poverty!=null?h.poverty+' %':'—'}</td>
+              <td style="text-align:right;padding:5px 8px;" class="num">${h.debtRatio} %</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : '<p class="hint" style="margin-top:10px;">La chronologie s\'enrichit d\'une ligne à chaque année écoulée.</p>'}
   </div>`;
 }
 function submitCabinet(){
