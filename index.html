@@ -303,6 +303,86 @@ tr:hover td{background:var(--surface-2);}
   .country-chip{margin-left:0;}
   .icon-btn{padding:6px 9px;font-size:11px;}
 }
+
+/* ============================================================
+   MOBILE-FIRST — le jeu doit être agréable au doigt avant tout
+   ============================================================ */
+@media (max-width: 900px){
+  /* Une seule colonne : plus de cartes écrasées côte à côte. */
+  .grid.cols2{grid-template-columns:1fr;}
+  .grid.kpis{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
+  .grid{gap:12px;}
+
+  /* Cibles tactiles : 44px minimum, comme sur une vraie app. */
+  .btn{min-height:44px;padding:11px 16px;font-size:14px;}
+  .btn.sm{min-height:40px;padding:9px 13px;font-size:13px;}
+  .btn-row{gap:8px;}
+  .btn-row .btn{flex:1 1 auto;justify-content:center;}
+
+  /* 16px : en dessous, iOS zoome tout seul sur le champ. */
+  input[type=text], input[type=number], select, textarea{
+    font-size:16px;min-height:44px;
+  }
+  .field label{font-size:12px;}
+
+  /* Les lignes label/valeur passent à la ligne au lieu de se comprimer. */
+  .row{flex-wrap:wrap;row-gap:4px;padding:10px 0;}
+  .row .rl{flex:1 1 60%;min-width:0;}
+  .row .rv{flex:0 0 auto;margin-left:auto;}
+
+  h1{font-size:20px;}
+  .card{padding:14px;}
+  .city-card{padding:14px;}
+  .infra-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
+
+  /* Tableaux : plus lisibles, actions empilées. */
+  table{font-size:13px;}
+  table th, table td{padding:9px 8px;}
+  .table-wrap{max-height:none;}
+  #diploTbody .btn-row{flex-direction:row;flex-wrap:wrap;}
+  #diploTbody .btn-row .btn{flex:1 1 44%;}
+
+  /* Barre d'onglets : défilement fluide et repères au doigt. */
+  .bottomnav{
+    scroll-snap-type:x proximity;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .bottomnav::-webkit-scrollbar{display:none;}
+  .bottomnav button{
+    scroll-snap-align:center;min-width:64px;min-height:52px;padding:7px 12px;font-size:10.5px;
+  }
+  .bottomnav button .ic{font-size:19px;}
+
+  /* Sélecteurs inline (Journal : Mon pays / Monde) : eux aussi au doigt. */
+  .tabs-inline button{min-height:40px;padding:9px 14px;font-size:13px;}
+
+  /* Les notifications ne doivent jamais passer sous la barre d'onglets. */
+  .toast-wrap{
+    left:12px;right:12px;max-width:none;
+    bottom:calc(76px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Appareils tactiles : pas de surbrillance grise au tap, pas de délai de 300ms. */
+@media (hover: none){
+  .btn, .bottomnav button, .sidenav button, .country-card, .icon-btn{
+    -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+  }
+  .btn:hover{border-color:var(--border);}
+  .btn.primary:hover{filter:none;}
+}
+
+@media (max-width: 420px){
+  main.view{padding:14px 11px 88px;}
+  .card{padding:12px;}
+  h1{font-size:18px;}
+  .subtitle{font-size:12px;}
+  .btn-row .btn{flex:1 1 100%;}
+  #diploTbody .btn-row .btn{flex:1 1 100%;}
+  .infra-grid{grid-template-columns:1fr;}
+}
 </style>
 </head>
 <body>
