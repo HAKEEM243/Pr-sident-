@@ -444,18 +444,18 @@ const SOCIAL_CLASSES = [
   {key:'ultraRiches', label:'Ultra-riches'},
 ];
 const PROFESSIONS = [
-  {key:'agriculteurs', label:'Agriculteurs', salaryMult:0.7, publicPay:false},
-  {key:'ouvriers', label:'Ouvriers', salaryMult:0.9, publicPay:false},
-  {key:'fonctionnaires', label:'Fonctionnaires', salaryMult:1.1, publicPay:true},
-  {key:'entrepreneurs', label:'Entrepreneurs', salaryMult:2.6, publicPay:false},
-  {key:'commercants', label:'Commerçants', salaryMult:1.2, publicPay:false},
-  {key:'enseignants', label:'Enseignants', salaryMult:1.15, publicPay:true},
-  {key:'medecins', label:'Médecins', salaryMult:2.4, publicPay:true},
-  {key:'ingenieurs', label:'Ingénieurs', salaryMult:2.0, publicPay:false},
-  {key:'militaires', label:'Militaires', salaryMult:1.05, publicPay:true},
-  {key:'etudiants', label:'Étudiants', salaryMult:0, publicPay:false},
-  {key:'retraites', label:'Retraités', salaryMult:0, publicPay:true},
-  {key:'chomeurs', label:'Chômeurs', salaryMult:0, publicPay:true},
+  {key:'agriculteurs', label:'Agriculteurs', salaryMult:0.7, publicPay:false, unempRisk:1.3},
+  {key:'ouvriers', label:'Ouvriers', salaryMult:0.9, publicPay:false, unempRisk:1.7},
+  {key:'fonctionnaires', label:'Fonctionnaires', salaryMult:1.1, publicPay:true, unempRisk:0.25},
+  {key:'entrepreneurs', label:'Entrepreneurs', salaryMult:2.6, publicPay:false, unempRisk:0.7},
+  {key:'commercants', label:'Commerçants', salaryMult:1.2, publicPay:false, unempRisk:1.1},
+  {key:'enseignants', label:'Enseignants', salaryMult:1.15, publicPay:true, unempRisk:0.35},
+  {key:'medecins', label:'Médecins', salaryMult:2.4, publicPay:true, unempRisk:0.15},
+  {key:'ingenieurs', label:'Ingénieurs', salaryMult:2.0, publicPay:false, unempRisk:0.5},
+  {key:'militaires', label:'Militaires', salaryMult:1.05, publicPay:true, unempRisk:0.2},
+  {key:'etudiants', label:'Étudiants', salaryMult:0, publicPay:false, unempRisk:0},
+  {key:'retraites', label:'Retraités', salaryMult:0, publicPay:true, unempRisk:0},
+  {key:'chomeurs', label:'Chômeurs', salaryMult:0, publicPay:true, unempRisk:0},
 ];
 const GENERATIONS = [
   {key:'enfants', label:'Enfants (0-14 ans)'},
@@ -713,6 +713,7 @@ function nationalIndicators(c){
   const avgTax = ((c.budget.taxIncome||0)+(c.budget.taxCorporate||0))/2;
   let openness = c.social.immigration==='ouverte' ? 80 : (c.social.immigration==='quotas' ? 50 : 15);
   openness += (c.social.refugeePolicy==='accueil' ? 8 : -4);
+  openness += clamp((c.social.naturalizationRate!=null?c.social.naturalizationRate:3)-3, -3, 12);
   const exploited = c.resources ? c.resources.filter(r=>r.exploited).length : 0;
   return {
     perf: {
@@ -767,6 +768,56 @@ function opinionApproval(c){
   return isFinite(v) ? clamp(v, 0, 100) : null;
 }
 /* Le chômage officiel et la part de chômeurs dans la population restent cohérents. */
+/* ============================================================
+   CHÔMAGE DÉTAILLÉ — qui est au chômage, et depuis combien de temps
+   ============================================================ */
+function unemploymentBreakdown(c){
+  const u = c.economy.unemployment;
+  const training = c.social.jobTraining!=null ? c.social.jobTraining : 30;
+  const edu = c.social.educationIndex;
+  const d = c.demographics;
+  const kids = d && d.generations ? (d.generations.enfants||0) : 25;
+  const activeShare = clamp((100-kids)/100, 0.3, 0.9);
+  const totalUnemployed = Math.round(c.population*activeShare*(u/100));
+  const youth = round1(clamp(u*(2.4 - training/140 - (edu-50)/300), 0, 95));
+  const senior = round1(clamp(u*(0.75 + Math.max(0,u-10)/60), 0, 95));
+  const longTerm = round1(clamp(46 - training*0.28 - (edu-50)*0.16 + Math.max(0,u-8)*0.9, 4, 88));
+  const byProfession = PROFESSIONS.filter(p=>p.unempRisk>0).map(p=>{
+    const share = d && d.professions ? (d.professions[p.key]||0) : 0;
+    return { key:p.key, label:p.label, rate: round1(clamp(u*p.unempRisk, 0, 95)),
+             people: Math.round(c.population*(share/100)*clamp(u*p.unempRisk,0,95)/100) };
+  }).sort((a,b)=>b.rate-a.rate);
+  return {
+    rate: u, totalUnemployed, youth, senior, longTerm,
+    longTermPeople: Math.round(totalUnemployed*longTerm/100),
+    byProfession, training,
+    benefitMonthly: Math.round((c.salaries?c.salaries.minWage:0)*((c.social.unemploymentBenefit||0)/100)),
+  };
+}
+/* ============================================================
+   NATIONALITÉ — citoyens, résidents étrangers, sans-papiers
+   ============================================================ */
+function nationalityBreakdown(c){
+  const residents = Math.max(0, c.social.residents||0);
+  const undocumented = Math.max(0, c.social.undocumented||0);
+  const citizens = Math.max(0, c.population - residents - undocumented);
+  const pctOf = n => c.population>0 ? round1(n/c.population*100) : 0;
+  return {
+    citizens, residents, undocumented,
+    citizensPct: pctOf(citizens), residentsPct: pctOf(residents), undocumentedPct: pctOf(undocumented),
+    naturalizedTotal: Math.max(0, c.social.naturalizedTotal||0),
+    lastNaturalized: Math.max(0, c.social.lastNaturalized||0),
+    naturalizationRate: c.social.naturalizationRate!=null ? c.social.naturalizationRate : 3,
+  };
+}
+function topFlows(map, n){
+  if(!map) return [];
+  return Object.keys(map)
+    .map(id=>({ id, count: map[id]||0 }))
+    .filter(x=>x.count>0)
+    .sort((a,b)=>b.count-a.count)
+    .slice(0, n);
+}
 /* L'ascenseur social : de bons salaires et une économie saine font monter les
    ménages d'une classe à l'autre ; la stagnation et l'inflation les font descendre. */
 function driftClasses(c, salPressure){
@@ -853,6 +904,15 @@ function computeSeats(c){
     const rest = Math.max(0, w - toPres);
     PARTIES.forEach(p=> raw[p.key] += rest*weights[p.key]);
   });
+  /* Seuls les citoyens votent. Les naturalisés, eux, votent — et penchent
+     nettement vers les partis les plus ouverts sur l'immigration. */
+  if(c.social && c.population>0){
+    const natShare = clamp((c.social.naturalizedTotal||0)/c.population*100, 0, 25);
+    if(natShare>0){
+      const lean = {socialiste:0.40, ecologiste:0.25, liberal:0.20, centriste:0.15};
+      Object.keys(lean).forEach(k=> raw[k] += natShare*lean[k]);
+    }
+  }
   const total = Object.values(raw).reduce((a,b)=>a+b,0);
   const seatsTotal = state.parliament.total || 300;
   if(!(total>0)) return null;
@@ -1017,6 +1077,12 @@ function deriveCountry(id){
       healthIndex: initialHealthIndex, educationIndex: round1(rand(rng,35,80)),
       workVisaLevel: randInt(rng,10,40), refugeePolicy: pick(rng,['accueil','restreint']),
       totalImmigrants: 0, totalArrivals: 0, totalDepartures: 0,
+      jobTraining: randInt(rng,15,50),
+      residents: Math.round(base.pop*rand(rng,.005,.09)),
+      undocumented: Math.round(base.pop*rand(rng,.0005,.012)),
+      naturalizationRate: randInt(rng,1,6),
+      naturalizedTotal: 0, lastNaturalized: 0,
+      origins: {}, destinations: {},
       birthRate: round1(clamp(35 - gdpPerCapita/2000, 8, 42)),
       mortalityRate: round1(clamp(15 - (initialHealthIndex-50)/6, 3, 22)),
       ageYoung: round1(clamp(45 - gdpPerCapita/3000, 14, 46)),
@@ -1120,6 +1186,14 @@ function loadGame(){
       PROFESSIONS.forEach(p=>{ if(c.salaries.byProfession[p.key]==null) c.salaries.byProfession[p.key] = p.salaryMult>0 ? Math.max(1,Math.round(gpc/12*0.62*p.salaryMult)) : 0; });
       if(c.salaries.minWage==null) c.salaries.minWage = Math.max(20, Math.round(gpc/12*0.34));
       if(!c.personality) c.personality = derivePersonality(c, rngFor(c.id+'-pers'));
+      if(c.social.jobTraining==null) c.social.jobTraining = 30;
+      if(c.social.residents==null) c.social.residents = Math.round(c.population*0.03);
+      if(c.social.undocumented==null) c.social.undocumented = Math.round(c.population*0.004);
+      if(c.social.naturalizationRate==null) c.social.naturalizationRate = 3;
+      if(c.social.naturalizedTotal==null) c.social.naturalizedTotal = 0;
+      if(c.social.lastNaturalized==null) c.social.lastNaturalized = 0;
+      if(!c.social.origins) c.social.origins = {};
+      if(!c.social.destinations) c.social.destinations = {};
     });
     if(!state.history) state.history = [];
     if(!state.parliament){
@@ -1355,11 +1429,15 @@ function simulateCountry(c, isPlayer, turn){
   gd += rand(rng,-1,1)*0.35;
   c.economy.growth = round1(clamp(c.economy.growth*0.85 + gd, -9, 13));
   c.gdp = Math.max(0.05, c.gdp * (1 + c.economy.growth/100/12));
+  const training = c.social.jobTraining!=null ? c.social.jobTraining : 30;
   let ud = -c.economy.growth*0.06 - (c.budget.spending.social-50)/60 + rand(rng,-.4,.4) + (salPressure-1)*0.6;
+  ud -= (training-30)/280;
   c.economy.unemployment = round1(clamp(c.economy.unemployment+ud, 1, 45));
   let idl = rand(rng,-.35,.35) + (c.budget.debt > c.gdp*1e9*0.6 ? 0.35 : 0) + (salPressure-1)*0.25;
   c.economy.inflation = round1(clamp(c.economy.inflation+idl, -2, 70));
-  let cd = -(c.budget.spending.police-50)*0.025 + (c.economy.unemployment-10)*0.045 + rand(rng,-.6,.6) + (regimeFx.crimeBonus||0)*0.03 + cabFx.crime;
+  /* Le chômage des jeunes pèse plus lourd sur la criminalité que le taux global. */
+  const youthUnemp = clamp(c.economy.unemployment*(2.4 - training/140 - (c.social.educationIndex-50)/300), 0, 95);
+  let cd = -(c.budget.spending.police-50)*0.025 + (c.economy.unemployment-10)*0.045 + rand(rng,-.6,.6) + (regimeFx.crimeBonus||0)*0.03 + cabFx.crime + Math.max(0, youthUnemp-18)*0.012;
   c.police.crimeIndex = round1(clamp(c.police.crimeIndex+cd, 0, 100));
   const inmateChange = Math.round(c.population*0.000015*(c.police.crimeIndex/50));
   c.police.inmates = Math.max(0, Math.round((c.police.inmates||0) + inmateChange - (c.police.inmates||0)*0.02));
@@ -1400,11 +1478,12 @@ function simulateCountry(c, isPlayer, turn){
   c.social.mortalityRate = round1(clamp((c.social.mortalityRate!=null?c.social.mortalityRate:10) - (c.social.healthIndex-50)/120 + rand(rng,-.15,.15), 2, 25));
   const naturalRate = (c.social.birthRate - c.social.mortalityRate)/1000/12;
   let arrivalRate = 0.0003;
-  if(c.social.immigration==='ouverte') arrivalRate += 0.0010;
-  if(c.social.immigration==='fermee') arrivalRate = Math.max(0, arrivalRate-0.00025);
   const workVisaEffect = Math.min(200,c.social.workVisaLevel||0)/100;
   arrivalRate += workVisaEffect*0.0007;
   if(c.social.refugeePolicy==='accueil') arrivalRate += 0.0004;
+  /* La politique migratoire module l'ensemble du flux : fermer les frontières
+     réduit aussi les visas de travail et l'accueil des réfugiés. */
+  arrivalRate *= c.social.immigration==='ouverte' ? 1.9 : (c.social.immigration==='quotas' ? 1 : 0.25);
   let departureRate = 0.0002;
   if(c.economy.unemployment>20) departureRate += 0.0004;
   if(c.economy.approval<30) departureRate += 0.0003;
@@ -1412,6 +1491,48 @@ function simulateCountry(c, isPlayer, turn){
   const arrivals = Math.round(c.population*arrivalRate);
   const departures = Math.round(c.population*departureRate);
   const naturalChange = Math.round(c.population*naturalRate);
+  /* Qui entre légalement, qui entre sans papiers, qui devient citoyen. */
+  const monthlyQuota = c.social.immigration==='ouverte' ? Infinity
+    : (c.social.immigration==='quotas' ? (c.social.visaQuota||0)/12
+                                       : Math.max(0, (c.social.visaQuota||0)/12*0.15));
+  const legalArrivals = isFinite(monthlyQuota) ? Math.min(arrivals, Math.round(monthlyQuota)) : arrivals;
+  const illegalArrivals = Math.max(0, arrivals - legalArrivals);
+  c.social.residents = Math.max(0, (c.social.residents||0) + legalArrivals);
+  c.social.undocumented = Math.max(0, (c.social.undocumented||0) + illegalArrivals);
+  const natRate = clamp(c.social.naturalizationRate!=null ? c.social.naturalizationRate : 3, 0, 100)/100/12;
+  const naturalized = Math.min(c.social.residents, Math.round(c.social.residents*natRate));
+  c.social.residents = Math.max(0, c.social.residents - naturalized);
+  c.social.naturalizedTotal = Math.max(0, (c.social.naturalizedTotal||0) + naturalized);
+  c.social.lastNaturalized = naturalized;
+  c.social.lastLegalArrivals = legalArrivals;
+  c.social.lastIllegalArrivals = illegalArrivals;
+  /* Les résidents étrangers repartent plus souvent que la moyenne, mais en
+     proportion de leur poids réel dans la population. */
+  const residentShare = clamp((c.social.residents||0)/Math.max(1,c.population), 0, 1);
+  const residentsLeaving = Math.min(c.social.residents, Math.round(departures*clamp(residentShare*2.5, 0, 0.6)));
+  c.social.residents = Math.max(0, c.social.residents - residentsLeaving);
+  /* Les sans-papiers ne s'accumulent pas indéfiniment : départs, retours et
+     régularisations de droit commun en font sortir une part chaque mois. */
+  c.social.undocumented = Math.max(0, Math.round((c.social.undocumented||0)*0.992));
+  if(isPlayer && (arrivals>0 || departures>0)){
+    const otherIds = Object.keys(state.countries).filter(id=>id!==c.id);
+    if(otherIds.length){
+      /* On retient d'où viennent les arrivants et où partent les partants. */
+      const sample = pickN(rng, otherIds, Math.min(6, otherIds.length));
+      const poorestFirst = sample.slice().sort((a,b)=>{
+        const ga = state.countries[a], gb = state.countries[b];
+        return (ga.gdp*1e9/Math.max(1,ga.population)) - (gb.gdp*1e9/Math.max(1,gb.population));
+      });
+      c.social.origins = c.social.origins || {};
+      c.social.destinations = c.social.destinations || {};
+      [0.5,0.3,0.2].forEach((share,i)=>{
+        const src = poorestFirst[i];
+        if(src && arrivals>0) c.social.origins[src] = (c.social.origins[src]||0) + Math.round(arrivals*share);
+        const dst = poorestFirst[poorestFirst.length-1-i];
+        if(dst && departures>0) c.social.destinations[dst] = (c.social.destinations[dst]||0) + Math.round(departures*share);
+      });
+    }
+  }
   if(isPlayer){
     c.social.totalArrivals = (c.social.totalArrivals||0) + arrivals;
     c.social.totalDepartures = (c.social.totalDepartures||0) + departures;
@@ -1424,6 +1545,10 @@ function simulateCountry(c, isPlayer, turn){
     if(workVisaEffect>0) c.economy.growth = round1(c.economy.growth + workVisaEffect*0.05);
   }
   c.population = Math.max(1000, c.population + naturalChange + arrivals - departures);
+  /* Résidents et sans-papiers ne peuvent jamais dépasser la population réelle. */
+  const foreignCap = Math.max(0, c.population - 1000);
+  c.social.residents = Math.max(0, Math.min(c.social.residents||0, foreignCap));
+  c.social.undocumented = Math.max(0, Math.min(c.social.undocumented||0, Math.max(0, foreignCap - c.social.residents)));
   c.social.ageYoung = round1(clamp((c.social.ageYoung!=null?c.social.ageYoung:25) + (c.social.birthRate-20)/2500, 10, 48));
   c.social.ageElderly = round1(clamp((c.social.ageElderly!=null?c.social.ageElderly:12) + (18-c.social.mortalityRate)/3500, 3, 30));
   c.social.lifeExpectancy = round1(clamp(50 + (c.social.healthIndex-50)/2 - (c.social.mortalityRate-10)*0.6, 40, 92));
@@ -2018,6 +2143,27 @@ function setSalary(profKey, value){
   if(!c.salaries || !c.salaries.byProfession) return;
   c.salaries.byProfession[profKey] = Math.max(0, Math.round(value)||0);
   saveGame(); render();
+}
+function setJobTraining(value){
+  playerState().social.jobTraining = Math.max(0, Math.round(value)||0);
+  saveGame(); render();
+}
+function setNaturalizationRate(value){
+  playerState().social.naturalizationRate = clamp(Math.round(value)||0, 0, 100);
+  refreshParliament();
+  saveGame(); render();
+}
+function regularizeUndocumented(){
+  const c = playerState();
+  const n = Math.round((c.social.undocumented||0)*0.6);
+  if(n<=0){ toast('Aucun sans-papiers à régulariser.'); return; }
+  c.social.undocumented = Math.max(0, (c.social.undocumented||0) - n);
+  c.social.residents = Math.max(0, (c.social.residents||0) + n);
+  c.economy.approval = round1(clamp(c.economy.approval - 1.5, 0, 100));
+  pushLog(`Régularisation exceptionnelle : ${fmtNum(n)} personnes obtiennent un titre de séjour.`, c);
+  refreshParliament();
+  saveGame(); render();
+  toast('Régularisation effectuée.');
 }
 function setMinWage(value){
   const c = playerState();
@@ -3054,9 +3200,58 @@ function renderSocial(){
       <div class="row"><span class="rl">Arrivées (dernier mois)</span><span class="rv num pos">+${fmtNum(c.social.lastArrivals||0)}</span></div>
       <div class="row"><span class="rl">Départs (dernier mois)</span><span class="rv num neg">−${fmtNum(c.social.lastDepartures||0)}</span></div>
       <div class="row"><span class="rl">Solde migratoire net</span><span class="rv num">${c.social.lastNetMigration!=null ? (c.social.lastNetMigration>=0?'+':'')+fmtNum(c.social.lastNetMigration) : '—'}</span></div>
+      <div class="row"><span class="rl">— dont entrées légales</span><span class="rv num">${fmtNum(c.social.lastLegalArrivals||0)}</span></div>
+      <div class="row"><span class="rl">— dont entrées sans titre</span><span class="rv num ${(c.social.lastIllegalArrivals||0)>0?'neg':''}">${fmtNum(c.social.lastIllegalArrivals||0)}</span></div>
       <div class="row"><span class="rl">Total arrivées (cumul du mandat)</span><span class="rv num">${fmtNum(c.social.totalArrivals||0)}</span></div>
       <div class="row"><span class="rl">Total départs (cumul du mandat)</span><span class="rv num">${fmtNum(c.social.totalDepartures||0)}</span></div>
-      <p class="hint" style="margin-top:8px;">Un accueil plus ouvert et un programme de visas qualifiés attirent plus d'arrivées ; le chômage et l'impopularité poussent des habitants à partir.</p>
+      ${(()=>{
+        const origins = topFlows(c.social.origins, 5), dests = topFlows(c.social.destinations, 5);
+        if(!origins.length && !dests.length) return '<p class="hint" style="margin-top:8px;">Les pays d\'origine et de destination apparaîtront après quelques mois.</p>';
+        return `
+        ${origins.length?`<div class="row" style="margin-top:8px;"><span class="rl" style="color:var(--parchment)">Principaux pays d'origine</span><span></span></div>
+        ${origins.map(o=>`<div class="row"><span class="rl">${flagEmoji((COUNTRY_INDEX[o.id]||{}).iso2||'')} ${escapeHtml(countryName(o.id))}</span><span class="rv num pos">+${fmtNum(o.count)}</span></div>`).join('')}`:''}
+        ${dests.length?`<div class="row" style="margin-top:8px;"><span class="rl" style="color:var(--parchment)">Principales destinations des partants</span><span></span></div>
+        ${dests.map(o=>`<div class="row"><span class="rl">${flagEmoji((COUNTRY_INDEX[o.id]||{}).iso2||'')} ${escapeHtml(countryName(o.id))}</span><span class="rv num neg">−${fmtNum(o.count)}</span></div>`).join('')}`:''}`;
+      })()}
+      <p class="hint" style="margin-top:8px;">Fermer les frontières ne supprime pas la demande : ce qui dépasse le quota entre sans titre de séjour.</p>
+    </div>
+    <div class="card">
+      <h3>Nationalité &amp; résidence</h3>
+      ${(()=>{
+        const nb = nationalityBreakdown(c);
+        return `
+        <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin:8px 0 10px;">
+          <div style="width:${nb.citizensPct}%;background:var(--brass);" title="Citoyens"></div>
+          <div style="width:${nb.residentsPct}%;background:var(--info);" title="Résidents étrangers"></div>
+          <div style="width:${nb.undocumentedPct}%;background:var(--seal-red);" title="Sans-papiers"></div>
+        </div>
+        <div class="row"><span class="rl"><i class="dot" style="background:var(--brass);"></i>Citoyens</span><span class="rv num">${fmtNum(nb.citizens)} <span style="color:var(--muted-2);">(${nb.citizensPct} %)</span></span></div>
+        <div class="row"><span class="rl"><i class="dot" style="background:var(--info);"></i>Résidents étrangers</span><span class="rv num">${fmtNum(nb.residents)} <span style="color:var(--muted-2);">(${nb.residentsPct} %)</span></span></div>
+        <div class="row"><span class="rl"><i class="dot" style="background:var(--seal-red);"></i>Sans-papiers</span><span class="rv num">${fmtNum(nb.undocumented)} <span style="color:var(--muted-2);">(${nb.undocumentedPct} %)</span></span></div>
+        ${numberField('Taux de naturalisation annuel', nb.naturalizationRate, 'setNaturalizationRate(this.value)', '% des résidents')}
+        <div class="row"><span class="rl">Naturalisations (dernier mois)</span><span class="rv num pos">+${fmtNum(nb.lastNaturalized)}</span></div>
+        <div class="row"><span class="rl">Naturalisations (cumul)</span><span class="rv num">${fmtNum(nb.naturalizedTotal)}</span></div>
+        <div class="btn-row"><button class="btn sm" onclick="regularizeUndocumented()">Régulariser 60 % des sans-papiers</button></div>
+        <p class="hint" style="margin-top:6px;">Seuls les citoyens votent. Naturaliser élargit votre électorat — les naturalisés penchent vers les partis ouverts — mais fait monter la colère des groupes hostiles à l'immigration.</p>`;
+      })()}
+    </div>
+    <div class="card">
+      <h3>Chômage</h3>
+      ${(()=>{
+        const ub = unemploymentBreakdown(c);
+        return `
+        <div class="row"><span class="rl">Taux de chômage</span><span class="rv num ${ub.rate>15?'neg':(ub.rate<7?'pos':'')}">${round1(ub.rate)} %</span></div>
+        <div class="row"><span class="rl">Nombre de chômeurs</span><span class="rv num">${fmtNum(ub.totalUnemployed)}</span></div>
+        <div class="row"><span class="rl">Chômage des jeunes</span><span class="rv num ${ub.youth>25?'neg':''}">${ub.youth} %</span></div>
+        <div class="row"><span class="rl">Chômage des seniors</span><span class="rv num">${ub.senior} %</span></div>
+        <div class="row"><span class="rl">Part de chômage de longue durée</span><span class="rv num ${ub.longTerm>50?'neg':''}">${ub.longTerm} %</span></div>
+        <div class="row"><span class="rl">— soit</span><span class="rv num">${fmtNum(ub.longTermPeople)} personnes</span></div>
+        <div class="row"><span class="rl">Allocation mensuelle versée</span><span class="rv num">${fmtMoney(ub.benefitMonthly)}</span></div>
+        ${numberField('Formation professionnelle', ub.training, 'setJobTraining(this.value)', '%')}
+        <div class="row" style="margin-top:6px;"><span class="rl" style="color:var(--parchment)">Chômage par métier</span><span></span></div>
+        ${ub.byProfession.map(p=>`<div class="row"><span class="rl">${escapeHtml(p.label)}<span class="bar" style="margin-top:5px;"><i style="width:${clamp(p.rate,0,100)}%"></i></span></span><span style="text-align:right;white-space:nowrap;"><span class="rv num">${p.rate} %</span><br><span style="font-size:11px;color:var(--muted-2);">${fmtNum(p.people)}</span></span></div>`).join('')}
+        <p class="hint" style="margin-top:8px;">La formation professionnelle fait reculer le chômage, surtout celui des jeunes et de longue durée. Un fort chômage des jeunes nourrit directement la criminalité.</p>`;
+      })()}
     </div>
     <div class="card">
       <h3>Démographie</h3>
