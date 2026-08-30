@@ -1434,6 +1434,7 @@ function deriveCountry(id){
     economy: {
       growth: round1(rand(rng,-1,4)), unemployment: round1(rand(rng,3,22)),
       inflation: round1(rand(rng,1,12)), approval: round1(rand(rng,38,64)),
+      techIndex: round1(clamp(20+gdpPerCapita/900+rand(rng,-8,8), 3, 96)),
     },
     resources: generateResources(base, rng),
     military: { troops: Math.round(base.pop*rand(rng,.0015,.006)), arms: randInt(rng,15,70) },
@@ -1552,6 +1553,7 @@ function loadGame(){
         if(c.budget.spending[k]==null) c.budget.spending[k] = v;
       });
       if(!c.decreesUsed) c.decreesUsed = {};
+      if(c.economy.techIndex==null) c.economy.techIndex = round1(clamp(20+gpc/900,3,96));
       if(!c.intelligence) c.intelligence = { capability: 30, counterIntel: 30, sabotage: null };
       if(c.intelligence.capability==null) c.intelligence.capability = 30;
       if(c.intelligence.counterIntel==null) c.intelligence.counterIntel = 30;
@@ -1858,6 +1860,11 @@ function simulateCountry(c, isPlayer, turn){
   const monthlyGdp = c.gdp*1e9/12;
   const tradeIncome = resourceIncome + companyIncome;
   if(isPlayer) c.economy.tradeIncomeMonthly = round1(tradeIncome);
+  /* Indice technologique : suit l'effort de recherche et le niveau d'éducation,
+     et se répercute ensuite sur la croissance et la puissance militaire. */
+  const techTarget = clamp((spendLevel(c,'recherche')-50)*0.6 + (c.social.educationIndex-50)*0.4 + 50, 0, 100);
+  const techPrev = c.economy.techIndex!=null ? c.economy.techIndex : 40;
+  c.economy.techIndex = round1(clamp(techPrev + clamp(techTarget-techPrev,-3,3)*0.12 + rand(rng,-0.2,0.2), 0, 100));
   let gd = 0;
   gd += (c.budget.spending.infra-50)/450;
   gd += (c.social.educationIndex-50)/900;
@@ -1865,6 +1872,7 @@ function simulateCountry(c, isPlayer, turn){
   gd += regimeFx.growthBonus||0;
   gd += cabFx.growth;
   gd += (spendLevel(c,'recherche')-50)/600;
+  gd += (c.economy.techIndex-50)/700;
   const infraFx = infraEffects(c);
   gd += infraFx.growth + infraFx.trade*0.35;
   gd += clamp(tradeIncome/monthlyGdp*3, -0.15, 0.4);
@@ -2090,7 +2098,19 @@ function processContracts(){
     return true;
   });
 }
-function militaryStrength(c){ return c.military.troops * (0.4 + c.military.arms/100); }
+function militaryStrength(c){
+  const tech = (c.economy && c.economy.techIndex!=null) ? c.economy.techIndex : 40;
+  return c.military.troops * (0.4 + c.military.arms/100) * (0.85 + tech/400);
+}
+function techRanking(limit){
+  const rows = [];
+  for(const id in state.countries){
+    const c = state.countries[id];
+    if(c.economy && c.economy.techIndex!=null) rows.push({id, name:c.name, iso2:c.iso2, tech:c.economy.techIndex});
+  }
+  rows.sort((a,b)=>b.tech-a.tech);
+  return limit ? rows.slice(0, limit) : rows;
+}
 function processWars(){
   const p = playerState();
   const rng = mulberry32((hashCode(p.id) ^ (state.player.turn*40503)) >>> 0);
@@ -3450,6 +3470,15 @@ function renderEconomy(){
       <h3>Effort de dépenses par secteur</h3>
       <p class="hint" style="margin-top:-4px;">Aucun plafond : entrez le chiffre exact que vous voulez.</p>
       ${sectors.map(s=>numberField(s.label, spendLevel(c,s.key), `setSpending('${s.key}',this.value)`, '%')).join('')}
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px;">
+    <h3>Technologie</h3>
+    <p class="hint" style="margin-top:-4px;">Suit l'effort de recherche et le niveau d'éducation. Un pays technologique croît plus vite et son armée est plus efficace à effectifs égaux.</p>
+    <div class="row"><span class="rl">Indice technologique</span><span class="rv"><span class="pill ${c.economy.techIndex>=60?'good':(c.economy.techIndex>=35?'warn':'bad')}">${round1(c.economy.techIndex)}/100</span></span></div>
+    <div class="bar"><i style="width:${clamp(c.economy.techIndex,0,100)}%"></i></div>
+    <div style="font-size:11px;color:var(--muted-2);margin-top:8px;">
+      ${techRanking(5).map((t,i)=>`${i+1}. ${flagEmoji(t.iso2)} ${t.id===c.id?'<b style="color:var(--brass)">'+escapeHtml(t.name)+'</b>':escapeHtml(t.name)} — ${round1(t.tech)}/100`).join('<br>')}
     </div>
   </div>
   <div class="grid cols2" style="margin-top:14px;">
