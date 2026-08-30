@@ -1348,8 +1348,10 @@ function deriveCountry(id){
         police: randInt(rng,20,50), social: randInt(rng,30,60), infra: randInt(rng,20,55),
         justice: randInt(rng,25,55), recherche: randInt(rng,15,50),
         administration: randInt(rng,30,60), retraites: randInt(rng,25,60),
+        renseignement: randInt(rng,15,45),
       },
     },
+    intelligence: { capability: randInt(rng,20,50), counterIntel: randInt(rng,20,50), sabotage: null },
     economy: {
       growth: round1(rand(rng,-1,4)), unemployment: round1(rand(rng,3,22)),
       inflation: round1(rand(rng,1,12)), approval: round1(rand(rng,38,64)),
@@ -1410,7 +1412,7 @@ function newGame(countryId){
     screen: 'game', activeTab: 'dashboard', editMode: false, editorTargetId: countryId,
     player: { countryId, turn: 0 }, countries: {}, relations: {}, contracts: [], diploFilter: '', achievements: [],
     confederations: [], worldNews: [], logView: 'domestic', nextSportEvent: 12, mapLayer: 'relations',
-    history: [], resolutions: [], startedAt: Date.now(),
+    history: [], resolutions: [], espionageReports: {}, startedAt: Date.now(),
   };
   COUNTRIES_DATA.forEach(c=> state.countries[c.id] = deriveCountry(c.id));
   seedPresetConfederations();
@@ -1467,9 +1469,13 @@ function loadGame(){
       const gpc = c.gdp*1e9/Math.max(1,c.population);
       if(c.budget.taxVat==null) c.budget.taxVat = 18;
       if(c.budget.taxCustoms==null) c.budget.taxCustoms = 12;
-      [['justice',40],['recherche',30],['administration',45],['retraites',42]].forEach(([k,v])=>{
+      [['justice',40],['recherche',30],['administration',45],['retraites',42],['renseignement',25]].forEach(([k,v])=>{
         if(c.budget.spending[k]==null) c.budget.spending[k] = v;
       });
+      if(!c.intelligence) c.intelligence = { capability: 30, counterIntel: 30, sabotage: null };
+      if(c.intelligence.capability==null) c.intelligence.capability = 30;
+      if(c.intelligence.counterIntel==null) c.intelligence.counterIntel = 30;
+      if(c.intelligence.sabotage===undefined) c.intelligence.sabotage = null;
       if(c.police.justiceIndex==null) c.police.justiceIndex = round1(clamp(25+gpc/900,5,95));
       if(c.social.corruption==null) c.social.corruption = round1(clamp(72-gpc/700,3,95));
       if(c.social.liberty==null) c.social.liberty = round1(clamp(35+gpc/900,5,95));
@@ -1535,6 +1541,7 @@ function loadGame(){
     });
     if(!state.history) state.history = [];
     if(!state.resolutions) state.resolutions = [];
+    if(!state.espionageReports) state.espionageReports = {};
     if(!state.parliament){
       state.parliament = { total: 300, presidentialParty: 'centriste', coalition: [], seats: null, passedLaws: [], lastVote: null, electionsEnabled: true };
     }
@@ -1626,6 +1633,7 @@ const EXPENSE_LINES = [
   {key:'infra',          label:'Infrastructures',  w:0.028, salaried:false},
   {key:'recherche',      label:'Recherche',        w:0.011, salaried:true},
   {key:'administration', label:'Administration',   w:0.018, salaried:true},
+  {key:'renseignement',  label:'Renseignement',    w:0.014, salaried:true},
 ];
 function tourismFactor(c){
   const coastal = c.cities && c.cities.some(ci=>ci.coastal);
@@ -1780,6 +1788,11 @@ function simulateCountry(c, isPlayer, turn){
   const infraFx = infraEffects(c);
   gd += infraFx.growth + infraFx.trade*0.35;
   gd += clamp(tradeIncome/monthlyGdp*3, -0.15, 0.4);
+  if(c.intelligence && c.intelligence.sabotage && c.intelligence.sabotage.turnsLeft>0){
+    const sb = c.intelligence.sabotage;
+    if(sb.kind==='economie') gd -= sb.magnitude;
+    if(sb.kind==='infrastructure') gd -= sb.magnitude*0.6;
+  }
   gd += rand(rng,-1,1)*0.35;
   c.economy.growth = round1(clamp(c.economy.growth*0.85 + gd, -9, 13));
   c.gdp = Math.max(0.05, c.gdp * (1 + c.economy.growth/100/12));
@@ -1811,6 +1824,18 @@ function simulateCountry(c, isPlayer, turn){
   c.social.religiosity = round1(clamp((c.social.religiosity!=null?c.social.religiosity:45) + clamp(relTarget-(c.social.religiosity!=null?c.social.religiosity:45), -2, 2)*0.15, 0, 100));
   /* Brider la presse ronge les libertés publiques. */
   if(c.media) c.social.liberty = round1(clamp(c.social.liberty + ((c.media.pressFreedom!=null?c.media.pressFreedom:60)-60)*0.006, 0, 100));
+  /* Renseignement : la capacité offensive et la contre-espionnage suivent le
+     budget dédié, pour tous les pays (le joueur doit espionner des services
+     réels, pas des chiffres figés). */
+  if(c.intelligence){
+    const intelSpend = spendLevel(c,'renseignement');
+    c.intelligence.capability = round1(clamp((c.intelligence.capability!=null?c.intelligence.capability:30) + clamp(intelSpend-(c.intelligence.capability!=null?c.intelligence.capability:30),-3,3)*0.2 + rand(rng,-0.4,0.4), 0, 100));
+    c.intelligence.counterIntel = round1(clamp((c.intelligence.counterIntel!=null?c.intelligence.counterIntel:30) + clamp(intelSpend*0.7-(c.intelligence.counterIntel!=null?c.intelligence.counterIntel:30),-3,3)*0.2 + rand(rng,-0.4,0.4), 0, 100));
+    if(c.intelligence.sabotage && c.intelligence.sabotage.turnsLeft>0){
+      c.intelligence.sabotage.turnsLeft--;
+      if(c.intelligence.sabotage.turnsLeft<=0) c.intelligence.sabotage = null;
+    }
+  }
   let ad = 0;
   ad -= (c.economy.unemployment-10)*0.13;
   ad -= Math.max(0,c.economy.inflation-5)*0.09;
@@ -2558,6 +2583,77 @@ function setPressFreedom(value){
   const c = playerState();
   c.media = c.media || {};
   c.media.pressFreedom = clamp(Math.round(value)||0, 0, 100);
+  saveGame(); render();
+}
+/* ============================================================
+   ACTIONS — Renseignement (espionnage, sabotage, contre-espionnage)
+   ============================================================ */
+function setIntelTarget(id){ state.intelTarget = id; render(); }
+function espionageOdds(c, target){
+  const cap = (c.intelligence&&c.intelligence.capability!=null) ? c.intelligence.capability : 30;
+  const counter = (target.intelligence&&target.intelligence.counterIntel!=null) ? target.intelligence.counterIntel : 30;
+  return clamp(50 + (cap-counter)*0.7, 6, 92);
+}
+function spyOnCountry(targetId){
+  const c = playerState();
+  const target = state.countries[targetId];
+  if(!target || targetId===c.id) return;
+  const cost = Math.max(c.gdp*1e9*0.0004, 3e6);
+  if(c.budget.treasury < cost){ toast(`Trésor insuffisant (${fmtMoney(cost)} nécessaires).`); return; }
+  c.budget.treasury -= cost;
+  const rng = mulberry32((hashCode(c.id+targetId+'spy') ^ (state.player.turn*97711)) >>> 0);
+  const odds = espionageOdds(c, target);
+  if(rng()*100 < odds){
+    state.espionageReports[targetId] = {
+      turn: state.player.turn, gdp: target.gdp, growth: target.economy.growth, debt: target.budget.debt,
+      troops: target.military.troops, arms: target.military.arms,
+      resourceRevenue: Math.round(totalResourceRevenue(target)), approval: target.economy.approval,
+      corruption: target.social.corruption, regime: target.regime,
+    };
+    pushLog(`Opération de renseignement réussie sur ${countryName(targetId)} : rapport détaillé obtenu.`, c);
+    toast('Espionnage réussi : rapport disponible.');
+  } else {
+    setRelation(c.id, targetId, {score: clamp(getRelation(c.id,targetId).score-6, 0, 100)});
+    pushLog(`Un agent est démasqué en tentant d'espionner ${countryName(targetId)} : incident diplomatique.`, c);
+    toast('Opération déjouée par la contre-espionnage adverse.');
+  }
+  checkAchievements();
+  saveGame(); render();
+}
+const SABOTAGE_KINDS = [
+  {key:'economie', label:"Saboter l'économie", desc:'Ralentit la croissance de la cible pendant 6 mois.'},
+  {key:'armee', label:"Saboter l'armée", desc:'Détruit une partie des troupes ennemies sur le coup.'},
+  {key:'infrastructure', label:'Saboter les infrastructures', desc:'Affaiblit les effets des infrastructures pendant 6 mois.'},
+];
+function sabotageOperation(targetId, kind){
+  const c = playerState();
+  const target = state.countries[targetId];
+  const def = SABOTAGE_KINDS.find(k=>k.key===kind);
+  if(!target || !def || targetId===c.id) return;
+  const cost = Math.max(c.gdp*1e9*0.0012, 8e6);
+  if(c.budget.treasury < cost){ toast(`Trésor insuffisant (${fmtMoney(cost)} nécessaires).`); return; }
+  c.budget.treasury -= cost;
+  const rng = mulberry32((hashCode(c.id+targetId+kind+'sab') ^ (state.player.turn*63811)) >>> 0);
+  const odds = espionageOdds(c, target)*0.75;
+  if(rng()*100 < odds){
+    if(kind==='armee'){
+      const loss = Math.round(target.military.troops*rand(rng,0.05,0.14));
+      target.military.troops = Math.max(0, target.military.troops-loss);
+      pushLog(`Sabotage réussi : ${fmtNum(loss)} soldats ennemis hors service chez ${countryName(targetId)}.`, c);
+    } else {
+      target.intelligence = target.intelligence || { capability:30, counterIntel:30, sabotage:null };
+      target.intelligence.sabotage = { kind, magnitude: rand(rng,0.6,1.4), turnsLeft: 6 };
+      pushLog(`Sabotage réussi contre ${countryName(targetId)} (${def.label.toLowerCase()}).`, c);
+    }
+    pushWorldNews(`Une opération de sabotage frappe ${countryName(targetId)}.`);
+    toast('Sabotage réussi.');
+  } else {
+    setRelation(c.id, targetId, {score: clamp(getRelation(c.id,targetId).score-14, 0, 100)});
+    c.economy.approval = round1(clamp(c.economy.approval-2, 0, 100));
+    pushLog(`Opération de sabotage déjouée par ${countryName(targetId)} : scandale diplomatique.`, c);
+    toast('Sabotage déjoué : la relation se dégrade fortement.');
+  }
+  checkAchievements();
   saveGame(); render();
 }
 function setResolutionTarget(id){ state.resolutionTarget = id; render(); }
@@ -3916,7 +4012,48 @@ function renderSecurity(){
       </div>
     </div>
   </div>
-  <p class="hint" style="margin-top:14px;">Les budgets Police et Défense se règlent dans l'onglet Économie (effort de dépenses).</p>`;
+  <p class="hint" style="margin-top:14px;">Les budgets Police et Défense se règlent dans l'onglet Économie (effort de dépenses).</p>
+  ${renderIntelligence(c)}`;
+}
+function renderIntelligence(c){
+  const intel = c.intelligence || {capability:30, counterIntel:30, sabotage:null};
+  const target = state.intelTarget || '';
+  const targetCountry = target ? state.countries[target] : null;
+  const reports = Object.keys(state.espionageReports||{})
+    .map(id=>({id, ...state.espionageReports[id]}))
+    .sort((a,b)=>b.turn-a.turn);
+  return `
+  <div class="card" style="margin-top:14px;">
+    <h3>Services de renseignement</h3>
+    <p class="hint" style="margin-top:-4px;">Le budget Renseignement (onglet Économie) détermine votre capacité offensive et votre contre-espionnage.</p>
+    <div class="grid cols2" style="margin-top:6px;">
+      <div class="row"><span class="rl">Capacité offensive</span><span class="rv"><span class="pill ${intel.capability>=60?'good':(intel.capability>=35?'warn':'bad')}">${round1(intel.capability)}/100</span></span></div>
+      <div class="row"><span class="rl">Contre-espionnage</span><span class="rv"><span class="pill ${intel.counterIntel>=60?'good':(intel.counterIntel>=35?'warn':'bad')}">${round1(intel.counterIntel)}/100</span></span></div>
+    </div>
+    ${intel.sabotage && intel.sabotage.turnsLeft>0 ? `<div class="row" style="margin-top:6px;"><span class="rl">Sabotage subi</span><span class="rv"><span class="pill bad">${escapeHtml((SABOTAGE_KINDS.find(k=>k.key===intel.sabotage.kind)||{}).label||intel.sabotage.kind)} — ${intel.sabotage.turnsLeft} mois restants</span></span></div>` : ''}
+    <div class="field" style="margin-top:10px;"><label>Pays visé</label>
+      <select onchange="setIntelTarget(this.value)">
+        <option value="">— Choisir un pays —</option>
+        ${COUNTRIES_DATA.filter(x=>x.id!==c.id).map(x=>`<option value="${x.id}" ${target===x.id?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}
+      </select>
+    </div>
+    ${targetCountry ? `<p class="hint">Chances de succès estimées : <b style="color:var(--parchment)">${round1(espionageOdds(c, targetCountry))} %</b> (contre-espionnage adverse : ${round1((targetCountry.intelligence&&targetCountry.intelligence.counterIntel!=null)?targetCountry.intelligence.counterIntel:30)}/100).</p>` : ''}
+    <div class="btn-row" style="flex-wrap:wrap;gap:6px;">
+      <button class="btn sm" ${target?'':'disabled'} onclick="spyOnCountry('${target}')">Espionner (${fmtMoney(Math.max(c.gdp*1e9*0.0004,3e6))})</button>
+      ${SABOTAGE_KINDS.map(k=>`<button class="btn sm" ${target?'':'disabled'} onclick="sabotageOperation('${target}','${k.key}')" title="${escapeHtml(k.desc)}">${k.label} (${fmtMoney(Math.max(c.gdp*1e9*0.0012,8e6))})</button>`).join('')}
+    </div>
+    <p class="hint" style="margin-top:6px;">Un échec dégrade fortement la relation avec la cible — un sabotage raté peut virer à l'incident diplomatique.</p>
+    ${reports.length?`<div class="row" style="margin-top:10px;"><span class="rl" style="color:var(--parchment)">Rapports d'espionnage</span><span></span></div>
+    ${reports.map(r=>`<div class="row" style="align-items:flex-start;">
+      <span class="rl">${flagEmoji((COUNTRY_INDEX[r.id]||{}).iso2||'')} ${escapeHtml(countryName(r.id))}<br>
+        <span style="font-size:11px;color:var(--muted-2);">Obtenu il y a ${state.player.turn-r.turn} mois — ${escapeHtml(r.regime)}</span></span>
+      <span style="text-align:right;font-size:12px;">
+        PIB ${fmtMoney(r.gdp*1e9)} · croissance ${round1(r.growth)} %<br>
+        Troupes ${fmtNum(r.troops)} · armement ${round1(r.arms)} %<br>
+        Dette ${fmtMoney(r.debt)} · ressources ${fmtMoney(r.resourceRevenue)}/mois
+      </span>
+    </div>`).join('')}` : `<p class="hint" style="margin-top:8px;">Aucun rapport pour l'instant : lancez une opération d'espionnage.</p>`}
+  </div>`;
 }
 
 /* ---- Infrastructure ---- */
