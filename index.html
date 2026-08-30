@@ -1236,6 +1236,84 @@ function refreshParliament(){
   if(seats) state.parliament.seats = seats;
 }
 /* Lois : chaque parti a une position, la majorité décide, les effets sont réels. */
+/* ============================================================
+   DÉCRETS PRÉSIDENTIELS — actions immédiates, sans passer par le Parlement,
+   chacune avec un vrai coût et un délai de récupération pour éviter l'abus.
+   ============================================================ */
+const DECREES = [
+  {key:'amnistie', label:'Amnistie générale', cooldown:24, costApproval:0,
+   desc:'Libère 40 % des détenus. Fait remonter la criminalité, mais soulage les prisons et plaît à une partie du pays.',
+   fx:(c,rng)=>{
+     const freed = Math.round((c.police.inmates||0)*0.4);
+     c.police.inmates = Math.max(0,(c.police.inmates||0)-freed);
+     c.police.crimeIndex = round1(clamp(c.police.crimeIndex+rand(rng,3,7), 0, 100));
+     c.economy.approval = round1(clamp(c.economy.approval+rand(rng,2,5), 0, 100));
+     return `Amnistie générale décrétée : ${fmtNum(freed)} détenus libérés.`;
+   }},
+  {key:'urgence', label:"État d'urgence", cooldown:18, costApproval:0,
+   desc:'Pouvoirs de police exceptionnels : la criminalité recule immédiatement, au prix des libertés publiques.',
+   fx:(c,rng)=>{
+     c.police.crimeIndex = round1(clamp(c.police.crimeIndex-rand(rng,8,15), 0, 100));
+     c.social.liberty = round1(clamp(c.social.liberty-rand(rng,5,10), 0, 100));
+     return `État d'urgence décrété : la criminalité recule, les libertés publiques reculent aussi.`;
+   }},
+  {key:'fete', label:'Journée nationale de fête', cooldown:12, costApproval:0,
+   desc:'Un jour férié décrété pour célébrer la nation. Petit regain de popularité, coût symbolique.',
+   fx:(c,rng)=>{
+     c.budget.treasury = Math.max(0, c.budget.treasury - c.gdp*1e9*0.0003);
+     c.economy.approval = round1(clamp(c.economy.approval+rand(rng,1.5,4), 0, 100));
+     return `Une journée nationale de fête est célébrée dans tout le pays.`;
+   }},
+  {key:'geldesprix', label:'Gel des prix', cooldown:18, costApproval:0,
+   desc:"Bloque l'inflation pendant quelques mois, au prix d'un ralentissement de la croissance.",
+   fx:(c,rng)=>{
+     c.economy.inflation = round1(clamp(c.economy.inflation*0.5, -2, 70));
+     c.economy.growth = round1(clamp(c.economy.growth-rand(rng,0.8,1.6), -9, 13));
+     return `Gel des prix décrété : l'inflation recule, la croissance en pâtit.`;
+   }},
+  {key:'investissement', label:"Plan d'investissement d'urgence", cooldown:24, costApproval:0,
+   desc:"Injecte directement des fonds dans la santé et l'éducation. Coûte cher au Trésor.",
+   fx:(c,rng)=>{
+     const cost = c.gdp*1e9*0.006;
+     if(c.budget.treasury < cost) return null;
+     c.budget.treasury -= cost;
+     c.social.healthIndex = round1(clamp(c.social.healthIndex+rand(rng,3,6), 0, 100));
+     c.social.educationIndex = round1(clamp(c.social.educationIndex+rand(rng,3,6), 0, 100));
+     return `Plan d'investissement d'urgence lancé (${fmtMoney(cost)}) : santé et éducation en hausse immédiate.`;
+   }},
+  {key:'nationalisation', label:"Nationalisation d'une entreprise", cooldown:18, costApproval:0,
+   desc:"Convertit votre entreprise privée la plus grosse en entreprise publique. Rassure une partie du pays, inquiète les milieux d'affaires.",
+   fx:(c,rng)=>{
+     const target = (c.companies||[]).filter(co=>co.ownership==='privée').sort((a,b)=>b.value-a.value)[0];
+     if(!target) return null;
+     target.ownership = 'public';
+     c.economy.approval = round1(clamp(c.economy.approval+rand(rng,1,3), 0, 100));
+     c.economy.growth = round1(clamp(c.economy.growth-rand(rng,0.3,0.8), -9, 13));
+     return `${target.name} est nationalisée par décret présidentiel.`;
+   }},
+];
+function decreeCooldownLeft(c, key){
+  const d = DECREES.find(x=>x.key===key);
+  if(!d) return 0;
+  const last = (c.decreesUsed||{})[key];
+  if(last==null) return 0;
+  return Math.max(0, d.cooldown - (state.player.turn-last));
+}
+function issueDecree(key){
+  const c = playerState();
+  const d = DECREES.find(x=>x.key===key);
+  if(!d) return;
+  const left = decreeCooldownLeft(c, key);
+  if(left>0){ toast(`Décret indisponible encore ${left} mois.`); return; }
+  const rng = mulberry32((hashCode(c.id+key+'decree') ^ (state.player.turn*50021)) >>> 0);
+  const msg = d.fx(c, rng);
+  if(!msg){ toast('Conditions non réunies pour ce décret (Trésor insuffisant ou rien à nationaliser).'); return; }
+  c.decreesUsed = c.decreesUsed || {};
+  c.decreesUsed[key] = state.player.turn;
+  pushLog(msg, c);
+  checkAchievements();
+  saveGame(); render();
+}
 const LAWS = [
   {key:'salaireMin', label:'Loi de revalorisation du salaire minimum',
    desc:'Augmente de 15 % le salaire minimum et toute la grille salariale.',
@@ -1352,6 +1430,7 @@ function deriveCountry(id){
       },
     },
     intelligence: { capability: randInt(rng,20,50), counterIntel: randInt(rng,20,50), sabotage: null },
+    decreesUsed: {},
     economy: {
       growth: round1(rand(rng,-1,4)), unemployment: round1(rand(rng,3,22)),
       inflation: round1(rand(rng,1,12)), approval: round1(rand(rng,38,64)),
@@ -1472,6 +1551,7 @@ function loadGame(){
       [['justice',40],['recherche',30],['administration',45],['retraites',42],['renseignement',25]].forEach(([k,v])=>{
         if(c.budget.spending[k]==null) c.budget.spending[k] = v;
       });
+      if(!c.decreesUsed) c.decreesUsed = {};
       if(!c.intelligence) c.intelligence = { capability: 30, counterIntel: 30, sabotage: null };
       if(c.intelligence.capability==null) c.intelligence.capability = 30;
       if(c.intelligence.counterIntel==null) c.intelligence.counterIntel = 30;
@@ -4136,6 +4216,21 @@ function renderGovernment(){
       ${MINISTRIES.map(m=>`<div class="field"><label>${m.label}</label><input type="text" id="min_${m.key}" value="${escapeHtml(c.government.ministers[m.key])}"></div>`).join('')}
     </div>
     <div class="btn-row"><button class="btn primary" onclick="submitCabinet()">Nommer le gouvernement</button></div>
+  </div>
+  <div class="card" style="margin-top:14px;">
+    <h3>Décrets présidentiels</h3>
+    <p class="hint" style="margin-top:-4px;">Des actions immédiates, sans passer par le Parlement — chacune a un vrai coût et un délai avant de pouvoir être réutilisée.</p>
+    <div class="grid cols2" style="margin-top:6px;">
+      ${DECREES.map(d=>{
+        const left = decreeCooldownLeft(c, d.key);
+        return `<div class="row" style="align-items:flex-start;">
+          <span class="rl">${escapeHtml(d.label)}<br><span style="font-size:11px;color:var(--muted-2);">${escapeHtml(d.desc)}</span></span>
+          <span style="text-align:right;white-space:nowrap;">
+            ${left>0 ? `<span class="pill neutral">${left} mois</span>` : `<button class="btn sm" onclick="issueDecree('${d.key}')">Décréter</button>`}
+          </span>
+        </div>`;
+      }).join('')}
+    </div>
   </div>
   <div class="card" style="margin-top:14px;">
     <h3>Médias</h3>
