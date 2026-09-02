@@ -1467,6 +1467,7 @@ function deriveCountry(id){
       ageElderly: round1(clamp(3 + gdpPerCapita/2500, 3, 25)),
       lifeExpectancy: round1(clamp(50 + (initialHealthIndex-50)/2, 40, 90)),
       popMilestoneIdx: POP_MILESTONES.filter(m=>m<=base.pop).length,
+      disasterPrevention: randInt(rng,10,35),
       corruption: round1(clamp(72 - gdpPerCapita/700 + rand(rng,-10,10), 3, 95)),
       liberty: round1(clamp(35 + gdpPerCapita/900 + rand(rng,-12,12), 5, 95)),
       religiosity: round1(clamp(75 - gdpPerCapita/900 + rand(rng,-15,15), 5, 95)),
@@ -1476,6 +1477,7 @@ function deriveCountry(id){
       prestige: randInt(rng,10,40), medals: { or: 0, argent: 0, bronze: 0 },
     },
     confederationId: null,
+    disasters: [],
     companies: generateCompanies(base, rng),
     log: [ {msg:`Prise de fonction à la tête de ${base.name}.`, turn:0} ],
   };
@@ -1554,6 +1556,8 @@ function loadGame(){
       });
       if(!c.decreesUsed) c.decreesUsed = {};
       if(c.economy.techIndex==null) c.economy.techIndex = round1(clamp(20+gpc/900,3,96));
+      if(c.social.disasterPrevention==null) c.social.disasterPrevention = 20;
+      if(!c.disasters) c.disasters = [];
       if(!c.intelligence) c.intelligence = { capability: 30, counterIntel: 30, sabotage: null };
       if(c.intelligence.capability==null) c.intelligence.capability = 30;
       if(c.intelligence.counterIntel==null) c.intelligence.counterIntel = 30;
@@ -1784,6 +1788,53 @@ function damageInfra(c, rng){
   const city = pick(rng, c.cities);
   city.infra.roads = clamp(city.infra.roads - randInt(rng,5,15), 0, 100);
 }
+/* ============================================================
+   CATASTROPHES NATURELLES — risque réel selon la géographie,
+   dégâts sur la population, les infrastructures et le budget,
+   atténués par un fonds de prévention investissable.
+   ============================================================ */
+const DISASTER_TYPES = [
+  {key:'seisme',      label:'Séisme',           icon:'🌋', weight:c=>1},
+  {key:'inondation',  label:'Inondation',       icon:'🌊', weight:c=>c.landlocked?0.4:1.3},
+  {key:'secheresse',  label:'Sécheresse',       icon:'☀️', weight:c=>c.continent==='Afrique'?1.7:0.8},
+  {key:'cyclone',     label:'Cyclone',          icon:'🌀', weight:c=>c.landlocked?0.1:1.2},
+  {key:'epidemie',    label:'Épidémie',         icon:'🦠', weight:c=>clamp(1.4-(c.social.healthIndex-50)/120,0.4,2)},
+  {key:'incendie',    label:'Feux de forêt',    icon:'🔥', weight:c=>1},
+];
+function disasterPreventionLevel(c){ return clamp(c.social && c.social.disasterPrevention!=null ? c.social.disasterPrevention : 20, 0, 100); }
+function triggerDisaster(c, def, rng){
+  const prevention = disasterPreventionLevel(c);
+  const severity = clamp(rand(rng,0.4,1.6)*(1-prevention/220), 0.12, 2);
+  const deaths = Math.max(0, Math.round(c.population*0.00002*severity*(2-c.social.healthIndex/100)));
+  c.population = Math.max(1000, c.population-deaths);
+  c.social.healthIndex = round1(clamp(c.social.healthIndex - severity*rand(rng,1,3), 0, 100));
+  const city = pick(rng, c.cities);
+  if(city && city.infra){
+    ['roads','highways','railways','bridges','hospitals','housing'].forEach(k=>{
+      if(city.infra[k]!=null) city.infra[k] = Math.max(0, Math.round(city.infra[k]*(1-0.15*severity)));
+    });
+  }
+  const cost = c.gdp*1e9*0.003*severity;
+  c.budget.treasury = Math.max(0, c.budget.treasury-cost);
+  c.economy.approval = round1(clamp(c.economy.approval - severity*rand(rng,1.5,3.5), 0, 100));
+  c.disasters = c.disasters||[];
+  c.disasters.push({key:def.key, label:def.label, icon:def.icon, turn:state.player.turn, severity:round1(severity), deaths, cost:Math.round(cost)});
+  if(c.disasters.length>12) c.disasters.shift();
+  pushLog(`${def.icon} ${def.label} : ${fmtNum(deaths)} morts, ${fmtMoney(cost)} de dégâts, infrastructures locales endommagées.`, c);
+  pushWorldNews(`${def.icon} ${def.label} frappe ${c.name}.`);
+}
+function disasterPreventionCost(c){ return Math.max(c.gdp*1e9*0.003, 5e6); }
+function investDisasterPrevention(){
+  const c = playerState();
+  const cost = disasterPreventionCost(c);
+  if(c.budget.treasury < cost){ toast(`Trésor insuffisant (${fmtMoney(cost)} nécessaires).`); return; }
+  const level = disasterPreventionLevel(c);
+  if(level>=100){ toast('Fonds de prévention déjà au maximum.'); return; }
+  c.budget.treasury -= cost;
+  c.social.disasterPrevention = clamp(level+10, 0, 100);
+  pushLog(`Investissement dans la prévention des catastrophes : fonds porté à ${c.social.disasterPrevention}/100.`, c);
+  saveGame(); render();
+}
 function pushLog(msg, c){
   c = c || playerState();
   c.log.push({ msg, turn: state.player.turn });
@@ -1853,6 +1904,14 @@ function simulateCountry(c, isPlayer, turn){
       const extracted = resourceProduction(c, r);
       r.reserves = Math.max(0, (r.reserves||0) - extracted);
       if(r.reserves<=0){ r.exploited = false; pushLog(`Le gisement de ${r.name} est épuisé.`, c); }
+    });
+    /* Catastrophes naturelles : le risque dépend de la géographie réelle du
+       pays, atténué par le fonds de prévention. */
+    c.social.disasterPrevention = clamp(disasterPreventionLevel(c)-0.15, 0, 100);
+    const prevention = disasterPreventionLevel(c);
+    DISASTER_TYPES.forEach(def=>{
+      const w = def.weight(c);
+      if(rng() < 0.006*w*(1-prevention/220)) triggerDisaster(c, def, rng);
     });
   }
   const regimeFx = REGIME_EFFECTS[c.regime] || REGIME_EFFECTS['République'];
@@ -4206,7 +4265,24 @@ function renderInfra(){
       <div class="row"><span class="rl">Effet sur la popularité (logement + métro)</span><span class="rv num pos">+${round1(fx.housing+fx.metroBonus)} pts/mois</span></div>
       <p class="hint" style="margin-top:8px;">Routes, autoroutes, rails, ponts et métros portent la croissance ; ports et aéroports le commerce ; hôpitaux la santé ; écoles et universités l'éducation ; les logements font reculer la pauvreté. Chaque équipement construit coûte aussi de l'entretien chaque mois.</p>
     </div>`;
-  })()}`;
+  })()}
+  ${renderDisasters(c)}`;
+}
+function renderDisasters(c){
+  const prevention = disasterPreventionLevel(c);
+  const recent = (c.disasters||[]).slice().reverse();
+  return `
+  <div class="card" style="margin-top:14px;">
+    <h3>Catastrophes naturelles</h3>
+    <p class="hint" style="margin-top:-4px;">Le risque dépend de la géographie réelle du pays (littoral, continent, indice de santé). Le fonds de prévention réduit à la fois la fréquence et la gravité, mais s'érode s'il n'est pas réalimenté.</p>
+    <div class="row"><span class="rl">Fonds de prévention</span><span class="rv"><span class="pill ${prevention>=60?'good':(prevention>=30?'warn':'bad')}">${round1(prevention)}/100</span></span></div>
+    <div class="bar"><i style="width:${clamp(prevention,0,100)}%"></i></div>
+    <div class="btn-row"><button class="btn sm" onclick="investDisasterPrevention()">Investir dans la prévention (${fmtMoney(disasterPreventionCost(c))})</button></div>
+    ${recent.length ? `
+      <div class="row" style="margin-top:10px;"><span class="rl" style="color:var(--parchment)">Catastrophes récentes</span><span></span></div>
+      ${recent.map(d=>`<div class="row"><span class="rl">${d.icon} ${escapeHtml(d.label)}<br><span style="font-size:11px;color:var(--muted-2);">${turnDateLabel(d.turn)} · gravité ×${d.severity}</span></span><span class="rv num neg" style="text-align:right;">${fmtNum(d.deaths)} morts<br>${fmtMoney(d.cost)}</span></div>`).join('')}
+    ` : '<p class="hint" style="margin-top:8px;">Aucune catastrophe recensée pour l\'instant.</p>'}
+  </div>`;
 }
 
 /* ---- Government ---- */
