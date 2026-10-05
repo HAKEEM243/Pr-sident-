@@ -143,6 +143,7 @@ function pDash(){
   </div>
   <div class="kpis">${kpis.map(([l,v,c])=>`<div class="kpi"><div class="kl">${l}</div><div class="kv ${c}">${v}</div></div>`).join('')}</div>
   ${S.events.length?`<h3>Événements en cours</h3><div class="evs">${S.events.map(e=>{const t=EV(e);return `<div class="ev ${t.drc?'drc':''}">${t.icon} <b>${t.name}</b>${e.airport?' ('+AP(e.airport).city+')':''} <span class="mut">— jusqu’au ${fmtDate(e.until)}</span><br><small>${t.desc}</small></div>`;}).join('')}</div>`:''}
+  ${missionsHtml()}
   <h3>Alertes</h3>
   <div class="alerts">${alerts().map(([k,t])=>`<div class="al ${k}">${t}</div>`).join('')||'<div class="mut">Tout va bien, commandant.</div>'}</div>
   <h3>Top routes</h3>
@@ -161,6 +162,14 @@ function pDash(){
   <table class="tbl">${comp.map((c,i)=>`<tr class="${c.me?'me':''}"><td>${i+1}</td><td>${esc(c.name)}</td><td>${c.fleet} av.</td><td>${fmtMoney(c.value)}</td></tr>`).join('')}</table>
   <h3>Journal</h3>
   <div class="log">${S.log.slice(0,18).map(l=>`<div class="lg ${l.kind}"><span class="mut">${fmtDate(l.t)} ${fmtTime(l.t)}</span> ${l.text}</div>`).join('')}</div>`;
+}
+
+function missionsHtml(){
+  const done=S.missions||[], todo=MISSIONS.filter(m=>!done.includes(m.id));
+  return `<h3>Objectifs <span class="mut">${done.length}/${MISSIONS.length}</span></h3>
+  <div class="pbar" style="margin-bottom:6px"><i style="width:${done.length/MISSIONS.length*100}%"></i></div>
+  ${todo.slice(0,4).map(m=>`<div class="al"><b>🎯 ${m.name}</b> — ${m.desc} <span class="mut">· ${m.cash?fmtMoney(m.cash):''}${m.rep?' · +'+m.rep+' rép.':''}</span></div>`).join('')}
+  ${done.length?`<details class="prov"><summary>🏆 ${done.length} objectif(s) atteint(s)</summary>${MISSIONS.filter(m=>done.includes(m.id)).map(m=>`<div class="small">✅ ${m.name}</div>`).join('')}</details>`:''}`;
 }
 
 /* ---------- ✈️ FLOTTE ---------- */
@@ -474,6 +483,37 @@ function pAdmin(){
   <h3>Rival</h3><div class="btns sm"><button class="btn sm" data-act="adRival" data-v="1">StarWing +$100 M</button><button class="btn sm" data-act="adRival" data-v="-1">StarWing en difficulté</button></div>`;
 }
 
+function boardHtml(code){
+  const dep=[], arr=[];
+  for(const ac of S.fleet){
+    if(!ac.flight) continue; const m=modelOf(ac);
+    ac.flight.legs.forEach((l,i)=>{
+      if(i<ac.flight.li) return;
+      const prof=legProfile(l.dist,m), tOff=l.dep+prof.segs[1].t0, tOn=l.dep+prof.segs[8].t0;
+      const st=i===ac.flight.li? flightState(ac):null;
+      const fn=S.company.code+flightNumber(ac);
+      if(l.from===code) dep.push({t:tOff, fn, other:l.to, ac, status: st? (st.phase<=1?(st.phase===0?'Embarquement':'Roulage'):'Parti') : 'Prévu'});
+      if(l.to===code) arr.push({t:tOn, fn, other:l.from, ac, status: st? (st.phase>=7?'Atterri':st.phase>=5?'En approche':'En vol') : 'Prévu'});
+    });
+  }
+  if(!dep.length&&!arr.length) return '';
+  const row=x=>`<tr><td><b>${fmtTime(x.t)}</b></td><td>${x.fn}</td><td>${AP(x.other).city}</td><td class="mut">${modelOf(x.ac).name}</td><td class="st">${x.status}</td></tr>`;
+  return `<div class="board">${dep.length?`<div class="bh">🛫 DÉPARTS</div><table>${dep.sort((a,b)=>a.t-b.t).slice(0,8).map(row).join('')}</table>`:''}
+    ${arr.length?`<div class="bh">🛬 ARRIVÉES</div><table>${arr.sort((a,b)=>a.t-b.t).slice(0,8).map(row).join('')}</table>`:''}</div>`;
+}
+
+/* ---------- fond de carte ---------- */
+function mapStyleHtml(){
+  const hasKey=!!localStorage.getItem(GKEY);
+  return `<div class="styles">${Object.entries(MAP_STYLES).map(([id,st])=>`<button class="card stylebtn ${currentStyle===id?'gold-b':''}" data-act="setStyle" data-id="${id}" ${st.google&&!hasKey?'disabled':''}><b>${st.label}</b>${currentStyle===id?' ✓':''}<br><span class="mut small">${st.desc}</span></button>`).join('')}</div>
+  <h3>Google Maps officiel</h3>
+  <div class="small">Google n’autorise ses cartes dans un jeu qu’avec une <b>clé API personnelle</b> (gratuite jusqu’à un quota mensuel élevé) :</div>
+  <ol class="small"><li>Ouvrez <b>console.cloud.google.com</b> et créez un projet.</li><li>Dans « API et services », activez <b>Map Tiles API</b>.</li><li>Dans « Identifiants », créez une <b>clé API</b> et collez-la ci-dessous.</li></ol>
+  <label>Clé API Google<input id="gkey" type="password" placeholder="AIza…" value="${esc(localStorage.getItem(GKEY)||'')}"></label>
+  <div class="btns"><button class="btn gold" data-act="saveGKey">Activer Google Maps</button></div>
+  <div class="mut small">La clé reste uniquement dans ce navigateur (jamais dans la sauvegarde exportée). Sans clé, le mode « Satellite + routes & noms » utilise la même qualité d’imagerie satellite.</div>`;
+}
+
 /* ---------- aéroport ---------- */
 function openAirport(code){
   const a=AP(code), c=COUNTRIES[a.cc], hub=S.company.hub;
@@ -489,6 +529,7 @@ function openAirport(code){
     <div class="small">Avions compatibles (piste) : ${MODELS.filter(m=>m.cls<=a.cls).length}/${MODELS.length}${a.cls<=1?' — uniquement petits turbopropulseurs':''}</div>
     ${here.length?`<div class="small">Vos avions ici : ${here.map(x=>x.reg).join(', ')}</div>`:''}
     ${rv.length?`<div class="small">${S.rival.name} : ${rv.map(r=>r.a===code?r.b:r.a).join(', ')}</div>`:''}
+    ${boardHtml(code)}
     <div class="btns">
       ${code!==hub?`<button class="btn gold" data-act="draftPair" data-a="${hub}" data-b="${code}">➕ Route ${hub} → ${code}</button>`:''}
       <button class="btn" data-act="addDraft" data-c="${code}">Ajouter au brouillon de route${UI.draft?` (${UI.draft.stops.filter(Boolean).join('-')})`:''}</button>
@@ -501,6 +542,13 @@ function findAc(id){ return S.fleet.find(a=>a.id===id); }
 function err(msg){ if(msg){ toast('⛔ '+msg,'bad'); return true; } return false; }
 const ACTIONS = {
   closeModal, closeCard:()=>selectPlane(null),
+  followCam:()=>{ followPlane=!followPlane; updateFlightCard(); },
+  zoomPlane:()=>zoomPlane(), zoomRoute:()=>zoomRoute(),
+  mapStyle:()=>{ UI.modal='mapstyle'; showModal('Fond de carte', mapStyleHtml()); },
+  setStyle:async d=>{ const id=await setMapStyle(d.id); if(id===d.id) toast('🗺️ '+MAP_STYLES[id].label,'ok'); showModal('Fond de carte', mapStyleHtml()); },
+  saveGKey:async()=>{ const k=$('#gkey').value.trim(); if(!k){ localStorage.removeItem(GKEY); toast('Clé supprimée','ok'); return; }
+    localStorage.setItem(GKEY,k); Object.keys(localStorage).filter(x=>x.startsWith('cst-gsess-')).forEach(x=>localStorage.removeItem(x));
+    const id=await setMapStyle('google_sat'); if(id==='google_sat') toast('✅ Google Maps activé !','ok'); showModal('Fond de carte', mapStyleHtml()); },
   tab:d=>setTab(d.t),
   catalog:()=>{ UI.modal='catalog'; showModal('Catalogue — 42 modèles réels'+(S.customModels.length?' + vos modèles':''), catalogHtml(), true); },
   catFam:d=>{ UI.catFam=d.f; showModal('Catalogue', catalogHtml(), true); },
@@ -671,7 +719,7 @@ function boot(){
     if(!S.paused){ advance(dt*SPEEDS[S.speed].mult); }
     updatePlanes();
     acc1+=dt; acc2+=dt; acc30+=dt; acc10+=dt;
-    if(acc1>=1000){ acc1=0; renderTop(); updateRival(); }
+    if(acc1>=1000){ acc1=0; checkMissions(); renderTop(); updateRival(); }
     if(acc2>=2000){ acc2=0; liveRefresh(); }
     if(acc30>=20000){ acc30=0; drawNight(); drawAirports(); }
     if(acc10>=10000){ acc10=0; save(); }

@@ -5,20 +5,64 @@ let map, L_airports, L_routes, L_planes, L_rival, L_night, L_drc;
 const planeMarkers = new Map(); // id avion -> marker
 const rivalMarkers = [];
 const MAPOPT = { routes:true, airports:true, night:true, rival:true };
-let selectedPlane = null;
+let selectedPlane = null, followPlane = false;
+const parkedMarkers = new Map();
+
+/* ---------- fonds de carte ---------- */
+const MAPSTYLE_KEY='cst-map-style', GKEY='cst-google-key';
+const ESRI='https://server.arcgisonline.com/ArcGIS/rest/services/';
+const esri=(path,opt={})=>L.tileLayer(ESRI+path+'/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:opt.native||18,...opt});
+const MAP_STYLES = {
+  hybrid:{label:'🛰️ Satellite + routes & noms', desc:'Style Google Earth : imagerie satellite haute résolution, routes, villes et frontières.', make:()=>[
+    esri('World_Imagery',{attribution:'Imagerie © Esri, Maxar, Earthstar Geographics'}),
+    esri('Reference/World_Transportation',{opacity:0.9}),
+    esri('Reference/World_Boundaries_and_Places')]},
+  satellite:{label:'🛰️ Satellite pur', desc:'Imagerie seule, sans étiquettes.', make:()=>[esri('World_Imagery',{attribution:'Imagerie © Esri, Maxar, Earthstar Geographics'})]},
+  plan:{label:'🗺️ Plan (OpenStreetMap)', desc:'Carte routière détaillée.', make:()=>[L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© les contributeurs d’OpenStreetMap'})]},
+  relief:{label:'⛰️ Relief', desc:'Topographie (fleuves, montagnes, forêts).', make:()=>[esri('World_Topo_Map',{attribution:'© Esri, HERE, Garmin, USGS'})]},
+  sombre:{label:'🌑 Sombre', desc:'Fond sobre pour mieux voir les avions.', make:()=>[L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',attribution:'© OpenStreetMap, © CARTO'})]},
+  google_sat:{label:'🌍 Google Maps — Satellite', google:'sat', desc:'Les vraies images Google Maps / Google Earth avec noms et routes (clé API Google requise).'},
+  google_road:{label:'🌍 Google Maps — Plan', google:'road', desc:'Le plan Google Maps classique (clé API Google requise).'},
+};
+let baseLayers=[], currentStyle=null;
+async function googleSession(kind){
+  const key=localStorage.getItem(GKEY);
+  if(!key) throw new Error('Aucune clé API Google enregistrée');
+  const ck='cst-gsess-'+kind;
+  let c=null; try{ c=JSON.parse(localStorage.getItem(ck)||'null'); }catch(e){}
+  if(c && c.key===key && +c.expiry*1000>Date.now()+6*3600e3) return c;
+  const body = kind==='road'? {mapType:'roadmap',language:'fr-FR',region:'CD'} : {mapType:'satellite',language:'fr-FR',region:'CD',layerTypes:['layerRoadmap']};
+  const r=await fetch('https://tile.googleapis.com/v1/createSession?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok){ let m=''; try{ m=(await r.json()).error.message; }catch(e){} throw new Error(m||('Erreur Google '+r.status)); }
+  const j=await r.json(); j.key=key; localStorage.setItem(ck,JSON.stringify(j)); return j;
+}
+async function setMapStyle(id, silent){
+  const st=MAP_STYLES[id]||MAP_STYLES.hybrid;
+  let layers;
+  if(st.google){
+    try{
+      const sess=await googleSession(st.google), key=localStorage.getItem(GKEY);
+      layers=[L.tileLayer(`https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${sess.session}&key=${encodeURIComponent(key)}`,{maxZoom:19,maxNativeZoom:st.google==='sat'?19:20,attribution:'Données cartographiques © Google'})];
+    }catch(e){
+      if(!silent && typeof toast==='function') toast('⛔ Google Maps : '+e.message+' — retour au satellite hybride','bad');
+      id='hybrid'; layers=MAP_STYLES.hybrid.make();
+    }
+  } else layers=st.make();
+  for(const l of baseLayers) map.removeLayer(l);
+  baseLayers=layers; layers.forEach((l,i)=>{ l.addTo(map); l.setZIndex(i+1); });
+  currentStyle=id; localStorage.setItem(MAPSTYLE_KEY,id);
+  document.body.classList.toggle('google-map', !!MAP_STYLES[id].google);
+  return id;
+}
 
 const PLANE_SVG = (color, size=26)=>`<svg viewBox="0 0 32 32" width="${size}" height="${size}"><path fill="${color}" stroke="#0b0f17" stroke-width="1.1" stroke-linejoin="round" d="M16 1.5c1.3 0 2.1 1.6 2.1 3.6v7.4l10.6 6.2v3l-10.6-3.2v6.3l3.2 2.5v2.4L16 28.3l-5.3 1.4v-2.4l3.2-2.5v-6.3L3.3 21.7v-3l10.6-6.2V5.1c0-2 .8-3.6 2.1-3.6z"/></svg>`;
 
 function initMap(){
-  map = L.map('map', { zoomControl:false, worldCopyJump:true, minZoom:2, maxZoom:13, attributionControl:true, preferCanvas:false })
+  map = L.map('map', { zoomControl:false, worldCopyJump:true, minZoom:2, maxZoom:19, attributionControl:true, preferCanvas:false })
     .setView([-3.5, 23.5], 5);
   L.control.zoom({position:'topleft'}).addTo(map);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom:18, attribution:'Imagerie © Esri, Maxar, Earthstar Geographics'
-  }).addTo(map);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom:18, opacity:0.85
-  }).addTo(map);
+  L.control.scale({position:'bottomleft', imperial:false}).addTo(map);
+  setMapStyle(localStorage.getItem(MAPSTYLE_KEY)||'hybrid', true);
 
   map.createPane('night'); map.getPane('night').style.zIndex=350; map.getPane('night').style.pointerEvents='none';
   map.createPane('drc'); map.getPane('drc').style.zIndex=360; map.getPane('drc').style.pointerEvents='none';
@@ -149,6 +193,8 @@ function updatePlanes(){
     if(mk.isTooltipOpen()) mk.setTooltipContent(flightTipHtml(ac,st));
   }
   for(const [id,mk] of planeMarkers){ if(!seen.has(id)){ L_planes.removeLayer(mk); planeMarkers.delete(id); if(selectedPlane===id) selectPlane(null); } }
+  if(followPlane && selectedPlane){ const ac=S.fleet.find(a=>a.id===selectedPlane); const st=ac&&flightState(ac); if(st) map.panTo([st.lat,st.lon],{animate:false}); }
+  updateParked();
   updateFlightCard();
 }
 function flightTipHtml(ac,st){
@@ -164,7 +210,7 @@ function flightTipHtml(ac,st){
 }
 function flightNumber(ac){ let h=0; for(const c of ac.id) h=(h*31+c.charCodeAt(0))%900; return 100+h; }
 function selectPlane(id){
-  selectedPlane=id;
+  selectedPlane=id; if(!id) followPlane=false;
   updateFlightCard();
   if(id){ const st=flightState(S.fleet.find(a=>a.id===id)); if(st) map.panTo([st.lat,st.lon]); }
 }
@@ -177,9 +223,32 @@ function updateFlightCard(){
   const paxTxt = pax? `${pax.f+pax.j+pax.w+pax.y} passagers (F${pax.f} · J${pax.j} · W${pax.w} · Y${pax.y})` : legs[ac.flight.li].cargo? `${legs[ac.flight.li].cargo} t de fret` : '';
   box.hidden=false;
   box.innerHTML=`<button class="x" data-act="closeCard">×</button>`+flightTipHtml(ac,st)+
+    `<div class="btns sm"><button class="btn sm ${followPlane?'gold':''}" data-act="followCam">🎥 ${followPlane?'Caméra attachée':'Suivre l’avion'}</button><button class="btn sm" data-act="zoomPlane">🔍 Zoom</button><button class="btn sm" data-act="zoomRoute">🧭 Trajet</button></div>`+
     `<div class="mut" style="margin-top:4px">Tronçon ${ac.flight.li+1}/${legs.length} : ${AP(st.from).city} → ${AP(st.to).city} · ${Math.round(st.leg.dist)} km</div>`+
     (paxTxt?`<div>${paxTxt}</div>`:'')+
     `<div class="phases">${PHASES.map((p,i)=>`<span class="${i<st.phase?'done':i===st.phase?'cur':''}">${p}</span>`).join('')}</div>`;
+}
+
+/* ---------- avions stationnés ---------- */
+function updateParked(){
+  const show = map.getZoom()>=7;
+  const want=new Map();
+  if(show){
+    const byAp={};
+    for(const ac of S.fleet){ if(ac.status==='flight') continue; (byAp[ac.loc]=byAp[ac.loc]||[]).push(ac); }
+    for(const [code,list] of Object.entries(byAp)) list.forEach((ac,i)=>want.set(ac.id,{ac,code,i}));
+  }
+  for(const [id,mk] of parkedMarkers){ const w=want.get(id); if(!w || mk._code!==w.code || mk._i!==w.i || mk._st!==w.ac.status){ L_planes.removeLayer(mk); parkedMarkers.delete(id); } }
+  for(const [id,{ac,code,i}] of want){
+    if(parkedMarkers.has(id)) continue;
+    const a=AP(code), m=modelOf(ac), z=18, ang=i*0.9+0.6, rad=16+i*4;
+    const dx=Math.cos(ang)*rad, dy=Math.sin(ang)*rad;
+    const mk=L.marker([a.lat,a.lon],{icon:L.divIcon({className:'plane-icon parked'+(ac.status==='maint'?' maint':''),html:`<div class="rot" style="transform:rotate(${(i*47)%360}deg)">${PLANE_SVG(m.color||S.company.color,z)}</div>`,iconSize:[z,z],iconAnchor:[z/2-dx,z/2-dy]}),zIndexOffset:800})
+      .bindTooltip(`<b>${ac.reg}</b> ${m.name}<br>${ac.status==='maint'?'🔧 En maintenance':'Au sol'} à ${a.city}`,{direction:'top'})
+      .on('click',e=>{ L.DomEvent.stopPropagation(e); setTab('fleet'); });
+    mk._code=code; mk._i=i; mk._st=ac.status;
+    mk.addTo(L_planes); parkedMarkers.set(id,mk);
+  }
 }
 
 /* ---------- avions du rival ---------- */
@@ -208,5 +277,7 @@ function updateRival(){
 }
 function hashStr(s){ let h=0; for(const c of s) h=(h*131+c.charCodeAt(0))%100000; return h; }
 
+function zoomPlane(){ const ac=S.fleet.find(a=>a.id===selectedPlane), st=ac&&flightState(ac); if(st) map.flyTo([st.lat,st.lon],Math.max(map.getZoom(),st.phase<=1||st.phase>=7?14:8),{duration:1}); }
+function zoomRoute(){ const ac=S.fleet.find(a=>a.id===selectedPlane); if(!ac?.flight) return; const pts=ac.flight.legs.flatMap(l=>[[AP(l.from).lat,AP(l.from).lon],[AP(l.to).lat,unwrapLon(AP(l.to).lon,AP(l.from).lon)]]); map.flyToBounds(pts,{padding:[60,60],duration:1}); }
 function focusDRC(){ map.flyToBounds([[-13.5,12],[5.5,31.5]],{duration:1.2}); }
 function focusWorld(){ map.flyTo([15,20],2,{duration:1.2}); }

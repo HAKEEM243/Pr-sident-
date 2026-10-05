@@ -136,7 +136,7 @@ const LED_CATS = {
   billets:['Billets passagers',1], annexes:['Revenus annexes',1], cargo:['Fret & contrats cargo',1], ventes:['Ventes d’avions',1],
   carburant:['Carburant',-1], taxes:['Taxes aéroportuaires',-1], service:['Service à bord',-1], salaires:['Salaires',-1],
   leasing:['Leasing',-1], maintenance:['Maintenance',-1], interets:['Intérêts bancaires',-1], marketing:['Marketing',-1],
-  alliance:['Cotisations alliance',-1], formation:['Formation',-1], incidents:['Incidents',-1], recrutement:['Recrutement',-1], admin:['Bac à sable',1],
+  alliance:['Cotisations alliance',-1], formation:['Formation',-1], incidents:['Incidents',-1], recrutement:['Recrutement',-1], admin:['Primes & bac à sable',1],
 };
 function book(cat, amount){ // montant signé : + revenu, - coût
   S.cash += amount;
@@ -569,6 +569,7 @@ function dailyTick(){
   // mois
   const mk=monthKey(t);
   if(mk!==S.lastMonth){ S.lastMonth=mk; monthlyTick(); }
+  checkMissions();
   pushHistory();
   S.led.day={};
   // alertes
@@ -675,6 +676,48 @@ function rivalTick(){
     logMsg(`🛩️ ${R.name} ${ex?'renforce':'ouvre'} la ligne ${AP(a).city} – ${AP(b).city}.`,'rival');
   }
   if(R.cash<0 && R.routes.length>2){ R.routes.sort((x,y)=>x.freq-y.freq).shift(); R.fleet=Math.max(3,R.fleet-1); R.cash+=25e6; }
+}
+
+/* ---------- objectifs ---------- */
+function servedAirports(){ const set=new Set(); for(const r of S.routes) if(r.aircraft.length) r.stops.forEach(c=>set.add(c)); return set; }
+function servedProvinces(){ const set=new Set(); for(const c of servedAirports()) if(isDrc(c)) set.add(AP(c).prov); return set; }
+const hasRouteBetween=(A,B)=>S.routes.some(r=>r.aircraft.length && r.stops.some(c=>A.includes(c)) && r.stops.some(c=>B.includes(c)));
+const MISSIONS = [
+  {id:'first', name:'Premier décollage', desc:'Réaliser un premier vol commercial', cash:1e6, rep:1, done:()=>S.stats.flights>=1},
+  {id:'kin_lub', name:'L’axe Kinshasa – Lubumbashi', desc:'Relier la capitale au Katanga', cash:3e6, rep:2, done:()=>hasRouteBetween(['FIH','NLO'],['FBM'])},
+  {id:'kivu', name:'Pont aérien vers le Kivu', desc:'Desservir Goma ou Bukavu depuis Kinshasa', cash:3e6, rep:2, done:()=>hasRouteBetween(['FIH','NLO'],['GOM','BKY'])},
+  {id:'big5', name:'Les cinq grandes villes', desc:'Desservir Kinshasa, Lubumbashi, Mbuji-Mayi, Kisangani et Goma', cash:6e6, rep:3, done:()=>{ const s=servedAirports(); return ['FIH','FBM','MJM','FKI','GOM'].every(c=>s.has(c)); }},
+  {id:'drc10', name:'Réseau national', desc:'Desservir 10 aéroports congolais', cash:5e6, rep:3, done:()=>[...servedAirports()].filter(isDrc).length>=10},
+  {id:'prov15', name:'Unir le Congo', desc:'Desservir 15 provinces de la RDC', cash:12e6, rep:5, done:()=>servedProvinces().size>=15},
+  {id:'prov25', name:'Tout le Congo', desc:'Desservir les 25 provinces dotées d’un aéroport', cash:40e6, rep:8, done:()=>servedProvinces().size>=25},
+  {id:'bush', name:'Pilote de brousse', desc:'Desservir 5 pistes en latérite', cash:2e6, rep:2, done:()=>[...servedAirports()].filter(c=>AP(c).surface==='Latérite').length>=5},
+  {id:'humani', name:'Ailes humanitaires', desc:'Livrer 3 contrats cargo', cash:4e6, rep:4, done:()=>S.cargo.done>=3},
+  {id:'europe', name:'Cap sur l’Europe', desc:'Ouvrir une ligne vers l’Europe', cash:5e6, rep:3, done:()=>[...servedAirports()].some(c=>continentOf(c)==='EU')},
+  {id:'africa', name:'Champion africain', desc:'Desservir 8 pays africains', cash:8e6, rep:4, done:()=>new Set([...servedAirports()].filter(c=>continentOf(c)==='AF').map(c=>AP(c).cc)).size>=8},
+  {id:'fleet5', name:'Petite flotte', desc:'Posséder ou louer 5 avions', cash:2e6, rep:2, done:()=>S.fleet.length>=5},
+  {id:'fleet20', name:'Grande compagnie', desc:'Exploiter 20 avions', cash:15e6, rep:5, done:()=>S.fleet.length>=20},
+  {id:'pax10k', name:'10 000 passagers', desc:'Transporter 10 000 passagers', cash:2e6, rep:2, done:()=>S.stats.pax>=1e4},
+  {id:'pax100k', name:'100 000 passagers', desc:'Transporter 100 000 passagers', cash:10e6, rep:4, done:()=>S.stats.pax>=1e5},
+  {id:'pax1m', name:'Un million de passagers', desc:'Transporter 1 000 000 de passagers', cash:50e6, rep:8, done:()=>S.stats.pax>=1e6},
+  {id:'alliance', name:'Membre d’alliance', desc:'Rejoindre une alliance', cash:5e6, rep:3, done:()=>!!S.alliance},
+  {id:'fivestar', name:'Compagnie 5 étoiles', desc:'Atteindre 90 de réputation', cash:20e6, rep:0, done:()=>S.reputation>=90},
+  {id:'beat', name:'Détrôner StarWing', desc:'Dépasser StarWing en nombre d’avions et de passagers', cash:25e6, rep:5, done:()=>S.rival && S.fleet.length>S.rival.fleet && S.stats.flights>200},
+  {id:'continents', name:'Tour du monde', desc:'Desservir les 6 continents', cash:60e6, rep:8, done:()=>new Set([...servedAirports()].map(continentOf)).size>=6},
+  {id:'billion', name:'Milliardaire de l’aviation', desc:'Valeur nette de 1 milliard $', cash:0, rep:10, done:()=>netWorth()>=1e9},
+];
+function checkMissions(){
+  S.missions=S.missions||[];
+  for(const m of MISSIONS){
+    if(S.missions.includes(m.id)) continue;
+    let ok=false; try{ ok=m.done(); }catch(e){}
+    if(!ok) continue;
+    S.missions.push(m.id);
+    if(m.cash) book('admin',m.cash);
+    S.reputation=clamp(S.reputation+m.rep,0,100);
+    logMsg(`🏆 Objectif atteint : ${m.name} — prime ${fmtMoney(m.cash)}${m.rep?`, réputation +${m.rep}`:''}`,'ok');
+    if(typeof toast==='function' && !(typeof UI!=='undefined'&&UI.silent)) toast(`🏆 <b>${m.name}</b> — ${fmtMoney(m.cash)}`,'ok');
+    notify('Objectif atteint', m.name);
+  }
 }
 
 /* ---------- finances ---------- */
