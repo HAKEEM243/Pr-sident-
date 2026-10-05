@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Congo Sky Tycoon</title>
+<meta name="description" content="Simulateur de compagnie aérienne : carte satellite mondiale, réseau détaillé de la RD Congo, 142 aéroports, 42 avions réels, vols en temps réel.">
+<meta name="theme-color" content="#0b1220">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1220'/%3E%3Cpath fill='%23f5c518' d='M16 3c1 0 1.6 1.3 1.6 2.8v6l8.4 5v2.4l-8.4-2.6v5l2.6 2v1.9L16 24.4l-4.2 1.1v-1.9l2.6-2v-5L6 19.2v-2.4l8.4-5v-6C14.4 4.3 15 3 16 3z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --bg:#0b1220; --panel:#0f1a2e; --card:#152238; --card2:#1b2b46; --line:#26395a; --txt:#e8eef8; --mut:#8fa0b8;
+  --gold:#f5c518; --gold2:#d4a72c; --ok:#34d399; --warn:#fbbf24; --bad:#f87171; --blue:#7dd3fc; --rival:#e5484d;
+  --drc-blue:#007fff; --drc-red:#ce1021;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+button{font:inherit;color:inherit}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+/* barre du haut */
+#topbar{display:flex;align-items:center;gap:10px;padding:6px 10px;background:linear-gradient(90deg,#0b1220,#122140);border-bottom:1px solid var(--line);z-index:1000;flex-wrap:wrap;min-height:46px}
+#tb-name{display:flex;align-items:center;gap:8px;font-weight:700;min-width:0}
+#tb-name .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.logo{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;font-size:17px;color:#0b1220;font-weight:800}
+#tb-cash{font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}
+#tb-time{font-variant-numeric:tabular-nums}
+.tb-sp{display:flex;gap:3px;margin-left:auto}
+.tb-sp button{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:4px 9px;cursor:pointer;font-size:12px}
+.tb-sp button.on{background:var(--gold);color:#111;border-color:var(--gold);font-weight:700}
+#main{position:relative;flex:1;min-height:0}
+#map{position:absolute;inset:0;background:#06101e}
+/* panneau latéral */
+#panel{position:absolute;top:0;right:0;bottom:0;width:440px;max-width:100%;background:rgba(11,18,32,.96);border-left:1px solid var(--line);display:flex;flex-direction:column;z-index:1100;backdrop-filter:blur(6px);transition:transform .25s}
+#panel.hide{bottom:auto}
+#panel.hide #panelBody{display:none}
+#tabs{display:flex;overflow-x:auto;border-bottom:1px solid var(--line);scrollbar-width:none;flex-shrink:0}
+#tabs button{flex:1 0 auto;background:none;border:0;border-bottom:2px solid transparent;padding:7px 5px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;color:var(--mut)}
+#tabs button small{font-size:10.5px}
+#tabs button.on{color:var(--txt);border-bottom-color:var(--gold)}
+#panelBody{flex:1;overflow-y:auto;padding:12px 12px 40px;overscroll-behavior:contain}
+h2{margin:0 0 4px;font-size:18px} h3{margin:16px 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--gold)}
+.mut{color:var(--mut)} .small{font-size:12px} .neg{color:var(--bad)} .pos{color:var(--ok)} .warnt{color:var(--warn)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0}
+.card.row,.row{display:flex;align-items:center;gap:10px}
+.grow{flex:1;min-width:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;margin:6px 0}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.btn{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:600}
+.btn:hover:not(:disabled){border-color:var(--gold)}
+.btn.gold{background:var(--gold);color:#111;border-color:var(--gold)}
+.btn.danger{border-color:#5b2530;color:#fca5a5}
+.btn.sm{padding:4px 8px;font-size:12px;border-radius:6px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.chip{display:inline-block;background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:11.5px;margin:2px 3px 2px 0;cursor:default}
+button.chip{cursor:pointer} .chip.on{background:var(--gold);color:#111;border-color:var(--gold)} .chip.gold{border-color:var(--gold);color:var(--gold)}
+.chips{display:flex;flex-wrap:wrap;gap:2px;margin:6px 0}
+.badge{display:inline-block;border-radius:6px;padding:1px 7px;font-size:11.5px;background:var(--card2);border:1px solid var(--line)}
+.badge.fly{border-color:#1d5f8a;color:var(--blue)} .badge.maint{border-color:#7a5a12;color:var(--warn)} .badge.idle{color:var(--ok)}
+.badge.ok{color:var(--ok);border-color:#1f6b4f} .badge.warn{color:var(--warn);border-color:#7a5a12} .badge.bad{color:var(--bad);border-color:#7a2a2a} .badge.rival{color:#fca5a5;border-color:#7a2a2a}
+.pbar{height:6px;background:#0a1322;border-radius:4px;overflow:hidden;flex:1;min-width:50px}
+.pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold2),var(--gold))}
+.pbar.warn i{background:var(--warn)} .pbar.bad i{background:var(--bad)}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:8px 0}
+.kpis.three{grid-template-columns:repeat(3,1fr)}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.kl{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.kv{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+.profile{display:flex;gap:12px;align-items:center}
+.biglogo{width:56px;height:56px;border-radius:14px;display:grid;place-items:center;font-size:30px;flex-shrink:0}
+.stars{color:var(--gold);letter-spacing:1px;font-size:15px}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+.tbl th{text-align:left;color:var(--mut);font-weight:600;border-bottom:1px solid var(--line);padding:4px}
+.tbl td{padding:4px;border-bottom:1px solid #1a2840}
+.tbl tr.me td{color:var(--gold);font-weight:700}
+.tbl.pl td:not(:first-child),.tbl.pl th:not(:first-child){text-align:right}
+.tbl tr.sum td{border-top:2px solid var(--line)}
+.alerts .al,.al{border-left:3px solid var(--blue);background:var(--card);padding:5px 8px;margin:4px 0;border-radius:4px;font-size:12.5px}
+.al.warn{border-color:var(--warn)} .al.bad{border-color:var(--bad)} .al.ok{border-color:var(--ok)}
+.ev{background:var(--card);border-left:3px solid var(--warn);padding:6px 8px;margin:4px 0;border-radius:4px}
+.ev.drc{border-color:var(--drc-blue)}
+.log{font-size:12px;max-height:260px;overflow:auto}
+.lg{padding:3px 0;border-bottom:1px solid #16243a} .lg.bad{color:#fca5a5} .lg.ok{color:#a7f3d0} .lg.drc{color:#93c5fd} .lg.rival{color:#fda4af}
+.ac .acrow{display:flex;gap:8px;align-items:center}
+.acic svg{display:block}
+.cond{display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0}
+.mts{display:grid;gap:3px}
+.mt{display:flex;align-items:center;gap:8px;font-size:11.5px;font-variant-numeric:tabular-nums}
+.mt span:first-child{width:12px;font-weight:700} .mt span:last-child{width:96px;text-align:right;color:var(--mut)}
+.mt.due span{color:var(--warn)} .mt.over span{color:var(--bad)} .mt.over i{background:var(--bad)}
+.route.losing{border-color:#7a2a2a}
+.rhead{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.arr{color:var(--gold)}
+.legs{margin:6px 0}
+.leg{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;padding:4px 0;border-top:1px dashed #22344f}
+.leg span:first-child{font-weight:700}
+.ctrl{display:grid;gap:4px;margin:6px 0}
+label{display:block;font-size:12.5px}
+input[type=range]{width:100%;accent-color:var(--gold)}
+input:not([type=range]):not([type=checkbox]):not([type=color]),select{width:100%;background:#0a1322;border:1px solid var(--line);border-radius:7px;padding:7px 8px;color:var(--txt);font:inherit;margin-top:3px}
+input[type=color]{width:100%;height:34px;background:none;border:1px solid var(--line);border-radius:7px;margin-top:3px}
+.tog{display:flex;gap:8px;align-items:center;margin:5px 0;cursor:pointer}
+.tog input{accent-color:var(--gold);width:16px;height:16px}
+.acs .acl{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;padding:6px 0;border-top:1px solid #1d2d48;font-size:12.5px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.catalog{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:8px}
+.cat .specs{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;margin:4px 0}
+.stops{display:grid;gap:6px}
+.stop{display:flex;gap:6px;align-items:center}
+.stop .sn{width:66px;font-size:12px;color:var(--gold)}
+.acpick{max-height:180px;overflow:auto}
+.pilot{display:flex;gap:8px;align-items:center}
+.drc-hero{position:relative;overflow:hidden;padding-top:16px;background:linear-gradient(135deg,#0a2b5c,#152238 70%)}
+.flagbar{position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,var(--drc-blue) 0 40%,var(--gold) 40% 44%,var(--drc-red) 44% 56%,var(--gold) 56% 60%,var(--drc-blue) 60%)}
+details.prov{background:var(--card);border:1px solid var(--line);border-radius:8px;margin:5px 0;padding:6px 10px}
+details.prov summary{cursor:pointer}
+.aprow{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center;font-size:12px;padding:4px 0;border-top:1px solid #1d2d48}
+.warnb{border-color:#7a5a12;background:#2a2210}
+.gold-b{border-color:var(--gold)}
+/* carte */
+#mapctl{position:absolute;left:10px;top:84px;z-index:800;display:flex;flex-direction:column;gap:5px}
+#mapctl button{background:rgba(11,18,32,.88);border:1px solid var(--line);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:12px;text-align:left}
+#mapctl button.on{border-color:var(--gold);color:var(--gold)}
+#flightcard{position:absolute;left:10px;bottom:24px;z-index:800;background:rgba(11,18,32,.94);border:1px solid var(--gold2);border-radius:12px;padding:10px 12px;min-width:260px;max-width:340px;font-size:12.5px}
+#flightcard .x,.mhead .x{position:absolute;right:8px;top:4px;background:none;border:0;font-size:20px;cursor:pointer;color:var(--mut)}
+.phases{display:flex;flex-wrap:wrap;gap:3px;margin-top:6px}
+.phases span{font-size:10px;padding:1px 5px;border-radius:4px;background:#14233b;color:var(--mut)}
+.phases span.done{color:#a7f3d0} .phases span.cur{background:var(--gold);color:#111;font-weight:700}
+.plane-icon{background:none;border:0}
+.plane-icon .rot{transition:transform .2s linear;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7));transform-origin:50% 50%}
+.plane-icon.ground .rot{opacity:.75}
+.plane-icon.sel .rot{filter:drop-shadow(0 0 5px #fff)}
+.ap-label{color:#fff;font-size:11px;font-weight:600;text-shadow:0 0 3px #000,0 0 2px #000;white-space:nowrap;pointer-events:none}
+.ap-label.drc{color:#bbf7d0}
+.leaflet-tooltip.flight-tip{background:rgba(11,18,32,.95);color:var(--txt);border:1px solid var(--gold2);font-size:12px;min-width:210px}
+.leaflet-tooltip.flight-tip:before{border-right-color:var(--gold2)}
+.leaflet-tooltip{background:rgba(11,18,32,.95);color:var(--txt);border:1px solid var(--line)}
+.leaflet-tooltip-top:before{border-top-color:var(--line)}
+.leaflet-container{font:inherit}
+.leaflet-control-attribution{background:rgba(11,18,32,.7)!important;color:#9aa!important;font-size:10px}
+.leaflet-control-attribution a{color:#bcd!important}
+/* modale */
+#modal{position:fixed;inset:0;background:rgba(3,7,15,.7);z-index:3000;display:grid;place-items:center;padding:12px}
+#modal[hidden]{display:none}
+.mbox{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:14px;width:min(560px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.mbox.wide{width:min(900px,100%)}
+.mhead{padding:12px 40px 8px 14px;border-bottom:1px solid var(--line)}
+.mbody{padding:10px 14px 14px;overflow:auto}
+#toasts{position:fixed;left:50%;transform:translateX(-50%);top:54px;z-index:4000;display:grid;gap:6px;width:min(460px,92vw);pointer-events:none}
+.toast{background:rgba(15,26,46,.97);border:1px solid var(--line);border-left:4px solid var(--blue);border-radius:8px;padding:8px 10px;font-size:13px;transition:opacity .5s,transform .5s;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.toast.ok{border-left-color:var(--ok)} .toast.bad{border-left-color:var(--bad)} .toast.warn{border-left-color:var(--warn)} .toast.drc{border-left-color:var(--drc-blue)} .toast.rival{border-left-color:var(--rival)}
+.toast.out{opacity:0;transform:translateY(-8px)}
+.fatal{position:fixed;inset:auto 10px 10px 10px;background:#5b1a1a;padding:12px;border-radius:10px;z-index:5000}
+/* mobile */
+@media (max-width:820px){
+  #topbar{gap:6px;padding:5px 8px}
+  #tb-name .nm{max-width:110px}
+  #tb-oil,#tb-time .mut{display:none}
+  .tb-sp{margin-left:0;width:100%;justify-content:flex-end}
+  .tb-sp button{padding:3px 7px}
+  #panel{width:100%;border-left:0;backdrop-filter:none;transition:none}
+  #panel.hide{background:transparent;pointer-events:none}
+  #panel.hide #tabs{pointer-events:auto}
+  #tabs{position:fixed;bottom:0;left:0;right:0;background:#0b1220;border-top:1px solid var(--line);border-bottom:0;z-index:1200;padding-bottom:env(safe-area-inset-bottom)}
+  #tabs button{border-bottom:0;border-top:2px solid transparent;padding:6px 8px}
+  #tabs button.on{border-top-color:var(--gold)}
+  #panelBody{padding-bottom:90px}
+  #main{margin-bottom:54px}
+  #flightcard{left:8px;right:8px;bottom:8px;max-width:none}
+  .form{grid-template-columns:1fr}
+  .kpis.three{grid-template-columns:1fr 1fr}
+  .leaflet-bottom.leaflet-right{margin-bottom:4px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div id="tb-name"></div>
+    <div id="tb-cash"></div>
+    <div id="tb-time"></div>
+    <div id="tb-oil" class="mut"></div>
+    <div class="tb-sp">
+      <button data-speed="realiste" title="Temps réel">Réaliste</button>
+      <button data-speed="standard" title="1 s = 1 min">Standard</button>
+      <button data-speed="rapide" title="1 s = 10 min">Rapide</button>
+      <button id="tb-pause" title="Pause">⏸</button>
+    </div>
+  </header>
+  <div id="main">
+    <div id="map"></div>
+    <div id="mapctl">
+      <button class="on" data-act="mapToggle" data-k="routes">🧭 Routes</button>
+      <button class="on" data-act="mapToggle" data-k="airports">🛬 Aéroports</button>
+      <button class="on" data-act="mapToggle" data-k="night">🌗 Jour/nuit</button>
+      <button class="on" data-act="mapToggle" data-k="rival">🔴 Rival</button>
+      <button data-act="focusDRC">🇨🇩 RDC</button>
+      <button data-act="focusWorld">🌍 Monde</button>
+    </div>
+    <div id="flightcard" hidden></div>
+    <aside id="panel">
+      <nav id="tabs"></nav>
+      <div id="panelBody"></div>
+    </aside>
+  </div>
+</div>
+<div id="modal" hidden></div>
+<div id="toasts"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="data.js"></script>
+<script src="sim.js"></script>
+<script src="map.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>

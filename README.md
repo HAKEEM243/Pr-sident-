@@ -36,9 +36,20 @@ Ce dossier peut être déployé tel quel sur n'importe quel hébergeur de fichie
 
 Ce projet est un simulateur jouable et cohérent, pas une reconstitution économique réaliste au niveau d'un titre commercial (type Geopolitical Simulator / Power & Revolution). Les formules économiques sont simplifiées pour rester amusantes et compréhensibles. C'est une base solide, facilement extensible (le code est un seul fichier `index.html` commenté par sections).
 
+## Bonus : Congo Sky Tycoon (`avion/`)
+
+Un second jeu, indépendant : simulateur de compagnie aérienne sur carte satellite (Leaflet + imagerie ESRI), ouvert via `avion/index.html`.
+
+- **142 aéroports** sur tous les continents, dont **43 en RD Congo** (25 provinces, codes IATA/OACI, longueur et revêtement de piste : asphalte ou latérite) et la frontière de la RDC mise en évidence.
+- **42 avions réels** (Caravan, Twin Otter, ATR, Dash 8, CRJ, E-Jet, A220…A380, 737…787, Concorde, cargos), achat neuf/occasion ou leasing, éditeur d'avion perso.
+- Vols en temps réel (9 phases, altitude/vitesse/ETA), routes géodésiques avec escales, 3 vitesses, simulation hors-ligne.
+- Pilotes et qualifications (14 familles), maintenance A/C/D, prêts, marketing, alliances, contrats cargo, événements (dont Nyiragongo, Ebola, boom minier du Katanga, grandes pluies), rival IA StarWing Airways, onglet RDC dédié, panneau admin.
+
 ## Crédits
 
 Carte du monde SVG : « Simple World Map » par Al MacDonald, éditée par Fritz Lekschas ([flekschas/simple-world-map](https://github.com/flekschas/simple-world-map)), sous licence [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
+
+Congo Sky Tycoon : imagerie satellite © Esri ; frontière de la RDC issue de Natural Earth (domaine public) via `world-atlas` ; [Leaflet](https://leafletjs.com) (BSD-2).
 
 ## Structure
 
@@ -46,4 +57,5 @@ Carte du monde SVG : « Simple World Map » par Al MacDonald, éditée par Fritz
 index.html    Application complète (HTML + CSS + JS, un seul fichier)
 manifest.json Manifeste PWA (icône, nom, couleurs)
 sw.js         Service worker (mise en cache, fonctionnement hors-ligne)
+avion/        Congo Sky Tycoon (index.html, data.js, sim.js, map.js, ui.js)
 ```
