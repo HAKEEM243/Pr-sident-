@@ -127,6 +127,15 @@ details.prov summary{cursor:pointer}
 #mapctl button{background:rgba(11,18,32,.88);border:1px solid var(--line);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:12px;text-align:left}
 #mapctl button.on{border-color:var(--gold);color:var(--gold)}
 #mapctl .menu{display:none;font-weight:700}
+#mapctl .globe3d{background:linear-gradient(135deg,#1d4ed8,#0e7490)!important;border-color:#7dd3fc!important;font-weight:700}
+#globe{position:absolute;inset:0;z-index:1000;background:#000}
+#globe[hidden],#globeHud[hidden]{display:none}
+#globe .cesium-viewer-bottom{opacity:.75}
+#globeHud{position:absolute;top:10px;left:10px;z-index:1060;display:flex;flex-wrap:wrap;gap:6px;max-width:calc(100% - 460px)}
+.gh{background:rgba(11,18,32,.88);border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer;font-size:13px;font-weight:600;color:var(--txt)}
+.gh.on{background:var(--gold);color:#111;border-color:var(--gold)} .gh:disabled{opacity:.4}
+body.globe-on #mapctl,body.globe-on #guide{display:none}
+body.globe-on #flightcard{z-index:1070}
 .plane-icon.rival .fu,.plane-icon.rival .wi{fill:#fca5a5}
 #flightcard{position:absolute;left:10px;bottom:24px;z-index:800;background:rgba(11,18,32,.94);border:1px solid var(--gold2);border-radius:12px;padding:10px 12px;min-width:260px;max-width:340px;font-size:12.5px}
 #flightcard .x,.mhead .x{position:absolute;right:8px;top:4px;background:none;border:0;font-size:20px;cursor:pointer;color:var(--mut)}
@@ -280,6 +289,8 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
   #guide{bottom:calc(var(--sheet,58%) + 8px);left:10px;right:10px;transform:none;max-width:none}
   body.show-map #guide{bottom:70px}
   #mapctl .menu{display:block}
+  #globeHud{max-width:calc(100% - 20px)}
+  #mapctl:not(.open) button.globe3d{display:block}
   #mapctl:not(.open) button:not(.menu){display:none}
   #mapctl{top:58px}
   #panel{top:auto!important;height:var(--sheet,58%)!important;border-radius:16px 16px 0 0;border-top:1px solid var(--gold2)}
@@ -329,6 +340,7 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
     <div id="map"></div>
     <div id="mapctl">
       <button class="menu" data-act="mapMenu">☰ Carte</button>
+      <button class="globe3d" data-act="open3D">🌍 Vue 3D</button>
       <button class="on" data-act="mapToggle" data-k="routes">🧭 Routes</button>
       <button class="on" data-act="mapToggle" data-k="airports">🛬 Aéroports</button>
       <button class="on" data-act="mapToggle" data-k="night">🌗 Jour/nuit</button>
@@ -340,6 +352,8 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
       <button data-act="focusWorld">🌍 Monde</button>
     </div>
     <div id="flightcard" hidden></div>
+    <div id="globe" hidden></div>
+    <div id="globeHud" hidden></div>
     <div id="guide" hidden></div>
     <div id="cockpit" hidden></div>
     <aside id="panel">
@@ -359,5 +373,6 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 <script src="ui.js"></script>
 <script src="pilot.js"></script>
 <script src="actions.js"></script>
+<script src="globe.js"></script>
 </body>
 </html>
