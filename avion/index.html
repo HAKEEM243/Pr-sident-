@@ -25,6 +25,8 @@ button{font:inherit;color:inherit}
 .logo{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;font-size:17px;color:#0b1220;font-weight:800}
 #tb-cash{font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}
 #tb-time{font-variant-numeric:tabular-nums}
+#tb-week{font-size:12.5px;font-variant-numeric:tabular-nums}
+#tb-name .stars{font-size:12px}
 .tb-sp{display:flex;gap:3px;margin-left:auto}
 .tb-sp button{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:4px 9px;cursor:pointer;font-size:12px}
 .tb-sp button.on{background:var(--gold);color:#111;border-color:var(--gold);font-weight:700}
@@ -124,19 +126,27 @@ details.prov summary{cursor:pointer}
 #mapctl{position:absolute;left:10px;top:84px;z-index:800;display:flex;flex-direction:column;gap:5px}
 #mapctl button{background:rgba(11,18,32,.88);border:1px solid var(--line);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:12px;text-align:left}
 #mapctl button.on{border-color:var(--gold);color:var(--gold)}
+#mapctl .menu{display:none;font-weight:700}
+.plane-icon.rival .fu,.plane-icon.rival .wi{fill:#fca5a5}
 #flightcard{position:absolute;left:10px;bottom:24px;z-index:800;background:rgba(11,18,32,.94);border:1px solid var(--gold2);border-radius:12px;padding:10px 12px;min-width:260px;max-width:340px;font-size:12.5px}
 #flightcard .x,.mhead .x{position:absolute;right:8px;top:4px;background:none;border:0;font-size:20px;cursor:pointer;color:var(--mut)}
 .phases{display:flex;flex-wrap:wrap;gap:3px;margin-top:6px}
 .phases span{font-size:10px;padding:1px 5px;border-radius:4px;background:#14233b;color:var(--mut)}
 .phases span.done{color:#a7f3d0} .phases span.cur{background:var(--gold);color:#111;font-weight:700}
 .plane-icon{background:none;border:0}
-.plane-icon .rot{transition:transform .2s linear;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7));transform-origin:50% 50%}
+.plane-icon .rot{transition:transform .2s linear;filter:drop-shadow(var(--sh,3px) var(--sh,3px) var(--blur,1.5px) rgba(0,0,0,.5));transform-origin:50% 50%}
+.ac-svg .fu{fill:#f5f6f8;stroke:#1f2937;stroke-width:.8} .ac-svg .fu2{fill:#e5e7eb;stroke:#1f2937;stroke-width:.5}
+.ac-svg .wi{fill:#d9dee6;stroke:#1f2937;stroke-width:.8} .ac-svg .pr{fill:rgba(255,255,255,.4);stroke:rgba(0,0,0,.4);stroke-width:.4}
+.plane-icon.pilot .rot{transition:none}
+.route-anim{stroke-dasharray:10 9;animation:dashflow 1.4s linear infinite}
+@keyframes dashflow{to{stroke-dashoffset:-19}}
+.trail{stroke-linecap:round}
 .plane-icon.ground .rot{opacity:.75}
 .plane-icon.parked .rot{opacity:.9} .plane-icon.parked.maint .rot{filter:grayscale(1) drop-shadow(0 1px 2px #000)}
 .styles{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .stylebtn{text-align:left;cursor:pointer;margin:0;color:var(--txt)} .stylebtn:disabled{opacity:.45;cursor:not-allowed}
 body.google-map .leaflet-control-attribution::before{content:"Google ";font-weight:700;color:#fff}
-.plane-icon.sel .rot{filter:drop-shadow(0 0 5px #fff)}
+.plane-icon.sel .rot{filter:drop-shadow(0 0 6px #fff) drop-shadow(var(--sh,3px) var(--sh,3px) 2px rgba(0,0,0,.5))}
 .ap-label{color:#fff;font-size:11px;font-weight:600;text-shadow:0 0 3px #000,0 0 2px #000;white-space:nowrap;pointer-events:none}
 .ap-label.drc{color:#bbf7d0}
 .leaflet-tooltip.flight-tip{background:rgba(11,18,32,.95);color:var(--txt);border:1px solid var(--gold2);font-size:12px;min-width:210px}
@@ -159,7 +169,99 @@ body.google-map .leaflet-control-attribution::before{content:"Google ";font-weig
 .toast.out{opacity:0;transform:translateY(-8px)}
 .fatal{position:fixed;inset:auto 10px 10px 10px;background:#5b1a1a;padding:12px;border-radius:10px;z-index:5000}
 /* mobile */
+/* ---- écrans de gestion ---- */
+.hero{display:flex;gap:12px;align-items:center;background:linear-gradient(135deg,#17305a,#101c33);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px}
+.weekcards{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.wcard{background:linear-gradient(180deg,#1b2d4d,#142238);border:1px solid var(--line);border-radius:12px;padding:10px}
+.kpis.five{grid-template-columns:repeat(2,1fr)}
+.click{cursor:pointer} tr.click:hover td{background:#1b2b46}
+.al[data-tab]{cursor:pointer} .al.mission{border-color:var(--gold)}
+.btn.big{padding:10px 16px;font-size:15px;flex:1}
+.hubs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin:6px 0}
+.hubcard{background:linear-gradient(160deg,#2a2208,#152238 60%);border:1px solid var(--gold2);border-radius:12px;padding:8px 10px;cursor:pointer}
+.hc-top{font-size:15px}
+.card.line{cursor:pointer;transition:border-color .15s} .card.line:hover{border-color:var(--gold)}
+.lhead{display:flex;justify-content:space-between;gap:8px}
+.lroute{font-size:16px;letter-spacing:.03em}
+.lbadges{display:flex;flex-wrap:wrap;gap:3px;justify-content:flex-end;align-items:flex-start}
+.lstats{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px}
+.lstats div{background:#0f1a2e;border-radius:8px;padding:5px 6px;text-align:center}
+.lstats span{display:block;font-size:10.5px;color:var(--mut)} .lstats b{font-size:13.5px}
+.tbl.dem td:first-child{white-space:nowrap}
+.prices{display:grid;gap:6px}
+.prow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.prow .pl{width:120px;font-size:13px}
+input.pin{width:96px!important;text-align:right;margin:0!important}
+.stepper{display:flex;align-items:center;gap:5px}
+.stepper b{min-width:22px;text-align:center;font-size:16px}
+.acl.dis{opacity:.55}
+.planbar{display:flex;align-items:center;gap:8px;font-size:12px;margin:6px 0}
+.planbar.big{font-size:14px}
+.mtc{font-size:10.5px;padding:1px 5px;border-radius:5px;background:#0f1a2e;margin-left:3px} .mtc.due{color:var(--warn)} .mtc.over{color:var(--bad)}
+.catalog{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.cat-img{display:grid;place-items:center;height:110px;border-radius:10px;background:radial-gradient(circle at 50% 40%,#2a4f86,#0d1a30 70%);margin-bottom:6px}
+.cat-img svg{filter:drop-shadow(6px 8px 4px rgba(0,0,0,.45));transform:rotate(-35deg)}
+.cat-name{display:flex;flex-direction:column;margin-bottom:4px}
+.spec{display:grid;grid-template-columns:92px 1fr 76px;align-items:center;gap:6px;font-size:11.5px;margin:2px 0}
+.spec b{text-align:right}
+.staffgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.btns.col{flex-direction:column}
+.fuelcard .kv small{font-size:12px;color:var(--mut)}
+.fuelcard canvas{width:100%;display:block;margin:6px 0}
+.tblwrap{overflow-x:auto}
+.row.wrap{flex-wrap:wrap;gap:6px}
+.row select{width:auto}
+.destlist td{font-size:12.5px}
+.ng-hero{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.ng-hero svg{transform:rotate(-30deg);filter:drop-shadow(6px 8px 4px rgba(0,0,0,.5))}
+.landing-stars{font-size:38px;color:var(--gold);text-align:center;letter-spacing:4px}
+/* tutoriel */
+#guide{position:absolute;bottom:22px;left:calc((100% - 440px)/2);transform:translateX(-50%);z-index:1050;display:flex;align-items:center;gap:10px;background:rgba(18,30,52,.97);border:1px solid var(--gold);border-radius:14px;padding:8px 34px 8px 12px;max-width:min(560px,calc(100% - 20px));box-shadow:0 8px 28px rgba(0,0,0,.5)}
+#guide[hidden]{display:none}
+.g-step{font-weight:800;color:var(--gold);white-space:nowrap}
+.g-txt{display:flex;flex-direction:column;font-size:12.5px} .g-txt span{color:var(--mut)}
+#guide .x{position:absolute;right:6px;top:2px;background:none;border:0;color:var(--mut);font-size:18px;cursor:pointer}
+/* cockpit */
+#cockpit{position:absolute;left:0;right:0;bottom:0;z-index:1150;display:grid;grid-template-columns:260px 1fr auto;gap:10px;align-items:end;padding:10px;background:linear-gradient(0deg,rgba(5,9,18,.96),rgba(5,9,18,.75) 80%,transparent);pointer-events:none}
+#cockpit[hidden]{display:none}
+#cockpit>*{pointer-events:auto}
+.ck-pfd svg{width:100%;max-width:260px;display:block;border-radius:12px;border:2px solid #333;background:#000;font:10px system-ui}
+#pfd text{fill:#fff} #pfd .tape line{stroke:#fff} #pfd .big{font-size:13px;font-weight:700} #pfd .warn{fill:#ff3b3b;font-size:20px;font-weight:800}
+.ck-info{background:rgba(10,16,30,.9);border:1px solid #2b3d5e;border-radius:12px;padding:8px 10px;font-size:12.5px;min-width:0}
+.ck-dest{font-weight:700;margin-bottom:4px}
+.ck-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.ck-grid div{background:#0b1324;border-radius:6px;padding:3px 6px} .ck-grid span{display:block;font-size:9.5px;color:#7dd3fc;letter-spacing:.08em} .ck-grid b{font-variant-numeric:tabular-nums}
+.ck-msg{margin-top:5px;min-height:18px}
+.ck-ctrl{display:flex;gap:8px;align-items:flex-end}
+.ck-thr{display:flex;flex-direction:column;align-items:center;gap:4px;background:rgba(10,16,30,.9);border:1px solid #2b3d5e;border-radius:12px;padding:6px;font-size:11px}
+.ck-thr input{writing-mode:vertical-lr;direction:rtl;width:34px;height:120px}
+.ck-pad{display:grid;grid-template-columns:repeat(2,52px);gap:5px}
+.ck-pad button,.ck-btns button{background:#14213a;border:1px solid #2b3d5e;border-radius:10px;color:#fff;font-size:20px;height:48px;cursor:pointer;touch-action:none;user-select:none}
+.ck-pad button[data-pk=up],.ck-pad button[data-pk=down]{grid-column:span 2}
+.ck-pad button.on,.ck-btns button.on{background:var(--gold);color:#111}
+.ck-btns{display:grid;grid-template-columns:1fr 1fr;gap:5px} .ck-btns button{font-size:12.5px;height:40px;padding:0 8px}
+.ck-btns button[data-ck=quit]{grid-column:span 2}
+body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:none}
+#sheetHandle{display:none}
 @media (max-width:820px){
+  #cockpit{grid-template-columns:1fr 1fr;padding:6px;gap:6px}
+  .ck-pfd{grid-row:1} .ck-info{grid-row:1;font-size:11px} .ck-ctrl{grid-column:span 2;justify-content:space-between}
+  .ck-grid{grid-template-columns:1fr 1fr}
+  .ck-thr input{height:90px}
+  .ck-pad{grid-template-columns:repeat(2,46px)} .ck-pad button{height:42px}
+  #guide{bottom:calc(var(--sheet,58%) + 8px);left:10px;right:10px;transform:none;max-width:none}
+  body.show-map #guide{bottom:70px}
+  #mapctl .menu{display:block}
+  #mapctl:not(.open) button:not(.menu){display:none}
+  #mapctl{top:58px}
+  #panel{top:auto!important;height:var(--sheet,58%)!important;border-radius:16px 16px 0 0;border-top:1px solid var(--gold2)}
+  #panel.hide{height:auto!important}
+  #sheetHandle{display:block;height:20px;cursor:ns-resize;touch-action:none;flex-shrink:0}
+  #sheetHandle::after{content:"";display:block;width:44px;height:5px;border-radius:3px;background:#475569;margin:8px auto 0}
+  #panel.hide #sheetHandle{display:none}
+  .staffgrid,.weekcards{grid-template-columns:1fr}
+  .lstats b{font-size:12px}
+  .spec{grid-template-columns:80px 1fr 70px}
   #topbar{gap:6px;padding:5px 8px}
   #tb-name .nm{max-width:110px}
   #tb-oil,#tb-time .mut{display:none}
@@ -186,6 +288,7 @@ body.google-map .leaflet-control-attribution::before{content:"Google ";font-weig
     <div id="tb-name"></div>
     <div id="tb-cash"></div>
     <div id="tb-time"></div>
+    <div id="tb-week"></div>
     <div id="tb-oil" class="mut"></div>
     <div class="tb-sp">
       <button data-speed="realiste" title="Temps réel">Réaliste</button>
@@ -197,16 +300,22 @@ body.google-map .leaflet-control-attribution::before{content:"Google ";font-weig
   <div id="main">
     <div id="map"></div>
     <div id="mapctl">
+      <button class="menu" data-act="mapMenu">☰ Carte</button>
       <button class="on" data-act="mapToggle" data-k="routes">🧭 Routes</button>
       <button class="on" data-act="mapToggle" data-k="airports">🛬 Aéroports</button>
       <button class="on" data-act="mapToggle" data-k="night">🌗 Jour/nuit</button>
       <button class="on" data-act="mapToggle" data-k="rival">🔴 Rival</button>
+      <button class="on" data-act="mapToggle" data-k="trails">〰️ Traînées</button>
+      <button class="on" data-act="mapToggle" data-k="weather">⛈️ Météo</button>
       <button data-act="mapStyle">🗺️ Fond de carte</button>
       <button data-act="focusDRC">🇨🇩 RDC</button>
       <button data-act="focusWorld">🌍 Monde</button>
     </div>
     <div id="flightcard" hidden></div>
+    <div id="guide" hidden></div>
+    <div id="cockpit" hidden></div>
     <aside id="panel">
+      <div id="sheetHandle"></div>
       <nav id="tabs"></nav>
       <div id="panelBody"></div>
     </aside>
@@ -219,5 +328,7 @@ body.google-map .leaflet-control-attribution::before{content:"Google ";font-weig
 <script src="sim.js"></script>
 <script src="map.js"></script>
 <script src="ui.js"></script>
+<script src="pilot.js"></script>
+<script src="actions.js"></script>
 </body>
 </html>

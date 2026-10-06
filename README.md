@@ -38,12 +38,13 @@ Ce projet est un simulateur jouable et cohérent, pas une reconstitution économ
 
 ## Bonus : Congo Sky Tycoon (`avion/`)
 
-Un second jeu, indépendant : simulateur de compagnie aérienne sur carte satellite (Leaflet + imagerie ESRI), ouvert via `avion/index.html`.
+Un second jeu, indépendant : simulateur de gestion de compagnie aérienne sur carte satellite (Leaflet + imagerie ESRI, Google Maps en option avec clé API), ouvert via `avion/index.html`.
 
-- **142 aéroports** sur tous les continents, dont **43 en RD Congo** (25 provinces, codes IATA/OACI, longueur et revêtement de piste : asphalte ou latérite) et la frontière de la RDC mise en évidence.
-- **42 avions réels** (Caravan, Twin Otter, ATR, Dash 8, CRJ, E-Jet, A220…A380, 737…787, Concorde, cargos), achat neuf/occasion ou leasing, éditeur d'avion perso.
-- Vols en temps réel (9 phases, altitude/vitesse/ETA), routes géodésiques avec escales, 3 vitesses, simulation hors-ligne.
-- Pilotes et qualifications (14 familles), maintenance A/C/D, prêts, marketing, alliances, contrats cargo, événements (dont Nyiragongo, Ebola, boom minier du Katanga, grandes pluies), rival IA StarWing Airways, onglet RDC dédié, panneau admin.
+- **Gestion façon « airline manager »** : achat de hubs, licences de lignes, audit de marché, demande et prix par classe (Éco / Affaires / Première / Fret), configuration cabine par avion, planning hebdomadaire (un avion peut desservir plusieurs lignes de son hub), achat de kérosène et de quotas CO₂ à cours fluctuant, personnel (pilotes, PNC, mécaniciens, sol) avec salaires, moral et grèves, bilan hebdomadaire.
+- **142 aéroports** dont **43 en RD Congo** (25 provinces, pistes asphalte/latérite) et chantiers d’aéroports (bitumage, allongement de piste, dépôts de carburant, terminaux, ILS).
+- **42 avions réels**, neufs, d’occasion ou en leasing, éditeur d’avion perso.
+- **Mode pilote** : pilotez vous-même un vol sur la carte satellite (horizon artificiel, badins, pilote automatique avec atterrissage automatique, note d’atterrissage).
+- Vols en temps réel (9 phases), orages, traînées de condensation, tutoriel guidé, 21 objectifs, rival IA, événements (Nyiragongo, Ebola, boom minier…), interface mobile.
 
 ## Crédits
 

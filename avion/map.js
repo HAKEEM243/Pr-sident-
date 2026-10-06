@@ -4,7 +4,8 @@
 let map, L_airports, L_routes, L_planes, L_rival, L_night, L_drc;
 const planeMarkers = new Map(); // id avion -> marker
 const rivalMarkers = [];
-const MAPOPT = { routes:true, airports:true, night:true, rival:true };
+const MAPOPT = { routes:true, airports:true, night:true, rival:true, trails:true, weather:true };
+let L_weather;
 let selectedPlane = null, followPlane = false;
 const parkedMarkers = new Map();
 
@@ -55,7 +56,48 @@ async function setMapStyle(id, silent){
   return id;
 }
 
-const PLANE_SVG = (color, size=26)=>`<svg viewBox="0 0 32 32" width="${size}" height="${size}"><path fill="${color}" stroke="#0b0f17" stroke-width="1.1" stroke-linejoin="round" d="M16 1.5c1.3 0 2.1 1.6 2.1 3.6v7.4l10.6 6.2v3l-10.6-3.2v6.3l3.2 2.5v2.4L16 28.3l-5.3 1.4v-2.4l3.2-2.5v-6.3L3.3 21.7v-3l10.6-6.2V5.1c0-2 .8-3.6 2.1-3.6z"/></svg>`;
+// Silhouettes vues de dessus (nez vers le haut), fuselage blanc, dérive et moteurs aux couleurs de la livrée
+function planeCat(m){
+  if(!m) return 'nb';
+  if(m.fam==='CONC') return 'conc';
+  if(m.fam==='TURBO') return 'prop';
+  if(m.fam==='CRJ'||m.fam==='EMB') return 'rj';
+  if(m.fam==='B747'||m.fam==='A380') return 'quad';
+  if(['A330','A350','B777','B787'].includes(m.fam)||m.id==='B763'||m.id==='B76F') return 'wb';
+  if(m.custom) return m.seats>=400?'quad':m.seats>=250?'wb':m.seats<=80?'prop':'nb';
+  return 'nb';
+}
+const SHAPES = {
+  prop:(c)=>`<rect x="29.5" y="6" width="5" height="50" rx="2.5" class="fu"/>
+    <rect x="3" y="20" width="58" height="6" rx="2" class="wi"/>
+    <rect x="16" y="15" width="4" height="12" rx="1.5" fill="${c}"/><rect x="44" y="15" width="4" height="12" rx="1.5" fill="${c}"/>
+    <ellipse cx="18" cy="15" rx="6" ry="1" class="pr"/><ellipse cx="46" cy="15" rx="6" ry="1" class="pr"/>
+    <rect x="21" y="53" width="22" height="4" rx="1.5" class="wi"/><rect x="31" y="47" width="2" height="12" fill="${c}"/>`,
+  rj:(c)=>`<rect x="29.5" y="5" width="5" height="52" rx="2.5" class="fu"/>
+    <path d="M32 24 L56 36 L56 38.5 L32 32 L8 38.5 L8 36Z" class="wi"/>
+    <rect x="25" y="41" width="4" height="10" rx="1.8" fill="${c}"/><rect x="35" y="41" width="4" height="10" rx="1.8" fill="${c}"/>
+    <path d="M32 53 L43 58 L43 60 L32 57.5 L21 60 L21 58Z" class="wi"/><rect x="31" y="47" width="2" height="13" fill="${c}"/>`,
+  nb:(c)=>`<rect x="29.2" y="3" width="5.6" height="56" rx="2.8" class="fu"/>
+    <path d="M32 22 L61 37 L61 40 L32 32.5 L3 40 L3 37Z" class="wi"/>
+    <rect x="15" y="27" width="4.5" height="9" rx="2" fill="${c}"/><rect x="44.5" y="27" width="4.5" height="9" rx="2" fill="${c}"/>
+    <path d="M32 50 L44 57 L44 59.5 L32 56.5 L20 59.5 L20 57Z" class="wi"/><rect x="31" y="47" width="2" height="14" fill="${c}"/>`,
+  wb:(c)=>`<rect x="28.3" y="2" width="7.4" height="58" rx="3.7" class="fu"/>
+    <path d="M32 20 L63 38 L63 41.5 L32 31.5 L1 41.5 L1 38Z" class="wi"/>
+    <rect x="13" y="26" width="6" height="11" rx="2.6" fill="${c}"/><rect x="45" y="26" width="6" height="11" rx="2.6" fill="${c}"/>
+    <path d="M32 49 L46 57 L46 60 L32 56 L18 60 L18 57Z" class="wi"/><rect x="30.8" y="46" width="2.4" height="15" fill="${c}"/>`,
+  quad:(c)=>`<rect x="28" y="2" width="8" height="58" rx="4" class="fu"/><rect x="29.3" y="4" width="5.4" height="12" rx="2.7" class="fu2"/>
+    <path d="M32 19 L63 39 L63 42.5 L32 31 L1 42.5 L1 39Z" class="wi"/>
+    <rect x="9" y="31" width="5" height="10" rx="2.3" fill="${c}"/><rect x="18" y="26" width="5.5" height="11" rx="2.5" fill="${c}"/>
+    <rect x="40.5" y="26" width="5.5" height="11" rx="2.5" fill="${c}"/><rect x="50" y="31" width="5" height="10" rx="2.3" fill="${c}"/>
+    <path d="M32 49 L47 57 L47 60 L32 56 L17 60 L17 57Z" class="wi"/><rect x="30.8" y="46" width="2.4" height="15" fill="${c}"/>`,
+  conc:(c)=>`<path d="M32 1 L34 8 L34 58 L30 58 L30 8Z" class="fu"/>
+    <path d="M32 20 C36 30 50 44 57 56 L57 58 L7 58 L7 56 C14 44 28 30 32 20Z" class="wi"/>
+    <rect x="21" y="47" width="3.5" height="10" fill="${c}"/><rect x="25.5" y="47" width="3.5" height="10" fill="${c}"/>
+    <rect x="35" y="47" width="3.5" height="10" fill="${c}"/><rect x="39.5" y="47" width="3.5" height="10" fill="${c}"/>
+    <rect x="31" y="44" width="2" height="14" fill="${c}"/>`,
+};
+const PLANE_SVG = (color, size=26, cat='nb')=>`<svg class="ac-svg" viewBox="0 0 64 64" width="${size}" height="${size}">${SHAPES[cat](color)}</svg>`;
+function zoomScale(){ const z=map?map.getZoom():5; return z<=3?0.75:z<=5?1:z<=7?1.3:z<=9?1.7:z<=11?2.2:z<=13?2.8:3.4; }
 
 function initMap(){
   map = L.map('map', { zoomControl:false, worldCopyJump:true, minZoom:2, maxZoom:19, attributionControl:true, preferCanvas:false })
@@ -68,6 +110,8 @@ function initMap(){
   map.createPane('drc'); map.getPane('drc').style.zIndex=360; map.getPane('drc').style.pointerEvents='none';
   L_night = L.layerGroup().addTo(map);
   L_drc = L.layerGroup().addTo(map);
+  L_trails = L.layerGroup().addTo(map);
+  L_weather = L.layerGroup().addTo(map);
   L_routes = L.layerGroup().addTo(map);
   L_airports = L.layerGroup().addTo(map);
   L_rival = L.layerGroup().addTo(map);
@@ -81,12 +125,13 @@ function initMap(){
   drawAirports();
   drawRoutes();
   drawNight();
+  drawWeather(true);
   map.on('click',()=>{ selectPlane(null); });
-  map.on('zoomend',()=>drawAirports());
+  map.on('zoomend',()=>{ drawAirports(); for(const [,mk] of planeMarkers) L_planes.removeLayer(mk); planeMarkers.clear(); for(const [,mk] of parkedMarkers) L_planes.removeLayer(mk); parkedMarkers.clear(); updatePlanes(); updateRival(); drawWeather(); });
 }
 
 function airportStyle(a){
-  const hub = a.code===S.company.hub;
+  const hub = S.hubs? S.hubs.includes(a.code) : a.code===S.company.hub;
   const closed = airportClosed(a.code);
   const color = closed? '#ff4d4f' : hub? '#ffd60a' : a.drc? '#34d399' : '#7dd3fc';
   const r = hub? 8 : [0,3.2,3.8,4.5,5.2,6][a.cls] + (a.drc?0.6:0);
@@ -111,7 +156,7 @@ function drawAirports(){
       mk.bindTooltip(airportTip(a),{direction:'top',offset:[0,-4]});
       mk.on('click',(e)=>{ L.DomEvent.stopPropagation(e); openAirport(code); });
       mk.addTo(L_airports);
-      if(off===0 && (z>=6 && a.drc || z>=7 || code===S.company.hub)){
+      if(off===0 && (z>=6 && a.drc || z>=7 || (S.hubs||[]).includes(code))){
         L.marker([a.lat,a.lon],{icon:L.divIcon({className:'ap-label'+(a.drc?' drc':''), html:a.city, iconSize:null, iconAnchor:[-7,7]}), interactive:false}).addTo(L_airports);
       }
     }
@@ -130,7 +175,8 @@ function drawRoutes(){
         const A=AP(r.stops[i]), B=AP(r.stops[i+1]);
         const pts=gcPath(A,B,ref).map(([la,lo])=>[la,lo+off]);
         ref=pts[pts.length-1][1]-off;
-        L.polyline(pts,{color, weight:2.6, opacity:0.85, dashArray: r.stops.length>2?'7 6':null}).addTo(L_routes)
+        L.polyline(pts,{color:'#000', weight:5, opacity:0.35, interactive:false}).addTo(L_routes);
+        L.polyline(pts,{color, weight:2.6, opacity:0.95, className:'route-anim'}).addTo(L_routes)
           .bindTooltip(`${r.stops.join(' → ')}`,{sticky:true});
       }
       r.stops.slice(1,-1).forEach(c=>{
@@ -180,19 +226,22 @@ function updatePlanes(){
     let mk=planeMarkers.get(ac.id);
     const pos=[st.lat,st.lon];
     if(!mk){
-      const m=modelOf(ac);
-      const size = m.seats>=300||m.cargo>=70? 30 : m.seats>=120||m.cargo>=20 ? 26 : 21;
-      mk=L.marker(pos,{icon:L.divIcon({className:'plane-icon', html:`<div class="rot">${PLANE_SVG(planeColor(ac),size)}</div>`, iconSize:[size,size], iconAnchor:[size/2,size/2]}), zIndexOffset:1000});
+      const m=modelOf(ac), cat=planeCat(m);
+      const base = cat==='quad'?34 : cat==='wb'?31 : cat==='conc'?28 : cat==='nb'?26 : 22;
+      const size = Math.round(base*zoomScale());
+      mk=L.marker(pos,{icon:L.divIcon({className:'plane-icon', html:`<div class="rot">${PLANE_SVG(planeColor(ac),size,cat)}</div>`, iconSize:[size,size], iconAnchor:[size/2,size/2]}), zIndexOffset:1000});
       mk.bindTooltip('',{direction:'right',offset:[14,0],className:'flight-tip'});
       mk.on('tooltipopen',()=>{ const s2=flightState(ac); if(s2) mk.setTooltipContent(flightTipHtml(ac,s2)); });
       mk.on('click',(e)=>{ L.DomEvent.stopPropagation(e); selectPlane(ac.id); });
       mk.addTo(L_planes); planeMarkers.set(ac.id,mk);
     } else mk.setLatLng(pos);
     const el=mk.getElement();
-    if(el){ const rot=el.querySelector('.rot'); if(rot) rot.style.transform=`rotate(${st.hdg}deg)`; el.classList.toggle('ground', st.phase<=1||st.phase>=8); el.classList.toggle('sel', selectedPlane===ac.id); }
+    if(el){ const rot=el.querySelector('.rot'); if(rot){ rot.style.transform=`rotate(${st.hdg}deg)`; const sh=Math.min(9,1+st.alt/1500)*Math.min(1.6,zoomScale()); rot.style.setProperty('--sh',sh.toFixed(1)+'px'); } el.classList.toggle('ground', st.phase<=1||st.phase>=8); el.classList.toggle('sel', selectedPlane===ac.id); }
+    updateTrail(ac,st);
     if(mk.isTooltipOpen()) mk.setTooltipContent(flightTipHtml(ac,st));
   }
   for(const [id,mk] of planeMarkers){ if(!seen.has(id)){ L_planes.removeLayer(mk); planeMarkers.delete(id); if(selectedPlane===id) selectPlane(null); } }
+  for(const [id,t] of trails){ if(!seen.has(id)){ L_trails.removeLayer(t.line); if(t.ahead) L_trails.removeLayer(t.ahead); trails.delete(id); } }
   if(followPlane && selectedPlane){ const ac=S.fleet.find(a=>a.id===selectedPlane); const st=ac&&flightState(ac); if(st) map.panTo([st.lat,st.lon],{animate:false}); }
   updateParked();
   updateFlightCard();
@@ -229,21 +278,44 @@ function updateFlightCard(){
     `<div class="phases">${PHASES.map((p,i)=>`<span class="${i<st.phase?'done':i===st.phase?'cur':''}">${p}</span>`).join('')}</div>`;
 }
 
+/* ---------- traînées de condensation ---------- */
+const trails=new Map(); let L_trails;
+function updateTrail(ac,st){
+  if(!MAPOPT.trails) return;
+  let t=trails.get(ac.id);
+  const now=performance.now();
+  if(t && now-t.at<900 && t.li===ac.flight.li) return;
+  const A=AP(st.from), B=AP(st.to), leg=st.leg;
+  const frac=leg.dist? Math.min(1,gcDist(A,{lat:st.lat,lon:st.lon})/leg.dist):0;
+  const n=Math.max(2,Math.ceil(frac*leg.dist/80));
+  const pts=[]; let prev=A.lon;
+  for(let i=0;i<=n;i++){ const p=gcInterp(A,B,frac*i/n); const lon=unwrapLon(p.lon,prev); pts.push([p.lat,lon]); prev=lon; }
+  const sel=selectedPlane===ac.id;
+  if(!t){ t={line:L.polyline(pts,{color:'#ffffff',weight:sel?3:2,opacity:0.55,className:'trail',interactive:false}).addTo(L_trails)}; trails.set(ac.id,t); }
+  else t.line.setLatLngs(pts);
+  if(sel){
+    const ahead=[]; let pv=pts[pts.length-1][1];
+    for(let i=0;i<=20;i++){ const p=gcInterp(A,B,frac+(1-frac)*i/20); const lon=unwrapLon(p.lon,pv); ahead.push([p.lat,lon]); pv=lon; }
+    if(!t.ahead) t.ahead=L.polyline(ahead,{color:'#ff2bd6',weight:2.5,opacity:0.9,dashArray:'6 8',interactive:false}).addTo(L_trails); else t.ahead.setLatLngs(ahead);
+  } else if(t.ahead){ L_trails.removeLayer(t.ahead); t.ahead=null; }
+  t.at=now; t.li=ac.flight.li;
+}
+
 /* ---------- avions stationnés ---------- */
 function updateParked(){
   const show = map.getZoom()>=7;
   const want=new Map();
   if(show){
     const byAp={};
-    for(const ac of S.fleet){ if(ac.status==='flight') continue; (byAp[ac.loc]=byAp[ac.loc]||[]).push(ac); }
+    for(const ac of S.fleet){ if(ac.status==='flight'||ac.status==='manual') continue; (byAp[ac.loc]=byAp[ac.loc]||[]).push(ac); }
     for(const [code,list] of Object.entries(byAp)) list.forEach((ac,i)=>want.set(ac.id,{ac,code,i}));
   }
   for(const [id,mk] of parkedMarkers){ const w=want.get(id); if(!w || mk._code!==w.code || mk._i!==w.i || mk._st!==w.ac.status){ L_planes.removeLayer(mk); parkedMarkers.delete(id); } }
   for(const [id,{ac,code,i}] of want){
     if(parkedMarkers.has(id)) continue;
-    const a=AP(code), m=modelOf(ac), z=18, ang=i*0.9+0.6, rad=16+i*4;
+    const a=AP(code), m=modelOf(ac), z=Math.round(14*zoomScale()), ang=i*0.9+0.6, rad=z*0.9+i*z*0.25;
     const dx=Math.cos(ang)*rad, dy=Math.sin(ang)*rad;
-    const mk=L.marker([a.lat,a.lon],{icon:L.divIcon({className:'plane-icon parked'+(ac.status==='maint'?' maint':''),html:`<div class="rot" style="transform:rotate(${(i*47)%360}deg)">${PLANE_SVG(m.color||S.company.color,z)}</div>`,iconSize:[z,z],iconAnchor:[z/2-dx,z/2-dy]}),zIndexOffset:800})
+    const mk=L.marker([a.lat,a.lon],{icon:L.divIcon({className:'plane-icon parked'+(ac.status==='maint'?' maint':''),html:`<div class="rot" style="transform:rotate(${(i*47)%360}deg);--sh:1px">${PLANE_SVG(m.color||S.company.color,z,planeCat(m))}</div>`,iconSize:[z,z],iconAnchor:[z/2-dx,z/2-dy]}),zIndexOffset:800})
       .bindTooltip(`<b>${ac.reg}</b> ${m.name}<br>${ac.status==='maint'?'🔧 En maintenance':'Au sol'} à ${a.city}`,{direction:'top'})
       .on('click',e=>{ L.DomEvent.stopPropagation(e); setTab('fleet'); });
     mk._code=code; mk._i=i; mk._st=ac.status;
@@ -269,7 +341,7 @@ function updateRival(){
       if(f<=0||f>=1) continue;
       const p=gcInterp(from,to,f), q=gcInterp(from,to,Math.min(1,f+0.01));
       const lon=unwrapLon(p.lon,from.lon);
-      const mk=L.marker([p.lat,lon],{icon:L.divIcon({className:'plane-icon rival', html:`<div class="rot" style="transform:rotate(${bearing(p,q)}deg)">${PLANE_SVG('#e5484d',18)}</div>`, iconSize:[18,18], iconAnchor:[9,9]}), zIndexOffset:500})
+      const mk=L.marker([p.lat,lon],{icon:L.divIcon({className:'plane-icon rival', html:`<div class="rot" style="transform:rotate(${bearing(p,q)}deg);--sh:5px">${PLANE_SVG('#e5484d',Math.round(19*zoomScale()),d<1200?'prop':'nb')}</div>`, iconSize:[Math.round(19*zoomScale()),Math.round(19*zoomScale())], iconAnchor:[Math.round(9.5*zoomScale()),Math.round(9.5*zoomScale())]}), zIndexOffset:500})
         .bindTooltip(`<b>${S.rival.name}</b><br>${from.city} → ${to.city}`,{direction:'right'});
       mk.addTo(L_rival);
     }
@@ -281,3 +353,22 @@ function zoomPlane(){ const ac=S.fleet.find(a=>a.id===selectedPlane), st=ac&&fli
 function zoomRoute(){ const ac=S.fleet.find(a=>a.id===selectedPlane); if(!ac?.flight) return; const pts=ac.flight.legs.flatMap(l=>[[AP(l.from).lat,AP(l.from).lon],[AP(l.to).lat,unwrapLon(AP(l.to).lon,AP(l.from).lon)]]); map.flyToBounds(pts,{padding:[60,60],duration:1}); }
 function focusDRC(){ map.flyToBounds([[-13.5,12],[5.5,31.5]],{duration:1.2}); }
 function focusWorld(){ map.flyTo([15,20],2,{duration:1.2}); }
+
+/* ---------- météo ---------- */
+let _wxKey='';
+function drawWeather(force){
+  if(!map||!L_weather) return;
+  const key=(S.wxHour||0)+'|'+map.getZoom()+'|'+MAPOPT.weather;
+  if(!force && key===_wxKey) return; _wxKey=key;
+  L_weather.clearLayers();
+  if(!MAPOPT.weather) return;
+  for(const c of S.weather||[]){
+    for(const off of [-360,0,360]){
+      const ll=[c.lat,c.lon+off];
+      L.circle(ll,{radius:c.r*1000,stroke:false,fillColor:'#e2e8f0',fillOpacity:0.18*c.power,className:'storm',interactive:false}).addTo(L_weather);
+      L.circle(ll,{radius:c.r*600,stroke:false,fillColor:'#94a3b8',fillOpacity:0.22*c.power,interactive:false}).addTo(L_weather);
+      L.circle(ll,{radius:c.r*300,stroke:false,fillColor:'#334155',fillOpacity:0.25*c.power,className:'storm-core'}).addTo(L_weather)
+        .bindTooltip(`⛈️ Cellule orageuse · ${Math.round(c.r)} km<br><span class="mut">Attentes et retards à l’arrivée</span>`);
+    }
+  }
+}
