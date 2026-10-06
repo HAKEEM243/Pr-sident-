@@ -4,7 +4,7 @@
 let map, L_airports, L_routes, L_planes, L_rival, L_night, L_drc;
 const planeMarkers = new Map(); // id avion -> marker
 const rivalMarkers = [];
-const MAPOPT = { routes:true, airports:true, night:true, rival:true, trails:true, weather:true };
+const MAPOPT = Object.assign({ routes:true, airports:true, night:false, rival:true, trails:true, weather:false }, (()=>{ try{ return JSON.parse(localStorage.getItem('cst-mapopt')||'{}'); }catch(e){ return {}; } })());
 let L_weather;
 let selectedPlane = null, followPlane = false;
 const parkedMarkers = new Map();
@@ -16,7 +16,7 @@ const esri=(path,opt={})=>L.tileLayer(ESRI+path+'/MapServer/tile/{z}/{y}/{x}',{m
 const MAP_STYLES = {
   hybrid:{label:'🛰️ Satellite + routes & noms', desc:'Style Google Earth : imagerie satellite haute résolution, routes, villes et frontières.', make:()=>[
     esri('World_Imagery',{attribution:'Imagerie © Esri, Maxar, Earthstar Geographics'}),
-    esri('Reference/World_Transportation',{opacity:0.9}),
+    esri('Reference/World_Transportation',{opacity:0.75,minZoom:8}),
     esri('Reference/World_Boundaries_and_Places')]},
   satellite:{label:'🛰️ Satellite pur', desc:'Imagerie seule, sans étiquettes.', make:()=>[esri('World_Imagery',{attribution:'Imagerie © Esri, Maxar, Earthstar Geographics'})]},
   plan:{label:'🗺️ Plan (OpenStreetMap)', desc:'Carte routière détaillée.', make:()=>[L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© les contributeurs d’OpenStreetMap'})]},
@@ -67,36 +67,27 @@ function planeCat(m){
   if(m.custom) return m.seats>=400?'quad':m.seats>=250?'wb':m.seats<=80?'prop':'nb';
   return 'nb';
 }
+// Silhouettes vues de dessus (nez vers le haut), dessinées comme sur les radars de vols en ligne
+const ENG='#2b3442';
 const SHAPES = {
-  prop:(c)=>`<rect x="29.5" y="6" width="5" height="50" rx="2.5" class="fu"/>
-    <rect x="3" y="20" width="58" height="6" rx="2" class="wi"/>
-    <rect x="16" y="15" width="4" height="12" rx="1.5" fill="${c}"/><rect x="44" y="15" width="4" height="12" rx="1.5" fill="${c}"/>
-    <ellipse cx="18" cy="15" rx="6" ry="1" class="pr"/><ellipse cx="46" cy="15" rx="6" ry="1" class="pr"/>
-    <rect x="21" y="53" width="22" height="4" rx="1.5" class="wi"/><rect x="31" y="47" width="2" height="12" fill="${c}"/>`,
-  rj:(c)=>`<rect x="29.5" y="5" width="5" height="52" rx="2.5" class="fu"/>
-    <path d="M32 24 L56 36 L56 38.5 L32 32 L8 38.5 L8 36Z" class="wi"/>
-    <rect x="25" y="41" width="4" height="10" rx="1.8" fill="${c}"/><rect x="35" y="41" width="4" height="10" rx="1.8" fill="${c}"/>
-    <path d="M32 53 L43 58 L43 60 L32 57.5 L21 60 L21 58Z" class="wi"/><rect x="31" y="47" width="2" height="13" fill="${c}"/>`,
-  nb:(c)=>`<rect x="29.2" y="3" width="5.6" height="56" rx="2.8" class="fu"/>
-    <path d="M32 22 L61 37 L61 40 L32 32.5 L3 40 L3 37Z" class="wi"/>
-    <rect x="15" y="27" width="4.5" height="9" rx="2" fill="${c}"/><rect x="44.5" y="27" width="4.5" height="9" rx="2" fill="${c}"/>
-    <path d="M32 50 L44 57 L44 59.5 L32 56.5 L20 59.5 L20 57Z" class="wi"/><rect x="31" y="47" width="2" height="14" fill="${c}"/>`,
-  wb:(c)=>`<rect x="28.3" y="2" width="7.4" height="58" rx="3.7" class="fu"/>
-    <path d="M32 20 L63 38 L63 41.5 L32 31.5 L1 41.5 L1 38Z" class="wi"/>
-    <rect x="13" y="26" width="6" height="11" rx="2.6" fill="${c}"/><rect x="45" y="26" width="6" height="11" rx="2.6" fill="${c}"/>
-    <path d="M32 49 L46 57 L46 60 L32 56 L18 60 L18 57Z" class="wi"/><rect x="30.8" y="46" width="2.4" height="15" fill="${c}"/>`,
-  quad:(c)=>`<rect x="28" y="2" width="8" height="58" rx="4" class="fu"/><rect x="29.3" y="4" width="5.4" height="12" rx="2.7" class="fu2"/>
-    <path d="M32 19 L63 39 L63 42.5 L32 31 L1 42.5 L1 39Z" class="wi"/>
-    <rect x="9" y="31" width="5" height="10" rx="2.3" fill="${c}"/><rect x="18" y="26" width="5.5" height="11" rx="2.5" fill="${c}"/>
-    <rect x="40.5" y="26" width="5.5" height="11" rx="2.5" fill="${c}"/><rect x="50" y="31" width="5" height="10" rx="2.3" fill="${c}"/>
-    <path d="M32 49 L47 57 L47 60 L32 56 L17 60 L17 57Z" class="wi"/><rect x="30.8" y="46" width="2.4" height="15" fill="${c}"/>`,
-  conc:(c)=>`<path d="M32 1 L34 8 L34 58 L30 58 L30 8Z" class="fu"/>
-    <path d="M32 20 C36 30 50 44 57 56 L57 58 L7 58 L7 56 C14 44 28 30 32 20Z" class="wi"/>
-    <rect x="21" y="47" width="3.5" height="10" fill="${c}"/><rect x="25.5" y="47" width="3.5" height="10" fill="${c}"/>
-    <rect x="35" y="47" width="3.5" height="10" fill="${c}"/><rect x="39.5" y="47" width="3.5" height="10" fill="${c}"/>
-    <rect x="31" y="44" width="2" height="14" fill="${c}"/>`,
+  nb:()=>`<path class="b" d="M32 2C34.2 2 35.2 4.5 35.2 8L35.2 22 60 34.5C61 35 61.5 35.8 61.5 36.8L61.5 38.5 35.2 32.5 35 47 43.5 53.5C44 54 44.2 54.5 44.2 55.2L44.2 56.6 33.4 54 32.8 59.5C32.6 60.6 31.4 60.6 31.2 59.5L30.6 54 19.8 56.6 19.8 55.2C19.8 54.5 20 54 20.5 53.5L29 47 28.8 32.5 2.5 38.5 2.5 36.8C2.5 35.8 3 35 4 34.5L28.8 22 28.8 8C28.8 4.5 29.8 2 32 2Z"/>
+    <ellipse cx="17" cy="28.5" rx="2.4" ry="4.4" fill="${ENG}"/><ellipse cx="47" cy="28.5" rx="2.4" ry="4.4" fill="${ENG}"/>`,
+  wb:()=>`<path class="b" d="M32 1C34.6 1 36 3.5 36 8L36 21 61.5 36C62.5 36.6 63 37.4 63 38.4L63 40.2 36 33.5 35.8 47.5 46 54.5C46.6 55 46.8 55.5 46.8 56.2L46.8 57.8 33.6 55 32.9 61C32.7 62.3 31.3 62.3 31.1 61L30.4 55 17.2 57.8 17.2 56.2C17.2 55.5 17.4 55 18 54.5L28.2 47.5 28 33.5 1 40.2 1 38.4C1 37.4 1.5 36.6 2.5 36L28 21 28 8C28 3.5 29.4 1 32 1Z"/>
+    <ellipse cx="15" cy="28.5" rx="3.1" ry="5.2" fill="${ENG}"/><ellipse cx="49" cy="28.5" rx="3.1" ry="5.2" fill="${ENG}"/>`,
+  quad:()=>`<path class="b" d="M32 1C34.6 1 36 3.5 36 8L36 21 61.5 36C62.5 36.6 63 37.4 63 38.4L63 40.2 36 33.5 35.8 47.5 46 54.5C46.6 55 46.8 55.5 46.8 56.2L46.8 57.8 33.6 55 32.9 61C32.7 62.3 31.3 62.3 31.1 61L30.4 55 17.2 57.8 17.2 56.2C17.2 55.5 17.4 55 18 54.5L28.2 47.5 28 33.5 1 40.2 1 38.4C1 37.4 1.5 36.6 2.5 36L28 21 28 8C28 3.5 29.4 1 32 1Z"/>
+    <ellipse cx="20" cy="26" rx="2.5" ry="4.4" fill="${ENG}"/><ellipse cx="44" cy="26" rx="2.5" ry="4.4" fill="${ENG}"/><ellipse cx="10.5" cy="31.5" rx="2.3" ry="4" fill="${ENG}"/><ellipse cx="53.5" cy="31.5" rx="2.3" ry="4" fill="${ENG}"/>
+    <ellipse cx="32" cy="9" rx="2.6" ry="6" fill="#fff" opacity=".25"/>`,
+  rj:()=>`<path class="b" d="M32 3C33.8 3 34.5 5.5 34.5 9L34.5 25 55 35.5C55.7 35.9 56 36.5 56 37.2L56 38.6 34.5 33.5 34.3 50 33.4 59C33.2 60.3 30.8 60.3 30.6 59L29.7 50 29.5 33.5 8 38.6 8 37.2C8 36.5 8.3 35.9 9 35.5L29.5 25 29.5 9C29.5 5.5 30.2 3 32 3Z"/>
+    <path class="b" d="M32 53.5 42.5 57.3 42.5 59 32 57.3 21.5 59 21.5 57.3Z"/>
+    <ellipse cx="26.6" cy="44.5" rx="2.3" ry="4.6" fill="${ENG}"/><ellipse cx="37.4" cy="44.5" rx="2.3" ry="4.6" fill="${ENG}"/>`,
+  prop:()=>`<path class="b" d="M32 4C34.2 4 34.7 7 34.7 11L34.7 19.5 58.5 20.5C59.5 20.6 60 21.2 60 22L60 24.5C60 25.2 59.4 25.6 58.6 25.6L34.7 26.5 34.4 50 33.3 60C33.1 61.2 30.9 61.2 30.7 60L29.6 50 29.3 26.5 5.4 25.6C4.6 25.6 4 25.2 4 24.5L4 22C4 21.2 4.5 20.6 5.5 20.5L29.3 19.5 29.3 11C29.3 7 29.8 4 32 4Z"/>
+    <path class="b" d="M32 54 44 56.5 44 58.6 32 58 20 58.6 20 56.5Z"/>
+    <rect x="17" y="15" width="4" height="13" rx="2" fill="${ENG}"/><rect x="43" y="15" width="4" height="13" rx="2" fill="${ENG}"/>
+    <ellipse cx="19" cy="14.6" rx="7.5" ry="1.2" fill="#fff" opacity=".6"/><ellipse cx="45" cy="14.6" rx="7.5" ry="1.2" fill="#fff" opacity=".6"/>`,
+  conc:()=>`<path class="b" d="M32 .5 33.2 6 33.6 22C38 30 50 44 55.5 52L56 56 36 56 34.5 60.5 29.5 60.5 28 56 8 56 8.5 52C14 44 26 30 30.4 22L30.8 6Z"/>
+    <rect x="20.5" y="47" width="3" height="9" fill="${ENG}"/><rect x="24.5" y="47" width="3" height="9" fill="${ENG}"/><rect x="36.5" y="47" width="3" height="9" fill="${ENG}"/><rect x="40.5" y="47" width="3" height="9" fill="${ENG}"/>`,
 };
-const PLANE_SVG = (color, size=26, cat='nb')=>`<svg class="ac-svg" viewBox="0 0 64 64" width="${size}" height="${size}">${SHAPES[cat](color)}</svg>`;
+const PLANE_SVG = (color, size=26, cat='nb')=>`<svg class="ac-svg" viewBox="0 0 64 64" width="${size}" height="${size}" style="--c:${color}">${SHAPES[cat]()}<rect x="31.1" y="7" width="1.8" height="38" rx=".9" fill="#fff" opacity=".35"/><path d="M30.2 6.6Q32 5 33.8 6.6L33.4 8.2Q32 7.3 30.6 8.2Z" fill="#0b1220" opacity=".55"/></svg>`;
 function zoomScale(){ const z=map?map.getZoom():5; return z<=3?0.75:z<=5?1:z<=7?1.3:z<=9?1.7:z<=11?2.2:z<=13?2.8:3.4; }
 
 function initMap(){
@@ -120,8 +111,9 @@ function initMap(){
   // Frontière de la RDC, mise en valeur
   for(const off of [-360,0,360]){
     const ring = DRC_BORDER.map(([la,lo])=>[la,lo+off]);
-    L.polygon(ring,{pane:'drc', color:'#f5c518', weight:2.5, opacity:0.95, fillColor:'#0a84ff', fillOpacity:0.06, dashArray:null}).addTo(L_drc);
+    L.polygon(ring,{pane:'drc', color:'#ffd54a', weight:1.6, opacity:0.8, fill:false, dashArray:'6 4'}).addTo(L_drc);
   }
+  document.querySelectorAll('#mapctl [data-k]').forEach(b=>b.classList.toggle('on',!!MAPOPT[b.dataset.k]));
   drawAirports();
   drawRoutes();
   drawNight();
@@ -144,21 +136,26 @@ function airportTip(a){
     `<br>Piste ${a.runway} m · ${a.surface} · classe ${a.cls}`+
     (airportClosed(a.code)?'<br><b style="color:#ff6b6b">FERMÉ</b>':'');
 }
+function servedSet(){ const set=new Set(S.hubs||[]); for(const r of S.routes) r.stops.forEach(c=>set.add(c)); return set; }
 function drawAirports(){
   if(!map) return;
   L_airports.clearLayers();
   if(!MAPOPT.airports) return;
-  const z=map.getZoom();
+  const z=map.getZoom(), served=servedSet();
   for(const code of AIRPORT_CODES){
-    const a=AP(code);
+    const a=AP(code), hub=(S.hubs||[]).includes(code), mine=served.has(code), closed=airportClosed(code);
+    // désencombrement : à petite échelle, seulement les grands aéroports et votre réseau
+    const show = mine || hub || a.cls>=5 || (z>=3 && a.cls>=4) || (z>=4 && a.drc && a.cls>=2) || z>=5;
+    if(!show) continue;
+    const size = hub? 24 : a.cls>=4||mine? 16 : 11;
+    const cls = 'ap-pin'+(hub?' hub':'')+(mine&&!hub?' mine':'')+(a.drc?' drc':'')+(closed?' closed':'')+(a.cls>=4&&!hub?' big':'');
+    const html = hub? '<span>★</span>' : a.cls>=4||mine? '<span>✈</span>' : '';
+    const label = (hub||mine||z>=6||(z>=5&&a.cls>=4)) ? `<b class="ap-name">${a.city}</b>` : '';
     for(const off of [-360,0,360]){
-      const mk=L.circleMarker([a.lat,a.lon+off], airportStyle(a));
-      mk.bindTooltip(airportTip(a),{direction:'top',offset:[0,-4]});
+      const mk=L.marker([a.lat,a.lon+off],{icon:L.divIcon({className:cls, html:html+(off===0?label:''), iconSize:[size,size], iconAnchor:[size/2,size/2]}), zIndexOffset:hub?600:mine?400:0, riseOnHover:true});
+      mk.bindTooltip(airportTip(a),{direction:'top',offset:[0,-size/2]});
       mk.on('click',(e)=>{ L.DomEvent.stopPropagation(e); openAirport(code); });
       mk.addTo(L_airports);
-      if(off===0 && (z>=6 && a.drc || z>=7 || (S.hubs||[]).includes(code))){
-        L.marker([a.lat,a.lon],{icon:L.divIcon({className:'ap-label'+(a.drc?' drc':''), html:a.city, iconSize:null, iconAnchor:[-7,7]}), interactive:false}).addTo(L_airports);
-      }
     }
   }
 }
@@ -271,11 +268,13 @@ function updateFlightCard(){
   const legs=ac.flight.legs, pax=legs[ac.flight.li].pax;
   const paxTxt = pax? `${pax.f+pax.j+pax.w+pax.y} passagers (F${pax.f} · J${pax.j} · W${pax.w} · Y${pax.y})` : legs[ac.flight.li].cargo? `${legs[ac.flight.li].cargo} t de fret` : '';
   box.hidden=false;
-  box.innerHTML=`<button class="x" data-act="closeCard">×</button>`+flightTipHtml(ac,st)+
+  const m0=modelOf(ac);
+  box.innerHTML=`<button class="x" data-act="closeCard">×</button>`+(typeof photoHtml==='function'?photoHtml(m0,'banner'):'')+flightTipHtml(ac,st)+
     `<div class="btns sm"><button class="btn sm ${followPlane?'gold':''}" data-act="followCam">🎥 ${followPlane?'Caméra attachée':'Suivre l’avion'}</button><button class="btn sm" data-act="zoomPlane">🔍 Zoom</button><button class="btn sm" data-act="zoomRoute">🧭 Trajet</button></div>`+
     `<div class="mut" style="margin-top:4px">Tronçon ${ac.flight.li+1}/${legs.length} : ${AP(st.from).city} → ${AP(st.to).city} · ${Math.round(st.leg.dist)} km</div>`+
     (paxTxt?`<div>${paxTxt}</div>`:'')+
     `<div class="phases">${PHASES.map((p,i)=>`<span class="${i<st.phase?'done':i===st.phase?'cur':''}">${p}</span>`).join('')}</div>`;
+  if(typeof hydratePhotos==='function') hydratePhotos();
 }
 
 /* ---------- traînées de condensation ---------- */
