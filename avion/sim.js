@@ -92,6 +92,7 @@ function newGame(opts){
     rivals:[], admin:false, seq:1,
   };
   const pack=START_PACKS[opts.pack||'regional'];
+  S.packId=opts.pack||'regional';
   S.cash=pack.capital*(opts.diff||1);
   for(const id of pack.fleet) addAircraft(id,{owned:true});
   for(const [fam,n] of pack.pilots) for(let i=0;i<n;i++) S.pilots.push(makePilot([fam], true));
@@ -210,6 +211,7 @@ function demandMult(a,b){
   const cont=COUNTRIES[homeCC()][1], regional=continentOf(a)===cont&&continentOf(b)===cont;
   if(S.alliance){ const al=ALLIANCES.find(x=>x.id===S.alliance); if(al && (((al.scope==='africa'||al.scope==='region')&&regional&&intl)||(al.scope==='intl'&&intl))) k*=1+al.boost; }
   if(A.cc===B.cc && !A.drc) k*=1.2; // vols intérieurs
+  if(S.codeshares && S.codeshares.length) for(const R of S.rivals||[]) if(S.codeshares.includes(R.code) && (a===R.hub||b===R.hub)) k*=1.15; // correspondances partenaires
   return k;
 }
 // Demande quotidienne totale (tous transporteurs) dans un sens
@@ -229,9 +231,9 @@ function baseFare(a,b){
   return f;
 }
 function ancillaryPenalty(){ const a=S.ancillary; return 1-(a.seat?0.02:0)-(a.bags?0.03:0)-(a.wifi?0.005:0)-(a.meals?(S.service>=4?0.04:0.01):0); }
-function playerQuality(){ return (0.55+S.reputation/100)*SERVICE_ATTR[S.service-1]*ancillaryPenalty(); }
+function playerQuality(){ return (0.55+S.reputation/100)*SERVICE_ATTR[S.service-1]*ancillaryPenalty()*(S.loyalty?1.06:1); }
 function rivalFreq(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.freq,0); }
-function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.sqrt(x.freq),0); }
+function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.sqrt(x.freq)*(typeof isPartner==='function'&&isPartner(x.R)?0.3:1),0); }
 function routeCycleHours(route, ac){
   const m=modelOf(ac); let h=0;
   for(let i=0;i<route.stops.length-1;i++) h+=legProfile(dist(route.stops[i],route.stops[i+1]),m).total/HOUR;
@@ -269,7 +271,8 @@ function legMarket(route, a, b, freqOverride){
   let daily=0;
   for(const k of ['y','j','f','c']){
     const r=(route.pm&&route.pm[k])??route.price??1;
-    const D = k==='c'? cargoDemand(a,b) : base*split[k];
+    const lounge=(k==='j'||k==='f')&&(AP(a).lounge||AP(b).lounge)?1.25:1;
+    const D = k==='c'? cargoDemand(a,b) : base*split[k]*lounge;
     const attrP=q*Math.sqrt(fp)*priceFactor(r)*(k==='j'||k==='f'?SERVICE_ATTR[S.service-1]:1);
     const share=attrP/(attrP+attrC);
     let cap=D*(r<1?1+(1-r)*0.4:1)*share;
@@ -503,7 +506,8 @@ function completeLeg(ac){
   if(fl.kind==='route'){ if(delay>15){ S.stats.late=(S.stats.late||0)+1; } else S.stats.onTime=(S.stats.onTime||0)+1; }
   if(delay>15 && route) route.stats.late=(route.stats.late||0)+1;
   // incidents
-  const pInc = 0.0015 + (100-ac.condition)/100*0.02 + (overdue?0.03:0);
+  let pInc = 0.0015 + (100-ac.condition)/100*0.02 + (overdue?0.03:0);
+  if(S.recallRisk && S.recallRisk.fam===m.fam && S.time<S.recallRisk.until) pInc*=4;
   if(Math.random()<pInc) incident(ac, arr);
   // tronçon suivant
   fl.li++;
@@ -537,9 +541,9 @@ function maintDue(ac){ const d=[]; for(const k of ['D','C','A']) if(ac['since'+k
 function maintOverdue(ac){ return ['A','C','D'].some(k=>ac['since'+k]>MAINT[k].every); }
 function startMaint(ac, type, t=S.time){
   if(ac.status!=='idle') return 'L’avion doit être au sol et disponible';
-  const m=modelOf(ac), cost=MAINT[type].cost(m);
+  const m=modelOf(ac), base=AP(ac.loc)&&AP(ac.loc).mbase, cost=MAINT[type].cost(m)*(base?0.65:1);
   book('maintenance',-cost);
-  ac.status='maint'; ac.maintType=type; ac.maintUntil=Math.max(t,ac.readyAt||0)+MAINT[type].days*DAY;
+  ac.status='maint'; ac.maintType=type; ac.maintUntil=Math.max(t,ac.readyAt||0)+MAINT[type].days*(base?0.6:1)*DAY;
   return null;
 }
 function finishMaint(ac){
@@ -556,7 +560,7 @@ function acAgeYears(ac){ return ac.ageYears + (S.time-ac.bought)/(365*DAY); }
 function acValue(ac){ const m=modelOf(ac); return m.price*1e6*Math.pow(0.94,acAgeYears(ac))*(0.5+ac.condition/200)*(ac.used?0.6:1); }
 function fleetValue(){ return S.fleet.filter(a=>a.owned).reduce((s,a)=>s+acValue(a),0); }
 function debt(){ return S.loans.reduce((s,l)=>s+l.remaining,0); }
-function netWorth(){ return S.cash+fleetValue()-debt(); }
+function netWorth(){ return S.cash+fleetValue()-debt()+(typeof holdingsValue==='function'?holdingsValue():0); }
 
 /* ---------- boucle de simulation ---------- */
 function advance(dtGame){
@@ -670,6 +674,7 @@ function dailyTick(){
   // mois
   const mk=monthKey(t);
   if(mk!==S.lastMonth){ S.lastMonth=mk; monthlyTick(); }
+  if(typeof businessDaily==='function') businessDaily();
   checkMissions();
   pushHistory();
   S.led.day={};
@@ -678,6 +683,7 @@ function dailyTick(){
   if(!S.autoMaint){ const due=S.fleet.filter(a=>maintOverdue(a)); if(due.length) notify('Maintenance en retard', `${due.length} avion(s) dépassent leur échéance d’entretien.`); }
 }
 function monthlyTick(){
+  if(typeof businessMonthly==='function') businessMonthly();
   for(const l of S.loans){
     const interest=l.remaining*l.rate/12;
     const princ=Math.min(l.remaining, l.monthly-interest);
@@ -805,7 +811,7 @@ function rivalStep(R){
   if(R.cash>50e6 && Math.random()<(R.local?0.12:0.06)){
     let a,b;
     const player=S.routes.filter(r=>r.stops.length>=2 && (R.local || r.stops.some(c=>dist(c,R.hub)<3000)));
-    if(player.length && Math.random()<(R.local?0.55:0.3)){ const r=pick(player); a=r.stops[0]; b=r.stops[1]; }
+    if(player.length && !(typeof isPartner==='function'&&isPartner(R)) && Math.random()<(R.local?0.55:0.3)){ const r=pick(player); a=r.stops[0]; b=r.stops[1]; }
     else { a=R.hub; const opts=AIRPORT_CODES.filter(c=>c!==R.hub && AP(c).cls>=3 && dist(R.hub,c)<(R.local?4000:9000) && AP(c).traffic>=1); if(!opts.length) return; b=pick(opts); }
     const ex=R.routes.find(x=>(x.a===a&&x.b===b)||(x.a===b&&x.b===a));
     if(ex) ex.freq=Math.min(6,ex.freq+1); else R.routes.push({a,b,freq:1});
@@ -866,6 +872,8 @@ const UPGRADES = {
   extend:{name:'Allonger la piste', icon:'📏', days:90, cost:a=>12e6*a.cls, can:a=>a.surface==='Asphalte'&&a.cls<4, desc:'+1 classe : accueille des avions plus gros (A320/737 en classe 3, gros-porteurs en 4).', apply:a=>{ a.cls=Math.min(4,a.cls+1); a.runway+=700; }},
   fuel:{name:'Dépôt de carburant Jet A1', icon:'⛽', days:30, cost:a=>5e6, can:a=>!a.fuelDepot&&!['FIH','FBM','GOM','FKI'].includes(a.code), desc:'Supprime la surtaxe de 35 % sur le kérosène acheminé à l’intérieur.', apply:a=>{ a.fuelDepot=true; }},
   terminal:{name:'Terminal passagers moderne', icon:'🏢', days:75, cost:a=>Math.round(6e6+a.traffic*25e6), can:a=>!a.terminal, desc:'Demande +30 % sur toutes les lignes de cet aéroport.', apply:a=>{ a.terminal=true; }},
+  lounge:{name:'Salon VIP (hub)', icon:'🥂', days:40, cost:a=>Math.round(3e6+a.traffic*0.4e6), can:a=>S.hubs.includes(a.code)&&!a.lounge, desc:'Demande Affaires & Première +25 % sur les lignes de ce hub.', apply:a=>{ a.lounge=true; }},
+  mbase:{name:'Base de maintenance (hub)', icon:'🛠️', days:90, cost:a=>25e6, can:a=>S.hubs.includes(a.code)&&!a.mbase, desc:'Checks A/C/D 35 % moins chers et 40 % plus rapides pour les avions entretenus ici.', apply:a=>{ a.mbase=true; }},
   ils:{name:'Balisage lumineux & ILS', icon:'💡', days:45, cost:a=>4e6, can:a=>!a.ils&&a.surface==='Asphalte', desc:'Divise par 2,5 les retards dus aux orages, limite les incidents.', apply:a=>{ a.ils=true; }},
 };
 function applyUpgrades(){
@@ -983,6 +991,7 @@ function weeklyTick(){
   const snap=S.weekSnap||{pax:0,flights:0};
   S.lastWeekReport={rev, cost, profit:rev-cost, pax:S.stats.pax-snap.pax, flights:S.stats.flights-snap.flights, t:S.time};
   S.weekSnap={pax:S.stats.pax, flights:S.stats.flights};
+  if(typeof businessWeekly==='function') businessWeekly(S.lastWeekReport);
   S.led.prevWeek=w; S.led.week={};
   logMsg(`📅 Bilan de la semaine : bénéfice ${fmtMoney(rev-cost)} · ${num0(S.lastWeekReport.pax)} passagers · ${S.lastWeekReport.flights} vols.`, rev>=cost?'ok':'warn');
 }
@@ -1017,6 +1026,9 @@ const MISSIONS = [
   {id:'top3', name:'Top 3 mondial', desc:'Entrer dans le top 3 du classement des compagnies', cash:50e6, rep:6, done:()=>typeof competitors==='function' && competitors().findIndex(x=>x.me)<3},
   {id:'beat', name:'Détrôner le rival local', desc:'Dépasser StarWing en nombre d’avions (après 200 vols)', cash:25e6, rep:5, done:()=>R0() && S.fleet.length>R0().fleet && S.stats.flights>200},
   {id:'continents', name:'Tour du monde', desc:'Desservir les 6 continents', cash:60e6, rep:8, done:()=>new Set([...servedAirports()].map(continentOf)).size>=6},
+  {id:'ipo', name:'Introduction en bourse', desc:'Faire coter votre compagnie', cash:0, rep:5, done:()=>S.stock&&S.stock.ipo},
+  {id:'codeshare', name:'Premier partage de codes', desc:'Signer un accord avec une grande compagnie', cash:2e6, rep:3, done:()=>S.codeshares&&S.codeshares.length>0},
+  {id:'takeover', name:'Prédateur', desc:'Racheter une compagnie concurrente', cash:0, rep:8, done:()=>(S.takeovers||0)>0},
   {id:'billion', name:'Milliardaire de l’aviation', desc:'Valeur nette de 1 milliard $', cash:0, rep:10, done:()=>netWorth()>=1e9},
 ];
 const missionAvail = m=>!m.cc || m.cc===homeCC();
@@ -1029,8 +1041,8 @@ function checkMissions(){
     S.missions.push(m.id);
     if(m.cash) book('admin',m.cash);
     S.reputation=clamp(S.reputation+m.rep,0,100);
-    logMsg(`🏆 Objectif atteint : ${m.name} — prime ${fmtMoney(m.cash)}${m.rep?`, réputation +${m.rep}`:''}`,'ok');
-    if(typeof toast==='function' && !(typeof UI!=='undefined'&&UI.silent)) toast(`🏆 <b>${m.name}</b> — ${fmtMoney(m.cash)}`,'ok');
+    logMsg(`🏆 Objectif atteint : ${m.name}${m.cash?` — prime ${fmtMoney(m.cash)}`:''}${m.rep?`, image +${m.rep}`:''}`,'ok');
+    if(typeof toast==='function' && !(typeof UI!=='undefined'&&UI.silent)) toast(`🏆 <b>${m.name}</b>${m.cash?' — '+fmtMoney(m.cash):''}${m.rep?' · image +'+m.rep:''}`,'ok');
     notify('Objectif atteint', m.name);
   }
 }
@@ -1067,6 +1079,7 @@ function catchUp(){
 
 function save(){ if(!S) return; S.lastReal=Date.now(); try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
 function migrate(){
+  if(typeof ensureBiz==='function') ensureBiz();
   if(S.rival && !S.rivals){ Object.assign(S.rival,{local:true,color:'#e5484d'}); S.rivals=[S.rival]; for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false)); delete S.rival; }
   if(!S.rivals||!S.rivals.length) initRivals();
   if(!S.v || S.v<2){
