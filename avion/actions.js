@@ -41,6 +41,8 @@ const ACTIONS = {
   focusCountry:d=>{ if(UI.mobile) setTab('map'); focusCountry(d.cc); },
   country:d=>{ UI.country=d.cc; renderPanel(); },
   focusWorld:()=>focusWorld(),
+  focusHub:()=>{ if(UI.mobile) setTab('map'); focusAirport(S.company.hub); },
+  apZoom:d=>{ closeModal(); if(UI.mobile) setTab('map'); focusAirport(d.c); },
   openAp:d=>openAirport(d.c),
 
   // réseau
@@ -257,7 +259,7 @@ Object.assign(ACTIONS,{
   ngDiff:d=>{ UI.ng.diff=+d.v; refreshNg(); },
   ngGo:()=>{ const ng=UI.ng;
     newGame({name:ng.name||'Sky Empire', code:ng.code||'SE', hub:ng.hub, pack:ng.pack, diff:ng.diff, color:ng.color, logo:ng.logo});
-    UI.modal=null; closeModal(); boot(); focusCountry(homeCC()); },
+    UI.modal=null; closeModal(); boot(); focusAirport(S.company.hub); },
 });
 Object.assign(INPUTS,{
   ngq:el=>{ UI.ng.q=el.value; refreshNg('ngq'); },
@@ -288,6 +290,7 @@ let booted=false;
 function boot(){
   if(booted) return; booted=true;
   initMap();
+  if(localStorage.getItem('se-news')!=='v3'){ try{ localStorage.setItem('se-news','v3'); }catch(e){} setTimeout(()=>toast('Nouveau : vraies pistes de 3 200 aéroports, avions à taille réelle, vents en altitude. Bouton « 🛬 Mon aéroport » pour zoomer.','ok'),1500); }
   renderTop(); setTab(window.innerWidth<820?'map':'dash');
   updatePlanes(); updateRival();
   let last=performance.now(), acc1=0, acc2=0, acc30=0, acc10=0;

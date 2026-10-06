@@ -708,6 +708,10 @@ function airportHtml(code){
     <div class="grid2 small card"><div>Piste : <b>${a.runway} m</b> (${a.surface})</div><div>Classe : <b>${a.cls}</b>/5</div>
     <div>Trafic : <b>${a.traffic>=1?a.traffic+' M':Math.round(a.traffic*1000)+' k'}</b> pax/an</div><div>Kérosène : $${fuelPrice(code).toFixed(2)}/L</div>
     ${a.fuelDepot||a.terminal||a.ils?`<div>Équipements : ${a.fuelDepot?'⛽ dépôt ':''}${a.terminal?'🏢 terminal ':''}${a.ils?'💡 ILS':''}</div>`:''}</div>
+    ${(()=>{ const rws=runwaysOf(code), seen=new Set(), rows=[]; for(const r of rws){ const k=[r.thr.lat.toFixed(4),r.end.lat.toFixed(4)].sort().join(); if(seen.has(k)) continue; seen.add(k); const o=rws.find(x=>x!==r&&x.thr===r.end); rows.push(`<tr><td><b>${r.id}${o?'/'+o.id:''}</b></td><td>${num0(r.len)} m</td><td>${r.wid?Math.round(r.wid)+' m':'—'}</td><td>${r.hard?'Revêtue':'Non revêtue'}</td><td>${Math.round(r.hdg)}°/${Math.round((r.hdg+180)%360)}°</td></tr>`); }
+      return rows.length? `<div class="card small"><b>🛬 Pistes réelles</b> · altitude ${num0(a.elev||0)} ft
+        <table class="tbl"><tr><th>Piste</th><th>Longueur</th><th>Largeur</th><th>Revêtement</th><th>QFU</th></tr>${rows.join('')}</table>
+        <div class="btns"><button class="btn sm gold" data-act="apZoom" data-c="${code}">🔍 Voir l’aéroport et ses pistes</button></div></div>` : ''; })()}
     ${airportClosed(code)?'<div class="al bad">Aéroport actuellement fermé.</div>':''}
     ${isHub?'<div class="al ok">🏢 C’est l’un de vos hubs.</div>':a.cls>=2?`<div class="btns"><button class="btn gold" data-act="buyHub" data-c="${code}">🏢 Acheter ce hub · ${fmtMoney(hubCost(code))}</button></div>`:''}
     <div class="btns">${S.hubs.filter(h=>h!==code).map(h=>`<button class="btn sm" data-act="draftPair" data-a="${h}" data-b="${code}">➕ Ligne ${h} → ${code} · ${num(dist(h,code))} km</button>`).join('')}</div>
