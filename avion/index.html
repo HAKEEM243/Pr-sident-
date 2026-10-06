@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Congo Sky Tycoon</title>
-<meta name="description" content="Simulateur de compagnie aérienne : carte satellite mondiale, réseau détaillé de la RD Congo, 142 aéroports, 42 avions réels, vols en temps réel.">
+<title>Sky Empire</title>
+<meta name="description" content="Sky Empire : créez votre compagnie aérienne n’importe où dans le monde. 3 200 aéroports, 68 avions réels, concurrents IA, carte satellite et mode pilote.">
 <meta name="theme-color" content="#0b1220">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1220'/%3E%3Cpath fill='%23f5c518' d='M16 3c1 0 1.6 1.3 1.6 2.8v6l8.4 5v2.4l-8.4-2.6v5l2.6 2v1.9L16 24.4l-4.2 1.1v-1.9l2.6-2v-5L6 19.2v-2.4l8.4-5v-6C14.4 4.3 15 3 16 3z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -158,6 +158,14 @@ details.prov summary{cursor:pointer}
 .stylebtn{text-align:left;cursor:pointer;margin:0;color:var(--txt)} .stylebtn:disabled{opacity:.45;cursor:not-allowed}
 body.google-map .leaflet-control-attribution::before{content:"Google ";font-weight:700;color:#fff}
 .plane-icon.sel .rot{filter:drop-shadow(0 0 6px #fff) drop-shadow(var(--sh,3px) var(--sh,3px) 2px rgba(0,0,0,.5))}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle;box-shadow:0 0 0 2px rgba(0,0,0,.4)}
+.country-hero{display:flex;gap:12px;align-items:center;background:linear-gradient(135deg,#17305a,#101c33)}
+.cflag{font-size:44px;line-height:1}
+.hubpick{display:flex;gap:12px;align-items:center}
+.packs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pack{text-align:left;cursor:pointer;margin:0;color:var(--txt)} .pack:disabled{opacity:.45;cursor:not-allowed}
+.tbl.rank td{white-space:nowrap}
+@media (max-width:820px){ .packs{grid-template-columns:1fr} }
 .ap-pin{border-radius:50%;background:#fff;border:2px solid #0b1220;box-shadow:0 1px 5px rgba(0,0,0,.65);display:grid;place-items:center;color:#0b1220;font-size:9px;line-height:1;cursor:pointer;transition:transform .12s}
 .ap-pin:hover{transform:scale(1.25)}
 .ap-pin span{pointer-events:none}
@@ -328,7 +336,7 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
       <button class="on" data-act="mapToggle" data-k="trails">〰️ Traînées</button>
       <button class="on" data-act="mapToggle" data-k="weather">⛈️ Météo</button>
       <button data-act="mapStyle">🗺️ Fond de carte</button>
-      <button data-act="focusDRC">🇨🇩 RDC</button>
+      <button data-act="focusHome">🏠 Mon pays</button>
       <button data-act="focusWorld">🌍 Monde</button>
     </div>
     <div id="flightcard" hidden></div>
@@ -344,6 +352,7 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 <div id="modal" hidden></div>
 <div id="toasts"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="airports-db.js"></script>
 <script src="data.js"></script>
 <script src="sim.js"></script>
 <script src="map.js"></script>

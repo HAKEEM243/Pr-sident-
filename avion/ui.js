@@ -13,7 +13,7 @@ const bar = (v,cls='')=>`<div class="pbar ${cls}"><i style="width:${clamp(v,0,1)
 
 const TABS = [
   ['map','🗺️','Carte'],['dash','🏠','Accueil'],['network','🌍','Réseau'],['fleet','✈️','Flotte'],['shop','🛒','Achats'],
-  ['staff','👥','Personnel'],['fuel','⛽','Carburant'],['finance','💰','Finances'],['company','📣','Compagnie'],['drc','🇨🇩','RDC'],['admin','🛠️','Admin'],
+  ['staff','👥','Personnel'],['fuel','⛽','Carburant'],['finance','💰','Finances'],['company','📣','Compagnie'],['world','🌐','Monde'],['admin','🛠️','Admin'],
 ];
 
 /* ---------- photos réelles des avions (Wikimedia Commons via l'API Wikipédia) ---------- */
@@ -108,7 +108,7 @@ function setTab(t){
 }
 function renderPanel(){
   const body=$('#panelBody'); if(!body) return;
-  const fn={dash:pDash, network:pNetwork, fleet:pFleet, shop:pShop, staff:pStaff, fuel:pFuel, finance:pFinance, company:pCompany, drc:pDRC, admin:pAdmin}[UI.tab];
+  const fn={dash:pDash, network:pNetwork, fleet:pFleet, shop:pShop, staff:pStaff, fuel:pFuel, finance:pFinance, company:pCompany, world:pWorld, drc:pWorld, admin:pAdmin}[UI.tab];
   if(!fn) return;
   const st=body.scrollTop;
   body.innerHTML=fn();
@@ -135,17 +135,15 @@ function marketStats(){
       if(isDrc(a)&&isDrc(b)) drcP+=mk.daily;
     }
   }
-  const big=AIRPORT_CODES.filter(c=>isDrc(c)&&AP(c).traffic>=0.02);
-  for(let i=0;i<big.length;i++) for(let j=i+1;j<big.length;j++) drcT+=2*marketDemand(big[i],big[j]);
-  return { share: total? player/total:0, playerDaily:player, drcShare: drcT? Math.min(1,drcP/drcT):0, drcDaily:drcP, drcMarket:drcT };
+  return { share: total? player/total:0, playerDaily:player };
 }
+let _msc={t:-1,v:null};
+function marketStatsCache(){ if(_msc.t!==S.time){ _msc={t:S.time,v:marketStats()}; } return _msc.v; }
 function loadFactor(){ let p=0,s=0; for(const r of S.routes){ p+=r.stats.pax; s+=r.stats.seats; } return s? p/s : 0; }
 function competitors(){
   return [
-    {name:S.company.name, value:fleetValue()+Math.max(0,S.cash), fleet:S.fleet.length, me:true},
-    {name:S.rival.name, value:S.rival.fleet*45e6+Math.max(0,S.rival.cash), fleet:S.rival.fleet},
-    {name:'Air Équateur', value:3*20e6, fleet:3}, {name:'Kivu Express', value:6*25e6, fleet:6},
-    {name:'Sahel Connect', value:14*40e6, fleet:14}, {name:'Atlantica Global', value:120*90e6, fleet:120},
+    {name:S.company.name, value:fleetValue()+Math.max(0,S.cash), fleet:S.fleet.length, me:true, color:S.company.color, hub:S.company.hub, routes:S.routes.length, pax:marketStatsCache().playerDaily, rep:S.reputation},
+    ...(S.rivals||[]).map(R=>({name:R.name, value:R.fleet*45e6+Math.max(0,R.cash), fleet:R.fleet, color:R.color, hub:R.hub, routes:R.routes.length, pax:R.paxDay, rep:R.rep, R})),
   ].sort((a,b)=>b.value-a.value);
 }
 const routeLosing = r=>r.stats.recent.length>=4 && r.stats.recent.reduce((s,v)=>s+v,0)<0;
@@ -185,7 +183,6 @@ function pDash(){
     ['⏱️','Ponctualité',pct(punctuality()),''],
   ];
   const top=[...S.routes].sort((a,b)=>(b.stats.rev-b.stats.cost)-(a.stats.rev-a.stats.cost)).slice(0,5);
-  const R=S.rival;
   return `
   <div class="hero">
     <div class="biglogo" style="background:${S.company.color}">${esc(S.company.logo)}</div>
@@ -200,30 +197,21 @@ function pDash(){
     <div class="wcard"><div class="kl">Semaine dernière</div>${lw?`<div class="kv ${lw.profit<0?'neg':'pos'}">${fmtMoney(lw.profit)}</div><div class="small mut">${num(lw.pax)} pax · ${lw.flights} vols</div>`:'<div class="kv mut">—</div><div class="small mut">premier bilan dimanche soir</div>'}</div>
   </div>
   <div class="kpis five">${kpis.map(([i,l,v,c])=>`<div class="kpi"><div class="kl">${i} ${l}</div><div class="kv ${c}">${v}</div></div>`).join('')}</div>
-  ${S.events.length?`<h3>Actualité</h3><div class="evs">${S.events.map(e=>{const t=EV(e);return `<div class="ev ${t.drc?'drc':''}">${t.icon} <b>${t.name}</b>${e.airport?' ('+AP(e.airport).city+')':''} <span class="mut">— jusqu’au ${fmtDate(e.until)}</span><br><small>${t.desc}</small></div>`;}).join('')}</div>`:''}
+  ${S.events.length?`<h3>Actualité mondiale</h3><div class="evs">${S.events.map(e=>{const t=EV(e);return `<div class="ev ${t.drc?'drc':''}">${t.icon} <b>${t.name}</b>${e.where||''} <span class="mut">— jusqu’au ${fmtDate(e.until)}</span><br><small>${t.desc}</small></div>`;}).join('')}</div>`:''}
   ${missionsHtml()}
   <h3>À faire</h3>
   <div class="alerts">${alerts().map(([k,t,tab])=>`<div class="al ${k}" ${tab?`data-tab="${tab}"`:''}>${t}</div>`).join('')||'<div class="mut">Tout va bien, commandant.</div>'}</div>
   <h3>Meilleures lignes</h3>
   ${top.length?`<table class="tbl"><tr><th>Ligne</th><th>Vols</th><th>Rempl.</th><th>Résultat</th></tr>${top.map(r=>`<tr data-act="line" data-id="${r.id}" class="click"><td>${r.stops.join('⇄')}</td><td>${r.stats.flights}</td><td>${r.stats.seats?pct(r.stats.pax/r.stats.seats):'—'}</td><td class="${r.stats.rev-r.stats.cost<0?'neg':'pos'}">${fmtMoney(r.stats.rev-r.stats.cost)}</td></tr>`).join('')}</table>`:'<div class="mut">Aucune ligne pour l’instant.</div>'}
-  <h3>Vous vs ${R.name}</h3>
-  <table class="tbl cmp">
-    <tr><th></th><th>${esc(S.company.code)}</th><th>${R.code}</th></tr>
-    <tr><td>Flotte</td><td>${S.fleet.length}</td><td>${R.fleet}</td></tr>
-    <tr><td>Lignes</td><td>${S.routes.length}</td><td>${R.routes.length}</td></tr>
-    <tr><td>Image</td><td>${stars(S.reputation)}</td><td>${stars(R.rep)}</td></tr>
-    <tr><td>PAX / jour</td><td>${num(ms.playerDaily)}</td><td>${num(R.paxDay)}</td></tr>
-    <tr><td>Trésorerie</td><td>${fmtMoney(S.cash)}</td><td>${fmtMoney(R.cash)}</td></tr>
-  </table>
-  <h3>Classement</h3>
-  <table class="tbl">${comp.map((c,i)=>`<tr class="${c.me?'me':''}"><td>${['🥇','🥈','🥉'][i]||i+1}</td><td>${esc(c.name)}</td><td>${c.fleet} av.</td><td>${fmtMoney(c.value)}</td></tr>`).join('')}</table>
+  <h3>Classement mondial des compagnies</h3>
+  <div class="tblwrap"><table class="tbl rank"><tr><th>#</th><th>Compagnie</th><th>Hub</th><th>Flotte</th><th>Lignes</th><th>PAX/j</th><th>Image</th><th>Valeur</th></tr>${comp.map((c,i)=>`<tr class="${c.me?'me':''}"><td>${['🥇','🥈','🥉'][i]||i+1}</td><td><span class="dot" style="background:${c.color}"></span>${esc(c.name)}${c.R&&c.R.local?' <span class="badge bad">rival local</span>':''}</td><td>${flag(c.hub)} ${c.hub}</td><td>${c.fleet}</td><td>${c.routes}</td><td>${num(c.pax||0)}</td><td>${stars(c.rep)}</td><td>${fmtMoney(c.value)}</td></tr>`).join('')}</table></div>
   <h3>Journal</h3>
   <div class="log">${S.log.slice(0,18).map(l=>`<div class="lg ${l.kind}"><span class="mut">${fmtDate(l.t)} ${fmtTime(l.t)}</span> ${l.text}</div>`).join('')}</div>`;
 }
 function missionsHtml(){
-  const done=S.missions||[], todo=MISSIONS.filter(m=>!done.includes(m.id));
-  return `<h3>Objectifs <span class="mut">${done.length}/${MISSIONS.length}</span></h3>
-  ${bar(done.length/MISSIONS.length)}
+  const done=S.missions||[], todo=MISSIONS.filter(m=>!done.includes(m.id)&&missionAvail(m));
+  return `<h3>Objectifs <span class="mut">${done.length}/${MISSIONS.filter(missionAvail).length}</span></h3>
+  ${bar(done.length/MISSIONS.filter(missionAvail).length)}
   ${todo.slice(0,3).map(m=>`<div class="al mission"><b>🎯 ${m.name}</b> — ${m.desc} <span class="mut">· ${m.cash?fmtMoney(m.cash):''}${m.rep?' · +'+m.rep+' image':''}</span></div>`).join('')}
   ${done.length?`<details class="prov"><summary>🏆 ${done.length} objectif(s) atteint(s)</summary>${MISSIONS.filter(m=>done.includes(m.id)).map(m=>`<div class="small">✅ ${m.name}</div>`).join('')}</details>`:''}`;
 }
@@ -274,7 +262,7 @@ function lineModalHtml(r){
   return `<div class="small">${r.stops.map(c=>`${flag(c)} ${AP(c).city}`).join(' → ')} · ${legs.map(l=>num(l.dist)+' km').join(' + ')}</div>
   ${!r.audit?`<div class="al warn">🔍 <b>Audit non réalisé</b> : la demande exacte et les prix idéaux sont inconnus. <button class="btn sm gold" data-act="audit" data-id="${r.id}">Lancer l’audit (${fmtMoney(auditCost(r))})</button></div>`:'<div class="al ok">🔍 Ligne auditée : demande et prix idéaux connus.</div>'}
   <h3>Demande du marché (${a} → ${b})</h3>${lineDemandRows(r)}
-  ${legMarket(r,a,b).rivalFreq?`<div class="small">🔴 ${S.rival.name} opère cette ligne (${legMarket(r,a,b).rivalFreq} vol(s)/j).</div>`:''}
+  ${rivalsOn(a,b).map(x=>`<div class="small"><span class="dot" style="background:${x.R.color}"></span><b>${x.R.name}</b> opère cette ligne (${x.freq} vol(s)/j par sens).</div>`).join('')}
   ${legMarket(r,a,b).transfer>1?`<div class="small">🔁 Correspondances via votre réseau : +${num(legMarket(r,a,b).transfer)} pax/j potentiels.</div>`:''}
   <h3>Prix des billets</h3>
   <div class="prices">${['y','j','f','c'].map(priceRow).join('')}</div>
@@ -294,7 +282,8 @@ function openLineHtml(){
   const hub=ol.stops[0], last=ol.stops[ol.stops.length-1];
   const q=(ol.q||'').toLowerCase();
   let list=AIRPORT_CODES.filter(c=>!ol.stops.includes(c) && AP(c).cls>=1);
-  if(ol.f==='drc') list=list.filter(isDrc); else if(ol.f==='af') list=list.filter(c=>continentOf(c)==='AF'); else if(ol.f==='world') list=list.filter(c=>continentOf(c)!=='AF');
+  const hcc=AP(hub).cc, hcont=COUNTRIES[hcc][1];
+  if(ol.f==='home') list=list.filter(c=>AP(c).cc===hcc); else if(ol.f==='cont') list=list.filter(c=>continentOf(c)===hcont); else if(ol.f==='world') list=list.filter(c=>continentOf(c)!==hcont); else if(ol.f==='big') list=list.filter(c=>AP(c).traffic>=10);
   if(q) list=list.filter(c=>c.toLowerCase().includes(q)||AP(c).city.toLowerCase().includes(q)||COUNTRIES[AP(c).cc][0].toLowerCase().includes(q));
   const rows=list.map(c=>({c,d:dist(last,c),dem:marketDemand(last,c)})).sort((x,y)=>y.dem-x.dem).slice(0,40);
   const owned=S.routes.find(r=>r.stops.join()===ol.stops.join());
@@ -310,13 +299,17 @@ function openLineHtml(){
   <div class="small">Itinéraire : <b>${ol.stops.map(c=>AP(c).city).join(' → ')}</b>${ol.stops.length>=2?' · <span class="mut">cliquez une autre ville pour ajouter une escale</span>':''}</div>
   ${preview}
   <div class="row"><input id="olq" placeholder="🔍 Ville, code ou pays…" value="${esc(ol.q||'')}" data-in="olq"></div>
-  <div class="chips">${[['all','Tous'],['drc','🇨🇩 RDC'],['af','Afrique'],['world','Monde']].map(([k,l])=>`<button class="chip ${ol.f===k?'on':''}" data-act="olFilter" data-f="${k}">${l}</button>`).join('')}</div>
+  <div class="chips">${[['all','Tous'],['home',COUNTRIES[AP(hub).cc][2]+' '+COUNTRIES[AP(hub).cc][0]],['cont',CONTINENTS[COUNTRIES[AP(hub).cc][1]]],['world','Autres continents'],['big','Grands hubs mondiaux']].map(([k,l])=>`<button class="chip ${ol.f===k?'on':''}" data-act="olFilter" data-f="${k}">${l}</button>`).join('')}</div>
   <table class="tbl destlist"><tr><th>Destination</th><th>km</th><th>Demande/j</th><th>Piste</th><th>Licence</th></tr>
   ${rows.map(x=>`<tr class="click" data-act="olPick" data-c="${x.c}"><td>${flag(x.c)} <b>${AP(x.c).city}</b> <span class="mut">${x.c}</span></td><td>${num(x.d)}</td><td>${num(x.dem)}</td><td>cl.${AP(x.c).cls}</td><td>${fmtMoney(lineCost([last,x.c]))}</td></tr>`).join('')}</table>`;
 }
 function buyHubHtml(){
-  const list=AIRPORT_CODES.filter(c=>!S.hubs.includes(c)&&AP(c).cls>=2).sort((a,b)=>(isDrc(b)-isDrc(a))||AP(b).traffic-AP(a).traffic);
-  return `<div class="small mut">Un hub est une base : vos avions y sont stationnés et toutes vos lignes partent d’un hub. Les hubs congolais coûtent moitié prix.</div>
+  const q=(UI.hq||'').toLowerCase();
+  let list=AIRPORT_CODES.filter(c=>!S.hubs.includes(c)&&AP(c).cls>=2);
+  if(q) list=list.filter(c=>c.toLowerCase().includes(q)||AP(c).city.toLowerCase().includes(q)||COUNTRIES[AP(c).cc][0].toLowerCase().includes(q));
+  list=list.sort((a,b)=>AP(b).traffic-AP(a).traffic).slice(0,60);
+  return `<div class="small mut">Un hub est une base : vos avions y sont stationnés et toutes vos lignes partent d’un hub. Prix selon la taille de l’aéroport.</div>
+  <input id="hq" placeholder="🔍 Ville, code ou pays… (3 200 aéroports)" value="${esc(UI.hq||'')}" data-in="hq">
   <table class="tbl destlist"><tr><th>Aéroport</th><th>Trafic</th><th>Piste</th><th>Prix</th><th></th></tr>
   ${list.map(c=>`<tr><td>${flag(c)} <b>${AP(c).city}</b> <span class="mut">${c}</span></td><td>${AP(c).traffic>=1?AP(c).traffic+' M':Math.round(AP(c).traffic*1000)+' k'}</td><td>cl.${AP(c).cls}</td><td>${fmtMoney(hubCost(c))}</td><td><button class="btn sm gold" data-act="buyHub" data-c="${c}">Acheter</button></td></tr>`).join('')}</table>`;
 }
@@ -408,7 +401,7 @@ function pShop(){
   const maxSeats=Math.max(...all.map(m=>m.seats||m.cargo*3)), maxRange=Math.max(...all.map(m=>m.range));
   return `<div class="row wrap"><span>Livraison à</span><select data-in="buyHub">${S.hubs.map(h=>`<option value="${h}" ${h===hub?'selected':''}>${AP(h).city} (${h})</option>`).join('')}</select>
     <select data-in="catSort"><option value="price" ${UI.catSort==='price'?'selected':''}>Trier : prix</option><option value="seats" ${UI.catSort==='seats'?'selected':''}>Trier : capacité</option><option value="range" ${UI.catSort==='range'?'selected':''}>Trier : autonomie</option></select>
-    <label class="tog"><input type="checkbox" data-in="catRdc" ${UI.catRdc?'checked':''}> Pistes courtes RDC</label></div>
+    <label class="tog"><input type="checkbox" data-in="catRdc" ${UI.catRdc?'checked':''}> Pistes courtes (classe ≤ 2)</label></div>
   <div class="chips">${fams.map(f=>`<button class="chip ${UI.catFam===f?'on':''}" data-act="catFam" data-f="${f}">${f==='all'?'Tous':f}</button>`).join('')}</div>
   <div class="catalog">${list.map(m=>{ const q=qualifiedPilots(m.fam), cat=planeCat(m), c=m.color||S.company.color;
     return `<div class="card cat">
@@ -468,12 +461,12 @@ function pStaff(){
   ${fams.map(f=>{ const q=qualifiedPilots(f), nd=2*S.fleet.filter(a=>modelOf(a).fam===f).length, tr=S.pilots.filter(p=>p.training&&p.training.fam===f).length;
     if(!q&&!nd&&!tr) return ''; return `<tr><td>${f}</td><td>${q}</td><td class="${q<nd?'neg':''}">${nd}</td><td>${tr?tr+' ⏳':'—'}</td></tr>`;}).join('')}</table>
   <h3>Pilotes (${S.pilots.length})</h3>
-  ${S.pilots.map(p=>`<div class="card pilot"><div class="grow"><b>${esc(p.name)}</b> ${p.nat==='CD'?'🇨🇩':'🌍'} <span class="mut small">${num(p.hours)} h · ${fmtMoney(p.salary)}/mois</span><br>
+  ${S.pilots.map(p=>`<div class="card pilot"><div class="grow"><b>${esc(p.name)}</b> ${COUNTRIES[p.nat]?COUNTRIES[p.nat][2]:'🌍'} <span class="mut small">${num(p.hours)} h · ${fmtMoney(p.salary)}/mois</span><br>
     ${p.quals.map(q=>`<span class="chip">${q}</span>`).join('')}
     ${p.training?`<div class="small">⏳ Formation ${p.training.fam} — fin le ${fmtDate(p.training.until)} ${bar((S.time-p.training.start)/(p.training.until-p.training.start))}</div>`:''}</div>
     <div class="btns sm col"><button class="btn sm" data-act="train" data-id="${p.id}" ${p.training?'disabled':''}>🎓 Former</button><button class="btn sm danger" data-act="fire" data-id="${p.id}">Licencier</button></div></div>`).join('')}
   <h3>Candidats pilotes (renouvelés chaque semaine)</h3>
-  ${S.candidates.map(p=>`<div class="card pilot"><div class="grow"><b>${esc(p.name)}</b> ${p.nat==='CD'?'🇨🇩':'🌍'} <span class="mut small">${num(p.hours)} h · ${fmtMoney(p.salary)}/mois</span><br>${p.quals.map(q=>`<span class="chip">${q}</span>`).join('')}</div>
+  ${S.candidates.map(p=>`<div class="card pilot"><div class="grow"><b>${esc(p.name)}</b> ${COUNTRIES[p.nat]?COUNTRIES[p.nat][2]:'🌍'} <span class="mut small">${num(p.hours)} h · ${fmtMoney(p.salary)}/mois</span><br>${p.quals.map(q=>`<span class="chip">${q}</span>`).join('')}</div>
     <button class="btn sm gold" data-act="hire" data-id="${p.id}">Recruter</button></div>`).join('')}`;
 }
 
@@ -501,7 +494,7 @@ function pFuel(){
     <div class="small mut">Chaque vol consomme des quotas ; sans stock ils sont achetés +30 %.</div>
     <div class="btns sm">${[0.25,0.5,1].map(f=>{ const t=Math.max(0,Math.min(C.cap-C.stock,C.cap*f)); return `<button class="btn sm ${f===1?'gold':''}" data-act="buyCO2" data-t="${t}" ${t<1?'disabled':''}>${f===1?'Remplir':'+'+f*100+' %'} · ${fmtMoney(t*C.price)}</button>`; }).join('')}</div>
   </div>
-  <div class="card small">⛽ À l’intérieur de la RDC (hors Kinshasa, Lubumbashi, Goma, Kisangani), le kérosène doit être acheminé : surcoût de 35 % sur place (actuellement $${fuelPrice('KND').toFixed(2)}/L à Kindu). Construisez des dépôts de carburant via l’onglet 🇨🇩 RDC.</div>`;
+  <div class="card small">⛽ Dans les petits aéroports isolés (et à l’intérieur de la RDC), le kérosène doit être acheminé : il coûte plus cher sur place. Construisez un dépôt de carburant depuis la fiche de l’aéroport.</div>`;
 }
 function drawPriceChart(id, hist, color, fmt){
   const cv=document.getElementById(id); if(!cv) return;
@@ -571,9 +564,9 @@ function pCompany(){
   ${[['seat','Choix du siège','$6, 30 % des passagers'],['bags','Bagage en soute','$25, 35 % des passagers'],['wifi','Wi-Fi à bord','$9, vols > 1h30'],['meals','Repas payants','$11, désactivé si service ≥ 4★']].map(([k,l,d])=>`<label class="tog"><input type="checkbox" data-in="anc" data-k="${k}" ${a[k]?'checked':''}> <b>${l}</b> <span class="mut small">${d}</span></label>`).join('')}
   <div class="mut small">Chaque option réduit légèrement l’attractivité (×${ancillaryPenalty().toFixed(3)}).</div>
   <h3>Campagnes marketing</h3>
-  ${CAMPAIGNS.map(cp=>{ const on=S.campaigns.find(x=>x.id===cp.id); return `<div class="card row"><div class="grow"><b>${cp.name}</b> — ${fmtMoney(cp.cost)} · ${cp.days} j · demande +${cp.boost*100} % (${cp.scope==='drc'?'RDC':cp.scope==='intl'?'international':'tout le réseau'}) · image +${cp.rep}<br><span class="mut small">${cp.desc}</span></div>${on?`<span class="badge ok">Active → ${fmtDate(on.until)}</span>`:`<button class="btn sm gold" data-act="campaign" data-id="${cp.id}">Lancer</button>`}</div>`;}).join('')}
+  ${CAMPAIGNS.map(cp=>{ const on=S.campaigns.find(x=>x.id===cp.id); return `<div class="card row"><div class="grow"><b>${cp.name}</b> — ${fmtMoney(cp.cost)} · ${cp.days} j · demande +${cp.boost*100} % (${cp.scope==='home'||cp.scope==='drc'?COUNTRIES[homeCC()][0]:cp.scope==='intl'?'international':'tout le réseau'}) · image +${cp.rep}<br><span class="mut small">${cp.desc}</span></div>${on?`<span class="badge ok">Active → ${fmtDate(on.until)}</span>`:`<button class="btn sm gold" data-act="campaign" data-id="${cp.id}">Lancer</button>`}</div>`;}).join('')}
   <h3>Alliances</h3>
-  ${ALLIANCES.map(al=>{ const ok=S.reputation>=al.minRep&&S.fleet.length>=al.minFleet; const mine=S.alliance===al.id; return `<div class="card row ${mine?'gold-b':''}"><div class="grow"><b>${al.name}</b> — ${fmtMoney(al.fee)}/mois · demande +${al.boost*100} % (${al.scope==='africa'?'international africain':'international'})<br><span class="mut small">${al.desc} · requis : image ${al.minRep}, flotte ${al.minFleet}</span></div>${mine?`<button class="btn sm danger" data-act="leaveAlliance">Quitter</button>`:`<button class="btn sm ${ok?'gold':''}" data-act="joinAlliance" data-id="${al.id}" ${ok&&!S.alliance?'':'disabled'}>Adhérer</button>`}</div>`;}).join('')}
+  ${ALLIANCES.map(al=>{ const ok=S.reputation>=al.minRep&&S.fleet.length>=al.minFleet; const mine=S.alliance===al.id; return `<div class="card row ${mine?'gold-b':''}"><div class="grow"><b>${al.name}</b> — ${fmtMoney(al.fee)}/mois · demande +${al.boost*100} % (${al.scope==='africa'||al.scope==='region'?'international, '+(CONTINENTS[COUNTRIES[homeCC()][1]]||''):'international'})<br><span class="mut small">${al.desc} · requis : image ${al.minRep}, flotte ${al.minFleet}</span></div>${mine?`<button class="btn sm danger" data-act="leaveAlliance">Quitter</button>`:`<button class="btn sm ${ok?'gold':''}" data-act="joinAlliance" data-id="${al.id}" ${ok&&!S.alliance?'':'disabled'}>Adhérer</button>`}</div>`;}).join('')}
   <h3>Contrats cargo</h3>${cargoHtml()}
   <h3>Paramètres</h3>
   <div class="card">
@@ -592,45 +585,54 @@ function cargoHtml(){
   <div class="mut small">Contrats livrés : ${S.cargo.done} · fret total : ${num(S.stats.cargoT)} t</div>`;
 }
 
-/* ---------- 🇨🇩 RDC ---------- */
-function pDRC(){
-  const ms=marketStats();
-  const drc=AIRPORT_CODES.filter(isDrc);
-  const domRoutes=S.routes.filter(r=>r.stops.every(isDrc));
-  const byProv={}; for(const c of drc){ (byProv[AP(c).prov]=byProv[AP(c).prov]||[]).push(c); }
-  const pairs=[]; const big=drc.filter(c=>AP(c).traffic>=0.01);
-  for(let i=0;i<big.length;i++) for(let j=i+1;j<big.length;j++){ const a=big[i],b=big[j]; const d=dist(a,b); if(d<150) continue; pairs.push({a,b,d,dem:marketDemand(a,b)}); }
+/* ---------- 🌐 MONDE & PAYS ---------- */
+const _cache={};
+function countryAirports(cc){ return _cache['ca'+cc]||(_cache['ca'+cc]=AIRPORT_CODES.filter(c=>AP(c).cc===cc).sort((x,y)=>AP(y).traffic-AP(x).traffic)); }
+function pWorld(){
+  const cc=UI.country||homeCC(), C=COUNTRIES[cc], aps=countryAirports(cc);
+  const served=servedAirports(), dom=S.routes.filter(r=>r.stops.every(c=>AP(c).cc===cc));
+  const top=aps.slice(0,22), pairs=[];
+  for(let i=0;i<top.length;i++) for(let j=i+1;j<top.length;j++){ const a=top[i],b=top[j],d=dist(a,b); if(d<180) continue; pairs.push({a,b,d,dem:marketDemand(a,b)}); }
   pairs.sort((x,y)=>y.dem-x.dem);
-  const drcEvents=S.events.filter(e=>EV(e).drc);
+  let domMarket=0; for(const p of pairs) domMarket+=2*p.dem;
+  let domMine=0; for(const r of dom){ if(!routeAircraft(r).length) continue; for(let i=0;i<r.stops.length-1;i++){ domMine+=legMarket(r,r.stops[i],r.stops[i+1]).daily+legMarket(r,r.stops[i+1],r.stops[i]).daily; } }
+  const regions={}; for(const c of aps){ const a=AP(c), k=a.prov||(a.region||'').replace(cc+'-','')||'—'; (regions[k]=regions[k]||[]).push(c); }
+  const rivalsHere=(S.rivals||[]).filter(R=>AP(R.hub).cc===cc);
+  const evs=S.events.filter(e=>{ const t=EV(e); return (e.airports||[]).some(c=>AP(c).cc===cc) || (e.airport&&AP(e.airport).cc===cc) || (e.boostAirport&&AP(e.boostAirport).cc===cc) || ((e.ccs||t.ccs||[]).includes(cc)) || (t.drc&&cc==='CD'); });
+  const intl = cc!==homeCC()? S.hubs.flatMap(h=>aps.slice(0,15).map(c=>({h,c,d:dist(h,c),dem:marketDemand(h,c)}))).filter(x=>x.h!==x.c).sort((x,y)=>y.dem-x.dem).slice(0,10) : [];
   const suggest=(p)=>{ const minCls=Math.min(AP(p.a).cls,AP(p.b).cls); const ok=MODELS.filter(m=>!isCargo(m)&&m.cls<=minCls&&m.range>=p.d).sort((x,y)=>Math.abs(x.seats-p.dem*0.3)-Math.abs(y.seats-p.dem*0.3)); return ok[0]?ok[0].name:'—'; };
-  return `<div class="card drc-hero"><div class="flagbar"></div>
-    <h2>🇨🇩 République démocratique du Congo</h2>
-    <div class="small">2,3 millions de km², plus de 100 millions d’habitants et presque pas de routes entre les provinces : l’avion relie Kinshasa au Katanga, au Kasaï et aux Kivu. Demande domestique ×5 dans le jeu.</div>
-    <div class="btns sm"><button class="btn sm gold" data-act="focusDRC">🔍 Centrer la carte sur la RDC</button></div></div>
+  const quick=[...new Set([homeCC(), ...S.hubs.map(h=>AP(h).cc), ...(S.rivals||[]).map(R=>AP(R.hub).cc)])];
+  const conts={}; for(const c of AIRPORT_CODES){ const k=continentOf(c); (conts[k]=conts[k]||{n:0,mine:0}); conts[k].n++; if(served.has(c)) conts[k].mine++; }
+  const worldTop=AIRPORT_CODES.slice().sort((x,y)=>AP(y).traffic-AP(x).traffic).slice(0,12);
+  return `<div class="card country-hero"><div class="cflag">${C[2]}</div><div class="grow"><h2>${C[0]}</h2><div class="small mut">${CONTINENTS[C[1]]||''} · ${aps.length} aéroport(s) avec vols réguliers${cc===homeCC()?' · <b>votre pays</b>':''}</div>
+    <div class="btns sm"><button class="btn sm gold" data-act="focusCountry" data-cc="${cc}">🔍 Voir sur la carte</button></div></div></div>
+  <div class="row wrap"><select data-in="country">${Object.keys(COUNTRIES).filter(k=>countryAirports(k).length).sort((x,y)=>COUNTRIES[x][0].localeCompare(COUNTRIES[y][0])).map(k=>`<option value="${k}" ${k===cc?'selected':''}>${COUNTRIES[k][2]} ${COUNTRIES[k][0]} (${countryAirports(k).length})</option>`).join('')}</select></div>
+  <div class="chips">${quick.map(k=>`<button class="chip ${k===cc?'on':''}" data-act="country" data-cc="${k}">${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</button>`).join('')}</div>
   <div class="kpis">
-    <div class="kpi"><div class="kl">Aéroports RDC</div><div class="kv">${drc.length}</div></div>
-    <div class="kpi"><div class="kl">Provinces (carte)</div><div class="kv">${Object.keys(byProv).length}/26</div></div>
-    <div class="kpi"><div class="kl">Vos lignes domestiques</div><div class="kv">${domRoutes.length}</div></div>
-    <div class="kpi"><div class="kl">Part du marché domestique</div><div class="kv">${(ms.drcShare*100).toFixed(1)} %</div></div>
-    <div class="kpi"><div class="kl">Marché domestique</div><div class="kv">${num(ms.drcMarket)} pax/j</div></div>
-    <div class="kpi"><div class="kl">Kérosène intérieur</div><div class="kv">$${fuelPrice('KND').toFixed(2)}/L</div></div>
+    <div class="kpi"><div class="kl">Aéroports</div><div class="kv">${aps.length}</div></div>
+    <div class="kpi"><div class="kl">Que vous desservez</div><div class="kv">${aps.filter(c=>served.has(c)).length}</div></div>
+    <div class="kpi"><div class="kl">Vos lignes intérieures</div><div class="kv">${dom.length}</div></div>
+    <div class="kpi"><div class="kl">Marché intérieur</div><div class="kv">${num(domMarket)} pax/j</div></div>
+    <div class="kpi"><div class="kl">Votre part intérieure</div><div class="kv">${domMarket?(Math.min(1,domMine/domMarket)*100).toFixed(1):'0'} %</div></div>
+    <div class="kpi"><div class="kl">Kérosène</div><div class="kv">$${fuelPrice(aps[0]).toFixed(2)}/L</div></div>
   </div>
-  ${drcEvents.length?`<h3>Actualité congolaise</h3>${drcEvents.map(e=>{const t=EV(e);return `<div class="ev drc">${t.icon} <b>${t.name}</b> — ${t.desc} <span class="mut">(jusqu’au ${fmtDate(e.until)})</span></div>`;}).join('')}`:''}
-  <h3>Chantiers aéroportuaires (partenariat RVA)</h3>
-  ${(S.projects||[]).map(p=>`<div class="card row"><div class="grow">${UPGRADES[p.type].icon} <b>${UPGRADES[p.type].name}</b> — ${AP(p.code).city}<br>${bar((S.time-p.start)/(p.until-p.start))}<span class="small mut">Fin le ${fmtDate(p.until)}</span></div></div>`).join('')||'<div class="mut small">Aucun chantier. Ouvrez un aéroport congolais (carte ou liste ci-dessous) pour bitumer la piste, l’allonger, construire un dépôt de carburant, un terminal ou un ILS.</div>'}
-  ${Object.keys(S.upgrades||{}).length?`<div class="small">Réalisés : ${Object.entries(S.upgrades).map(([c,l])=>`${AP(c).city} (${l.map(t=>UPGRADES[t].icon).join('')})`).join(' · ')}</div>`:''}
-  <h3>Lignes domestiques les plus demandées</h3>
-  <table class="tbl"><tr><th>Ligne</th><th>km</th><th>Demande/j</th><th>Avion conseillé</th><th></th></tr>
-  ${pairs.slice(0,14).map(p=>`<tr><td>${AP(p.a).city} – ${AP(p.b).city}</td><td>${num(p.d)}</td><td>${num(p.dem)}</td><td class="small">${suggest(p)}</td><td>${S.hubs.includes(p.a)||S.hubs.includes(p.b)?`<button class="btn sm" data-act="draftPair" data-a="${S.hubs.includes(p.a)?p.a:p.b}" data-b="${S.hubs.includes(p.a)?p.b:p.a}">Ouvrir</button>`:'<span class="mut small">hub requis</span>'}</td></tr>`).join('')}</table>
-  <h3>Concurrence locale</h3>
-  <div class="card small">🔴 <b>${S.rival.name}</b> (hub ${apName(S.rival.hub)}) — ${S.rival.routes.filter(r=>isDrc(r.a)&&isDrc(r.b)).length} lignes domestiques, ${S.rival.fleet} avions.<br>
-  ✈️ <b>Kivu Express</b> — opérateur régional de l’Est (Goma, Bukavu, Bunia). ✈️ <b>Air Équateur</b> — petits porteurs vers Mbandaka.<br>
-  <span class="mut">Les pistes en latérite (classe 1) n’acceptent que Cessna Caravan, Twin Otter et ATR 42 ; elles ferment pendant les grandes pluies.</span></div>
-  <h3>Aéroports par province</h3>
-  ${DRC_PROVINCES.filter(p=>byProv[p]).map(p=>`<details class="prov"><summary><b>${p}</b> <span class="mut">${byProv[p].length} aéroport(s)</span></summary>
-    ${byProv[p].map(c=>{const a=AP(c); return `<div class="aprow"><span><b>${c}</b> ${a.icao} — ${a.city}${S.hubs.includes(c)?' 🏢':''}</span><span class="small">${a.runway} m · ${a.surface} · cl.${a.cls}${a.fuelDepot?' ⛽':''}${a.terminal?' 🏢':''}${a.ils?' 💡':''}${airportClosed(c)?' · <b class="neg">fermé</b>':''}</span><span><button class="btn sm" data-act="openAp" data-c="${c}">Voir</button></span></div>`;}).join('')}</details>`).join('')}
-  <div class="mut small">Province sans aéroport commercial dans le jeu : Kwango.</div>`;
+  ${evs.length?`<h3>Actualité du pays</h3>${evs.map(e=>{const t=EV(e);return `<div class="ev">${t.icon} <b>${t.name}</b>${e.where||''} — ${t.desc} <span class="mut">(jusqu’au ${fmtDate(e.until)})</span></div>`;}).join('')}`:''}
+  ${rivalsHere.length?`<h3>Concurrents basés ici</h3>${rivalsHere.map(R=>`<div class="card small"><span class="dot" style="background:${R.color}"></span><b>${R.name}</b> — hub ${apName(R.hub)} · ${R.fleet} avions · ${R.routes.length} lignes · ${stars(R.rep)}</div>`).join('')}`:''}
+  ${intl.length?`<h3>Meilleures lignes depuis vos hubs vers ce pays</h3><table class="tbl"><tr><th>Ligne</th><th>km</th><th>Demande/j</th><th></th></tr>${intl.map(x=>`<tr><td>${x.h} → ${AP(x.c).city}</td><td>${num(x.d)}</td><td>${num(x.dem)}</td><td><button class="btn sm" data-act="draftPair" data-a="${x.h}" data-b="${x.c}">Ouvrir</button></td></tr>`).join('')}</table>`:''}
+  <h3>Lignes intérieures les plus demandées</h3>
+  ${pairs.length?`<table class="tbl"><tr><th>Ligne</th><th>km</th><th>Demande/j</th><th>Avion conseillé</th><th></th></tr>
+  ${pairs.slice(0,12).map(p=>`<tr><td>${AP(p.a).city} – ${AP(p.b).city}</td><td>${num(p.d)}</td><td>${num(p.dem)}</td><td class="small">${suggest(p)}</td><td>${S.hubs.includes(p.a)||S.hubs.includes(p.b)?`<button class="btn sm" data-act="draftPair" data-a="${S.hubs.includes(p.a)?p.a:p.b}" data-b="${S.hubs.includes(p.a)?p.b:p.a}">Ouvrir</button>`:`<button class="btn sm" data-act="openAp" data-c="${p.a}">Hub ?</button>`}</td></tr>`).join('')}</table>`:'<div class="mut small">Pas de ligne intérieure significative.</div>'}
+  <h3>Aéroports par région</h3>
+  ${Object.entries(regions).sort((x,y)=>AP(y[1][0]).traffic-AP(x[1][0]).traffic).slice(0,40).map(([k,list])=>`<details class="prov"><summary><b>${esc(k)}</b> <span class="mut">${list.length} aéroport(s) · ${list.slice(0,3).map(c=>AP(c).city).join(', ')}</span></summary>
+    ${list.map(c=>{const a=AP(c); return `<div class="aprow"><span><b>${c}</b> ${a.icao||''} — ${esc(a.city)}${S.hubs.includes(c)?' 🏢':''}${served.has(c)?' ✈':''}</span><span class="small">${num(a.runway)} m · ${a.surface} · cl.${a.cls} · ${a.traffic>=1?a.traffic+' M':Math.round(a.traffic*1000)+' k'} pax${a.fuelDepot?' ⛽':''}${a.terminal?' 🏢':''}${a.ils?' 💡':''}${airportClosed(c)?' · <b class="neg">fermé</b>':''}</span><span><button class="btn sm" data-act="openAp" data-c="${c}">Voir</button></span></div>`;}).join('')}</details>`).join('')}
+  <h3>Vos chantiers aéroportuaires</h3>
+  ${(S.projects||[]).map(p=>`<div class="card row"><div class="grow">${UPGRADES[p.type].icon} <b>${UPGRADES[p.type].name}</b> — ${AP(p.code).city}<br>${bar((S.time-p.start)/(p.until-p.start))}<span class="small mut">Fin le ${fmtDate(p.until)}</span></div></div>`).join('')||'<div class="mut small">Aucun chantier. Ouvrez un aéroport pour construire un terminal, un dépôt de carburant, un ILS ou allonger la piste.</div>'}
+  <h3>Le monde</h3>
+  <table class="tbl"><tr><th>Continent</th><th>Aéroports</th><th>Desservis</th></tr>${Object.entries(conts).filter(([k])=>k!=='AN').map(([k,v])=>`<tr><td>${CONTINENTS[k]}</td><td>${v.n}</td><td>${v.mine}</td></tr>`).join('')}</table>
+  <h3>Les plus grands aéroports du monde</h3>
+  <div class="chips">${worldTop.map(c=>`<button class="chip" data-act="openAp" data-c="${c}">${flag(c)} ${AP(c).city} · ${AP(c).traffic} M</button>`).join('')}</div>`;
 }
+const pDRC = pWorld;
 
 /* ---------- 🛠️ ADMIN ---------- */
 function pAdmin(){
@@ -678,7 +680,7 @@ function mapStyleHtml(){
 function airportHtml(code){
   const a=AP(code), c=COUNTRIES[a.cc], isHub=S.hubs.includes(code);
   const here=S.fleet.filter(x=>x.loc===code&&x.status==='idle');
-  const rv=S.rival.routes.filter(r=>r.a===code||r.b===code);
+  const rv=(S.rivals||[]).map(R=>({R,dests:R.routes.filter(r=>r.a===code||r.b===code).map(r=>r.a===code?r.b:r.a)})).filter(x=>x.dests.length);
   const projects=(S.projects||[]).filter(p=>p.code===code);
   return `<div class="small">${a.name}${a.icao?' · OACI '+a.icao:''}<br>${a.drc?'Province : <b>'+a.prov+'</b> · ':''}${c[0]} · ${CONTINENTS[c[1]]}</div>
     <div class="grid2 small card"><div>Piste : <b>${a.runway} m</b> (${a.surface})</div><div>Classe : <b>${a.cls}</b>/5</div>
@@ -688,8 +690,8 @@ function airportHtml(code){
     ${isHub?'<div class="al ok">🏢 C’est l’un de vos hubs.</div>':a.cls>=2?`<div class="btns"><button class="btn gold" data-act="buyHub" data-c="${code}">🏢 Acheter ce hub · ${fmtMoney(hubCost(code))}</button></div>`:''}
     <div class="btns">${S.hubs.filter(h=>h!==code).map(h=>`<button class="btn sm" data-act="draftPair" data-a="${h}" data-b="${code}">➕ Ligne ${h} → ${code} · ${num(dist(h,code))} km</button>`).join('')}</div>
     ${here.length?`<div class="small">Vos avions au sol ici : ${here.map(x=>`<button class="btn sm" data-act="pilot" data-id="${x.id}">🕹️ Piloter ${x.reg}</button>`).join(' ')}</div>`:''}
-    ${rv.length?`<div class="small">🔴 ${S.rival.name} vole vers : ${rv.map(r=>r.a===code?r.b:r.a).join(', ')}</div>`:''}
+    ${rv.map(x=>`<div class="small"><span class="dot" style="background:${x.R.color}"></span><b>${x.R.name}</b>${x.R.hub===code?' (hub)':''} vole vers : ${x.dests.slice(0,12).join(', ')}${x.dests.length>12?'…':''}</div>`).join('')}
     ${boardHtml(code)}
-    ${a.drc?`<h3>Investir (partenariat RVA)</h3>${projects.map(p=>`<div class="al">${UPGRADES[p.type].icon} ${UPGRADES[p.type].name} — fin le ${fmtDate(p.until)}</div>`).join('')}
+    ${true?`<h3>Investir dans l’aéroport${a.drc?' (partenariat RVA)':''}</h3>${projects.map(p=>`<div class="al">${UPGRADES[p.type].icon} ${UPGRADES[p.type].name} — fin le ${fmtDate(p.until)}</div>`).join('')}
       ${Object.entries(UPGRADES).filter(([k,u])=>u.can(a)&&!projects.some(p=>p.type===k)).map(([k,u])=>`<div class="card row"><div class="grow">${u.icon} <b>${u.name}</b> — ${fmtMoney(u.cost(a))} · ${u.days} j<br><span class="small mut">${u.desc}</span></div><button class="btn sm gold" data-act="project" data-c="${code}" data-k="${k}">Lancer</button></div>`).join('')||'<div class="mut small">Aucun chantier disponible ici.</div>'}`:''}`;
 }

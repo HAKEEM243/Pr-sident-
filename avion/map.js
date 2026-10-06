@@ -61,9 +61,12 @@ function planeCat(m){
   if(!m) return 'nb';
   if(m.fam==='CONC') return 'conc';
   if(m.fam==='TURBO') return 'prop';
-  if(m.fam==='CRJ'||m.fam==='EMB') return 'rj';
+  if(m.fam==='CRJ'||m.id==='E145'||m.id==='B712'||m.id==='AJ27') return 'rj';
+  if(m.fam==='EMB') return 'rj';
+  if(m.fam==='A340') return 'quad';
+  if(m.id==='MD11') return 'wb';
   if(m.fam==='B747'||m.fam==='A380') return 'quad';
-  if(['A330','A350','B777','B787'].includes(m.fam)||m.id==='B763'||m.id==='B76F') return 'wb';
+  if(['A330','A350','B777','B787','A340'].includes(m.fam)||m.id==='B763'||m.id==='B76F') return 'wb';
   if(m.custom) return m.seats>=400?'quad':m.seats>=250?'wb':m.seats<=80?'prop':'nb';
   return 'nb';
 }
@@ -92,7 +95,7 @@ function zoomScale(){ const z=map?map.getZoom():5; return z<=3?0.75:z<=5?1:z<=7?
 
 function initMap(){
   map = L.map('map', { zoomControl:false, worldCopyJump:true, minZoom:2, maxZoom:19, attributionControl:true, preferCanvas:false })
-    .setView([-3.5, 23.5], 5);
+    .setView([AP(S.company.hub).lat, AP(S.company.hub).lon], 5);
   L.control.zoom({position:'topleft'}).addTo(map);
   L.control.scale({position:'bottomleft', imperial:false}).addTo(map);
   setMapStyle(localStorage.getItem(MAPSTYLE_KEY)||'hybrid', true);
@@ -108,8 +111,8 @@ function initMap(){
   L_rival = L.layerGroup().addTo(map);
   L_planes = L.layerGroup().addTo(map);
 
-  // Frontière de la RDC, mise en valeur
-  for(const off of [-360,0,360]){
+  // Frontière de la RDC, mise en valeur pour les compagnies congolaises
+  if(homeCC()==='CD') for(const off of [-360,0,360]){
     const ring = DRC_BORDER.map(([la,lo])=>[la,lo+off]);
     L.polygon(ring,{pane:'drc', color:'#ffd54a', weight:1.6, opacity:0.8, fill:false, dashArray:'6 4'}).addTo(L_drc);
   }
@@ -119,6 +122,7 @@ function initMap(){
   drawNight();
   drawWeather(true);
   map.on('click',()=>{ selectPlane(null); });
+  let _mvT=0; map.on('moveend',()=>{ clearTimeout(_mvT); _mvT=setTimeout(()=>{ drawAirports(); updateRival(); },120); });
   map.on('zoomend',()=>{ drawAirports(); for(const [,mk] of planeMarkers) L_planes.removeLayer(mk); planeMarkers.clear(); for(const [,mk] of parkedMarkers) L_planes.removeLayer(mk); parkedMarkers.clear(); updatePlanes(); updateRival(); drawWeather(); });
 }
 
@@ -141,18 +145,20 @@ function drawAirports(){
   if(!map) return;
   L_airports.clearLayers();
   if(!MAPOPT.airports) return;
-  const z=map.getZoom(), served=servedSet();
+  const z=map.getZoom(), served=servedSet(), bounds=map.getBounds().pad(0.2), c0=map.getCenter().lng;
   for(const code of AIRPORT_CODES){
     const a=AP(code), hub=(S.hubs||[]).includes(code), mine=served.has(code), closed=airportClosed(code);
     // désencombrement : à petite échelle, seulement les grands aéroports et votre réseau
-    const show = mine || hub || a.cls>=5 || (z>=3 && a.cls>=4) || (z>=4 && a.drc && a.cls>=2) || z>=5;
+    const show = mine || hub || (z>=2 && a.traffic>=30) || (z>=3 && a.traffic>=15) || (z>=4 && a.traffic>=5) || (z>=5 && (a.large||a.traffic>=1.5)) || (z>=6 && a.cls>=3) || z>=7;
     if(!show) continue;
-    const size = hub? 24 : a.cls>=4||mine? 16 : 11;
+    const lon=unwrapLon(a.lon,c0);
+    if(!bounds.contains([a.lat,lon])) continue;
+    const size = hub? 24 : a.traffic>=10||mine? 16 : a.large? 13 : 10;
     const cls = 'ap-pin'+(hub?' hub':'')+(mine&&!hub?' mine':'')+(a.drc?' drc':'')+(closed?' closed':'')+(a.cls>=4&&!hub?' big':'');
-    const html = hub? '<span>★</span>' : a.cls>=4||mine? '<span>✈</span>' : '';
-    const label = (hub||mine||z>=6||(z>=5&&a.cls>=4)) ? `<b class="ap-name">${a.city}</b>` : '';
-    for(const off of [-360,0,360]){
-      const mk=L.marker([a.lat,a.lon+off],{icon:L.divIcon({className:cls, html:html+(off===0?label:''), iconSize:[size,size], iconAnchor:[size/2,size/2]}), zIndexOffset:hub?600:mine?400:0, riseOnHover:true});
+    const html = hub? '<span>★</span>' : a.traffic>=10||mine? '<span>✈</span>' : '';
+    const label = (hub||mine||z>=7||(z>=5&&a.traffic>=3)||(z>=4&&a.traffic>=15)||(z>=3&&a.traffic>=35)||a.traffic>=60) ? `<b class="ap-name">${a.city}</b>` : '';
+    for(const off of [0]){
+      const mk=L.marker([a.lat,lon],{icon:L.divIcon({className:cls, html:html+label, iconSize:[size,size], iconAnchor:[size/2,size/2]}), zIndexOffset:hub?600:mine?400:0, riseOnHover:true});
       mk.bindTooltip(airportTip(a),{direction:'top',offset:[0,-size/2]});
       mk.on('click',(e)=>{ L.DomEvent.stopPropagation(e); openAirport(code); });
       mk.addTo(L_airports);
@@ -326,22 +332,25 @@ function updateParked(){
 function updateRival(){
   if(!map) return;
   L_rival.clearLayers(); rivalMarkers.length=0;
-  if(!MAPOPT.rival || !S.rival) return;
+  if(!MAPOPT.rival || !S.rivals) return;
+  const bounds=map.getBounds().pad(0.3), z=zoomScale(), sz=Math.round(19*z);
   let n=0;
-  for(const r of S.rival.routes){
+  for(const R of S.rivals) for(const r of R.routes){
     const A=AP(r.a), B=AP(r.b), d=gcDist(A,B), v=d<1200?520:850;
-    const T=2*(d/v*HOUR+1.2*HOUR);
-    for(let i=0;i<Math.min(r.freq,3);i++){
-      if(n++>40) return;
-      const ph=((S.time+i*T/Math.min(r.freq,3)+hashStr(r.a+r.b)*1000)%T)/T;
+    const T=2*(d/v*HOUR+1.2*HOUR), cnt=Math.min(r.freq,3);
+    for(let i=0;i<cnt;i++){
+      const ph=((S.time+i*T/cnt+hashStr(r.a+r.b)*1000)%T)/T;
       let f, from=A, to=B;
       if(ph<0.5){ f=ph*2; } else { f=(ph-0.5)*2; from=B; to=A; }
       f=clamp((f-0.08)/0.84,0,1);
       if(f<=0||f>=1) continue;
       const p=gcInterp(from,to,f), q=gcInterp(from,to,Math.min(1,f+0.01));
-      const lon=unwrapLon(p.lon,from.lon);
-      const mk=L.marker([p.lat,lon],{icon:L.divIcon({className:'plane-icon rival', html:`<div class="rot" style="transform:rotate(${bearing(p,q)}deg);--sh:5px">${PLANE_SVG('#e5484d',Math.round(19*zoomScale()),d<1200?'prop':'nb')}</div>`, iconSize:[Math.round(19*zoomScale()),Math.round(19*zoomScale())], iconAnchor:[Math.round(9.5*zoomScale()),Math.round(9.5*zoomScale())]}), zIndexOffset:500})
-        .bindTooltip(`<b>${S.rival.name}</b><br>${from.city} → ${to.city}`,{direction:'right'});
+      let lon=unwrapLon(p.lon,map.getCenter().lng);
+      if(!bounds.contains([p.lat,lon])) continue;
+      if(n++>120) return;
+      const cat=d<1200?'prop':d<5000?'nb':'wb';
+      const mk=L.marker([p.lat,lon],{icon:L.divIcon({className:'plane-icon rival', html:`<div class="rot" style="transform:rotate(${bearing(p,q)}deg);--sh:5px">${PLANE_SVG(R.color,sz,cat)}</div>`, iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]}), zIndexOffset:500})
+        .bindTooltip(`<b>${R.name}</b><br>${from.city} → ${to.city}`,{direction:'right'});
       mk.addTo(L_rival);
     }
   }
@@ -350,7 +359,13 @@ function hashStr(s){ let h=0; for(const c of s) h=(h*131+c.charCodeAt(0))%100000
 
 function zoomPlane(){ const ac=S.fleet.find(a=>a.id===selectedPlane), st=ac&&flightState(ac); if(st) map.flyTo([st.lat,st.lon],Math.max(map.getZoom(),st.phase<=1||st.phase>=7?14:8),{duration:1}); }
 function zoomRoute(){ const ac=S.fleet.find(a=>a.id===selectedPlane); if(!ac?.flight) return; const pts=ac.flight.legs.flatMap(l=>[[AP(l.from).lat,AP(l.from).lon],[AP(l.to).lat,unwrapLon(AP(l.to).lon,AP(l.from).lon)]]); map.flyToBounds(pts,{padding:[60,60],duration:1}); }
-function focusDRC(){ map.flyToBounds([[-13.5,12],[5.5,31.5]],{duration:1.2}); }
+function focusDRC(){ focusCountry('CD'); }
+function focusCountry(cc){
+  const pts=countryAirports(cc).slice(0,60).map(c=>[AP(c).lat,AP(c).lon]);
+  if(!pts.length) return;
+  if(pts.length===1) return map.flyTo(pts[0],7,{duration:1.2});
+  map.flyToBounds(pts,{padding:[40,40],maxZoom:7,duration:1.2});
+}
 function focusWorld(){ map.flyTo([15,20],2,{duration:1.2}); }
 
 /* ---------- météo ---------- */

@@ -2,8 +2,8 @@
    DONNÉES — aéroports, pays, avions, familles, événements
    ============================================================ */
 
-// Pays : [nom, continent, drapeau, préfixe d'immatriculation]
-const COUNTRIES = {
+// Pays : [nom, continent, drapeau, préfixe d'immatriculation] — noms français soignés pour les principaux pays
+const COUNTRY_OVERRIDES = {
   CD:['RD Congo','AF','🇨🇩','9Q-'], AO:['Angola','AF','🇦🇴','D2-'], CG:['Congo-Brazzaville','AF','🇨🇬','TN-'],
   RW:['Rwanda','AF','🇷🇼','9XR-'], UG:['Ouganda','AF','🇺🇬','5X-'], KE:['Kenya','AF','🇰🇪','5Y-'],
   ET:['Éthiopie','AF','🇪🇹','ET-'], TZ:['Tanzanie','AF','🇹🇿','5H-'], ZM:['Zambie','AF','🇿🇲','9J-'],
@@ -31,7 +31,9 @@ const COUNTRIES = {
   CL:['Chili','SA','🇨🇱','CC-'], CO:['Colombie','SA','🇨🇴','HK-'], PE:['Pérou','SA','🇵🇪','OB-'],
   PA:['Panama','SA','🇵🇦','HP-'], AU:['Australie','OC','🇦🇺','VH-'], NZ:['Nouvelle-Zélande','OC','🇳🇿','ZK-'],
 };
-const CONTINENTS = { AF:'Afrique', EU:'Europe', AS:'Asie & Moyen-Orient', NA:'Amérique du Nord', SA:'Amérique latine', OC:'Océanie' };
+const COUNTRIES = Object.assign({}, COUNTRY_DB);
+for(const [cc,v] of Object.entries(COUNTRY_OVERRIDES)) COUNTRIES[cc]=[v[0], (COUNTRY_DB[cc]||v)[1], v[2], v[3]];
+const CONTINENTS = { AF:'Afrique', EU:'Europe', AS:'Asie & Moyen-Orient', NA:'Amérique du Nord & centrale', SA:'Amérique du Sud', OC:'Océanie', AN:'Antarctique' };
 
 // Classe de piste : 1 = piste courte/latérite (Caravan, Twin Otter, ATR 42)
 // 2 = piste régionale (turbopropulseurs), 3 = moyen-courrier, 4 = gros-porteurs, 5 = A380/747/777-9
@@ -191,11 +193,16 @@ const WORLD_AIRPORTS = [
 ];
 
 const AIRPORTS = {};
-DRC_AIRPORTS.forEach(([code,icao,name,city,prov,lat,lon,runway,surface,cls,traffic])=>{
-  AIRPORTS[code] = {code,icao,name,city,cc:'CD',prov,lat,lon,runway,surface,cls,traffic,drc:true};
+// 1) base mondiale (≈3 200 aéroports avec vols réguliers)
+AIRPORT_DB.forEach(([code,icao,name,city,cc,lat,lon,cls,traffic,runway,large,utc,region])=>{
+  if(!COUNTRIES[cc]) return;
+  AIRPORTS[code]={code,icao,name,city,cc,prov:'',region,lat,lon,runway,surface:'Asphalte',cls,traffic,large:!!large,utc,drc:cc==='CD'};
 });
-WORLD_AIRPORTS.forEach(([code,name,city,cc,lat,lon,cls,traffic])=>{
-  AIRPORTS[code] = {code,icao:'',name,city,cc,prov:'',lat,lon,runway:[0,1500,2000,2800,3500,4000][cls],surface:'Asphalte',cls,traffic,drc:false};
+// 2) noms français des grandes villes
+WORLD_AIRPORTS.forEach(([code,name,city])=>{ if(AIRPORTS[code]){ AIRPORTS[code].city=city; } });
+// 3) RDC : données détaillées (provinces, pistes en latérite)
+DRC_AIRPORTS.forEach(([code,icao,name,city,prov,lat,lon,runway,surface,cls,traffic])=>{
+  AIRPORTS[code] = Object.assign(AIRPORTS[code]||{}, {code,icao,name,city,cc:'CD',prov,lat,lon,runway,surface,cls,traffic,drc:true,large:cls>=4});
 });
 const AIRPORT_CODES = Object.keys(AIRPORTS);
 const DRC_PROVINCES = ['Kinshasa','Kongo-Central','Kwango','Kwilu','Maï-Ndombe','Équateur','Sud-Ubangi','Nord-Ubangi','Mongala','Tshuapa','Tshopo','Bas-Uele','Haut-Uele','Ituri','Nord-Kivu','Sud-Kivu','Maniema','Haut-Katanga','Lualaba','Haut-Lomami','Tanganyika','Lomami','Sankuru','Kasaï','Kasaï-Central','Kasaï-Oriental'];
@@ -215,6 +222,9 @@ const FAMILIES = {
   B777:['Boeing 777',95000,60,16500],
   B747:['Boeing 747',100000,70,17000],
   A380:['Airbus A380',110000,80,19000],
+  A340:['Airbus A340',85000,55,14500],
+  RUCN:['Avions russes & chinois (Superjet, MC-21, COMAC)',50000,40,10000],
+  MD:['McDonnell Douglas & Boeing 717',70000,50,12000],
   CONC:['Concorde (supersonique)',120000,90,22000],
 };
 
@@ -263,6 +273,32 @@ const MODELS = [
   ['B74F','Boeing 747-8F','Boeing','B747',0,134,8100,910,12500,419,5,11900],
   ['A388','Airbus A380-800','Airbus','A380',555,0,15200,900,13700,445,5,12500],
   ['CONC','Concorde','Aérospatiale/BAC','CONC',100,0,7200,2150,25600,250,4,18000],
+  ['SF34','Saab 340B','Saab','TURBO',34,0,1700,500,450,8,1,7600],
+  ['DH8C','Dash 8-300','De Havilland','TURBO',50,0,1700,530,650,17,2,7600],
+  ['E145','Embraer ERJ145','Embraer','EMB',50,0,2900,830,1500,25,2,11000],
+  ['E170','Embraer E170','Embraer','EMB',72,0,3900,830,1900,45,3,11000],
+  ['E195','Embraer E195','Embraer','EMB',124,0,4200,830,2600,50,3,11000],
+  ['E290','Embraer E190-E2','Embraer','EMB',114,0,5300,830,2300,59,3,11000],
+  ['SU95','Sukhoi Superjet 100','Sukhoi','RUCN',98,0,4500,830,2300,35,3,11000],
+  ['AJ27','COMAC C909 (ARJ21)','COMAC','RUCN',90,0,2200,820,2200,38,3,11000],
+  ['C919','COMAC C919','COMAC','RUCN',168,0,4100,830,3000,99,3,11300],
+  ['MC21','Irkut MC-21-300','Irkut','RUCN',180,0,6000,850,2900,90,3,11300],
+  ['A318','Airbus A318','Airbus','A320',107,0,5700,830,2600,77,3,11300],
+  ['A320','Airbus A320ceo (occasion)','Airbus','A320',180,0,6100,830,3300,55,3,11300],
+  ['A321','Airbus A321ceo','Airbus','A320',220,0,5900,830,3700,65,3,11300],
+  ['B737','Boeing 737-700','Boeing','B737',140,0,6300,840,2900,75,3,11300],
+  ['B39M','Boeing 737 MAX 9','Boeing','B737',193,0,6570,840,2850,128,3,11300],
+  ['B712','Boeing 717-200','Boeing','MD',110,0,3800,810,2400,30,3,11000],
+  ['B753','Boeing 757-300','Boeing','B75X',243,0,6400,850,4500,85,3,11600],
+  ['B75F','Boeing 757-200F','Boeing','B75X',0,39,5800,850,4300,60,3,11600],
+  ['B764','Boeing 767-400ER','Boeing','B75X',296,0,10400,850,6400,230,4,11600],
+  ['A332','Airbus A330-200','Airbus','A330',247,0,13450,870,6500,238,4,11900],
+  ['A343','Airbus A340-300 (occasion)','Airbus','A340',295,0,13700,870,9000,120,4,11900],
+  ['A346','Airbus A340-600','Airbus','A340',380,0,14400,880,11000,160,4,11900],
+  ['A35F','Airbus A350F','Airbus','A350',0,111,8700,900,7800,400,4,12500],
+  ['B77L','Boeing 777-200LR','Boeing','B777',317,0,15800,905,9000,346,4,11900],
+  ['B778','Boeing 777-8','Boeing','B777',395,0,16200,905,9100,410,5,11900],
+  ['MD11','McDonnell Douglas MD-11F','McDonnell Douglas','MD',0,91,6700,880,9500,45,4,11300],
 ].map(([id,name,maker,fam,seats,cargo,range,speed,burn,price,cls,alt])=>({id,name,maker,fam,seats,cargo,range,speed,burn,price,cls,alt}));
 
 const MAINT = {
@@ -278,14 +314,14 @@ const LOAN_PRODUCTS = [
 ];
 
 const CAMPAIGNS = [
-  {id:'radio', name:'Radio & affiches en RDC', cost:150000, days:30, scope:'drc', boost:0.15, rep:2, desc:'Top Congo FM, Radio Okapi, panneaux à Kinshasa et Lubumbashi'},
+  {id:'radio', name:'Radio & affichage national', cost:150000, days:30, scope:'home', boost:0.15, rep:2, desc:'Radios, panneaux et presse dans votre pays'},
   {id:'digital', name:'Campagne digitale', cost:400000, days:30, scope:'all', boost:0.08, rep:3, desc:'Réseaux sociaux, moteurs de recherche, influenceurs'},
   {id:'tv', name:'TV internationale', cost:2500000, days:45, scope:'intl', boost:0.15, rep:6, desc:'Spots sur les chaînes d’info internationales'},
-  {id:'leopards', name:'Sponsoring des Léopards (RDC)', cost:5000000, days:90, scope:'drc', boost:0.25, rep:10, desc:'Maillot de l’équipe nationale de football'},
+  {id:'leopards', name:'Sponsoring de l’équipe nationale', cost:5000000, days:90, scope:'home', boost:0.25, rep:10, desc:'Votre logo sur le maillot de l’équipe nationale de football'},
 ];
 
 const ALLIANCES = [
-  {id:'afri', name:'AfriLink Alliance', minRep:40, minFleet:3, fee:50000, scope:'africa', boost:0.12, desc:'Réseau africain : correspondances à Addis, Nairobi, Johannesburg, Lagos'},
+  {id:'afri', name:'Alliance régionale', minRep:40, minFleet:3, fee:50000, scope:'region', boost:0.12, desc:'Partage de codes avec les compagnies de votre continent'},
   {id:'sky', name:'SkyTeam', minRep:65, minFleet:12, fee:300000, scope:'intl', boost:0.14, desc:'Partage de codes avec de grands transporteurs européens'},
   {id:'star', name:'Star Alliance', minRep:70, minFleet:15, fee:400000, scope:'intl', boost:0.16, desc:'Le plus grand réseau mondial'},
   {id:'one', name:'oneworld', minRep:75, minFleet:20, fee:450000, scope:'intl', boost:0.18, desc:'Réseau premium, forte clientèle affaires'},
@@ -305,6 +341,16 @@ const EVENT_TYPES = [
   {id:'rain', name:'Grandes pluies', icon:'🌧️', p:0.006, days:[3,8], closeLaterite:true, drc:true, desc:'Les pistes en latérite sont impraticables.'},
   {id:'insecurity', name:'Insécurité dans le Kivu', icon:'⚠️', p:0.004, days:[20,50], regions:['Nord-Kivu','Ituri','Sud-Kivu'], regionDemand:0.7, drc:true, desc:'Demande en baisse et assurances plus chères.'},
   {id:'fuel_drc', name:'Pénurie de carburant en RDC', icon:'⛽', p:0.004, days:[7,20], drcFuel:1.5, drc:true, desc:'Le Jet A1 se fait rare dans les aéroports congolais.'},
+  // ---- événements mondiaux et régionaux ----
+  {id:'hurricane', name:'Ouragan dans les Caraïbes', icon:'🌀', p:0.006, days:[2,5], closeZone:a=>a.lat>10&&a.lat<30&&a.lon>-90&&a.lon<-58&&a.cls>=3, closeCount:3, desc:'Plusieurs aéroports des Caraïbes et du golfe du Mexique sont fermés.'},
+  {id:'typhoon', name:'Typhon en Asie de l’Est', icon:'🌪️', p:0.006, days:[2,4], closeZone:a=>a.lat>12&&a.lat<36&&a.lon>105&&a.lon<142&&a.cls>=3, closeCount:3, desc:'Des aéroports de Chine du Sud, Taïwan, Philippines ou Japon sont fermés.'},
+  {id:'snow', name:'Tempête de neige', icon:'❄️', p:0.007, days:[1,3], closeZone:a=>a.lat>40&&a.large&&(COUNTRIES[a.cc][1]==='EU'||COUNTRIES[a.cc][1]==='NA'), closeCount:2, winter:true, desc:'De grands aéroports d’Europe ou d’Amérique du Nord sont paralysés.'},
+  {id:'ash', name:'Nuage de cendres volcaniques', icon:'🌋', p:0.002, days:[3,8], closeNear:['KEF','DPS','CTS','UIO','CTA'], radius:700, desc:'Tous les aéroports autour du volcan sont fermés.'},
+  {id:'monsoon', name:'Mousson en Asie du Sud', icon:'🌧️', p:0.004, days:[20,45], ccs:['IN','BD','LK','NP','PK','MM'], ccDemand:0.8, desc:'Retards et baisse de la demande en Inde et dans les pays voisins.'},
+  {id:'sport', name:'Grand événement sportif', icon:'🏟️', p:0.004, days:[12,25], boostRandom:true, boost:1.6, desc:'Coupe du monde, Jeux… : la demande explose vers la ville hôte.'},
+  {id:'hajj', name:'Pèlerinage du Hajj', icon:'🕋', p:0.003, days:[15,25], ccs:['SA'], ccDemand:1.6, desc:'Afflux de pèlerins vers Djeddah et Médine.'},
+  {id:'lny', name:'Nouvel An lunaire', icon:'🧧', p:0.003, days:[10,18], ccs:['CN','HK','TW','VN','KR','SG','MY'], ccDemand:1.4, desc:'Le plus grand mouvement de population au monde.'},
+  {id:'visa', name:'Exemption de visas', icon:'🛂', p:0.003, days:[60,120], ccsRandom:true, ccDemand:1.3, desc:'Un pays supprime les visas touristiques : la demande grimpe.'},
   {id:'fikin', name:'FIKIN – Foire internationale de Kinshasa', icon:'🎪', p:0.004, days:[10,15], regions:['Kinshasa'], regionDemand:1.35, drc:true, desc:'Afflux d’affaires vers la capitale.'},
 ];
 
@@ -333,4 +379,8 @@ const WIKI_TITLES = {
   B77E:'Boeing 777', B77W:'Boeing 777', B779:'Boeing 777X', B77F:'Boeing 777',
   B744:'Boeing 747-400', B748:'Boeing 747-8', B74F:'Boeing 747-8',
   A388:'Airbus A380', CONC:'Concorde',
+  SF34:'Saab 340', DH8C:'De Havilland Canada Dash 8', E145:'Embraer ERJ family', E170:'Embraer E-Jet family', E195:'Embraer E-Jet family', E290:'Embraer E-Jet E2 family',
+  SU95:'Sukhoi Superjet 100', AJ27:'Comac ARJ21', C919:'Comac C919', MC21:'Irkut MC-21', A318:'Airbus A318', A320:'Airbus A320 family', A321:'Airbus A321',
+  B737:'Boeing 737 Next Generation', B39M:'Boeing 737 MAX', B712:'Boeing 717', B753:'Boeing 757', B75F:'Boeing 757', B764:'Boeing 767',
+  A332:'Airbus A330', A343:'Airbus A340', A346:'Airbus A340', A35F:'Airbus A350', B77L:'Boeing 777', B778:'Boeing 777X', MD11:'McDonnell Douglas MD-11',
 };

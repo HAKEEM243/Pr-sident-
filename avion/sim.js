@@ -76,7 +76,7 @@ function newGame(opts){
   const start = Date.UTC(2026,0,5,5,0);
   S = {
     time:start, startTime:start, speed:'standard', paused:false, lastReal:Date.now(),
-    company:{ name:opts.name||'Congo Sky', code:(opts.code||'CS').toUpperCase().slice(0,3), color:opts.color||'#d4a72c', logo:opts.logo||'🐆', hub:opts.hub||'FIH' },
+    company:{ name:opts.name||'Sky Empire', code:(opts.code||'SE').toUpperCase().slice(0,3), color:opts.color||'#d4a72c', logo:opts.logo||'🐆', hub:opts.hub||'FIH' },
     cash:opts.capital||80e6, reputation:50, service:3,
     ancillary:{seat:true, bags:true, wifi:false, meals:false},
     oil:82, oilBase:82, fleet:[], customModels:[], pilots:[], candidates:[], cabinCrew:8, routes:[],
@@ -89,12 +89,14 @@ function newGame(opts){
     led:{ day:{}, week:{}, prevWeek:{}, month:{}, prevMonth:{}, total:{} },
     stats:{ pax:0, flights:0, cargoT:0, incidents:0 },
     autoMaint:true, notifications:false, lastDay:dayIndex(start), lastMonth:monthKey(start),
-    rival:null, admin:false, seq:1,
+    rivals:[], admin:false, seq:1,
   };
-  const reg = COUNTRIES[AP(S.company.hub).cc][3];
-  addAircraft('AT76', {owned:true});
-  addAircraft('C208', {owned:true});
-  for(let i=0;i<6;i++) S.pilots.push(makePilot(['TURBO'], true));
+  const pack=START_PACKS[opts.pack||'regional'];
+  S.cash=pack.capital*(opts.diff||1);
+  for(const id of pack.fleet) addAircraft(id,{owned:true});
+  for(const [fam,n] of pack.pilots) for(let i=0;i<n;i++) S.pilots.push(makePilot([fam], true));
+  Object.assign(S.staff, pack.staff);
+  S.fuel.stock=Math.min(S.fuel.cap, pack.fuel);
   refreshCandidates();
   initRival();
   genCargoOffers(3);
@@ -105,11 +107,28 @@ function newGame(opts){
   save();
 }
 
+const START_PACKS = {
+  regional:{ name:'Compagnie régionale', desc:'1 ATR 72-600 + 1 Cessna Caravan · 6 pilotes', capital:80e6, fleet:['AT76','C208'], pilots:[['TURBO',6]], staff:{pnc:8,meca:6,sol:18}, fuel:400000 },
+  national:{ name:'Compagnie nationale', desc:'2 Airbus A320neo + 1 ATR 72-600 · 14 pilotes', capital:150e6, fleet:['A20N','A20N','AT76'], pilots:[['A320',10],['TURBO',4]], staff:{pnc:16,meca:10,sol:26}, fuel:1000000 },
+  major:{ name:'Grand transporteur', desc:'3 A320neo + 1 Boeing 787-9 · 22 pilotes', capital:350e6, fleet:['A20N','A20N','A20N','B789'], pilots:[['A320',14],['B787',8]], staff:{pnc:30,meca:14,sol:32}, fuel:1500000 },
+};
+const NAME_POOLS = {
+  CD:[FIRST_NAMES_CD,LAST_NAMES_CD],
+  AF:[['Kwame','Amina','Ibrahim','Fatou','Chinedu','Aïcha','Moussa','Grace','Tunde','Mariam','Kofi','Zainab'],['Okafor','Mensah','Diallo','Traoré','Ndiaye','Kamau','Mwangi','Adeyemi','Banda','Haile','Keita','Mbeki']],
+  EU:[['Lucas','Emma','Thomas','Sofia','Marco','Anna','Jan','Elena','Pierre','Julia','Lars','Inès'],['Martin','Dubois','Müller','Rossi','García','Kowalski','Novak','Jansen','Lindqvist','Ferreira','Bernard','Schmidt']],
+  AS:[['Wei','Yuki','Ravi','Aisha','Min-jun','Arjun','Mei','Omar','Hiroshi','Priya','Ahmed','Linh'],['Chen','Tanaka','Patel','Kim','Nguyen','Wang','Sato','Sharma','Haddad','Lee','Rahman','Singh']],
+  NA:[['James','Emily','Michael','Olivia','Carlos','Sophia','Daniel','Grace','José','Chloe','Ethan','María'],['Johnson','Smith','Brown','Williams','Garcia','Martinez','Davis','Wilson','Lopez','Taylor','Moore','Clark']],
+  SA:[['João','Ana','Mateo','Valentina','Pedro','Camila','Diego','Lucía','Rafael','Isabela','Santiago','Mariana'],['Silva','Santos','González','Rodríguez','Oliveira','Pérez','Costa','Fernández','Souza','Gómez','Lima','Torres']],
+  OC:[['Jack','Mia','Oliver','Charlotte','Noah','Ruby','Liam','Isla','Tane','Aroha','Harry','Zoe'],['Smith','Jones','Williams','Brown','Wilson','Taylor','Ngata','Walker','White','Martin','Kelly','Ryan']],
+};
+const homeCC = ()=>S&&S.company? AP(S.company.hub).cc : 'CD';
 function makePilot(quals, local){
-  const cd = local || Math.random()<0.6;
-  const name = cd ? `${pick(FIRST_NAMES_CD)} ${pick(LAST_NAMES_CD)}` : `${pick(FIRST_NAMES_W)} ${pick(LAST_NAMES_W)}`;
+  const cc=homeCC(), home = local || Math.random()<0.65;
+  const pool = home? (NAME_POOLS[cc]||NAME_POOLS[COUNTRIES[cc][1]]||NAME_POOLS.EU) : NAME_POOLS[pick(['AF','EU','AS','NA','SA','OC'])];
+  const name = `${pick(pool[0])} ${pick(pool[1])}`;
+  const cd = home;
   const top = quals.reduce((m,q)=>Math.max(m,FAMILIES[q][3]),5000);
-  return { id:uid(), name, nat: cd?'CD':'INT', quals:[...quals], salary:Math.round(top*rnd(0.9,1.15)/100)*100, hours:rndi(1500,9000), training:null };
+  return { id:uid(), name, nat: cd?cc:'INT', quals:[...quals], salary:Math.round(top*rnd(0.9,1.15)/100)*100, hours:rndi(1500,9000), training:null };
 }
 function refreshCandidates(){
   const famW = ['TURBO','TURBO','TURBO','CRJ','EMB','A220','A320','A320','B737','B737','B75X','A330','B787','A350','B777','B747','A380'];
@@ -162,6 +181,7 @@ function logMsg(text, kind='info'){
 function oilMult(){ return S.events.reduce((m,e)=>m*(EV(e).oil||1),1); }
 function fuelPrice(code){ // $ par litre
   let p = S.oil/159*1.3 + 0.12;
+  if(code && !isDrc(code) && AP(code).traffic<0.15 && !AP(code).fuelDepot) p*=1.18; // petits aéroports isolés
   if(code && isDrc(code)){
     if(!['FIH','FBM','GOM','FKI'].includes(code) && !AP(code).fuelDepot) p*=1.35; // acheminement vers l'intérieur
     p *= S.events.reduce((m,e)=>m*(EV(e).drcFuel||1),1);
@@ -179,12 +199,17 @@ function demandMult(a,b){
     const t=EV(e);
     if(t.demand) k*=t.demand;
     if(t.regions && t.regionDemand){ if(t.regions.includes(A.prov)||t.regions.includes(B.prov)) k*=t.regionDemand; }
+    const ccs=e.ccs||t.ccs; if(ccs && t.ccDemand && (ccs.includes(A.cc)||ccs.includes(B.cc))) k*=t.ccDemand;
+    if(e.boostAirport && (a===e.boostAirport||b===e.boostAirport)) k*=t.boost||1.5;
   }
   for(const c of S.campaigns){
     const cp=CAMPAIGNS.find(x=>x.id===c.id); if(!cp) continue;
-    if(cp.scope==='all' || (cp.scope==='drc'&&(A.drc||B.drc)) || (cp.scope==='intl'&&intl)) k*=1+cp.boost;
+    const hc=homeCC();
+    if(cp.scope==='all' || ((cp.scope==='home'||cp.scope==='drc')&&(A.cc===hc||B.cc===hc)) || (cp.scope==='intl'&&intl)) k*=1+cp.boost;
   }
-  if(S.alliance){ const al=ALLIANCES.find(x=>x.id===S.alliance); if(al && ((al.scope==='africa'&&africa&&intl)||(al.scope==='intl'&&intl))) k*=1+al.boost; }
+  const cont=COUNTRIES[homeCC()][1], regional=continentOf(a)===cont&&continentOf(b)===cont;
+  if(S.alliance){ const al=ALLIANCES.find(x=>x.id===S.alliance); if(al && (((al.scope==='africa'||al.scope==='region')&&regional&&intl)||(al.scope==='intl'&&intl))) k*=1+al.boost; }
+  if(A.cc===B.cc && !A.drc) k*=1.2; // vols intérieurs
   return k;
 }
 // Demande quotidienne totale (tous transporteurs) dans un sens
@@ -205,11 +230,8 @@ function baseFare(a,b){
 }
 function ancillaryPenalty(){ const a=S.ancillary; return 1-(a.seat?0.02:0)-(a.bags?0.03:0)-(a.wifi?0.005:0)-(a.meals?(S.service>=4?0.04:0.01):0); }
 function playerQuality(){ return (0.55+S.reputation/100)*SERVICE_ATTR[S.service-1]*ancillaryPenalty(); }
-function rivalFreq(a,b){
-  if(!S.rival) return 0; let f=0;
-  for(const r of S.rival.routes) if((r.a===a&&r.b===b)||(r.a===b&&r.b===a)) f+=r.freq;
-  return f;
-}
+function rivalFreq(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.freq,0); }
+function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.sqrt(x.freq),0); }
 function routeCycleHours(route, ac){
   const m=modelOf(ac); let h=0;
   for(let i=0;i<route.stops.length-1;i++) h+=legProfile(dist(route.stops[i],route.stops[i+1]),m).total/HOUR;
@@ -241,7 +263,7 @@ function priceFactor(r){ return r<=1? 1+(1-r)*0.9 : Math.pow(r,-3); }
 function legMarket(route, a, b, freqOverride){
   const fp=Math.max(0.05, freqOverride ?? routeFreq(route));
   const base=marketDemand(a,b), split=classSplit(a,b), q=playerQuality(), rf=rivalFreq(a,b);
-  const attrC=Math.sqrt(Math.max(0.4,base/160)) + (S.rival? S.rival.quality*Math.sqrt(rf) : 0);
+  const attrC=Math.sqrt(Math.max(0.4,base/160)) + rivalAttr(a,b);
   const transfer=connectingDemand(a,b);
   const out={freq:fp, rivalFreq:rf, market:base, transfer};
   let daily=0;
@@ -620,7 +642,10 @@ function dailyTick(){
   if(S.events.length<before) recomputeClosed();
   for(const et of EVENT_TYPES){
     if(S.events.some(e=>e.type===et.id)) continue;
-    if(Math.random()<et.p) triggerEvent(et.id);
+    let p=et.p;
+    if(et.drc && !S.hubs.some(isDrc) && !S.routes.some(r=>r.stops.some(isDrc))) p*=0.15; // actualité congolaise surtout si vous y êtes
+    if(et.winter){ const mo=new Date(S.time).getUTCMonth(); if(mo>2&&mo<10) p=0; }
+    if(Math.random()<p) triggerEvent(et.id);
   }
   // réputation
   const fleetCond = S.fleet.length? S.fleet.reduce((s,a)=>s+a.condition,0)/S.fleet.length : 80;
@@ -672,30 +697,44 @@ function triggerEvent(id){
   const et=EVENT_TYPES.find(e=>e.id===id); if(!et) return;
   const e={type:id, until:S.time+rndi(et.days[0],et.days[1])*DAY};
   if(et.closeRandom){ e.airport=pick(AIRPORT_CODES.filter(c=>AP(c).cls>=4 && c!==S.company.hub)); }
+  if(et.closeZone){ const z=AIRPORT_CODES.filter(c=>et.closeZone(AP(c))); if(!z.length) return; e.airports=[]; for(let i=0;i<(et.closeCount||2)&&z.length;i++) e.airports.push(z.splice(Math.floor(Math.random()*z.length),1)[0]); }
+  if(et.closeNear){ const c0=pick(et.closeNear.filter(c=>AIRPORTS[c])); e.airports=AIRPORT_CODES.filter(c=>dist(c0,c)<et.radius); e.center=c0; }
+  if(et.boostRandom){ e.boostAirport=pick(AIRPORT_CODES.filter(c=>AP(c).traffic>=15)); }
+  if(et.ccsRandom){ e.ccs=[pick([...new Set(AIRPORT_CODES.filter(c=>AP(c).traffic>=3).map(c=>AP(c).cc))])]; }
   S.events.push(e); recomputeClosed();
   S.oil=+(S.oilBase*oilMult()).toFixed(2);
-  const where=e.airport?` (${AP(e.airport).city})`:'';
+  const where=e.airport?` (${AP(e.airport).city})` : e.airports?` (${e.airports.slice(0,3).map(c=>AP(c).city).join(', ')}${e.airports.length>3?'…':''})` : e.boostAirport?` à ${AP(e.boostAirport).city}` : e.ccs&&et.ccsRandom?` : ${COUNTRIES[e.ccs[0]][0]}`:'';
+  e.where=where;
   logMsg(`${et.icon} ${et.name}${where} — ${et.desc}`, et.drc?'drc':'warn');
   notify(et.name+where, et.desc);
 }
 function recomputeClosed(){
   S.closed=[];
-  for(const e of S.events){ const t=EV(e); if(t.close) S.closed.push(...t.close); if(e.airport) S.closed.push(e.airport); }
+  for(const e of S.events){ const t=EV(e); if(t.close) S.closed.push(...t.close); if(e.airport) S.closed.push(e.airport); if(e.airports) S.closed.push(...e.airports); }
 }
 
 /* ---------- cargo ---------- */
 function cargoMult(a,b){ let k=1; for(const e of S.events){ const t=EV(e); if(t.cargo && (t.regions.includes(AP(a).prov)||t.regions.includes(AP(b).prov))) k*=t.cargo; } return k; }
 function genCargoOffers(n){
   const drcCodes=AIRPORT_CODES.filter(c=>isDrc(c));
-  const templates=[
+  const inDrc = (S.hubs||[]).some(isDrc);
+  const hubs=(S.hubs&&S.hubs.length)?S.hubs:[S.company.hub];
+  const bigs=AIRPORT_CODES.filter(c=>AP(c).traffic>=10);
+  const near=h=>AIRPORT_CODES.filter(c=>c!==h&&AP(c).cls>=3&&dist(h,c)<3000);
+  const world=[
+    ()=>{ const h=pick(hubs); return [h, pick(near(h).length?near(h):bigs), pick(['Pièces automobiles','Électronique','Produits frais','Courrier express','Textiles','Médicaments']), rnd(5,40)]; },
+    ()=>{ const h=pick(hubs); return [pick(near(h).length?near(h):bigs), h, pick(['Fleurs coupées','Poissons & fruits de mer','Fruits tropicaux','Produits pharmaceutiques']), rnd(5,30)]; },
+    ()=>{ const a=pick(bigs), b=pick(bigs.filter(c=>c!==a)); return [a,b,pick(['Fret général','E-commerce','Machines industrielles','Composants aéronautiques']),rnd(20,100)]; },
+    ()=>{ const a=pick(hubs), b=pick(AIRPORT_CODES.filter(c=>AP(c).cls<=2&&dist(a,c)<2500)); return b?[a,b,'Aide humanitaire (ONG)',rnd(2,8)]:[a,pick(bigs),'Fret général',rnd(10,40)]; },
+  ];
+  const templates=inDrc?[...world,
     ()=>[pick(['KWZ','FBM']), pick(['DAR','JNB','LUN','NLA']), 'Cuivre & cobalt', rnd(10,60)],
     ()=>[pick(['FIH','FBM','GOM']), pick(drcCodes.filter(c=>AP(c).cls<=2)), 'Aide humanitaire (ONG)', rnd(2,8)],
     ()=>[pick(['FIH','GOM','BKY','BUX']), pick(['FKI','BNC','KND','FMI','MDK']), 'Médicaments & vaccins', rnd(1,6)],
     ()=>[pick(['CDG','BRU','DXB','IST','JNB']), pick(['FIH','FBM']), 'Biens de consommation', rnd(15,90)],
     ()=>[pick(['FIH','MJM','KGA']), pick(['BRU','DXB','JNB']), 'Diamants & café', rnd(1,10)],
     ()=>[pick(['GOM','BKY']), pick(['FIH','NBO','EBB']), 'Café du Kivu & thé', rnd(5,20)],
-    ()=>{ const a=pick(AIRPORT_CODES), b=pick(AIRPORT_CODES.filter(c=>c!==a)); return [a,b,'Fret général',rnd(10,100)]; },
-  ];
+  ]:world;
   for(let i=0;i<n;i++){
     const [from,to,goods,tons]=pick(templates)();
     if(from===to) continue;
@@ -721,15 +760,37 @@ function acceptCargo(offerId, acId){
   return e;
 }
 
-/* ---------- rival IA ---------- */
-function initRival(){
-  const hub = S.company.hub==='FBM'? 'FIH' : 'FBM';
-  S.rival={ name:'StarWing Airways', code:'SW', hub, cash:140e6, fleet:7, quality:0.95, rep:55, paxDay:0, revDay:0, routes:[] };
-  const cands = ['FIH','FBM','GOM','JNB','NBO','LAD','KWZ','MJM','FKI','ADD','BZV','LUN'].filter(c=>c!==hub);
-  for(const c of cands.slice(0,6)) S.rival.routes.push({a:hub,b:c,freq:rndi(1,3)});
+/* ---------- compagnies concurrentes (IA) ---------- */
+const AI_MAJORS = [
+  {name:'Atlantica Global', code:'AG', color:'#3b82f6', hub:'JFK'},
+  {name:'EuroSky', code:'ES', color:'#8b5cf6', hub:'FRA'},
+  {name:'Gulf Star', code:'GS', color:'#d97706', hub:'DXB'},
+  {name:'Pacific Crown', code:'PC', color:'#14b8a6', hub:'SIN'},
+  {name:'Jade Sky', code:'JS', color:'#ef4444', hub:'PEK'},
+  {name:'Andes Air', code:'AA', color:'#22c55e', hub:'GRU'},
+  {name:'Sahara Wings', code:'SW', color:'#f97316', hub:'ADD'},
+];
+const R0 = ()=>S.rivals&&S.rivals[0];
+function makeRival(t, local){
+  const R={ name:t.name, code:t.code, color:t.color, hub:t.hub, local:!!local, cash:local?140e6:900e6, fleet:local?7:60, quality:local?0.95:1.05, rep:local?55:68, paxDay:0, revDay:0, routes:[] };
+  const H=AP(t.hub), maxD=local?2500:7000;
+  const cands=AIRPORT_CODES.filter(c=>c!==t.hub && AP(c).cls>=3 && dist(t.hub,c)<maxD && dist(t.hub,c)>150)
+    .map(c=>({c, s:marketDemand(t.hub,c)*(local&&AP(c).cc===H.cc?2:1)})).sort((x,y)=>y.s-x.s).slice(0, local?6:10);
+  for(const x of cands) R.routes.push({a:t.hub,b:x.c,freq:rndi(1,local?3:4)});
+  return R;
 }
-function rivalTick(){
-  const R=S.rival; if(!R) return;
+function initRivals(){
+  const H=AP(S.company.hub);
+  // rival local : le plus grand autre aéroport du pays (ou de la région)
+  let lh=AIRPORT_CODES.filter(c=>c!==S.company.hub && AP(c).cc===H.cc && AP(c).cls>=3).sort((x,y)=>AP(y).traffic-AP(x).traffic)[0];
+  if(!lh) lh=AIRPORT_CODES.filter(c=>c!==S.company.hub && AP(c).cls>=3).sort((x,y)=>dist(S.company.hub,x)-dist(S.company.hub,y))[0];
+  const localName = (H.cc==='CD'?'StarWing Airways':`StarWing ${COUNTRIES[H.cc][0]}`);
+  S.rivals=[makeRival({name:localName, code:'SW', color:'#e5484d', hub:lh}, true)];
+  for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false));
+}
+function initRival(){ initRivals(); }
+function rivalTick(){ for(const R of S.rivals||[]) rivalStep(R); }
+function rivalStep(R){
   let pax=0, rev=0;
   for(const r of R.routes){
     const d=dist(r.a,r.b), dem=marketDemand(r.a,r.b)+marketDemand(r.b,r.a);
@@ -739,20 +800,22 @@ function rivalTick(){
   }
   const profit = rev*rnd(0.02,0.12);
   R.cash+=profit; R.paxDay=Math.round(pax); R.revDay=Math.round(rev);
-  R.rep=clamp(R.rep+rnd(-0.6,0.7),30,90); R.quality=0.75+R.rep/200;
-  // expansion
-  if(R.cash>50e6 && Math.random()<0.12){
+  R.rep=clamp(R.rep+rnd(-0.6,0.7),30,92); R.quality=0.75+R.rep/200;
+  // expansion : le rival local copie vos lignes, les majors s'attaquent à celles proches de leur hub
+  if(R.cash>50e6 && Math.random()<(R.local?0.12:0.06)){
     let a,b;
-    const player=S.routes.filter(r=>r.stops.length>=2);
-    if(player.length && Math.random()<0.55){ const r=pick(player); a=r.stops[0]; b=r.stops[1]; }
-    else { a=R.hub; b=pick(AIRPORT_CODES.filter(c=>c!==R.hub && AP(c).cls>=3 && dist(R.hub,c)<5000)); }
+    const player=S.routes.filter(r=>r.stops.length>=2 && (R.local || r.stops.some(c=>dist(c,R.hub)<3000)));
+    if(player.length && Math.random()<(R.local?0.55:0.3)){ const r=pick(player); a=r.stops[0]; b=r.stops[1]; }
+    else { a=R.hub; const opts=AIRPORT_CODES.filter(c=>c!==R.hub && AP(c).cls>=3 && dist(R.hub,c)<(R.local?4000:9000) && AP(c).traffic>=1); if(!opts.length) return; b=pick(opts); }
     const ex=R.routes.find(x=>(x.a===a&&x.b===b)||(x.a===b&&x.b===a));
     if(ex) ex.freq=Math.min(6,ex.freq+1); else R.routes.push({a,b,freq:1});
     R.cash-=40e6; R.fleet++;
-    logMsg(`🛩️ ${R.name} ${ex?'renforce':'ouvre'} la ligne ${AP(a).city} – ${AP(b).city}.`,'rival');
+    const mine=S.routes.some(r=>r.stops.includes(a)&&r.stops.includes(b));
+    if(R.local || mine) logMsg(`🛩️ ${R.name} ${ex?'renforce':'ouvre'} la ligne ${AP(a).city} – ${AP(b).city}${mine?' (votre ligne !)':''}.`,'rival');
   }
   if(R.cash<0 && R.routes.length>2){ R.routes.sort((x,y)=>x.freq-y.freq).shift(); R.fleet=Math.max(3,R.fleet-1); R.cash+=25e6; }
 }
+function rivalsOn(a,b){ const out=[]; for(const R of S.rivals||[]) for(const r of R.routes) if((r.a===a&&r.b===b)||(r.a===b&&r.b===a)) out.push({R,freq:r.freq}); return out; }
 
 /* ---------- météo : cellules orageuses ---------- */
 function stormAt(lat,lon){ for(const c of S.weather||[]){ if(gcDist(c,{lat,lon})<c.r) return c; } return null; }
@@ -796,7 +859,7 @@ function satisfaction(){
 }
 function punctuality(){ const on=S.stats.onTime||0, late=S.stats.late||0; return on+late? on/(on+late) : 1; }
 
-/* ---------- investissements aéroportuaires (partenariat RVA, RDC) ---------- */
+/* ---------- investissements aéroportuaires ---------- */
 const AP_BASE = JSON.parse(JSON.stringify(AIRPORTS));
 const UPGRADES = {
   pave:{name:'Bitumer la piste', icon:'🛣️', days:60, cost:a=>8e6, can:a=>a.surface==='Latérite', desc:'Asphalte : plus de fermeture pendant les pluies, classe 2 minimum (ATR 72, Dash 8).', apply:a=>{ a.surface='Asphalte'; a.cls=Math.max(a.cls,2); a.runway=Math.max(a.runway,1800); }},
@@ -813,7 +876,6 @@ function applyUpgrades(){
 }
 function startProject(code,type){
   const a=AP(code), u=UPGRADES[type];
-  if(!a.drc) return 'Investissements réservés aux aéroports de la RDC';
   if(!u.can(a)) return 'Projet non disponible ici';
   S.projects=S.projects||[];
   if(S.projects.some(p=>p.code===code&&p.type===type)) return 'Chantier déjà en cours';
@@ -931,16 +993,20 @@ function servedProvinces(){ const set=new Set(); for(const c of servedAirports()
 const hasRouteBetween=(A,B)=>S.routes.some(r=>routeAircraft(r).length && r.stops.some(c=>A.includes(c)) && r.stops.some(c=>B.includes(c)));
 const MISSIONS = [
   {id:'first', name:'Premier décollage', desc:'Réaliser un premier vol commercial', cash:1e6, rep:1, done:()=>S.stats.flights>=1},
-  {id:'kin_lub', name:'L’axe Kinshasa – Lubumbashi', desc:'Relier la capitale au Katanga', cash:3e6, rep:2, done:()=>hasRouteBetween(['FIH','NLO'],['FBM'])},
-  {id:'kivu', name:'Pont aérien vers le Kivu', desc:'Desservir Goma ou Bukavu depuis Kinshasa', cash:3e6, rep:2, done:()=>hasRouteBetween(['FIH','NLO'],['GOM','BKY'])},
-  {id:'big5', name:'Les cinq grandes villes', desc:'Desservir Kinshasa, Lubumbashi, Mbuji-Mayi, Kisangani et Goma', cash:6e6, rep:3, done:()=>{ const s=servedAirports(); return ['FIH','FBM','MJM','FKI','GOM'].every(c=>s.has(c)); }},
-  {id:'drc10', name:'Réseau national', desc:'Desservir 10 aéroports congolais', cash:5e6, rep:3, done:()=>[...servedAirports()].filter(isDrc).length>=10},
-  {id:'prov15', name:'Unir le Congo', desc:'Desservir 15 provinces de la RDC', cash:12e6, rep:5, done:()=>servedProvinces().size>=15},
-  {id:'prov25', name:'Tout le Congo', desc:'Desservir les 25 provinces dotées d’un aéroport', cash:40e6, rep:8, done:()=>servedProvinces().size>=25},
-  {id:'bush', name:'Pilote de brousse', desc:'Desservir 5 pistes en latérite', cash:2e6, rep:2, done:()=>[...servedAirports()].filter(c=>AP(c).surface==='Latérite').length>=5},
+  {id:'kin_lub', cc:'CD', name:'L’axe Kinshasa – Lubumbashi', desc:'Relier la capitale au Katanga', cash:3e6, rep:2, done:()=>hasRouteBetween(['FIH','NLO'],['FBM'])},
+  {id:'kivu', cc:'CD', name:'Pont aérien vers le Kivu', desc:'Desservir Goma ou Bukavu depuis Kinshasa', cash:3e6, rep:2, done:()=>hasRouteBetween(['FIH','NLO'],['GOM','BKY'])},
+  {id:'big5', cc:'CD', name:'Les cinq grandes villes', desc:'Desservir Kinshasa, Lubumbashi, Mbuji-Mayi, Kisangani et Goma', cash:6e6, rep:3, done:()=>{ const s=servedAirports(); return ['FIH','FBM','MJM','FKI','GOM'].every(c=>s.has(c)); }},
+  {id:'drc10', cc:'CD', name:'Réseau national', desc:'Desservir 10 aéroports congolais', cash:5e6, rep:3, done:()=>[...servedAirports()].filter(isDrc).length>=10},
+  {id:'prov15', cc:'CD', name:'Unir le Congo', desc:'Desservir 15 provinces de la RDC', cash:12e6, rep:5, done:()=>servedProvinces().size>=15},
+  {id:'prov25', cc:'CD', name:'Tout le Congo', desc:'Desservir les 25 provinces dotées d’un aéroport', cash:40e6, rep:8, done:()=>servedProvinces().size>=25},
+  {id:'bush', cc:'CD', name:'Pilote de brousse', desc:'Desservir 5 pistes en latérite', cash:2e6, rep:2, done:()=>[...servedAirports()].filter(c=>AP(c).surface==='Latérite').length>=5},
   {id:'humani', name:'Ailes humanitaires', desc:'Livrer 3 contrats cargo', cash:4e6, rep:4, done:()=>S.cargo.done>=3},
-  {id:'europe', name:'Cap sur l’Europe', desc:'Ouvrir une ligne vers l’Europe', cash:5e6, rep:3, done:()=>[...servedAirports()].some(c=>continentOf(c)==='EU')},
-  {id:'africa', name:'Champion africain', desc:'Desservir 8 pays africains', cash:8e6, rep:4, done:()=>new Set([...servedAirports()].filter(c=>continentOf(c)==='AF').map(c=>AP(c).cc)).size>=8},
+  {id:'home5', name:'Réseau national', desc:'Desservir 5 aéroports de votre pays', cash:3e6, rep:2, done:()=>[...servedAirports()].filter(c=>AP(c).cc===homeCC()).length>=5},
+  {id:'home15', name:'Couvrir tout le pays', desc:'Desservir 15 aéroports de votre pays', cash:12e6, rep:4, done:()=>[...servedAirports()].filter(c=>AP(c).cc===homeCC()).length>=15},
+  {id:'hubs3', name:'Trois hubs', desc:'Posséder 3 hubs', cash:6e6, rep:3, done:()=>S.hubs.length>=3},
+  {id:'longhaul', name:'Premier long-courrier', desc:'Ouvrir une ligne de plus de 6 000 km', cash:5e6, rep:3, done:()=>S.routes.some(r=>routeAircraft(r).length&&legsFor(r.stops).some(l=>l.dist>6000))},
+  {id:'world50', name:'Réseau mondial', desc:'Desservir 50 aéroports', cash:25e6, rep:6, done:()=>servedAirports().size>=50},
+  {id:'africa', name:'Champion continental', desc:'Desservir 8 pays de votre continent', cash:8e6, rep:4, done:()=>new Set([...servedAirports()].filter(c=>continentOf(c)===COUNTRIES[homeCC()][1]).map(c=>AP(c).cc)).size>=8},
   {id:'fleet5', name:'Petite flotte', desc:'Posséder ou louer 5 avions', cash:2e6, rep:2, done:()=>S.fleet.length>=5},
   {id:'fleet20', name:'Grande compagnie', desc:'Exploiter 20 avions', cash:15e6, rep:5, done:()=>S.fleet.length>=20},
   {id:'pax10k', name:'10 000 passagers', desc:'Transporter 10 000 passagers', cash:2e6, rep:2, done:()=>S.stats.pax>=1e4},
@@ -948,14 +1014,16 @@ const MISSIONS = [
   {id:'pax1m', name:'Un million de passagers', desc:'Transporter 1 000 000 de passagers', cash:50e6, rep:8, done:()=>S.stats.pax>=1e6},
   {id:'alliance', name:'Membre d’alliance', desc:'Rejoindre une alliance', cash:5e6, rep:3, done:()=>!!S.alliance},
   {id:'fivestar', name:'Compagnie 5 étoiles', desc:'Atteindre 90 de réputation', cash:20e6, rep:0, done:()=>S.reputation>=90},
-  {id:'beat', name:'Détrôner StarWing', desc:'Dépasser StarWing en nombre d’avions et de passagers', cash:25e6, rep:5, done:()=>S.rival && S.fleet.length>S.rival.fleet && S.stats.flights>200},
+  {id:'top3', name:'Top 3 mondial', desc:'Entrer dans le top 3 du classement des compagnies', cash:50e6, rep:6, done:()=>typeof competitors==='function' && competitors().findIndex(x=>x.me)<3},
+  {id:'beat', name:'Détrôner le rival local', desc:'Dépasser StarWing en nombre d’avions (après 200 vols)', cash:25e6, rep:5, done:()=>R0() && S.fleet.length>R0().fleet && S.stats.flights>200},
   {id:'continents', name:'Tour du monde', desc:'Desservir les 6 continents', cash:60e6, rep:8, done:()=>new Set([...servedAirports()].map(continentOf)).size>=6},
   {id:'billion', name:'Milliardaire de l’aviation', desc:'Valeur nette de 1 milliard $', cash:0, rep:10, done:()=>netWorth()>=1e9},
 ];
+const missionAvail = m=>!m.cc || m.cc===homeCC();
 function checkMissions(){
   S.missions=S.missions||[];
   for(const m of MISSIONS){
-    if(S.missions.includes(m.id)) continue;
+    if(S.missions.includes(m.id) || !missionAvail(m)) continue;
     let ok=false; try{ ok=m.done(); }catch(e){}
     if(!ok) continue;
     S.missions.push(m.id);
@@ -999,6 +1067,8 @@ function catchUp(){
 
 function save(){ if(!S) return; S.lastReal=Date.now(); try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
 function migrate(){
+  if(S.rival && !S.rivals){ Object.assign(S.rival,{local:true,color:'#e5484d'}); S.rivals=[S.rival]; for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false)); delete S.rival; }
+  if(!S.rivals||!S.rivals.length) initRivals();
   if(!S.v || S.v<2){
     S.v=2; S.hubs=S.hubs||[S.company.hub];
     S.fuel=S.fuel||{stock:400000, cap:1500000, auto:false, autoBelow:0.72, hist:[]};
