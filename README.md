@@ -46,12 +46,13 @@ Un second jeu, indépendant : simulateur de gestion de compagnie aérienne sur c
 - **8 compagnies concurrentes** (un rival local + 7 majors mondiales) qui ouvrent des lignes et vous attaquent ; classement mondial.
 - **Événements mondiaux** : ouragans, typhons, tempêtes de neige, cendres volcaniques, mousson, grands événements sportifs, Hajj, Nouvel An lunaire, crises pétrolières… et le détail de la RD Congo (43 aéroports, provinces, pistes en latérite).
 - **Mode pilote** : pilotez vous-même un vol sur la carte satellite (horizon artificiel, pilote automatique avec atterrissage automatique, note d’atterrissage).
+- **Vue 3D façon Google Earth** (CesiumJS) : globe satellite éclairé par le soleil à l’heure du jeu, avions 3D aux couleurs des compagnies, caméra de poursuite, et villes 3D photoréalistes de Google avec une clé Map Tiles API.
 
 ## Crédits
 
 Carte du monde SVG : « Simple World Map » par Al MacDonald, éditée par Fritz Lekschas ([flekschas/simple-world-map](https://github.com/flekschas/simple-world-map)), sous licence [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
 
-Sky Empire : imagerie satellite © Esri ; aéroports [OurAirports](https://ourairports.com) (domaine public) ; longueurs de piste et fuseaux [airport-data-js](https://github.com/aashishvanand/airport-data-js) (CC BY 4.0) ; photos d’avions Wikimedia Commons (licences libres, crédit sur chaque photo) ; frontière de la RDC Natural Earth (domaine public) ; [Leaflet](https://leafletjs.com) (BSD-2).
+Sky Empire : imagerie satellite © Esri ; aéroports [OurAirports](https://ourairports.com) (domaine public) ; longueurs de piste et fuseaux [airport-data-js](https://github.com/aashishvanand/airport-data-js) (CC BY 4.0) ; photos d’avions Wikimedia Commons (licences libres, crédit sur chaque photo) ; frontière de la RDC Natural Earth (domaine public) ; [Leaflet](https://leafletjs.com) (BSD-2) ; [CesiumJS](https://cesium.com/platform/cesiumjs/) (Apache 2.0).
 
 ## Structure
 
@@ -59,5 +60,5 @@ Sky Empire : imagerie satellite © Esri ; aéroports [OurAirports](https://ourai
 index.html    Application complète (HTML + CSS + JS, un seul fichier)
 manifest.json Manifeste PWA (icône, nom, couleurs)
 sw.js         Service worker (mise en cache, fonctionnement hors-ligne)
-avion/        Sky Empire (index.html, airports-db.js, data.js, sim.js, map.js, ui.js, pilot.js, actions.js)
+avion/        Sky Empire (index.html, airports-db.js, data.js, sim.js, map.js, ui.js, pilot.js, actions.js, globe.js)
 ```

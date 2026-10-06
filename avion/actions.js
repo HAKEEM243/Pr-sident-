@@ -294,6 +294,7 @@ function boot(){
   setInterval(()=>{
     const now=performance.now(), dt=Math.min(now-last, 3600000); last=now;
     if(!S.paused){ advance(dt*SPEEDS[S.speed].mult); }
+    if(typeof globeNoteSim==='function') globeNoteSim();
     pilotBackground(dt);
     updatePlanes();
     acc1+=dt; acc2+=dt; acc30+=dt; acc10+=dt;
