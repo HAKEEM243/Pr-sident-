@@ -45,7 +45,8 @@ Un second jeu, indépendant : simulateur de gestion de compagnie aérienne sur c
 - **68 avions réels** avec leurs vraies photos (Wikimedia Commons), neufs, d’occasion ou en leasing, éditeur d’avion perso ; 3 tailles de départ (régionale, nationale, grand transporteur).
 - **8 compagnies concurrentes** (un rival local + 7 majors mondiales) qui ouvrent des lignes et vous attaquent ; classement mondial.
 - **Événements mondiaux** : ouragans, typhons, tempêtes de neige, cendres volcaniques, mousson, grands événements sportifs, Hajj, Nouvel An lunaire, crises pétrolières… et le détail de la RD Congo (43 aéroports, provinces, pistes en latérite).
-- **Mode pilote** : pilotez vous-même un vol sur la carte satellite (horizon artificiel, pilote automatique avec atterrissage automatique, note d’atterrissage).
+- **Réalisme** : 4 400 vraies pistes (position, orientation, longueur, revêtement, altitude) dessinées sur la carte au zoom ; décollages et atterrissages alignés sur la piste réelle avec approche finale dans l’axe ; distance de décollage réelle de chaque avion (corrigée de l’altitude : La Paz refuse un 787) ; courants-jets d’ouest (JFK → LHR ≈ 7 h, LHR → JFK ≈ 8 h) ; charge limitée près de l’autonomie maximale ; avions à l’échelle réelle (envergure, longueur) au zoom ; infobulle de vol avec niveau, vitesse sol, vent, pistes, distance restante en NM et heure d’arrivée locale ; fiche technique de chaque ligne.
+- **Mode pilote** : pilotez vous-même un vol sur la carte satellite, depuis la piste réelle (horizon artificiel, vitesse sol avec vent, guidage axe + plan de descente, pilote automatique avec atterrissage automatique sur la piste, sortie de piste possible, note d’atterrissage).
 - **Affaires** : introduction en bourse, émission et rachat d’actions, dividendes, achat d’actions des concurrents et **rachat (OPA) à 51 %** qui intègre leur hub, leurs lignes et leurs avions ; commandes d’avions avec délais de livraison, remises sur volume ou livraison immédiate ; partages de codes avec les grandes compagnies ; décisions stratégiques (subventions, syndicats, vols VIP, rappels constructeur…) ; salons VIP et bases de maintenance dans les hubs ; statistiques hebdomadaires.
 - **Vue 3D façon Google Earth** (CesiumJS) : globe satellite éclairé par le soleil à l’heure du jeu, avions 3D aux couleurs des compagnies, caméra de poursuite, et villes 3D photoréalistes de Google avec une clé Map Tiles API.
 
@@ -53,7 +54,7 @@ Un second jeu, indépendant : simulateur de gestion de compagnie aérienne sur c
 
 Carte du monde SVG : « Simple World Map » par Al MacDonald, éditée par Fritz Lekschas ([flekschas/simple-world-map](https://github.com/flekschas/simple-world-map)), sous licence [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
 
-Sky Empire : imagerie satellite © Esri ; aéroports [OurAirports](https://ourairports.com) (domaine public) ; longueurs de piste et fuseaux [airport-data-js](https://github.com/aashishvanand/airport-data-js) (CC BY 4.0) ; photos d’avions Wikimedia Commons (licences libres, crédit sur chaque photo) ; frontière de la RDC Natural Earth (domaine public) ; [Leaflet](https://leafletjs.com) (BSD-2) ; [CesiumJS](https://cesium.com/platform/cesiumjs/) (Apache 2.0).
+Sky Empire : imagerie satellite © Esri ; aéroports et pistes [OurAirports](https://ourairports.com) (domaine public) ; longueurs de piste et fuseaux [airport-data-js](https://github.com/aashishvanand/airport-data-js) (CC BY 4.0) ; photos d’avions Wikimedia Commons (licences libres, crédit sur chaque photo) ; frontière de la RDC Natural Earth (domaine public) ; [Leaflet](https://leafletjs.com) (BSD-2) ; [CesiumJS](https://cesium.com/platform/cesiumjs/) (Apache 2.0).
 
 ## Structure
 
@@ -61,5 +62,5 @@ Sky Empire : imagerie satellite © Esri ; aéroports [OurAirports](https://ourai
 index.html    Application complète (HTML + CSS + JS, un seul fichier)
 manifest.json Manifeste PWA (icône, nom, couleurs)
 sw.js         Service worker (mise en cache, fonctionnement hors-ligne)
-avion/        Sky Empire (index.html, airports-db.js, data.js, sim.js, map.js, ui.js, ui-biz.js, business.js, pilot.js, actions.js, globe.js)
+avion/        Sky Empire (index.html, airports-db.js, runways-db.js, data.js, sim.js, realism.js, map.js, ui.js, ui-biz.js, business.js, pilot.js, actions.js, globe.js)
 ```

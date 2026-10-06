@@ -204,6 +204,15 @@ WORLD_AIRPORTS.forEach(([code,name,city])=>{ if(AIRPORTS[code]){ AIRPORTS[code].
 DRC_AIRPORTS.forEach(([code,icao,name,city,prov,lat,lon,runway,surface,cls,traffic])=>{
   AIRPORTS[code] = Object.assign(AIRPORTS[code]||{}, {code,icao,name,city,cc:'CD',prov,lat,lon,runway,surface,cls,traffic,drc:true,large:cls>=4});
 });
+// 4) pistes réelles et altitude (OurAirports)
+if(typeof RUNWAY_DB!=='undefined') for(const [code,a] of Object.entries(AIRPORTS)){
+  const rws=RUNWAY_DB[code]; if(ELEV_DB&&ELEV_DB[code]!==undefined) a.elev=ELEV_DB[code];
+  if(!rws||!rws.length) continue;
+  const hard=rws.filter(r=>r[9]), best=Math.max(...(hard.length?hard:rws).map(r=>r[7]));
+  a.runway=best; a.rwCount=rws.length;
+  a.surface= hard.length? 'Asphalte' : 'Latérite / herbe';
+  a.cls = best<1200?1: best<1700?2: best<2400?3: best<3100?4: 5;
+}
 const AIRPORT_CODES = Object.keys(AIRPORTS);
 const DRC_PROVINCES = ['Kinshasa','Kongo-Central','Kwango','Kwilu','Maï-Ndombe','Équateur','Sud-Ubangi','Nord-Ubangi','Mongala','Tshuapa','Tshopo','Bas-Uele','Haut-Uele','Ituri','Nord-Kivu','Sud-Kivu','Maniema','Haut-Katanga','Lualaba','Haut-Lomami','Tanganyika','Lomami','Sankuru','Kasaï','Kasaï-Central','Kasaï-Oriental'];
 

@@ -90,7 +90,14 @@ const SHAPES = {
   conc:()=>`<path class="b" d="M32 .5 33.2 6 33.6 22C38 30 50 44 55.5 52L56 56 36 56 34.5 60.5 29.5 60.5 28 56 8 56 8.5 52C14 44 26 30 30.4 22L30.8 6Z"/>
     <rect x="20.5" y="47" width="3" height="9" fill="${ENG}"/><rect x="24.5" y="47" width="3" height="9" fill="${ENG}"/><rect x="36.5" y="47" width="3" height="9" fill="${ENG}"/><rect x="40.5" y="47" width="3" height="9" fill="${ENG}"/>`,
 };
-const PLANE_SVG = (color, size=26, cat='nb')=>`<svg class="ac-svg" viewBox="0 0 64 64" width="${size}" height="${size}" style="--c:${color}">${SHAPES[cat]()}<rect x="31.1" y="7" width="1.8" height="38" rx=".9" fill="#fff" opacity=".35"/><path d="M30.2 6.6Q32 5 33.8 6.6L33.4 8.2Q32 7.3 30.6 8.2Z" fill="#0b1220" opacity=".55"/></svg>`;
+const PLANE_SVG = (color, size=26, cat='nb', h)=>`<svg class="ac-svg" viewBox="0 0 64 64" width="${size}" height="${h||size}" preserveAspectRatio="none" style="--c:${color}">${SHAPES[cat]()}<rect x="31.1" y="7" width="1.8" height="38" rx=".9" fill="#fff" opacity=".35"/><path d="M30.2 6.6Q32 5 33.8 6.6L33.4 8.2Q32 7.3 30.6 8.2Z" fill="#0b1220" opacity=".55"/></svg>`;
+// Taille à l'écran : grossie aux petits zooms, à l'échelle réelle (envergure × longueur) aux grands zooms
+function acDims(m, lat, base){
+  const sp=acSpec(m), z=map?map.getZoom():5, mpp=156543.03*Math.cos(toRad(lat||0))/Math.pow(2,z);
+  const realW=sp.span/mpp, realH=sp.len/mpp;
+  if(realW>=base) return {w:Math.round(realW), h:Math.round(realH), real:true};
+  return {w:Math.round(base), h:Math.round(base*sp.len/sp.span), real:false};
+}
 function zoomScale(){ const z=map?map.getZoom():5; return z<=3?0.75:z<=5?1:z<=7?1.3:z<=9?1.7:z<=11?2.2:z<=13?2.8:3.4; }
 
 function initMap(){
@@ -106,6 +113,7 @@ function initMap(){
   L_drc = L.layerGroup().addTo(map);
   L_trails = L.layerGroup().addTo(map);
   L_weather = L.layerGroup().addTo(map);
+  L_runways = L.layerGroup().addTo(map);
   L_routes = L.layerGroup().addTo(map);
   L_airports = L.layerGroup().addTo(map);
   L_rival = L.layerGroup().addTo(map);
@@ -141,8 +149,29 @@ function airportTip(a){
     (airportClosed(a.code)?'<br><b style="color:#ff6b6b">FERMÉ</b>':'');
 }
 function servedSet(){ const set=new Set(S.hubs||[]); for(const r of S.routes) r.stops.forEach(c=>set.add(c)); return set; }
+let L_runways;
+function drawRunways(){
+  if(!L_runways) return; L_runways.clearLayers();
+  const z=map.getZoom(); if(z<11 || !MAPOPT.airports) return;
+  const b=map.getBounds().pad(0.3), c0=map.getCenter().lng;
+  for(const code of AIRPORT_CODES){
+    const a=AP(code); if(!b.contains([a.lat,unwrapLon(a.lon,c0)])) continue;
+    const seen=new Set();
+    for(const r of runwaysOf(code)){
+      const k=[r.id,r.len].join(); const pair=[r.thr,r.end].map(p=>p.lat.toFixed(4)).sort().join(); if(seen.has(pair)) { labelRwy(r); continue; } seen.add(pair);
+      const w=(r.wid||45)/2000, L2=(p,h)=>destPt(p.lat,p.lon,h,w);
+      const c=[L2(r.thr,r.hdg-90),L2(r.end,r.hdg-90),L2(r.end,r.hdg+90),L2(r.thr,r.hdg+90)].map(p=>[p.lat,unwrapLon(p.lon,c0)]);
+      L.polygon(c,{color:'#f8fafc',weight:1,opacity:0.55,fillColor:r.hard?'#1f2937':'#7c5a33',fillOpacity:0.35,interactive:false}).addTo(L_runways);
+      if(z>=13) L.polyline([[r.thr.lat,unwrapLon(r.thr.lon,c0)],[r.end.lat,unwrapLon(r.end.lon,c0)]],{color:'#fff',weight:1.2,opacity:0.7,dashArray:'10 10',interactive:false}).addTo(L_runways);
+      labelRwy(r);
+    }
+  }
+  function labelRwy(r){ const p=destPt(r.thr.lat,r.thr.lon,(r.hdg+180)%360,0.12*Math.pow(2,13-Math.min(z,15)));
+    L.marker([p.lat,unwrapLon(p.lon,c0)],{icon:L.divIcon({className:'rwy-label',html:`<span style="transform:rotate(${r.hdg}deg)">${r.id}</span>`,iconSize:[30,16],iconAnchor:[15,8]}),interactive:false}).addTo(L_runways); }
+}
 function drawAirports(){
   if(!map) return;
+  drawRunways();
   L_airports.clearLayers();
   if(!MAPOPT.airports) return;
   const z=map.getZoom(), served=servedSet(), bounds=map.getBounds().pad(0.2), c0=map.getCenter().lng;
@@ -231,8 +260,8 @@ function updatePlanes(){
     if(!mk){
       const m=modelOf(ac), cat=planeCat(m);
       const base = cat==='quad'?34 : cat==='wb'?31 : cat==='conc'?28 : cat==='nb'?26 : 22;
-      const size = Math.round(base*zoomScale());
-      mk=L.marker(pos,{icon:L.divIcon({className:'plane-icon', html:`<div class="rot">${PLANE_SVG(planeColor(ac),size,cat)}</div>`, iconSize:[size,size], iconAnchor:[size/2,size/2]}), zIndexOffset:1000});
+      const D=acDims(m, st.lat, base*zoomScale()), sz=Math.max(D.w,D.h);
+      mk=L.marker(pos,{icon:L.divIcon({className:'plane-icon'+(D.real?' real':''), html:`<div class="rot" style="width:${sz}px;height:${sz}px;display:grid;place-items:center">${PLANE_SVG(planeColor(ac),D.w,cat,D.h)}</div>`, iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]}), zIndexOffset:1000});
       mk.bindTooltip('',{direction:'right',offset:[14,0],className:'flight-tip'});
       mk.on('tooltipopen',()=>{ const s2=flightState(ac); if(s2) mk.setTooltipContent(flightTipHtml(ac,s2)); });
       mk.on('click',(e)=>{ L.DomEvent.stopPropagation(e); selectPlane(ac.id); });
@@ -249,15 +278,18 @@ function updatePlanes(){
   updateParked();
   updateFlightCard();
 }
+function fmtLocal(t, code){ const u=AP(code)&&AP(code).utc; return (u===''||u===undefined||u===null)? fmtTime(t)+' UTC' : fmtTime(t+u*HOUR)+' loc.'; }
 function flightTipHtml(ac,st){
   const m=modelOf(ac);
-  const ft=Math.round(st.alt*3.28084/100)*100;
+  const ft=Math.round(st.alt*3.28084/100)*100, fl=st.alt>3000? 'FL'+String(Math.round(ft/1000)*10).padStart(3,'0') : num(ft)+' ft';
   const kind = ac.flight.kind==='ferry'?'Convoyage':ac.flight.kind==='cargo'?'Contrat cargo':'Vol commercial';
+  const w=st.wind||0, cruise=st.phase>=3&&st.phase<=5;
   return `<b>${S.company.code}${flightNumber(ac)} · ${ac.reg}</b> <span class="mut">${m.name}</span><br>`+
     `${st.origin} → ${st.dest} <span class="mut">(${kind})</span><br>`+
-    `Phase : <b>${PHASES[st.phase]}</b><br>`+
-    `Altitude : <b>${ft.toLocaleString('fr-FR')} ft</b> · Vitesse : <b>${Math.round(st.spd)} km/h</b><br>`+
-    `ETA : <b>${fmtTime(st.eta)}</b> (dans ${fmtDur(st.eta-S.time)}) · <b>${Math.round(st.progress*100)} %</b>`+
+    `Phase : <b>${PHASES[st.phase]}</b>${st.depRwy||st.arrRwy?` <span class="mut">· piste ${st.depRwy||'—'} → ${st.arrRwy||'—'}</span>`:''}<br>`+
+    `Altitude : <b>${fl}</b> · Vitesse sol : <b>${Math.round(cruise?st.gs:st.spd)} km/h</b>${cruise&&Math.abs(w)>=10?` <span class="${w>0?'pos':'neg'}">(vent ${w>0?'arrière +':'de face '}${w} km/h)</span>`:''}<br>`+
+    `Reste : <b>${num(st.remain||0)} km</b> <span class="mut">(${num((st.remain||0)/1.852)} NM)</span> · Cap ${String(Math.round(st.hdg)).padStart(3,'0')}°<br>`+
+    `Arrivée : <b>${fmtLocal(st.eta,st.dest)}</b> <span class="mut">(${fmtTime(st.eta)} UTC, dans ${fmtDur(st.eta-S.time)})</span> · <b>${Math.round(st.progress*100)} %</b>`+
     `<div class="pbar"><i style="width:${(st.progress*100).toFixed(1)}%"></i></div>`;
 }
 function flightNumber(ac){ let h=0; for(const c of ac.id) h=(h*31+c.charCodeAt(0))%900; return 100+h; }
@@ -290,17 +322,18 @@ function updateTrail(ac,st){
   let t=trails.get(ac.id);
   const now=performance.now();
   if(t && now-t.at<900 && t.li===ac.flight.li) return;
-  const A=AP(st.from), B=AP(st.to), leg=st.leg;
-  const frac=leg.dist? Math.min(1,gcDist(A,{lat:st.lat,lon:st.lon})/leg.dist):0;
-  const n=Math.max(2,Math.ceil(frac*leg.dist/80));
-  const pts=[]; let prev=A.lon;
-  for(let i=0;i<=n;i++){ const p=gcInterp(A,B,frac*i/n); const lon=unwrapLon(p.lon,prev); pts.push([p.lat,lon]); prev=lon; }
+  const leg=st.leg, path=legPath(leg,modelOf(ac)), s=(st.frac||0)*path.total;
+  if(st.phase<=1) return;
+  const pts=[]; let prev=path.air[0].lon;
+  const push=p=>{ const lon=unwrapLon(p.lon,prev); pts.push([p.lat,lon]); prev=lon; };
+  for(let i=0;i<path.air.length && path.cum[i]<s;i++) push(path.air[i]);
+  push({lat:st.lat,lon:st.lon});
   const sel=selectedPlane===ac.id;
   if(!t){ t={line:L.polyline(pts,{color:'#ffffff',weight:sel?3:2,opacity:0.55,className:'trail',interactive:false}).addTo(L_trails)}; trails.set(ac.id,t); }
   else t.line.setLatLngs(pts);
   if(sel){
-    const ahead=[]; let pv=pts[pts.length-1][1];
-    for(let i=0;i<=20;i++){ const p=gcInterp(A,B,frac+(1-frac)*i/20); const lon=unwrapLon(p.lon,pv); ahead.push([p.lat,lon]); pv=lon; }
+    const ahead=[[st.lat,pts[pts.length-1][1]]]; let pv=pts[pts.length-1][1];
+    for(let i=0;i<path.air.length;i++) if(path.cum[i]>s){ const lon=unwrapLon(path.air[i].lon,pv); ahead.push([path.air[i].lat,lon]); pv=lon; }
     if(!t.ahead) t.ahead=L.polyline(ahead,{color:'#ff2bd6',weight:2.5,opacity:0.9,dashArray:'6 8',interactive:false}).addTo(L_trails); else t.ahead.setLatLngs(ahead);
   } else if(t.ahead){ L_trails.removeLayer(t.ahead); t.ahead=null; }
   t.at=now; t.li=ac.flight.li;
@@ -318,9 +351,9 @@ function updateParked(){
   for(const [id,mk] of parkedMarkers){ const w=want.get(id); if(!w || mk._code!==w.code || mk._i!==w.i || mk._st!==w.ac.status){ L_planes.removeLayer(mk); parkedMarkers.delete(id); } }
   for(const [id,{ac,code,i}] of want){
     if(parkedMarkers.has(id)) continue;
-    const a=AP(code), m=modelOf(ac), z=Math.round(14*zoomScale()), ang=i*0.9+0.6, rad=z*0.9+i*z*0.25;
+    const a=AP(code), m=modelOf(ac), D=acDims(m,a.lat,14*zoomScale()), z=Math.max(D.w,D.h), ang=i*0.9+0.6, rad=z*0.9+i*z*0.25;
     const dx=Math.cos(ang)*rad, dy=Math.sin(ang)*rad;
-    const mk=L.marker([a.lat,a.lon],{icon:L.divIcon({className:'plane-icon parked'+(ac.status==='maint'?' maint':''),html:`<div class="rot" style="transform:rotate(${(i*47)%360}deg);--sh:1px">${PLANE_SVG(m.color||S.company.color,z,planeCat(m))}</div>`,iconSize:[z,z],iconAnchor:[z/2-dx,z/2-dy]}),zIndexOffset:800})
+    const mk=L.marker([a.lat,a.lon],{icon:L.divIcon({className:'plane-icon parked'+(ac.status==='maint'?' maint':''),html:`<div class="rot" style="transform:rotate(${(i*47)%360}deg);--sh:1px;width:${z}px;height:${z}px;display:grid;place-items:center">${PLANE_SVG(m.color||S.company.color,D.w,planeCat(m),D.h)}</div>`,iconSize:[z,z],iconAnchor:[z/2-dx,z/2-dy]}),zIndexOffset:800})
       .bindTooltip(`<b>${ac.reg}</b> ${m.name}<br>${ac.status==='maint'?'🔧 En maintenance':'Au sol'} à ${a.city}`,{direction:'top'})
       .on('click',e=>{ L.DomEvent.stopPropagation(e); setTab('fleet'); });
     mk._code=code; mk._i=i; mk._st=ac.status;

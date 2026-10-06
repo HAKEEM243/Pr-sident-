@@ -261,6 +261,7 @@ function lineModalHtml(r){
       <button class="btn sm" data-act="price" data-id="${r.id}" data-k="${k}" data-d="0.05">+</button>
       ${r.audit?`<button class="btn sm" data-act="price" data-id="${r.id}" data-k="${k}" data-set="1">Idéal ${fmtMoney(ip)}</button>`:''}</div>`; };
   return `<div class="small">${r.stops.map(c=>`${flag(c)} ${AP(c).city}`).join(' → ')} · ${legs.map(l=>num(l.dist)+' km').join(' + ')}</div>
+  ${lineTechHtml(r)}
   ${!r.audit?`<div class="al warn">🔍 <b>Audit non réalisé</b> : la demande exacte et les prix idéaux sont inconnus. <button class="btn sm gold" data-act="audit" data-id="${r.id}">Lancer l’audit (${fmtMoney(auditCost(r))})</button></div>`:'<div class="al ok">🔍 Ligne auditée : demande et prix idéaux connus.</div>'}
   <h3>Demande du marché (${a} → ${b})</h3>${lineDemandRows(r)}
   ${rivalsOn(a,b).map(x=>`<div class="small"><span class="dot" style="background:${x.R.color}"></span><b>${x.R.name}</b> opère cette ligne (${x.freq} vol(s)/j par sens).</div>`).join('')}
@@ -277,6 +278,18 @@ function lineModalHtml(r){
   <div class="grid2 small"><div>Vols : <b>${r.stats.flights}</b></div><div>Passagers : <b>${num(r.stats.pax)}</b></div><div>Remplissage : <b>${r.stats.seats?pct(r.stats.pax/r.stats.seats):'—'}</b></div><div>Retards : <b>${r.stats.late||0}</b></div>
   <div>Recettes : <b>${fmtMoney(r.stats.rev)}</b></div><div>Résultat : <b class="${r.stats.rev-r.stats.cost<0?'neg':'pos'}">${fmtMoney(r.stats.rev-r.stats.cost)}</b></div></div>
   <div class="btns"><button class="btn sm" data-act="showLineMap" data-id="${r.id}">🗺️ Voir sur la carte</button><button class="btn sm danger" data-act="closeLine" data-id="${r.id}">Fermer la ligne</button></div>`;
+}
+function lineTechHtml(r){
+  const legs=legsFor(r.stops), acs=routeAircraft(r), ref=acs.length?modelOf(acs[0]):null;
+  const apRow=c=>{ const a=AP(c), rws=runwaysOf(c), best=rws.slice().sort((x,y)=>y.len-x.len)[0];
+    return `<div><b>${c}</b> ${esc(a.city)} · ${num(a.runway)} m${best?` (piste ${best.id}/${rws.find(x=>x.thr===best.end)?.id||''})`:''} · ${a.surface} · alt. ${num(a.elev||0)} ft${rws.length>2?` · ${rws.length/2} pistes`:''}</div>`; };
+  return `<div class="card tech"><div class="kl">📐 Fiche technique</div>
+    ${legs.map(l=>{ const back=windKmh(l.to,l.from);
+      const bt=m=>`${fmtDur(legProfile(l.dist,m,l.wind).total)} aller · ${fmtDur(legProfile(l.dist,m,back).total)} retour`;
+      return `<div class="techleg"><b>${l.from} → ${l.to}</b> · ${num(l.dist)} km · ${num(l.dist/1.852)} NM · vent moyen ${l.wind>0?'+':''}${l.wind} km/h à l’aller, ${back>0?'+':''}${back} km/h au retour
+        ${(acs.length?acs.map(a=>modelOf(a)):[]).filter((m,i,arr)=>arr.findIndex(x=>x.id===m.id)===i).map(m=>{ const pf=payloadFactor(m,l.dist);
+          return `<div class="small">✈ ${m.name} : ${bt(m)}${pf<1?` · <span class="warnt">charge limitée à ${Math.round(pf*100)} % (proche de l’autonomie max)</span>`:''}</div>`; }).join('')||'<div class="small mut">Programmez un avion pour voir les temps de vol.</div>'}</div>`; }).join('')}
+    <div class="small">${r.stops.map(apRow).join('')}</div></div>`;
 }
 function openLineHtml(){
   const ol=UI.ol;
@@ -414,7 +427,8 @@ function pShop(){
       <div class="spec"><span>📏 Autonomie</span>${bar(m.range/maxRange)}<b>${num(m.range)} km</b></div>
       <div class="spec"><span>⚡ Vitesse</span>${bar(m.speed/2200)}<b>${m.speed} km/h</b></div>
       <div class="spec"><span>⛽ Conso</span>${bar(m.burn/26000,'warn')}<b>${num(m.burn)} L/h</b></div>
-      <div class="small ${q<2?'warnt':'mut'}">🛬 Piste classe ${m.cls}+ · ${q} pilote(s) qualifié(s) ${m.fam}</div>
+      <div class="small mut">📐 ${acSpec(m).span} m d’envergure · ${acSpec(m).len} m de long · décollage ${num(acSpec(m).tod)} m (masse max.)</div>
+      <div class="small ${q<2?'warnt':'mut'}">${q} pilote(s) qualifié(s) ${m.fam}</div>
       <div class="btns sm">
         <button class="btn sm gold" data-act="order" data-m="${m.id}" title="Acompte 20 %, solde à la livraison">Commander${UI.qty>1?' ×'+UI.qty:''} ${fmtMoney(m.price*1e6*(1-volumeDiscount(UI.qty||1))*(UI.qty||1))} · ${leadDays(m)} j</button>
         <button class="btn sm" data-act="orderExpress" data-m="${m.id}">Immédiat +12 %</button>
@@ -663,7 +677,7 @@ function boardHtml(code){
     if(!ac.flight) continue; const m=modelOf(ac);
     ac.flight.legs.forEach((l,i)=>{
       if(i<ac.flight.li) return;
-      const prof=legProfile(l.dist,m), tOff=l.dep+prof.segs[1].t0, tOn=l.dep+prof.segs[8].t0;
+      const prof=legProfile(l.dist,m,l.wind), tOff=l.dep+prof.segs[1].t0, tOn=l.dep+prof.segs[8].t0;
       const st=i===ac.flight.li? flightState(ac):null;
       const fn=S.company.code+flightNumber(ac);
       if(l.from===code) dep.push({t:tOff, fn, other:l.to, ac, status: st? (st.phase<=1?(st.phase===0?'Embarquement':'Roulage'):'Parti') : 'Prévu'});
