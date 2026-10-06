@@ -46,6 +46,7 @@ Un second jeu, indépendant : simulateur de gestion de compagnie aérienne sur c
 - **8 compagnies concurrentes** (un rival local + 7 majors mondiales) qui ouvrent des lignes et vous attaquent ; classement mondial.
 - **Événements mondiaux** : ouragans, typhons, tempêtes de neige, cendres volcaniques, mousson, grands événements sportifs, Hajj, Nouvel An lunaire, crises pétrolières… et le détail de la RD Congo (43 aéroports, provinces, pistes en latérite).
 - **Mode pilote** : pilotez vous-même un vol sur la carte satellite (horizon artificiel, pilote automatique avec atterrissage automatique, note d’atterrissage).
+- **Affaires** : introduction en bourse, émission et rachat d’actions, dividendes, achat d’actions des concurrents et **rachat (OPA) à 51 %** qui intègre leur hub, leurs lignes et leurs avions ; commandes d’avions avec délais de livraison, remises sur volume ou livraison immédiate ; partages de codes avec les grandes compagnies ; décisions stratégiques (subventions, syndicats, vols VIP, rappels constructeur…) ; salons VIP et bases de maintenance dans les hubs ; statistiques hebdomadaires.
 - **Vue 3D façon Google Earth** (CesiumJS) : globe satellite éclairé par le soleil à l’heure du jeu, avions 3D aux couleurs des compagnies, caméra de poursuite, et villes 3D photoréalistes de Google avec une clé Map Tiles API.
 
 ## Crédits
@@ -60,5 +61,5 @@ Sky Empire : imagerie satellite © Esri ; aéroports [OurAirports](https://ourai
 index.html    Application complète (HTML + CSS + JS, un seul fichier)
 manifest.json Manifeste PWA (icône, nom, couleurs)
 sw.js         Service worker (mise en cache, fonctionnement hors-ligne)
-avion/        Sky Empire (index.html, airports-db.js, data.js, sim.js, map.js, ui.js, pilot.js, actions.js, globe.js)
+avion/        Sky Empire (index.html, airports-db.js, data.js, sim.js, map.js, ui.js, ui-biz.js, business.js, pilot.js, actions.js, globe.js)
 ```

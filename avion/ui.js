@@ -13,7 +13,7 @@ const bar = (v,cls='')=>`<div class="pbar ${cls}"><i style="width:${clamp(v,0,1)
 
 const TABS = [
   ['map','🗺️','Carte'],['dash','🏠','Accueil'],['network','🌍','Réseau'],['fleet','✈️','Flotte'],['shop','🛒','Achats'],
-  ['staff','👥','Personnel'],['fuel','⛽','Carburant'],['finance','💰','Finances'],['company','📣','Compagnie'],['world','🌐','Monde'],['admin','🛠️','Admin'],
+  ['staff','👥','Personnel'],['fuel','⛽','Carburant'],['finance','💰','Finances'],['bourse','📈','Bourse'],['company','📣','Compagnie'],['world','🌐','Monde'],['admin','🛠️','Admin'],
 ];
 
 /* ---------- photos réelles des avions (Wikimedia Commons via l'API Wikipédia) ---------- */
@@ -108,13 +108,14 @@ function setTab(t){
 }
 function renderPanel(){
   const body=$('#panelBody'); if(!body) return;
-  const fn={dash:pDash, network:pNetwork, fleet:pFleet, shop:pShop, staff:pStaff, fuel:pFuel, finance:pFinance, company:pCompany, world:pWorld, drc:pWorld, admin:pAdmin}[UI.tab];
+  const fn={dash:pDash, network:pNetwork, fleet:pFleet, shop:pShop, staff:pStaff, fuel:pFuel, finance:pFinance, bourse:pBourse, company:pCompany, world:pWorld, drc:pWorld, admin:pAdmin}[UI.tab];
   if(!fn) return;
   const st=body.scrollTop;
   body.innerHTML=fn();
   body.scrollTop=st;
   hydratePhotos();
-  if(UI.tab==='finance') drawChart();
+  if(UI.tab==='finance'){ drawChart(); drawWeeksChart(); }
+  if(UI.tab==='bourse') drawPriceChart('stockChart',(S.stock&&S.stock.hist)||[],'#7dd3fc',v=>'$'+v.toFixed(2));
   if(UI.tab==='fuel'){ drawPriceChart('fuelChart',S.fuel.hist,'#f5c518',v=>'$'+v.toFixed(3)); drawPriceChart('co2Chart',S.co2.hist,'#34d399',v=>'$'+v.toFixed(0)); }
 }
 function liveRefresh(){
@@ -325,6 +326,7 @@ function acStatus(ac){
 function pFleet(){
   const byHub={}; for(const ac of S.fleet) (byHub[ac.hub]=byHub[ac.hub]||[]).push(ac);
   return `<div class="btns"><button class="btn gold" data-tab="shop">🛒 Acheter un avion</button><button class="btn" data-act="editor">🛠️ Éditeur d’avion</button></div>
+  ${(S.orders||[]).length?`<h3>Commandes en cours (${S.orders.length})</h3>${S.orders.slice().sort((a,b)=>a.due-b.due).map(o=>{ const m=getModel(o.model); return `<div class="card row"><div class="grow"><b>${m.name}</b> → ${AP(o.hub).city}<br>${bar((S.time-o.ordered)/(o.due-o.ordered))}<span class="small mut">Livraison le ${fmtDate(o.due)} · solde ${fmtMoney(o.total-o.paid)} à payer</span></div><button class="btn sm danger" data-act="cancelOrder" data-id="${o.id}">Annuler</button></div>`; }).join('')}`:''}
   <label class="tog"><input type="checkbox" data-in="autoMaint" ${S.autoMaint?'checked':''}> Maintenance automatique (check A 600 h · C 3 000 h · D 12 000 h)</label>
   ${Object.entries(byHub).map(([h,list])=>`<h3>Basés à ${AP(h).city} (${list.length})</h3>${list.map(acCard).join('')}`).join('')||'<div class="mut">Aucun avion.</div>'}`;
 }
@@ -401,7 +403,8 @@ function pShop(){
   const maxSeats=Math.max(...all.map(m=>m.seats||m.cargo*3)), maxRange=Math.max(...all.map(m=>m.range));
   return `<div class="row wrap"><span>Livraison à</span><select data-in="buyHub">${S.hubs.map(h=>`<option value="${h}" ${h===hub?'selected':''}>${AP(h).city} (${h})</option>`).join('')}</select>
     <select data-in="catSort"><option value="price" ${UI.catSort==='price'?'selected':''}>Trier : prix</option><option value="seats" ${UI.catSort==='seats'?'selected':''}>Trier : capacité</option><option value="range" ${UI.catSort==='range'?'selected':''}>Trier : autonomie</option></select>
-    <label class="tog"><input type="checkbox" data-in="catRdc" ${UI.catRdc?'checked':''}> Pistes courtes (classe ≤ 2)</label></div>
+    <label class="tog"><input type="checkbox" data-in="catRdc" ${UI.catRdc?'checked':''}> Pistes courtes (classe ≤ 2)</label>
+    <span>Quantité</span><select data-in="qty">${[1,2,3,4,5,6,8,10].map(n=>`<option ${n===(UI.qty||1)?'selected':''}>${n}</option>`).join('')}</select>${(UI.qty||1)>1?`<span class="badge ok">Remise volume ${Math.round(volumeDiscount(UI.qty)*100)} %</span>`:''}</div>
   <div class="chips">${fams.map(f=>`<button class="chip ${UI.catFam===f?'on':''}" data-act="catFam" data-f="${f}">${f==='all'?'Tous':f}</button>`).join('')}</div>
   <div class="catalog">${list.map(m=>{ const q=qualifiedPilots(m.fam), cat=planeCat(m), c=m.color||S.company.color;
     return `<div class="card cat">
@@ -413,7 +416,8 @@ function pShop(){
       <div class="spec"><span>⛽ Conso</span>${bar(m.burn/26000,'warn')}<b>${num(m.burn)} L/h</b></div>
       <div class="small ${q<2?'warnt':'mut'}">🛬 Piste classe ${m.cls}+ · ${q} pilote(s) qualifié(s) ${m.fam}</div>
       <div class="btns sm">
-        <button class="btn sm gold" data-act="buy" data-m="${m.id}" data-mode="new">Neuf ${fmtMoney(m.price*1e6)}</button>
+        <button class="btn sm gold" data-act="order" data-m="${m.id}" title="Acompte 20 %, solde à la livraison">Commander${UI.qty>1?' ×'+UI.qty:''} ${fmtMoney(m.price*1e6*(1-volumeDiscount(UI.qty||1))*(UI.qty||1))} · ${leadDays(m)} j</button>
+        <button class="btn sm" data-act="orderExpress" data-m="${m.id}">Immédiat +12 %</button>
         ${m.custom?'':`<button class="btn sm" data-act="buy" data-m="${m.id}" data-mode="used">Occasion ${fmtMoney(m.price*1e6*0.55)}</button>`}
         <button class="btn sm" data-act="buy" data-m="${m.id}" data-mode="lease">Leasing ${fmtMoney(m.price*1e6*0.0085)}/mois</button>
       </div></div>`;}).join('')}</div>`;
@@ -521,6 +525,7 @@ function pFinance(){
     <div class="kpi"><div class="kl">Capital</div><div class="kv ${S.cash<0?'neg':''}">${fmtMoney(S.cash)}</div></div>
     <div class="kpi"><div class="kl">Valeur nette</div><div class="kv">${fmtMoney(netWorth())}</div></div>
     <div class="kpi"><div class="kl">Dette</div><div class="kv">${fmtMoney(debt())}</div></div></div>
+  <h3>Résultats hebdomadaires</h3><canvas id="weeksChart" height="170"></canvas>
   <h3>Historique (capital & valeur nette)</h3><canvas id="chart" height="170"></canvas>
   <h3>Compte de résultat</h3>
   <div class="tblwrap"><table class="tbl pl"><tr><th></th>${cols.map(c=>`<th>${c[1]}</th>`).join('')}</tr>
@@ -567,6 +572,9 @@ function pCompany(){
   ${CAMPAIGNS.map(cp=>{ const on=S.campaigns.find(x=>x.id===cp.id); return `<div class="card row"><div class="grow"><b>${cp.name}</b> — ${fmtMoney(cp.cost)} · ${cp.days} j · demande +${cp.boost*100} % (${cp.scope==='home'||cp.scope==='drc'?COUNTRIES[homeCC()][0]:cp.scope==='intl'?'international':'tout le réseau'}) · image +${cp.rep}<br><span class="mut small">${cp.desc}</span></div>${on?`<span class="badge ok">Active → ${fmtDate(on.until)}</span>`:`<button class="btn sm gold" data-act="campaign" data-id="${cp.id}">Lancer</button>`}</div>`;}).join('')}
   <h3>Alliances</h3>
   ${ALLIANCES.map(al=>{ const ok=S.reputation>=al.minRep&&S.fleet.length>=al.minFleet; const mine=S.alliance===al.id; return `<div class="card row ${mine?'gold-b':''}"><div class="grow"><b>${al.name}</b> — ${fmtMoney(al.fee)}/mois · demande +${al.boost*100} % (${al.scope==='africa'||al.scope==='region'?'international, '+(CONTINENTS[COUNTRIES[homeCC()][1]]||''):'international'})<br><span class="mut small">${al.desc} · requis : image ${al.minRep}, flotte ${al.minFleet}</span></div>${mine?`<button class="btn sm danger" data-act="leaveAlliance">Quitter</button>`:`<button class="btn sm ${ok?'gold':''}" data-act="joinAlliance" data-id="${al.id}" ${ok&&!S.alliance?'':'disabled'}>Adhérer</button>`}</div>`;}).join('')}
+  <h3>Partages de codes</h3>
+  <div class="mut small">Accord avec une grande compagnie : +15 % de demande sur vos lignes vers son hub, et elle cesse de vous concurrencer agressivement (maximum 3 accords).</div>
+  ${(S.rivals||[]).filter(R=>!R.local).map(R=>{ const on=isPartner(R); return `<div class="card row ${on?'gold-b':''}"><div class="grow"><span class="dot" style="background:${R.color}"></span><b>${R.name}</b> — hub ${flag(R.hub)} ${AP(R.hub).city} · ${R.fleet} avions<br><span class="small mut">${fmtMoney(codeshareFee(R))}/mois · requis : image 45, 4 avions</span></div>${on?`<button class="btn sm danger" data-act="csCancel" data-c="${R.code}">Rompre</button>`:`<button class="btn sm gold" data-act="csSign" data-c="${R.code}">Signer</button>`}</div>`; }).join('')}
   <h3>Contrats cargo</h3>${cargoHtml()}
   <h3>Paramètres</h3>
   <div class="card">

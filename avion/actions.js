@@ -202,7 +202,7 @@ const GUIDE = [
    go:()=>setTab('fuel')},
   {t:'Pilotez vous-même un vol', d:'Prenez les commandes d’un de vos avions et posez-le en douceur.', done:()=>(S.stats.manual||0)>0,
    go:()=>{ const ac=S.fleet.find(a=>a.status==='idle')||S.fleet[0]; openM('pilot',ac.id); }},
-  {t:'Agrandissez votre flotte', d:'Achetez ou louez un nouvel avion dans la boutique.', done:()=>S.fleet.length>=3,
+  {t:'Agrandissez votre flotte', d:'Achetez ou louez un nouvel avion dans la boutique.', done:()=>S.fleet.length+(S.orders||[]).length>=(START_PACKS[S.packId||'regional']?START_PACKS[S.packId||'regional'].fleet.length+1:3),
    go:()=>setTab('shop')},
 ];
 function renderGuide(){
@@ -298,7 +298,7 @@ function boot(){
     pilotBackground(dt);
     updatePlanes();
     acc1+=dt; acc2+=dt; acc30+=dt; acc10+=dt;
-    if(acc1>=1000){ acc1=0; checkMissions(); renderTop(); updateRival(); drawWeather(); }
+    if(acc1>=1000){ acc1=0; checkMissions(); renderTop(); updateRival(); drawWeather(); if(typeof maybeShowDecision==='function') maybeShowDecision(); }
     if(acc2>=2000){ acc2=0; if(!P||P.hidden) liveRefresh(); }
     if(acc30>=20000){ acc30=0; drawNight(); drawAirports(); }
     if(acc10>=10000){ acc10=0; save(); }

@@ -175,6 +175,14 @@ body.google-map .leaflet-control-attribution::before{content:"Google ";font-weig
 .pack{text-align:left;cursor:pointer;margin:0;color:var(--txt)} .pack:disabled{opacity:.45;cursor:not-allowed}
 .tbl.rank td{white-space:nowrap}
 @media (max-width:820px){ .packs{grid-template-columns:1fr} }
+.stockcard .kv small{font-size:12px;margin-left:6px}
+.stockcard canvas{width:100%;display:block;margin:6px 0}
+.ownring{width:74px;height:74px;border-radius:50%;background:conic-gradient(var(--gold) calc(var(--p)*1%),#22304f 0);display:grid;place-items:center;flex-shrink:0}
+.ownring span{width:58px;height:58px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-weight:800;font-size:14px;line-height:1.1;text-align:center}
+.ownring small{display:block;font-size:9px;color:var(--mut);font-weight:500}
+.rivalcard .right{text-align:right}
+.decision{display:flex;gap:14px;align-items:flex-start}
+.dicon{font-size:46px;line-height:1}
 .ap-pin{border-radius:50%;background:#fff;border:2px solid #0b1220;box-shadow:0 1px 5px rgba(0,0,0,.65);display:grid;place-items:center;color:#0b1220;font-size:9px;line-height:1;cursor:pointer;transition:transform .12s}
 .ap-pin:hover{transform:scale(1.25)}
 .ap-pin span{pointer-events:none}
@@ -369,10 +377,12 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 <script src="airports-db.js"></script>
 <script src="data.js"></script>
 <script src="sim.js"></script>
+<script src="business.js"></script>
 <script src="map.js"></script>
 <script src="ui.js"></script>
 <script src="pilot.js"></script>
 <script src="actions.js"></script>
 <script src="globe.js"></script>
+<script src="ui-biz.js"></script>
 </body>
 </html>
