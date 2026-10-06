@@ -102,7 +102,7 @@ function zoomScale(){ const z=map?map.getZoom():5; return z<=3?0.75:z<=5?1:z<=7?
 
 function initMap(){
   map = L.map('map', { zoomControl:false, worldCopyJump:true, minZoom:2, maxZoom:19, attributionControl:true, preferCanvas:false })
-    .setView([AP(S.company.hub).lat, AP(S.company.hub).lon], 5);
+    .setView([AP(S.company.hub).lat, AP(S.company.hub).lon], runwaysOf(S.company.hub).length?13:6);
   L.control.zoom({position:'topleft'}).addTo(map);
   L.control.scale({position:'bottomleft', imperial:false}).addTo(map);
   setMapStyle(localStorage.getItem(MAPSTYLE_KEY)||'hybrid', true);
@@ -152,7 +152,7 @@ function servedSet(){ const set=new Set(S.hubs||[]); for(const r of S.routes) r.
 let L_runways;
 function drawRunways(){
   if(!L_runways) return; L_runways.clearLayers();
-  const z=map.getZoom(); if(z<11 || !MAPOPT.airports) return;
+  const z=map.getZoom(); if(z<9 || !MAPOPT.airports) return;
   const b=map.getBounds().pad(0.3), c0=map.getCenter().lng;
   for(const code of AIRPORT_CODES){
     const a=AP(code); if(!b.contains([a.lat,unwrapLon(a.lon,c0)])) continue;
@@ -161,6 +161,7 @@ function drawRunways(){
       const k=[r.id,r.len].join(); const pair=[r.thr,r.end].map(p=>p.lat.toFixed(4)).sort().join(); if(seen.has(pair)) { labelRwy(r); continue; } seen.add(pair);
       const w=(r.wid||45)/2000, L2=(p,h)=>destPt(p.lat,p.lon,h,w);
       const c=[L2(r.thr,r.hdg-90),L2(r.end,r.hdg-90),L2(r.end,r.hdg+90),L2(r.thr,r.hdg+90)].map(p=>[p.lat,unwrapLon(p.lon,c0)]);
+      if(z<11){ L.polyline([[r.thr.lat,unwrapLon(r.thr.lon,c0)],[r.end.lat,unwrapLon(r.end.lon,c0)]],{color:r.hard?'#f8fafc':'#d4a373',weight:z<10?2:3,opacity:0.85,interactive:false}).addTo(L_runways); continue; }
       L.polygon(c,{color:'#f8fafc',weight:1,opacity:0.55,fillColor:r.hard?'#1f2937':'#7c5a33',fillOpacity:0.35,interactive:false}).addTo(L_runways);
       if(z>=13) L.polyline([[r.thr.lat,unwrapLon(r.thr.lon,c0)],[r.end.lat,unwrapLon(r.end.lon,c0)]],{color:'#fff',weight:1.2,opacity:0.7,dashArray:'10 10',interactive:false}).addTo(L_runways);
       labelRwy(r);
@@ -399,6 +400,7 @@ function focusCountry(cc){
   if(pts.length===1) return map.flyTo(pts[0],7,{duration:1.2});
   map.flyToBounds(pts,{padding:[40,40],maxZoom:7,duration:1.2});
 }
+function focusAirport(code){ const a=AP(code), rws=runwaysOf(code); if(!rws.length) return map.flyTo([a.lat,a.lon],13,{duration:1.2}); const pts=rws.flatMap(r=>[[r.thr.lat,r.thr.lon],[r.end.lat,r.end.lon]]); const pn=document.getElementById('panel'), pw=(!UI.mobile&&pn&&pn.offsetWidth)||0; map.flyToBounds(pts,{paddingTopLeft:[150,60],paddingBottomRight:[pw+40,60],maxZoom:15,duration:1.2}); }
 function focusWorld(){ map.flyTo([15,20],2,{duration:1.2}); }
 
 /* ---------- météo ---------- */
