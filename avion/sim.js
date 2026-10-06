@@ -75,14 +75,18 @@ function fmtDur(ms){ ms=Math.max(0,ms); const h=Math.floor(ms/HOUR), m=Math.floo
 function newGame(opts){
   const start = Date.UTC(2026,0,5,5,0);
   S = {
-    v:1, time:start, startTime:start, speed:'standard', paused:false, lastReal:Date.now(),
+    time:start, startTime:start, speed:'standard', paused:false, lastReal:Date.now(),
     company:{ name:opts.name||'Congo Sky', code:(opts.code||'CS').toUpperCase().slice(0,3), color:opts.color||'#d4a72c', logo:opts.logo||'🐆', hub:opts.hub||'FIH' },
     cash:opts.capital||80e6, reputation:50, service:3,
     ancillary:{seat:true, bags:true, wifi:false, meals:false},
     oil:82, oilBase:82, fleet:[], customModels:[], pilots:[], candidates:[], cabinCrew:8, routes:[],
+    v:2, hubs:[opts.hub||'FIH'],
+    fuel:{stock:400000, cap:1500000, auto:false, autoBelow:0.72, hist:[]},
+    co2:{stock:300, cap:3000, price:85, base:85, hist:[]},
+    staff:{pnc:8, meca:6, sol:18, sal:{pil:100,pnc:100,meca:100,sol:100}, morale:{pil:70,pnc:70,meca:70,sol:70}, strikeUntil:0},
     loans:[], campaigns:[], alliance:null, cargo:{offers:[], active:[], done:0},
     events:[], closed:[], history:[], log:[],
-    led:{ day:{}, month:{}, prevMonth:{}, total:{} },
+    led:{ day:{}, week:{}, prevWeek:{}, month:{}, prevMonth:{}, total:{} },
     stats:{ pax:0, flights:0, cargoT:0, incidents:0 },
     autoMaint:true, notifications:false, lastDay:dayIndex(start), lastMonth:monthKey(start),
     rival:null, admin:false, seq:1,
@@ -94,6 +98,8 @@ function newGame(opts){
   refreshCandidates();
   initRival();
   genCargoOffers(3);
+  migrate();
+  for(let i=0;i<6;i++) weatherTick();
   pushHistory();
   logMsg(`Bienvenue chez ${S.company.name} ! Votre hub est ${AP(S.company.hub).city} (${S.company.hub}).`,'ok');
   save();
@@ -117,7 +123,7 @@ function nextReg(){
   return pre + (pre.endsWith('-')? '' : '') + 'C' + L[Math.floor(n/23)%23] + L[n%23];
 }
 
-function addAircraft(modelId, {owned=true, used=false}={}){
+function addAircraft(modelId, {owned=true, used=false, hub=null}={}){
   const m=getModel(modelId);
   const ac = {
     id:uid(), model:modelId, reg:nextReg(), name:'', owned, used,
@@ -126,7 +132,9 @@ function addAircraft(modelId, {owned=true, used=false}={}){
     hours: used?30000:0, cycles: used?15000:0, sinceA:used?300:0, sinceC:used?1500:0, sinceD:used?6000:0,
     condition: used?78:100, status:'idle', loc:S.company.hub, routeId:null, readyAt:S.time,
     flight:null, maintUntil:0, maintType:null, nextDir:1, hold:false,
+    hub: hub||S.company.hub, cfg:{f:0,j:0}, plan:[], wk:{week:-1,c:{}}, pendingReturn:null,
   };
+  ac.loc=ac.hub;
   S.fleet.push(ac);
   return ac;
 }
@@ -136,13 +144,13 @@ const LED_CATS = {
   billets:['Billets passagers',1], annexes:['Revenus annexes',1], cargo:['Fret & contrats cargo',1], ventes:['Ventes d’avions',1],
   carburant:['Carburant',-1], taxes:['Taxes aéroportuaires',-1], service:['Service à bord',-1], salaires:['Salaires',-1],
   leasing:['Leasing',-1], maintenance:['Maintenance',-1], interets:['Intérêts bancaires',-1], marketing:['Marketing',-1],
-  alliance:['Cotisations alliance',-1], formation:['Formation',-1], incidents:['Incidents',-1], recrutement:['Recrutement',-1], admin:['Primes & bac à sable',1],
+  alliance:['Cotisations alliance',-1], formation:['Formation',-1], incidents:['Incidents',-1], co2:['Quotas CO₂',-1], investissements:['Investissements aéroports',-1], licences:['Hubs & licences de lignes',-1], recrutement:['Recrutement',-1], admin:['Primes & bac à sable',1],
 };
 function book(cat, amount){ // montant signé : + revenu, - coût
   S.cash += amount;
-  for(const k of ['day','month','total']) S.led[k][cat]=(S.led[k][cat]||0)+amount;
+  for(const k of ['day','week','month','total']){ const l=S.led[k]||(S.led[k]={}); l[cat]=(l[cat]||0)+amount; }
 }
-const ledSum = (l,sign)=>Object.entries(l).filter(([k])=>k!=='admin'&&k!=='ventes').reduce((s,[,v])=>s+(sign>0?Math.max(0,v):Math.min(0,v)),0);
+const ledSum = (l,sign)=>Object.entries(l).filter(([k])=>!['admin','ventes','investissements','licences'].includes(k)).reduce((s,[,v])=>s+(sign>0?Math.max(0,v):Math.min(0,v)),0);
 
 function logMsg(text, kind='info'){
   S.log.unshift({t:S.time, text, kind});
@@ -155,7 +163,7 @@ function oilMult(){ return S.events.reduce((m,e)=>m*(EV(e).oil||1),1); }
 function fuelPrice(code){ // $ par litre
   let p = S.oil/159*1.3 + 0.12;
   if(code && isDrc(code)){
-    if(!['FIH','FBM','GOM','FKI'].includes(code)) p*=1.35; // acheminement vers l'intérieur
+    if(!['FIH','FBM','GOM','FKI'].includes(code) && !AP(code).fuelDepot) p*=1.35; // acheminement vers l'intérieur
     p *= S.events.reduce((m,e)=>m*(EV(e).drcFuel||1),1);
   }
   return p;
@@ -186,6 +194,7 @@ function marketDemand(a,b){
   let base = 230*Math.sqrt(A.traffic*B.traffic)*df;
   if(A.drc&&B.drc) base*=5; // routes quasi inexistantes : l'avion est vital en RDC
   else if(A.drc||B.drc) base*=1.3;
+  if(A.terminal) base*=1.3; if(B.terminal) base*=1.3;
   return base*demandMult(a,b);
 }
 function baseFare(a,b){
@@ -206,30 +215,62 @@ function routeCycleHours(route, ac){
   for(let i=0;i<route.stops.length-1;i++) h+=legProfile(dist(route.stops[i],route.stops[i+1]),m).total/HOUR;
   return 2*h + 2*turnaround(m)/HOUR;
 }
-function routeFreq(route){ // vols par jour et par sens
-  let f=0;
-  for(const id of route.aircraft){ const ac=S.fleet.find(x=>x.id===id); if(ac) f+=24/routeCycleHours(route,ac)*(route.auto?1:0.6); }
-  return Math.max(f,0.05);
+const MAX_WEEK_HOURS = 140; // heures de rotation programmables par avion et par semaine
+const CLASS_NAMES={y:'Économique',j:'Affaires',f:'Première',c:'Fret'};
+function routeAircraft(route){ return S.fleet.filter(ac=>(ac.plan||[]).some(p=>p.routeId===route.id)); }
+function routeFreq(route){ // vols par jour et par sens, d'après le planning hebdomadaire
+  let f=0; for(const ac of S.fleet) for(const p of ac.plan||[]) if(p.routeId===route.id) f+=p.weekly/7;
+  return f;
 }
-function routeSeats(route, m){
-  if(isCargo(m)) return {f:0,j:0,w:0,y:0,total:0};
-  const c=route.cabin, u=m.seats;
-  const f=Math.floor(u*c.f/100/CLASS_SPACE.f), j=Math.floor(u*c.j/100/CLASS_SPACE.j), w=Math.floor(u*c.w/100/CLASS_SPACE.w);
-  const y=Math.max(0,Math.floor(u*(100-c.f-c.j-c.w)/100));
-  return {f,j,w,y,total:f+j+w+y};
+function planHours(ac, plan=ac.plan){ let h=0; for(const p of plan||[]){ const r=S.routes.find(x=>x.id===p.routeId); if(r) h+=p.weekly*routeCycleHours(r,ac); } return h; }
+function acSeats(ac){
+  const m=modelOf(ac);
+  if(isCargo(m)) return {f:0,j:0,w:0,y:0,total:0,cargo:m.cargo};
+  const c=ac.cfg||{f:0,j:0};
+  const f=Math.max(0,c.f|0), j=Math.max(0,c.j|0);
+  const y=Math.max(0,m.seats-Math.round(f*CLASS_SPACE.f+j*CLASS_SPACE.j));
+  const belly=+(m.seats*(m.seats>=150?0.04:0.012)).toFixed(1);
+  return {f,j,w:0,y,total:f+j+y,cargo:belly};
 }
-// Analyse d'un tronçon : demande, part de marché, passagers par vol
+function routeSeats(route, m){ const y=isCargo(m)?0:m.seats; return {f:0,j:0,w:0,y,total:y}; }
+function classSplit(a,b){ const d=dist(a,b); const j=d>3000?0.12:d>1200?0.09:0.065; const f=d>4000?0.035:d>2000?0.015:0.004; return {y:1-j-f,j,f}; }
+function idealPrice(a,b,k){ const y=baseFare(a,b); return k==='y'?y : k==='j'?y*3.2 : k==='f'?y*5.5 : 60+dist(a,b)*0.4; }
+function cargoDemand(a,b){ return marketDemand(a,b)*0.012*cargoMult(a,b); }
+function priceFactor(r){ return r<=1? 1+(1-r)*0.9 : Math.pow(r,-3); }
+// Analyse d'un tronçon par classe : demande du marché, part captée, passagers par vol
 function legMarket(route, a, b, freqOverride){
-  const fp = freqOverride ?? routeFreq(route);
-  const price = route.price;
-  const market = marketDemand(a,b)*Math.pow(price,-0.7);
-  const compFreq = Math.max(0.4, marketDemand(a,b)/160);
-  const rf = rivalFreq(a,b);
-  const attrP = playerQuality()*Math.sqrt(fp)/Math.pow(price,1.6);
-  const attrC = Math.sqrt(compFreq) + (S.rival? S.rival.quality*Math.sqrt(rf) : 0);
-  const share = attrP/(attrP+attrC);
-  const daily = market*share;
-  return { market, share, daily, perFlight: daily/fp, freq:fp, rivalFreq:rf };
+  const fp=Math.max(0.05, freqOverride ?? routeFreq(route));
+  const base=marketDemand(a,b), split=classSplit(a,b), q=playerQuality(), rf=rivalFreq(a,b);
+  const attrC=Math.sqrt(Math.max(0.4,base/160)) + (S.rival? S.rival.quality*Math.sqrt(rf) : 0);
+  const transfer=connectingDemand(a,b);
+  const out={freq:fp, rivalFreq:rf, market:base, transfer};
+  let daily=0;
+  for(const k of ['y','j','f','c']){
+    const r=(route.pm&&route.pm[k])??route.price??1;
+    const D = k==='c'? cargoDemand(a,b) : base*split[k];
+    const attrP=q*Math.sqrt(fp)*priceFactor(r)*(k==='j'||k==='f'?SERVICE_ATTR[S.service-1]:1);
+    const share=attrP/(attrP+attrC);
+    let cap=D*(r<1?1+(1-r)*0.4:1)*share;
+    if(k!=='c') cap+=transfer*split[k]*Math.min(1,share*1.5+0.2);
+    out[k]={demand:D, share, daily:cap, perFlight:cap/fp, ideal:idealPrice(a,b,k), price:idealPrice(a,b,k)*r, ratio:r};
+    if(k!=='c') daily+=cap;
+  }
+  out.share=out.y.share; out.daily=daily; out.perFlight=daily/fp;
+  return out;
+}
+// Réseau du joueur : correspondances via les escales communes (effet hub)
+function networkAdj(){
+  const adj={};
+  for(const r of S.routes){ if(!routeAircraft(r).length) continue;
+    for(let i=0;i<r.stops.length-1;i++){ const a=r.stops[i], b=r.stops[i+1];
+      (adj[a]=adj[a]||new Set()).add(b); (adj[b]=adj[b]||new Set()).add(a); } }
+  return adj;
+}
+function connectingDemand(a,b){
+  const adj=networkAdj(); let t=0;
+  for(const c of adj[a]||[]) if(c!==b && !(adj[c]&&adj[c].has(b))) t+=marketDemand(c,b)*0.10;
+  for(const c of adj[b]||[]) if(c!==a && !(adj[a]&&adj[a].has(c))) t+=marketDemand(a,c)*0.10;
+  return t;
 }
 function sizingAdvice(perFlight, seats){
   if(!seats) return {cls:'ok', text:'Fret'};
@@ -308,7 +349,7 @@ function cabinBusy(except){ return S.fleet.filter(a=>a!==except&&a.status==='fli
 function crewCheck(ac){
   const m=modelOf(ac);
   if(qualifiedPilots(m.fam) < 2*(activeOfFamily(m.fam,ac)+1)) return `Pas assez de pilotes qualifiés ${m.fam} (2 par avion en vol)`;
-  if(cabinBusy(ac)+cabinNeed(m) > S.cabinCrew) return 'Pas assez de personnel navigant commercial';
+  if(cabinBusy(ac)+cabinNeed(m) > S.staff.pnc) return 'Pas assez de personnel navigant commercial (PNC)';
   return null;
 }
 
@@ -345,22 +386,21 @@ function startFlight(ac, stops, kind, t, extra={}){
   for(const l of legs){
     l.dep=dep; dep+=legProfile(l.dist,m).total;
     if(kind==='route'&&route){
-      if(isCargo(m)){ l.cargo=+(m.cargo*clamp(rnd(0.55,0.9)*cargoMult(l.from,l.to),0.2,1)).toFixed(1); }
-      else {
-        const mk=legMarket(route,l.from,l.to), seats=routeSeats(route,m);
-        let P=mk.perFlight*rnd(0.88,1.1);
-        const pf=Math.min(seats.f,Math.round(P*0.03)), pj=Math.min(seats.j,Math.round(P*0.09)), pw=Math.min(seats.w,Math.round(P*0.12));
-        const py=clamp(Math.round(P-pf-pj-pw),Math.min(2,seats.y),seats.y);
-        l.pax={f:pf,j:pj,w:pw,y:py}; l.share=mk.share;
+      const mk=legMarket(route,l.from,l.to), seats=acSeats(ac), n=()=>rnd(0.86,1.12);
+      if(!isCargo(m)){
+        l.pax={ f:Math.min(seats.f,Math.round(mk.f.perFlight*n())), j:Math.min(seats.j,Math.round(mk.j.perFlight*n())), w:0,
+                y:clamp(Math.round(mk.y.perFlight*n()),Math.min(2,seats.y),seats.y) };
+        l.share=mk.share;
       }
+      l.cargo=+Math.min(seats.cargo, mk.c.perFlight*n()).toFixed(1);
     }
   }
   ac.flight={kind, routeId:extra.routeId||null, dir:extra.dir||1, contractId:extra.contractId||null, legs, li:0, next:extra.next||null};
   ac.status='flight';
   return null;
 }
-function dispatchRoute(ac, dir, t=S.time){
-  const r=S.routes.find(x=>x.id===ac.routeId); if(!r) return 'Avion non affecté à une route';
+function dispatchRoute(ac, r, dir, t=S.time){
+  if(!r) return 'Ligne introuvable';
   const stops = dir>0? r.stops : [...r.stops].reverse();
   if(ac.loc!==stops[0]) return `L’avion est à ${ac.loc}, pas à ${stops[0]} — repositionnez-le`;
   const err=startFlight(ac, stops, 'route', t, {routeId:r.id, dir});
@@ -387,30 +427,31 @@ function completeLeg(ac){
   const route=fl.routeId? S.routes.find(r=>r.id===fl.routeId):null;
   let rev=0, cost=0;
   // coûts
-  const fuel = m.burn*hrs*fuelPrice(leg.from)*(m.custom?1.05:1);
-  book('carburant',-fuel); cost+=fuel;
+  const litres = m.burn*hrs*(m.custom?1.05:1);
+  consumeFuel(litres, leg.from); consumeCO2(litres*0.00076);
+  cost += litres*fuelPrice(leg.from) + litres*0.00076*S.co2.price;
   const B=AP(leg.to), size=Math.max(m.seats,m.cargo*3)/100;
   let fees = [0,60,150,300,550,900][B.cls]*Math.max(0.25,size);
   const paxCount = leg.pax? leg.pax.f+leg.pax.j+leg.pax.w+leg.pax.y : 0;
   fees += paxCount*(AP(leg.from).cc!==B.cc?22:7);
   if(S.events.some(e=>e.type==='insecurity') && ['Nord-Kivu','Ituri','Sud-Kivu'].includes(B.prov)) fees*=1.5;
   book('taxes',-fees); cost+=fees;
-  const upkeep = Math.max(m.seats,m.cargo*3)*1.4*hrs;
+  const upkeep = Math.max(m.seats,m.cargo*3)*1.4*hrs*(1+staffShortage('meca'));
   book('maintenance',-upkeep); cost+=upkeep;
   // revenus
   if(fl.kind==='route' && route){
     if(leg.pax){
-      const fare=baseFare(leg.from,leg.to)*route.price;
-      const tix = (leg.pax.f*CLASS_MULT.f+leg.pax.j*CLASS_MULT.j+leg.pax.w*CLASS_MULT.w+leg.pax.y)*fare;
+      const pr=k=>idealPrice(leg.from,leg.to,k)*((route.pm&&route.pm[k])??1);
+      const tix = leg.pax.f*pr('f')+leg.pax.j*pr('j')+leg.pax.y*pr('y');
       const a=S.ancillary;
       const anc = paxCount*((a.seat?6*0.3:0)+(a.bags?25*0.35:0)+(a.wifi&&hrs>1.5?9*0.18:0)+(a.meals&&S.service<4?11*0.3:0));
       const svc = paxCount*SERVICE_COST[S.service-1]*Math.max(0.5,hrs) + (leg.pax.f*60+leg.pax.j*30)*Math.max(0.5,hrs);
       book('billets',tix); book('annexes',anc); book('service',-svc);
       rev+=tix+anc; cost+=svc;
       S.stats.pax+=paxCount;
-      route.stats.pax+=paxCount; route.stats.seats+=routeSeats(route,m).total; route.stats.shareSum+=leg.share||0; route.stats.shareN++;
+      route.stats.pax+=paxCount; route.stats.seats+=acSeats(ac).total; route.stats.shareSum+=leg.share||0; route.stats.shareN++;
     }
-    if(leg.cargo){ const c=leg.cargo*leg.dist*0.42; book('cargo',c); rev+=c; S.stats.cargoT+=leg.cargo; route.stats.seats+=0; }
+    if(leg.cargo){ const c=leg.cargo*idealPrice(leg.from,leg.to,'c')*((route.pm&&route.pm.c)??1); book('cargo',c); rev+=c; S.stats.cargoT+=leg.cargo; route.stats.cargoT=(route.stats.cargoT||0)+leg.cargo; }
     route.stats.flights++; route.stats.rev+=rev; route.stats.cost+=cost;
     route.stats.recent.push(rev-cost); if(route.stats.recent.length>12) route.stats.recent.shift();
   }
@@ -429,8 +470,16 @@ function completeLeg(ac){
   // usure
   ac.hours+=hrs; ac.cycles++; ac.sinceA+=hrs; ac.sinceC+=hrs; ac.sinceD+=hrs;
   const overdue = maintOverdue(ac);
-  ac.condition=clamp(ac.condition-hrs*(overdue?0.06:0.02)-0.03,0,100);
+  ac.condition=clamp(ac.condition-(hrs*(overdue?0.06:0.02)+0.03)*(1+staffShortage('meca')),0,100);
   ac.loc=leg.to;
+  // retards : orages à l'arrivée, congestion des grands aéroports
+  let delay=0;
+  const storm=stormAt(B.lat,B.lon);
+  if(storm){ delay+=rnd(10,40)*storm.power*(B.ils?0.4:1); const hold=m.burn*0.55*delay/60*fuelPrice(leg.to); book('carburant',-hold); cost+=hold; }
+  if(B.cls>=5) delay+=Math.random()<0.3? rnd(0,18):0;
+  if(delay>0) ac.readyAt=Math.max(ac.readyAt||0, arr+delay*MIN);
+  if(fl.kind==='route'){ if(delay>15){ S.stats.late=(S.stats.late||0)+1; } else S.stats.onTime=(S.stats.onTime||0)+1; }
+  if(delay>15 && route) route.stats.late=(route.stats.late||0)+1;
   // incidents
   const pInc = 0.0015 + (100-ac.condition)/100*0.02 + (overdue?0.03:0);
   if(Math.random()<pInc) incident(ac, arr);
@@ -438,7 +487,7 @@ function completeLeg(ac){
   fl.li++;
   if(fl.li>=fl.legs.length){
     const next=fl.next; ac.flight=null; ac.status=ac.status==='flight'?'idle':ac.status;
-    ac.readyAt=Math.max(ac.readyAt||0, arr+turnaround(m));
+    ac.readyAt=Math.max(ac.readyAt||0, arr+turnaround(m)*(1+staffShortage('sol')));
     if(next && next.kind==='cargo'){ const c=S.cargo.active.find(x=>x.id===next.contractId); if(c) startFlight(ac,[c.from,c.to],'cargo',ac.readyAt,{contractId:c.id}); }
   }
 }
@@ -453,7 +502,7 @@ function incident(ac, t){
   const [name,sev,hours]=pick(types);
   const cost=(20000+m.price*1e6*0.002)*sev;
   book('incidents',-cost);
-  S.reputation=clamp(S.reputation-2*sev,0,100);
+  S.reputation=clamp(S.reputation-1.2*sev,0,100);
   ac.readyAt=Math.max(ac.readyAt||0,t)+hours*HOUR;
   ac.condition=clamp(ac.condition-5*sev,0,100);
   S.stats.incidents++;
@@ -498,8 +547,39 @@ function advance(dtGame){
     while(S.lastDay<di){ S.lastDay++; dailyTick(); }
   }
 }
+function weekIndex(t){ return Math.floor((t+3*DAY)/(7*DAY)); }
+function weekStart(t){ return weekIndex(t)*7*DAY-3*DAY; }
+function scheduleAircraft(ac, t, dep){
+  if(ac.pendingReturn){
+    const r=S.routes.find(x=>x.id===ac.pendingReturn);
+    if(r && ac.loc===r.stops[r.stops.length-1] && ac.loc!==ac.hub){
+      const err=dispatchRoute(ac,r,-1,dep); ac.blocked=err||null; if(!err) ac.pendingReturn=null; return;
+    }
+    ac.pendingReturn=null;
+  }
+  if(ac.loc!==ac.hub){ const e=ferry(ac,ac.hub,dep); ac.blocked=e&&e!=='Déjà sur place'?e:null; return; }
+  if((S.staff.strikeUntil||0)>t){ ac.blocked='Grève du personnel : vols annulés'; return; }
+  const wk=weekIndex(t); if(!ac.wk||ac.wk.week!==wk) ac.wk={week:wk,c:{}};
+  const frac=(t-weekStart(t))/(7*DAY);
+  let best=null, bestR=Infinity;
+  for(const p of ac.plan){
+    const done=ac.wk.c[p.routeId]||0;
+    if(done>=p.weekly || done>p.weekly*frac+1e-6) continue; // quota atteint ou en avance sur le planning
+    const ratio=done/p.weekly; if(ratio<bestR){ bestR=ratio; best=p; }
+  }
+  if(!best){ ac.blocked=null; return; }
+  const r=S.routes.find(x=>x.id===best.routeId);
+  if(!r){ ac.plan=ac.plan.filter(x=>x!==best); return; }
+  const err=dispatchRoute(ac,r,1,dep); ac.blocked=err||null;
+  if(!err){ ac.wk.c[r.id]=(ac.wk.c[r.id]||0)+1; if(r.stops[r.stops.length-1]!==ac.hub) ac.pendingReturn=r.id; }
+}
 function simStep(){
   const t=S.time;
+  const wki=weekIndex(t);
+  if(S.lastWeek===undefined) S.lastWeek=wki;
+  if(S.lastWeek!==wki){ S.lastWeek=wki; weeklyTick(); }
+  const hr=Math.floor(t/HOUR);
+  if((S.wxHour||0)!==hr){ S.wxHour=hr; weatherTick(); }
   for(const ac of S.fleet){
     // arrivées
     let guard=0;
@@ -515,28 +595,16 @@ function simStep(){
       const due=['D','C','A'].find(k=>ac['since'+k]>=MAINT[k].every*0.97);
       if(due){ startMaint(ac,due,t); continue; }
     }
-    // rotation automatique
-    if(ac.routeId && !ac.hold){
-      const r=S.routes.find(x=>x.id===ac.routeId);
-      if(!r){ ac.routeId=null; continue; }
-      if(!r.auto) continue;
-      const first=r.stops[0], last=r.stops[r.stops.length-1];
-      let dir = ac.loc===first? 1 : ac.loc===last? -1 : 0;
-      if(dir===0){ ferry(ac, first, Math.max(t-5*MIN, ac.readyAt||0)); continue; }
-      const err=dispatchRoute(ac, dir, Math.max(t-5*MIN, ac.readyAt||0));
-      if(err) ac.blocked=err; else ac.blocked=null;
-    }
+    // planning hebdomadaire
+    if(ac.plan && ac.plan.length && !ac.hold) scheduleAircraft(ac, t, Math.max(t-5*MIN, ac.readyAt||0));
   }
 }
 
 function dailyTick(){
   const t=S.time;
-  // pétrole
-  S.oilBase=clamp(S.oilBase+(82-S.oilBase)*0.02+rnd(-1.6,1.6),45,140);
-  S.oil=+(S.oilBase*oilMult()).toFixed(2);
-  // salaires et leasing
-  const sal=S.pilots.reduce((s,p)=>s+p.salary,0)+S.cabinCrew*2400;
-  book('salaires',-sal/30);
+  // salaires, moral et grèves
+  book('salaires',-monthlyPayroll()/30);
+  staffDaily();
   const lease=S.fleet.filter(a=>!a.owned).reduce((s,a)=>s+a.lease,0);
   if(lease) book('leasing',-lease/30);
   // formations
@@ -556,7 +624,15 @@ function dailyTick(){
   }
   // réputation
   const fleetCond = S.fleet.length? S.fleet.reduce((s,a)=>s+a.condition,0)/S.fleet.length : 80;
-  const target = 25 + S.service*9 + (fleetCond-70)*0.4 + S.campaigns.reduce((s,c)=>s+(CAMPAIGNS.find(x=>x.id===c.id)?.rep||0),0) + (S.alliance?5:0);
+  const base = 25 + S.service*9 + (fleetCond-70)*0.4 + S.campaigns.reduce((s,c)=>s+(CAMPAIGNS.find(x=>x.id===c.id)?.rep||0),0) + (S.alliance?5:0);
+  const target = 0.55*base + 0.45*satisfaction();
+  // projets d'aéroports
+  S.projects=S.projects||[];
+  for(const pr of S.projects.filter(p=>p.until<=t)){
+    (S.upgrades[pr.code]=S.upgrades[pr.code]||[]).push(pr.type); applyUpgrades();
+    logMsg(`🏗️ ${UPGRADES[pr.type].name} terminé à ${AP(pr.code).city} !`,'drc'); notify('Chantier terminé', `${UPGRADES[pr.type].name} — ${AP(pr.code).city}`);
+  }
+  S.projects=S.projects.filter(p=>p.until>t);
   S.reputation=clamp(S.reputation+(target-S.reputation)*0.02,0,100);
   // recrutement
   if(dayIndex(t)%7===0) refreshCandidates();
@@ -633,7 +709,7 @@ function acceptCargo(offerId, acId){
   if(!o||!ac) return 'Introuvable';
   const m=modelOf(ac);
   if(m.cargo<o.tons) return `Capacité insuffisante (${m.cargo} t < ${o.tons} t)`;
-  if(ac.routeId) return 'Retirez d’abord l’avion de sa route';
+  if(ac.plan&&ac.plan.length) return 'Videz d’abord le planning de cet avion';
   const legErr=checkLegs(ac, legsFor([o.from,o.to])); if(legErr) return legErr;
   const err=canFly(ac); if(err) return err;
   S.cargo.offers=S.cargo.offers.filter(x=>x!==o);
@@ -678,10 +754,181 @@ function rivalTick(){
   if(R.cash<0 && R.routes.length>2){ R.routes.sort((x,y)=>x.freq-y.freq).shift(); R.fleet=Math.max(3,R.fleet-1); R.cash+=25e6; }
 }
 
+/* ---------- météo : cellules orageuses ---------- */
+function stormAt(lat,lon){ for(const c of S.weather||[]){ if(gcDist(c,{lat,lon})<c.r) return c; } return null; }
+function marketTick(){
+  // kérosène : cotation horaire ; quotas CO₂ : marché carbone
+  S.oilBase=clamp(S.oilBase+(82-S.oilBase)*0.002+rnd(-0.45,0.45),45,140);
+  S.oil=+(S.oilBase*oilMult()).toFixed(2);
+  const c=S.co2; c.base=clamp(c.base+(85-c.base)*0.003+rnd(-0.7,0.7),40,160); c.price=+c.base.toFixed(2);
+  const h=Math.floor(S.time/HOUR);
+  if(h%6===0){ S.fuel.hist.push({t:S.time,p:+fuelPrice().toFixed(4)}); c.hist.push({t:S.time,p:c.price}); if(S.fuel.hist.length>120) S.fuel.hist.shift(); if(c.hist.length>120) c.hist.shift(); }
+  if(S.fuel.auto && fuelPrice()<=S.fuel.autoBelow && S.fuel.stock<S.fuel.cap*0.95){
+    const need=S.fuel.cap-S.fuel.stock; if(S.cash>need*fuelPrice()*1.5) buyFuel(need, true);
+  }
+}
+function weatherTick(){
+  marketTick();
+  S.weather=(S.weather||[]).filter(c=>c.until>S.time);
+  for(const c of S.weather){ c.lat+=c.vlat; c.lon+=c.vlon; c.r=clamp(c.r+rnd(-4,4),20,140); }
+  const utcH=new Date(S.time).getUTCHours();
+  const spawn=(lat0,lat1,lon0,lon1,big)=>{
+    const lon=rnd(lon0,lon1), local=(utcH+lon/15+24)%24;
+    const conv = local>=13&&local<=21 ? 1 : 0.35; // orages tropicaux surtout l'après-midi
+    if(Math.random()>conv) return;
+    S.weather.push({id:uid(), lat:rnd(lat0,lat1), lon, r:rnd(30,big?120:70), vlat:rnd(-0.15,0.15), vlon:rnd(-0.5,-0.05), power:rnd(0.6,1.4), until:S.time+rndi(3,9)*HOUR});
+  };
+  const n=S.weather.length;
+  if(n<45){
+    for(let i=0;i<2;i++) spawn(-10,6,13,31,true);          // bassin du Congo (très orageux)
+    spawn(-15,15,-80,150,false); spawn(-15,15,-80,150,false); // zone de convergence intertropicale
+    if(Math.random()<0.4) spawn(30,60,-120,40,true);        // fronts des latitudes moyennes
+  }
+}
+function satisfaction(){
+  const on=S.stats.onTime||0, late=S.stats.late||0, punct = on+late? on/(on+late) : 0.9;
+  const cond = S.fleet.length? S.fleet.reduce((s,a)=>s+a.condition,0)/S.fleet.length : 85;
+  let p=0,se=0; for(const r of S.routes){ p+=r.stats.pax; se+=r.stats.seats; } const lf=se?p/se:0.7;
+  const age = S.fleet.length? S.fleet.reduce((s,a)=>s+acAgeYears(a),0)/S.fleet.length : 0;
+  let v = 52 + (S.service-3)*11 + (punct-0.85)*90 + (cond-80)*0.35 - Math.max(0,lf-0.92)*80 - age*0.6
+    - (S.ancillary.bags?3:0) - (S.ancillary.seat?2:0) + (S.ancillary.wifi?2:0);
+  return clamp(v,0,100);
+}
+function punctuality(){ const on=S.stats.onTime||0, late=S.stats.late||0; return on+late? on/(on+late) : 1; }
+
+/* ---------- investissements aéroportuaires (partenariat RVA, RDC) ---------- */
+const AP_BASE = JSON.parse(JSON.stringify(AIRPORTS));
+const UPGRADES = {
+  pave:{name:'Bitumer la piste', icon:'🛣️', days:60, cost:a=>8e6, can:a=>a.surface==='Latérite', desc:'Asphalte : plus de fermeture pendant les pluies, classe 2 minimum (ATR 72, Dash 8).', apply:a=>{ a.surface='Asphalte'; a.cls=Math.max(a.cls,2); a.runway=Math.max(a.runway,1800); }},
+  extend:{name:'Allonger la piste', icon:'📏', days:90, cost:a=>12e6*a.cls, can:a=>a.surface==='Asphalte'&&a.cls<4, desc:'+1 classe : accueille des avions plus gros (A320/737 en classe 3, gros-porteurs en 4).', apply:a=>{ a.cls=Math.min(4,a.cls+1); a.runway+=700; }},
+  fuel:{name:'Dépôt de carburant Jet A1', icon:'⛽', days:30, cost:a=>5e6, can:a=>!a.fuelDepot&&!['FIH','FBM','GOM','FKI'].includes(a.code), desc:'Supprime la surtaxe de 35 % sur le kérosène acheminé à l’intérieur.', apply:a=>{ a.fuelDepot=true; }},
+  terminal:{name:'Terminal passagers moderne', icon:'🏢', days:75, cost:a=>Math.round(6e6+a.traffic*25e6), can:a=>!a.terminal, desc:'Demande +30 % sur toutes les lignes de cet aéroport.', apply:a=>{ a.terminal=true; }},
+  ils:{name:'Balisage lumineux & ILS', icon:'💡', days:45, cost:a=>4e6, can:a=>!a.ils&&a.surface==='Asphalte', desc:'Divise par 2,5 les retards dus aux orages, limite les incidents.', apply:a=>{ a.ils=true; }},
+};
+function applyUpgrades(){
+  for(const code of Object.keys(S.upgrades||{})){
+    const a=AIRPORTS[code]; Object.assign(a, JSON.parse(JSON.stringify(AP_BASE[code])));
+    for(const t of S.upgrades[code]) UPGRADES[t].apply(a);
+  }
+}
+function startProject(code,type){
+  const a=AP(code), u=UPGRADES[type];
+  if(!a.drc) return 'Investissements réservés aux aéroports de la RDC';
+  if(!u.can(a)) return 'Projet non disponible ici';
+  S.projects=S.projects||[];
+  if(S.projects.some(p=>p.code===code&&p.type===type)) return 'Chantier déjà en cours';
+  const c=u.cost(a); book('investissements',-c);
+  S.projects.push({code,type,until:S.time+u.days*DAY,start:S.time});
+  logMsg(`🏗️ Chantier lancé : ${u.name} à ${a.city} (${fmtMoney(c)}, ${u.days} j).`,'drc');
+  return null;
+}
+
+/* ---------- hubs & lignes ---------- */
+function hubCost(code){ const a=AP(code); return Math.round([0,0.4,1.2,3,8,20][a.cls]*1e6*(a.drc?0.5:1)); }
+function buyHub(code){
+  const a=AP(code);
+  if(S.hubs.includes(code)) return 'C’est déjà un de vos hubs';
+  if(a.cls<2) return 'Aéroport trop petit pour devenir un hub (classe 2 minimum)';
+  const c=hubCost(code); book('licences',-c); S.hubs.push(code);
+  logMsg(`🏢 Nouveau hub : ${a.city} (${code}) pour ${fmtMoney(c)}.`,'ok');
+  return null;
+}
+function lineCost(stops){ let c=0; for(let i=0;i<stops.length-1;i++){ const a=stops[i], b=stops[i+1], d=dist(a,b); let x=20000+d*35; if(isDrc(a)&&isDrc(b)) x*=0.6; if(AP(b).cls>=5) x*=1.5; c+=x; } return Math.round(c/1000)*1000; }
+function auditCost(route){ const d=legsFor(route.stops).reduce((s,l)=>s+l.dist,0); return Math.round((5000+d*6)/500)*500; }
+function openLine(stops){
+  if(!S.hubs.includes(stops[0])) return 'Une ligne doit partir d’un de vos hubs';
+  if(stops.length<2) return 'Choisissez une destination';
+  for(let i=1;i<stops.length;i++) if(stops[i]===stops[i-1]) return 'Deux escales identiques consécutives';
+  if(S.routes.some(r=>r.stops.join()===stops.join())) return 'Vous exploitez déjà cette ligne';
+  const c=lineCost(stops); book('licences',-c);
+  const r={id:uid(), stops:[...stops], pm:{y:1,j:1,f:1,c:1}, audit:false, opened:S.time, stats:{flights:0,pax:0,seats:0,rev:0,cost:0,recent:[],shareSum:0,shareN:0}};
+  S.routes.push(r);
+  logMsg(`🧭 Ligne ouverte : ${stops.map(c=>AP(c).city).join(' → ')} (${fmtMoney(c)}).`,'ok');
+  return r;
+}
+function closeLine(id){
+  for(const ac of S.fleet){ ac.plan=(ac.plan||[]).filter(p=>p.routeId!==id); if(ac.pendingReturn===id) ac.pendingReturn=null; }
+  S.routes=S.routes.filter(r=>r.id!==id);
+}
+function auditLine(route){ if(route.audit) return 'Audit déjà réalisé'; book('licences',-auditCost(route)); route.audit=true; return null; }
+function setPlan(ac, routeId, weekly){
+  const r=S.routes.find(x=>x.id===routeId); if(!r) return 'Ligne introuvable';
+  if(r.stops[0]!==ac.hub) return `Cet avion est basé à ${ac.hub} : il ne peut desservir que les lignes de ce hub`;
+  const e=checkLegs(ac,legsFor(r.stops)); if(e && weekly>0) return e;
+  const plan=(ac.plan||[]).filter(p=>p.routeId!==routeId);
+  if(weekly>0) plan.push({routeId, weekly});
+  const h=planHours(ac,plan);
+  if(h>MAX_WEEK_HOURS+0.01) return `Planning plein : ${Math.round(h)} h / ${MAX_WEEK_HOURS} h par semaine`;
+  ac.plan=plan; return null;
+}
+function maxWeekly(ac, route){ const other=(ac.plan||[]).filter(p=>p.routeId!==route.id); return Math.floor((MAX_WEEK_HOURS-planHours(ac,other))/routeCycleHours(route,ac)); }
+
+/* ---------- carburant & CO₂ ---------- */
+function buyFuel(litres, auto){
+  litres=Math.max(0,Math.min(litres, S.fuel.cap-S.fuel.stock));
+  if(!litres) return 'Réservoir plein';
+  const cost=litres*fuelPrice(); book('carburant',-cost); S.fuel.stock+=litres;
+  if(!auto) logMsg(`⛽ Achat de ${num0(litres)} L de kérosène à $${fuelPrice().toFixed(3)}/L (${fmtMoney(cost)}).`,'info');
+  else logMsg(`⛽ Achat automatique : ${num0(litres)} L à $${fuelPrice().toFixed(3)}/L.`,'info');
+  return null;
+}
+function consumeFuel(litres, from){
+  const use=Math.min(litres,S.fuel.stock); S.fuel.stock-=use;
+  let cost=(litres-use)*fuelPrice()*1.2;                       // achat d'urgence au prix fort
+  const sur=litres*(fuelPrice(from)-fuelPrice()); if(sur>0) cost+=sur; // acheminement (intérieur RDC, pénuries)
+  if(cost>0) book('carburant',-cost);
+  if(litres>use && !S.fuelWarned){ S.fuelWarned=true; notify('Réservoir vide','Votre stock de kérosène est épuisé : achats d’urgence +20 %.'); logMsg('⛽ Réservoir vide ! Le carburant est acheté au comptant avec 20 % de surcoût.','warn'); }
+  if(S.fuel.stock>0) S.fuelWarned=false;
+}
+function upgradeTank(){ const cost=1.5e6+S.fuel.cap*0.6; if(S.fuel.cap>=20e6) return 'Capacité maximale atteinte'; book('licences',-cost); S.fuel.cap+=1e6; return null; }
+const tankUpgradeCost=()=>1.5e6+S.fuel.cap*0.6;
+function buyCO2(t){ t=Math.max(0,Math.min(t,S.co2.cap-S.co2.stock)); if(!t) return 'Stock plein'; book('co2',-t*S.co2.price); S.co2.stock+=t; return null; }
+function consumeCO2(t){ const use=Math.min(t,S.co2.stock); S.co2.stock-=use; if(t>use) book('co2',-(t-use)*S.co2.price*1.3); }
+const num0=v=>Math.round(v).toLocaleString('fr-FR');
+
+/* ---------- personnel ---------- */
+const STAFF_CATS={ pil:['Pilotes',0], pnc:['Personnel navigant (PNC)',2400], meca:['Mécaniciens',3200], sol:['Personnel au sol',1400] };
+function staffNeed(){
+  const pnc=S.fleet.reduce((s,a)=>s+cabinNeed(modelOf(a)),0);
+  const meca=S.fleet.reduce((s,a)=>s+(modelOf(a).fam==='TURBO'?2:3),0);
+  const sol=S.hubs.length*12+S.fleet.length*3;
+  const pil=S.fleet.reduce((s,a)=>s+2,0);
+  return {pil,pnc,meca,sol};
+}
+function staffCount(k){ return k==='pil'? S.pilots.filter(p=>!p.training).length : S.staff[k]; }
+function staffShortage(k){ const need=staffNeed()[k]; return need? clamp((need-staffCount(k))/need,0,1) : 0; }
+function monthlyPayroll(){
+  const sal=S.staff.sal;
+  return S.pilots.reduce((s,p)=>s+p.salary,0)*sal.pil/100 + S.staff.pnc*2400*sal.pnc/100 + S.staff.meca*3200*sal.meca/100 + S.staff.sol*1400*sal.sol/100;
+}
+function staffDaily(){
+  const st=S.staff;
+  for(const k of Object.keys(STAFF_CATS)){
+    const target=clamp(62+(st.sal[k]-100)*1.3-staffShortage(k)*45+(S.reputation-50)*0.2,0,100);
+    st.morale[k]=clamp(st.morale[k]+(target-st.morale[k])*0.08,0,100);
+  }
+  const worst=Object.keys(STAFF_CATS).sort((a,b)=>st.morale[a]-st.morale[b])[0];
+  if(st.morale[worst]<28 && (st.strikeUntil||0)<S.time && Math.random()<0.1){
+    st.strikeUntil=S.time+rndi(1,3)*DAY; S.reputation=clamp(S.reputation-3,0,100);
+    logMsg(`✊ Grève : ${STAFF_CATS[worst][0]} (moral ${Math.round(st.morale[worst])} %). Les départs depuis vos hubs sont annulés jusqu’au ${fmtDate(st.strikeUntil)}.`,'bad');
+    notify('Grève du personnel', `${STAFF_CATS[worst][0]} en grève`);
+  }
+}
+
+/* ---------- bilan hebdomadaire ---------- */
+function weeklyTick(){
+  const w=S.led.week||{}, rev=ledSum(w,1), cost=-ledSum(w,-1);
+  const snap=S.weekSnap||{pax:0,flights:0};
+  S.lastWeekReport={rev, cost, profit:rev-cost, pax:S.stats.pax-snap.pax, flights:S.stats.flights-snap.flights, t:S.time};
+  S.weekSnap={pax:S.stats.pax, flights:S.stats.flights};
+  S.led.prevWeek=w; S.led.week={};
+  logMsg(`📅 Bilan de la semaine : bénéfice ${fmtMoney(rev-cost)} · ${num0(S.lastWeekReport.pax)} passagers · ${S.lastWeekReport.flights} vols.`, rev>=cost?'ok':'warn');
+}
+
 /* ---------- objectifs ---------- */
-function servedAirports(){ const set=new Set(); for(const r of S.routes) if(r.aircraft.length) r.stops.forEach(c=>set.add(c)); return set; }
+function servedAirports(){ const set=new Set(); for(const r of S.routes) if(routeAircraft(r).length) r.stops.forEach(c=>set.add(c)); return set; }
 function servedProvinces(){ const set=new Set(); for(const c of servedAirports()) if(isDrc(c)) set.add(AP(c).prov); return set; }
-const hasRouteBetween=(A,B)=>S.routes.some(r=>r.aircraft.length && r.stops.some(c=>A.includes(c)) && r.stops.some(c=>B.includes(c)));
+const hasRouteBetween=(A,B)=>S.routes.some(r=>routeAircraft(r).length && r.stops.some(c=>A.includes(c)) && r.stops.some(c=>B.includes(c)));
 const MISSIONS = [
   {id:'first', name:'Premier décollage', desc:'Réaliser un premier vol commercial', cash:1e6, rep:1, done:()=>S.stats.flights>=1},
   {id:'kin_lub', name:'L’axe Kinshasa – Lubumbashi', desc:'Relier la capitale au Katanga', cash:3e6, rep:2, done:()=>hasRouteBetween(['FIH','NLO'],['FBM'])},
@@ -751,7 +998,28 @@ function catchUp(){
 }
 
 function save(){ if(!S) return; S.lastReal=Date.now(); try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
-function load(){ try{ const raw=localStorage.getItem(SAVE_KEY); if(raw){ S=JSON.parse(raw); return true; } }catch(e){} return false; }
+function migrate(){
+  if(!S.v || S.v<2){
+    S.v=2; S.hubs=S.hubs||[S.company.hub];
+    S.fuel=S.fuel||{stock:400000, cap:1500000, auto:false, autoBelow:0.72, hist:[]};
+    S.co2=S.co2||{stock:300, cap:3000, price:85, base:85, hist:[]};
+    S.staff=S.staff||{pnc:S.cabinCrew||8, meca:Math.max(6,S.fleet.length*3), sol:12+S.fleet.length*3, sal:{pil:100,pnc:100,meca:100,sol:100}, morale:{pil:70,pnc:70,meca:70,sol:70}, strikeUntil:0};
+    S.led.week=S.led.week||{}; S.led.prevWeek=S.led.prevWeek||{};
+    for(const r of S.routes){ const k=r.price||1; r.pm=r.pm||{y:k,j:k,f:k,c:1}; r.audit=!!r.audit; if(!S.hubs.includes(r.stops[0])) S.hubs.push(r.stops[0]); }
+    for(const ac of S.fleet){
+      ac.hub=ac.hub||S.company.hub; ac.cfg=ac.cfg||{f:0,j:0}; ac.wk=ac.wk||{week:-1,c:{}}; ac.plan=ac.plan||[];
+      const r=ac.routeId&&S.routes.find(x=>x.id===ac.routeId);
+      if(r){ ac.hub=r.stops[0]; ac.plan=[{routeId:r.id, weekly:Math.max(1,Math.floor(MAX_WEEK_HOURS/routeCycleHours(r,ac)))}]; }
+      ac.routeId=null;
+    }
+  }
+  S.weather=S.weather||[]; S.projects=S.projects||[]; S.upgrades=S.upgrades||{}; S.missions=S.missions||[];
+  S.stats.onTime=S.stats.onTime||0; S.stats.late=S.stats.late||0; S.stats.manual=S.stats.manual||0;
+  if(S.tuto===undefined) S.tuto=0;
+  for(const ac of S.fleet) if(ac.status==='manual'){ ac.status='idle'; }
+  applyUpgrades();
+}
+function load(){ try{ const raw=localStorage.getItem(SAVE_KEY); if(raw){ S=JSON.parse(raw); migrate(); return true; } }catch(e){} return false; }
 
 function fmtMoney(v){
   const s=v<0?'-':''; v=Math.abs(v);
