@@ -22,7 +22,7 @@ const MODALS = {
 };
 function openM(name, arg){ UI.modal=name; UI.modalArg=arg; MODALS[name](arg); }
 function openAirport(code){ openM('airport',code); }
-function after(){ renderPanel(); refreshModal(); renderTop(); drawRoutes(); }
+function after(){ renderPanel(); refreshModal(); renderTop(); drawRoutes(); drawAirports(); }
 
 const ACTIONS = {
   closeModal, closeCard:()=>selectPlane(null),
@@ -33,7 +33,7 @@ const ACTIONS = {
   saveGKey:async()=>{ const k=$('#gkey').value.trim(); if(!k){ localStorage.removeItem(GKEY); toast('Clé supprimée','ok'); return; }
     localStorage.setItem(GKEY,k); Object.keys(localStorage).filter(x=>x.startsWith('cst-gsess-')).forEach(x=>localStorage.removeItem(x));
     const id=await setMapStyle('google_sat'); if(id==='google_sat') toast('✅ Google Maps activé !','ok'); refreshModal(); },
-  mapToggle:d=>{ MAPOPT[d.k]=!MAPOPT[d.k]; document.querySelector(`[data-k="${d.k}"]`).classList.toggle('on',MAPOPT[d.k]); drawAirports(); drawRoutes(); drawNight(); updateRival(); drawWeather(true);
+  mapToggle:d=>{ MAPOPT[d.k]=!MAPOPT[d.k]; try{ localStorage.setItem('cst-mapopt',JSON.stringify(MAPOPT)); }catch(e){} document.querySelector(`[data-k="${d.k}"]`).classList.toggle('on',MAPOPT[d.k]); drawAirports(); drawRoutes(); drawNight(); updateRival(); drawWeather(true);
     if(d.k==='trails' && !MAPOPT.trails){ for(const [,t] of trails){ L_trails.removeLayer(t.line); if(t.ahead) L_trails.removeLayer(t.ahead); } trails.clear(); } },
   mapMenu:()=>$('#mapctl').classList.toggle('open'),
   focusDRC:()=>{ if(UI.mobile) setTab('map'); focusDRC(); },

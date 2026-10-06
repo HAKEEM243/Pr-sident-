@@ -135,7 +135,18 @@ details.prov summary{cursor:pointer}
 .phases span.done{color:#a7f3d0} .phases span.cur{background:var(--gold);color:#111;font-weight:700}
 .plane-icon{background:none;border:0}
 .plane-icon .rot{transition:transform .2s linear;filter:drop-shadow(var(--sh,3px) var(--sh,3px) var(--blur,1.5px) rgba(0,0,0,.5));transform-origin:50% 50%}
-.ac-svg .fu{fill:#f5f6f8;stroke:#1f2937;stroke-width:.8} .ac-svg .fu2{fill:#e5e7eb;stroke:#1f2937;stroke-width:.5}
+.ac-svg .b{fill:var(--c);stroke:#0b1220;stroke-width:1.1;stroke-linejoin:round}
+.ac-svg .fu{fill:#f5f6f8;stroke:#1f2937;stroke-width:.8}
+.photo{position:relative;border-radius:10px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#2a4f86,#0d1a30 75%);display:grid;place-items:center;aspect-ratio:16/9}
+.photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.photo.ok>svg{display:none} .photo.fail img,.photo.fail .credit{display:none} .photo.fail>svg{display:block}
+.photo:not(.ok)>svg{transform:rotate(-35deg);filter:drop-shadow(5px 7px 4px rgba(0,0,0,.45))}
+.photo .credit{position:absolute;right:4px;bottom:3px;font-size:9.5px;background:rgba(0,0,0,.6);color:#e5e7eb;padding:1px 5px;border-radius:4px;text-decoration:none;z-index:1}
+.photo.thumb{width:104px;aspect-ratio:4/3;flex-shrink:0;border-radius:8px}
+.photo.thumb .credit{display:none}
+.photo.banner{width:100%;max-height:170px;margin-bottom:8px}
+.photo.cat-img{height:auto;margin-bottom:6px}
+#flightcard .photo.banner{max-height:120px;margin:-2px 0 6px} .ac-svg .fu2{fill:#e5e7eb;stroke:#1f2937;stroke-width:.5}
 .ac-svg .wi{fill:#d9dee6;stroke:#1f2937;stroke-width:.8} .ac-svg .pr{fill:rgba(255,255,255,.4);stroke:rgba(0,0,0,.4);stroke-width:.4}
 .plane-icon.pilot .rot{transition:none}
 .route-anim{stroke-dasharray:10 9;animation:dashflow 1.4s linear infinite}
@@ -147,6 +158,16 @@ details.prov summary{cursor:pointer}
 .stylebtn{text-align:left;cursor:pointer;margin:0;color:var(--txt)} .stylebtn:disabled{opacity:.45;cursor:not-allowed}
 body.google-map .leaflet-control-attribution::before{content:"Google ";font-weight:700;color:#fff}
 .plane-icon.sel .rot{filter:drop-shadow(0 0 6px #fff) drop-shadow(var(--sh,3px) var(--sh,3px) 2px rgba(0,0,0,.5))}
+.ap-pin{border-radius:50%;background:#fff;border:2px solid #0b1220;box-shadow:0 1px 5px rgba(0,0,0,.65);display:grid;place-items:center;color:#0b1220;font-size:9px;line-height:1;cursor:pointer;transition:transform .12s}
+.ap-pin:hover{transform:scale(1.25)}
+.ap-pin span{pointer-events:none}
+.ap-pin.drc{background:#d1fae5;border-color:#065f46}
+.ap-pin.big{font-size:10px}
+.ap-pin.mine{background:#fde68a;border-color:#7a5a12}
+.ap-pin.hub{background:linear-gradient(#ffe066,#e0a800);border-color:#3b2a00;font-size:13px;color:#3b2a00;box-shadow:0 0 0 3px rgba(255,214,10,.35),0 2px 6px rgba(0,0,0,.7)}
+.ap-pin.closed{background:#fca5a5;border-color:#7f1d1d}
+.ap-pin .ap-name{position:absolute;left:100%;top:50%;transform:translateY(-50%);margin-left:5px;white-space:nowrap;color:#fff;font:600 11.5px system-ui,sans-serif;text-shadow:0 0 3px #000,0 0 2px #000,0 0 7px #000;pointer-events:none}
+.ap-pin.hub .ap-name{color:#ffe066;font-size:13px}
 .ap-label{color:#fff;font-size:11px;font-weight:600;text-shadow:0 0 3px #000,0 0 2px #000;white-space:nowrap;pointer-events:none}
 .ap-label.drc{color:#bbf7d0}
 .leaflet-tooltip.flight-tip{background:rgba(11,18,32,.95);color:var(--txt);border:1px solid var(--gold2);font-size:12px;min-width:210px}
@@ -199,8 +220,7 @@ input.pin{width:96px!important;text-align:right;margin:0!important}
 .planbar.big{font-size:14px}
 .mtc{font-size:10.5px;padding:1px 5px;border-radius:5px;background:#0f1a2e;margin-left:3px} .mtc.due{color:var(--warn)} .mtc.over{color:var(--bad)}
 .catalog{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
-.cat-img{display:grid;place-items:center;height:110px;border-radius:10px;background:radial-gradient(circle at 50% 40%,#2a4f86,#0d1a30 70%);margin-bottom:6px}
-.cat-img svg{filter:drop-shadow(6px 8px 4px rgba(0,0,0,.45));transform:rotate(-35deg)}
+
 .cat-name{display:flex;flex-direction:column;margin-bottom:4px}
 .spec{display:grid;grid-template-columns:92px 1fr 76px;align-items:center;gap:6px;font-size:11.5px;margin:2px 0}
 .spec b{text-align:right}

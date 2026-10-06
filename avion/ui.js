@@ -16,6 +16,42 @@ const TABS = [
   ['staff','👥','Personnel'],['fuel','⛽','Carburant'],['finance','💰','Finances'],['company','📣','Compagnie'],['drc','🇨🇩','RDC'],['admin','🛠️','Admin'],
 ];
 
+/* ---------- photos réelles des avions (Wikimedia Commons via l'API Wikipédia) ---------- */
+const PHOTO_MEM={}, PHOTO_PENDING={};
+function photoRec(t){
+  if(PHOTO_MEM[t]) return PHOTO_MEM[t];
+  try{ const c=JSON.parse(localStorage.getItem('cst-photo-'+t)||'null'); if(c&&c.src){ PHOTO_MEM[t]=c; return c; } }catch(e){}
+  return null;
+}
+function photoFetch(t){
+  if(PHOTO_PENDING[t]||PHOTO_MEM[t]) return; PHOTO_PENDING[t]=true;
+  fetch('https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(t.replace(/ /g,'_')))
+    .then(r=>r.ok?r.json():Promise.reject(r.status))
+    .then(j=>{
+      const o=j.originalimage, th=j.thumbnail; if(!o&&!th) throw 'no image';
+      const src = o && o.width<=1280 ? o.source : (th? th.source.replace(/\/\d+px-/,'/800px-') : o.source);
+      const orig=(o||th).source, file=decodeURIComponent((o?orig:orig.replace(/\/\d+px-[^/]+$/,'')).split('/').pop());
+      const rec={src, file:'https://commons.wikimedia.org/wiki/File:'+encodeURIComponent(file.replace(/ /g,'_'))};
+      PHOTO_MEM[t]=rec; try{ localStorage.setItem('cst-photo-'+t,JSON.stringify(rec)); }catch(e){}
+      hydratePhotos();
+    }).catch(()=>{ setTimeout(()=>{ PHOTO_PENDING[t]=false; },60000); });
+}
+function photoHtml(m, cls='', color){
+  const t=WIKI_TITLES[m.id], c=color||m.color||S.company.color, svg=PLANE_SVG(c,cls.includes('thumb')?44:92,planeCat(m));
+  const rec=t&&photoRec(t);
+  if(rec) return `<div class="photo ok ${cls}"><img src="${rec.src}" alt="${esc(m.name)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('fail')"><a class="credit" href="${rec.file}" target="_blank" rel="noopener" title="Photo Wikimedia Commons — auteur et licence">📷 Wikimedia</a>${svg}</div>`;
+  return `<div class="photo ${cls}" ${t?`data-pt="${esc(t)}" data-mid="${m.id}"`:''}>${svg}</div>`;
+}
+function hydratePhotos(){
+  document.querySelectorAll('.photo[data-pt]').forEach(el=>{
+    const t=el.dataset.pt, rec=photoRec(t);
+    if(!rec){ photoFetch(t); return; }
+    const m=getModel(el.dataset.mid); if(!m) return;
+    const cls=[...el.classList].filter(c=>c!=='photo').join(' ');
+    el.outerHTML=photoHtml(m,cls);
+  });
+}
+
 /* ---------- notifications ---------- */
 function toast(text, kind='info'){
   const box=$('#toasts'); if(!box) return;
@@ -40,6 +76,7 @@ function showModal(title, html, wide){
   m.innerHTML=`<div class="mbox ${wide?'wide':''}"><div class="mhead"><h2>${title}</h2><button class="x" data-act="closeModal">×</button></div><div class="mbody">${html}</div></div>`;
   m.dataset.title=title; m.hidden=false;
   if(same) m.querySelector('.mbody').scrollTop=scroll;
+  hydratePhotos();
 }
 function closeModal(){ $('#modal').hidden=true; $('#modal').innerHTML=''; $('#modal').dataset.title=''; UI.modal=null; UI.modalArg=null; }
 function refreshModal(){ if(UI.modal && MODALS[UI.modal]) MODALS[UI.modal](UI.modalArg); }
@@ -76,6 +113,7 @@ function renderPanel(){
   const st=body.scrollTop;
   body.innerHTML=fn();
   body.scrollTop=st;
+  hydratePhotos();
   if(UI.tab==='finance') drawChart();
   if(UI.tab==='fuel'){ drawPriceChart('fuelChart',S.fuel.hist,'#f5c518',v=>'$'+v.toFixed(3)); drawPriceChart('co2Chart',S.co2.hist,'#34d399',v=>'$'+v.toFixed(0)); }
 }
@@ -302,7 +340,7 @@ function acCard(ac){
   const lines=(ac.plan||[]).map(p=>{ const r=S.routes.find(x=>x.id===p.routeId); return r?`<span class="chip">${r.stops.join('⇄')} ×${p.weekly}</span>`:''; }).join('');
   const mt=k=>{ const v=ac['since'+k], e=MAINT[k].every; return `<span class="mtc ${v>e?'over':v>e*0.9?'due':''}" title="${MAINT[k].label}">${k} ${Math.round(v/e*100)}%</span>`; };
   return `<div class="card ac">
-    <div class="acrow"><div class="acic">${PLANE_SVG(m.color||S.company.color,44,planCat(m))}</div>
+    <div class="acrow">${photoHtml(m,'thumb')}
       <div class="grow"><b>${ac.reg}</b> ${ac.name?'« '+esc(ac.name)+' »':''}<br><span class="mut small">${m.name}${m.custom?' (perso)':''} · ${ac.owned?'propriété':'leasing '+fmtMoney(ac.lease)+'/mois'}</span><br>${acStatus(ac)}</div></div>
     <div class="small">${isCargo(m)?`📦 ${m.cargo} t`:`💺 <b>${st.f}</b> F · <b>${st.j}</b> J · <b>${st.y}</b> Y`} · ${num(m.range)} km · piste cl.${m.cls}</div>
     <div class="planbar"><span>📅 Planning</span>${bar(h/MAX_WEEK_HOURS, h>MAX_WEEK_HOURS*0.95?'warn':'')}<b>${Math.round(h)}/${MAX_WEEK_HOURS} h</b></div>
@@ -374,7 +412,7 @@ function pShop(){
   <div class="chips">${fams.map(f=>`<button class="chip ${UI.catFam===f?'on':''}" data-act="catFam" data-f="${f}">${f==='all'?'Tous':f}</button>`).join('')}</div>
   <div class="catalog">${list.map(m=>{ const q=qualifiedPilots(m.fam), cat=planeCat(m), c=m.color||S.company.color;
     return `<div class="card cat">
-      <div class="cat-img" style="--c:${c}">${PLANE_SVG(c,92,cat)}</div>
+      ${photoHtml(m,'cat-img')}
       <div class="cat-name"><b>${m.name}</b><span class="mut small">${m.maker} · ${m.fam}</span></div>
       <div class="spec"><span>${isCargo(m)?'📦 Fret':'💺 Sièges'}</span>${bar((m.seats||m.cargo*3)/maxSeats)}<b>${isCargo(m)?m.cargo+' t':m.seats}</b></div>
       <div class="spec"><span>📏 Autonomie</span>${bar(m.range/maxRange)}<b>${num(m.range)} km</b></div>

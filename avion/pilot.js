@@ -24,7 +24,7 @@ function pilotSetupHtml(ac){
   const m=modelOf(ac), list=pilotCandidates(ac);
   const planned=(ac.plan||[]).map(p=>S.routes.find(r=>r.id===p.routeId)).filter(Boolean).flatMap(r=>r.stops).filter(c=>c!==ac.loc);
   const sugg=[...new Set([...planned, ...list.slice(0,10).map(x=>x.c)])].filter(c=>list.some(x=>x.c===c)).slice(0,10);
-  return `<div class="small">Vous êtes le commandant de bord du <b>${m.name}</b> ${ac.reg}, au sol à <b>${apName(ac.loc)}</b>.
+  return `${photoHtml(m,'banner')}<div class="small">Vous êtes le commandant de bord du <b>${m.name}</b> ${ac.reg}, au sol à <b>${apName(ac.loc)}</b>.
   Décollez, naviguez et posez l’avion vous-même. Un bon atterrissage rapporte une prime et de la réputation.</div>
   <h3>Destination</h3>
   <div class="chips">${sugg.map(c=>`<button class="chip" data-act="pilotGo" data-id="${ac.id}" data-c="${c}">${flag(c)} ${AP(c).city} · ${num(dist(ac.loc,c))} km</button>`).join('')}</div>
