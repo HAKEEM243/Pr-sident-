@@ -36,7 +36,10 @@ const ACTIONS = {
   mapToggle:d=>{ MAPOPT[d.k]=!MAPOPT[d.k]; try{ localStorage.setItem('cst-mapopt',JSON.stringify(MAPOPT)); }catch(e){} document.querySelector(`[data-k="${d.k}"]`).classList.toggle('on',MAPOPT[d.k]); drawAirports(); drawRoutes(); drawNight(); updateRival(); drawWeather(true);
     if(d.k==='trails' && !MAPOPT.trails){ for(const [,t] of trails){ L_trails.removeLayer(t.line); if(t.ahead) L_trails.removeLayer(t.ahead); } trails.clear(); } },
   mapMenu:()=>$('#mapctl').classList.toggle('open'),
-  focusDRC:()=>{ if(UI.mobile) setTab('map'); focusDRC(); },
+  focusDRC:()=>{ if(UI.mobile) setTab('map'); focusCountry(homeCC()); },
+  focusHome:()=>{ if(UI.mobile) setTab('map'); focusCountry(homeCC()); },
+  focusCountry:d=>{ if(UI.mobile) setTab('map'); focusCountry(d.cc); },
+  country:d=>{ UI.country=d.cc; renderPanel(); },
   focusWorld:()=>focusWorld(),
   openAp:d=>openAirport(d.c),
 
@@ -145,7 +148,7 @@ const ACTIONS = {
   adCrew:()=>{ const n=staffNeed(); for(const k of ['pnc','meca','sol']) S.staff[k]=Math.max(S.staff[k],n[k]+5); for(const k of Object.keys(S.staff.morale)) S.staff.morale[k]=90; S.staff.strikeUntil=0; toast('Personnel au complet','ok'); },
   adFuel:()=>{ S.fuel.stock=S.fuel.cap; S.co2.stock=S.co2.cap; toast('Réservoirs pleins','ok'); },
   adCargo:()=>{ genCargoOffers(4); toast('Nouvelles offres cargo','ok'); },
-  adRival:d=>{ if(+d.v>0) S.rival.cash+=100e6; else { S.rival.cash=-5e6; S.rival.rep=35; } toast('Rival modifié','ok'); },
+  adRival:d=>{ const R=R0(); if(+d.v>0) R.cash+=100e6; else { R.cash=-5e6; R.rep=35; } toast('Rival modifié','ok'); },
 };
 
 /* ---------- saisies ---------- */
@@ -159,6 +162,8 @@ const INPUTS = {
   hold:el=>{ findAc(el.dataset.id).hold=el.checked; after(); },
   cfg:el=>{ const ac=findAc(el.dataset.id); if(ac.status==='flight'){ el.value=ac.cfg[el.dataset.k]; return err('Reconfiguration impossible en vol'); } ac.cfg[el.dataset.k]=+el.value; refreshModal(); renderPanel(); },
   transfer:el=>{ if(!el.value) return; const ac=findAc(el.dataset.id); if(!confirm(`Transférer ${ac.reg} à ${AP(el.value).city} ? Son planning sera vidé.`)) return; ac.hub=el.value; ac.plan=[]; ac.pendingReturn=null; if(ac.status==='idle') ferry(ac,ac.hub); closeModal(); after(); },
+  country:el=>{ UI.country=el.value; renderPanel(); },
+  hq:el=>{ UI.hq=el.value; const pos=el.selectionStart; refreshModal(); const n=$('#hq'); if(n){ n.focus(); n.setSelectionRange(pos,pos); } },
   olq:el=>{ UI.ol.q=el.value; const pos=el.selectionStart; refreshModal(); const n=$('#olq'); if(n){ n.focus(); n.setSelectionRange(pos,pos); } },
   buyHub:el=>{ UI.buyHub=el.value; }, catSort:el=>{ UI.catSort=el.value; renderPanel(); }, catRdc:el=>{ UI.catRdc=el.checked; renderPanel(); },
   sal:el=>{ S.staff.sal[el.dataset.k]=+el.value; },
@@ -177,8 +182,8 @@ const LIVE_INPUTS=/^(sal|fuelBelow|cfg|adOil|adRep)$/;
 function onInput(e){
   const el=e.target.closest('[data-in]'); if(!el) return;
   const fn=INPUTS[el.dataset.in]; if(!fn) return;
-  if(e.type==='input' && !(el.type==='range'||el.dataset.in.startsWith('ed.')||el.dataset.in==='olq')) return;
-  if(e.type==='change' && el.dataset.in==='olq') return;
+  if(e.type==='input' && !(el.type==='range'||el.dataset.in.startsWith('ed.')||['olq','hq','ngq'].includes(el.dataset.in))) return;
+  if(e.type==='change' && ['olq','hq','ngq'].includes(el.dataset.in)) return;
   fn(el);
   if(UI.modal==='editor' && $('#edEst')) $('#edEst').innerHTML=editorEst(customSpecs(UI.edit),UI.edit);
   if(e.type==='change' && LIVE_INPUTS.test(el.dataset.in)) renderPanel();
@@ -186,15 +191,16 @@ function onInput(e){
 
 /* ---------- tutoriel ---------- */
 const GUIDE = [
-  {t:'Ouvrez votre première ligne', d:'Choisissez une destination depuis votre hub (Kinshasa → Mbuji-Mayi est un bon début).', done:()=>S.routes.length>0,
-   go:()=>{ UI.ol={stops:[S.hubs[0], S.hubs[0]==='FIH'?'MJM':''].filter(Boolean),q:'',f:'drc'}; openM('openLine'); }},
+  {t:'Ouvrez votre première ligne', d:'Choisissez une destination proche et très demandée depuis votre hub.', done:()=>S.routes.length>0,
+   go:()=>{ const h=S.hubs[0], best=AIRPORT_CODES.filter(c=>c!==h&&AP(c).cls>=2&&dist(h,c)>250&&dist(h,c)<1400).sort((x,y)=>marketDemand(h,y)-marketDemand(h,x))[0];
+     UI.ol={stops:[h,best].filter(Boolean),q:'',f:'home'}; openM('openLine'); }},
   {t:'Programmez un avion', d:'Indiquez combien de rotations par semaine votre ATR 72 doit faire sur la ligne.', done:()=>S.fleet.some(a=>a.plan&&a.plan.length),
-   go:()=>{ const ac=S.fleet.find(a=>!isCargo(modelOf(a))); if(ac) openM('plan',ac.id); }},
+   go:()=>{ const ac=S.fleet.find(a=>!isCargo(modelOf(a))&&S.routes.some(r=>r.stops[0]===a.hub&&!checkLegs(a,legsFor(r.stops))))||S.fleet[0]; if(ac) openM('plan',ac.id); }},
   {t:'Regardez votre avion décoller', d:'Passez en vitesse « Rapide » et suivez le vol sur la carte satellite.', done:()=>S.stats.flights>0||UI.followed,
-   go:()=>{ S.speed='rapide'; const ac=S.fleet.find(a=>a.status==='flight'); setTab(UI.mobile?'map':UI.tab); if(ac){ selectPlane(ac.id); followPlane=true; UI.followed=true; } else focusDRC(); }},
+   go:()=>{ S.speed='rapide'; const ac=S.fleet.find(a=>a.status==='flight'); setTab(UI.mobile?'map':UI.tab); if(ac){ selectPlane(ac.id); followPlane=true; UI.followed=true; } else focusCountry(homeCC()); }},
   {t:'Achetez du kérosène pas cher', d:'Le prix change toutes les heures : remplissez le réservoir quand il est bas.', done:()=>S.tutoFuel,
    go:()=>setTab('fuel')},
-  {t:'Pilotez vous-même un vol', d:'Prenez les commandes du Cessna et posez-le en douceur.', done:()=>(S.stats.manual||0)>0,
+  {t:'Pilotez vous-même un vol', d:'Prenez les commandes d’un de vos avions et posez-le en douceur.', done:()=>(S.stats.manual||0)>0,
    go:()=>{ const ac=S.fleet.find(a=>a.status==='idle')||S.fleet[0]; openM('pilot',ac.id); }},
   {t:'Agrandissez votre flotte', d:'Achetez ou louez un nouvel avion dans la boutique.', done:()=>S.fleet.length>=3,
    go:()=>setTab('shop')},
@@ -210,26 +216,54 @@ function renderGuide(){
 }
 
 /* ---------- démarrage ---------- */
-function newGameModal(){
-  const hubs=AIRPORT_CODES.filter(c=>AP(c).cls>=3).sort((a,b)=>(isDrc(b)-isDrc(a))||AP(a).city.localeCompare(AP(b).city));
-  $('#modal').hidden=false;
-  $('#modal').innerHTML=`<div class="mbox"><div class="mhead"><h2>✈️ Fondez votre compagnie aérienne</h2></div><div class="mbody">
-    <div class="ng-hero">${PLANE_SVG('#f5c518',90,'wb')}<div class="small">Achetez des hubs, ouvrez des lignes, fixez vos prix, planifiez vos avions et dominez le ciel du Congo puis du monde. 142 aéroports · 42 avions réels · un rival impitoyable.</div></div>
-    <div class="form">
-      <label>Nom de la compagnie<input id="ng-name" value="Congo Sky"></label>
-      <label>Code (2-3 lettres)<input id="ng-code" maxlength="3" value="CS"></label>
-      <label>Hub de départ<select id="ng-hub">${hubs.map(c=>`<option value="${c}" ${c==='FIH'?'selected':''}>${isDrc(c)?'🇨🇩 ':COUNTRIES[AP(c).cc][2]+' '}${AP(c).city} (${c})</option>`).join('')}</select></label>
-      <label>Capital de départ<select id="ng-cap"><option value="40000000">$40 M — difficile</option><option value="80000000" selected>$80 M — normal</option><option value="250000000">$250 M — facile</option></select></label>
-      <label>Couleur de livrée<input id="ng-color" type="color" value="#d4a72c"></label>
-      <label>Logo (emoji)<input id="ng-logo" maxlength="3" value="🐆"></label>
-    </div>
-    <div class="small">Au départ : 1 ATR 72-600, 1 Cessna Caravan, 6 pilotes, 400 000 L de kérosène.</div>
-    <div class="btns"><button class="btn gold big" id="ng-go">Créer la compagnie</button></div></div></div>`;
-  $('#ng-go').onclick=()=>{
-    newGame({name:$('#ng-name').value, code:$('#ng-code').value, hub:$('#ng-hub').value, capital:+$('#ng-cap').value, color:$('#ng-color').value, logo:$('#ng-logo').value});
-    closeModal(); boot(); focusDRC();
-  };
+const POPULAR_HUBS=['FIH','CDG','JFK','LHR','DXB','IST','ADD','JNB','LOS','NBO','CMN','ABJ','GRU','MEX','YUL','SIN','HND','PEK','DEL','SYD'];
+function guessHub(){
+  try{ const reg=(navigator.languages||[navigator.language]).map(l=>(l.split('-')[1]||'').toUpperCase()).find(r=>COUNTRIES[r]);
+    if(reg){ const c=countryAirports(reg).find(x=>AP(x).cls>=3); if(c) return c; } }catch(e){}
+  return 'FIH';
 }
+function ngHtml(){
+  const ng=UI.ng, q=(ng.q||'').toLowerCase().trim();
+  let res=[];
+  if(q.length>=2) res=AIRPORT_CODES.filter(c=>AP(c).cls>=2&&(c.toLowerCase()===q||AP(c).city.toLowerCase().includes(q)||AP(c).name.toLowerCase().includes(q)||COUNTRIES[AP(c).cc][0].toLowerCase().includes(q))).sort((x,y)=>AP(y).traffic-AP(x).traffic).slice(0,14);
+  const H=AP(ng.hub);
+  const packOk=k=>START_PACKS[k].fleet.every(id=>getModel(id).cls<=H.cls);
+  if(!packOk(ng.pack)) ng.pack='regional';
+  return `<div class="ng-hero">${PLANE_SVG('#f5c518',90,'wb')}<div class="small">Créez votre compagnie n’importe où dans le monde : <b>3 200 aéroports</b> dans <b>${Object.keys(COUNTRIES).length} pays</b>, 68 avions réels, 7 compagnies concurrentes. Achetez des hubs, ouvrez des lignes, fixez vos prix, planifiez vos avions… et pilotez-les vous-même.</div></div>
+  <div class="form">
+    <label>Nom de la compagnie<input id="ng-name" value="${esc(ng.name)}" data-in="ngName"></label>
+    <label>Code (2-3 lettres)<input id="ng-code" maxlength="3" value="${esc(ng.code)}" data-in="ngCode"></label>
+  </div>
+  <h3>Votre hub de départ</h3>
+  <div class="hubpick card gold-b"><div class="cflag">${COUNTRIES[H.cc][2]}</div><div class="grow"><b>${esc(H.city)}</b> <span class="mut">${H.code}</span><br><span class="small mut">${esc(H.name)} · ${COUNTRIES[H.cc][0]} · piste ${num(H.runway)} m · ${H.traffic>=1?H.traffic+' M':Math.round(H.traffic*1000)+' k'} pax/an</span></div></div>
+  <input id="ngq" placeholder="🔍 Chercher une ville, un aéroport ou un pays…" value="${esc(ng.q||'')}" data-in="ngq">
+  <div class="chips">${(res.length?res:POPULAR_HUBS.filter(c=>AIRPORTS[c])).map(c=>`<button class="chip ${c===ng.hub?'on':''}" data-act="ngHub" data-c="${c}">${flag(c)} ${esc(AP(c).city)} <span class="mut">${c}</span></button>`).join('')}</div>
+  <h3>Taille de départ</h3>
+  <div class="packs">${Object.entries(START_PACKS).map(([k,p])=>`<button class="card pack ${ng.pack===k?'gold-b':''}" data-act="ngPack" data-k="${k}" ${packOk(k)?'':'disabled'}><b>${p.name}</b><br><span class="small">${p.desc}</span><br><span class="small mut">Capital ${fmtMoney(p.capital*ng.diff)}${packOk(k)?'':' · piste trop courte ici'}</span></button>`).join('')}</div>
+  <div class="row wrap"><span>Difficulté</span>${[[2,'Facile'],[1,'Normal'],[0.5,'Difficile']].map(([v,l])=>`<button class="chip ${ng.diff===v?'on':''}" data-act="ngDiff" data-v="${v}">${l}</button>`).join('')}
+    <label class="row">Livrée<input type="color" value="${ng.color}" data-in="ngColor" style="width:60px"></label><label class="row">Logo<input maxlength="3" value="${esc(ng.logo)}" data-in="ngLogo" style="width:70px"></label></div>
+  <div class="btns"><button class="btn gold big" data-act="ngGo">🛫 Créer la compagnie à ${esc(H.city)}</button></div>`;
+}
+function newGameModal(){
+  UI.ng=UI.ng||{name:'Sky Empire', code:'SE', hub:guessHub(), pack:'regional', diff:1, color:'#d4a72c', logo:'✈️', q:''};
+  $('#modal').hidden=false;
+  $('#modal').innerHTML=`<div class="mbox wide"><div class="mhead"><h2>✈️ Fondez votre compagnie aérienne</h2></div><div class="mbody" id="ngBody">${ngHtml()}</div></div>`;
+  hydratePhotos&&hydratePhotos();
+}
+function refreshNg(focusId){ const b=$('#ngBody'); if(!b) return; const el=focusId&&$('#'+focusId), pos=el?el.selectionStart:0; b.innerHTML=ngHtml(); if(focusId){ const n=$('#'+focusId); if(n){ n.focus(); n.setSelectionRange(pos,pos); } } }
+Object.assign(ACTIONS,{
+  ngHub:d=>{ UI.ng.hub=d.c; UI.ng.q=''; refreshNg(); },
+  ngPack:d=>{ UI.ng.pack=d.k; refreshNg(); },
+  ngDiff:d=>{ UI.ng.diff=+d.v; refreshNg(); },
+  ngGo:()=>{ const ng=UI.ng;
+    newGame({name:ng.name||'Sky Empire', code:ng.code||'SE', hub:ng.hub, pack:ng.pack, diff:ng.diff, color:ng.color, logo:ng.logo});
+    UI.modal=null; closeModal(); boot(); focusCountry(homeCC()); },
+});
+Object.assign(INPUTS,{
+  ngq:el=>{ UI.ng.q=el.value; refreshNg('ngq'); },
+  ngName:el=>{ UI.ng.name=el.value.slice(0,40); }, ngCode:el=>{ UI.ng.code=el.value.toUpperCase().slice(0,3); },
+  ngColor:el=>{ UI.ng.color=el.value; }, ngLogo:el=>{ UI.ng.logo=el.value||'✈️'; },
+});
 function offlineReport(r){
   if(!r || r.game<HOUR) return;
   showModal('Pendant votre absence…', `<div class="card"><div>Temps réel écoulé : <b>${fmtDur(r.real)}</b> · temps de jeu simulé : <b>${fmtDur(r.game)}</b></div>

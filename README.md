@@ -36,21 +36,22 @@ Ce dossier peut être déployé tel quel sur n'importe quel hébergeur de fichie
 
 Ce projet est un simulateur jouable et cohérent, pas une reconstitution économique réaliste au niveau d'un titre commercial (type Geopolitical Simulator / Power & Revolution). Les formules économiques sont simplifiées pour rester amusantes et compréhensibles. C'est une base solide, facilement extensible (le code est un seul fichier `index.html` commenté par sections).
 
-## Bonus : Congo Sky Tycoon (`avion/`)
+## Bonus : Sky Empire (`avion/`)
 
 Un second jeu, indépendant : simulateur de gestion de compagnie aérienne sur carte satellite (Leaflet + imagerie ESRI, Google Maps en option avec clé API), ouvert via `avion/index.html`.
 
-- **Gestion façon « airline manager »** : achat de hubs, licences de lignes, audit de marché, demande et prix par classe (Éco / Affaires / Première / Fret), configuration cabine par avion, planning hebdomadaire (un avion peut desservir plusieurs lignes de son hub), achat de kérosène et de quotas CO₂ à cours fluctuant, personnel (pilotes, PNC, mécaniciens, sol) avec salaires, moral et grèves, bilan hebdomadaire.
-- **142 aéroports** dont **43 en RD Congo** (25 provinces, pistes asphalte/latérite) et chantiers d’aéroports (bitumage, allongement de piste, dépôts de carburant, terminaux, ILS).
-- **42 avions réels**, neufs, d’occasion ou en leasing, éditeur d’avion perso.
-- **Mode pilote** : pilotez vous-même un vol sur la carte satellite (horizon artificiel, badins, pilote automatique avec atterrissage automatique, note d’atterrissage).
-- Vols en temps réel (9 phases), orages, traînées de condensation, tutoriel guidé, 21 objectifs, rival IA, événements (Nyiragongo, Ebola, boom minier…), interface mobile.
+- **Le monde entier** : 3 200 aéroports avec vols réguliers dans 234 pays (n’importe lequel peut devenir votre hub), onglet 🌐 Monde pour explorer chaque pays (marché intérieur, régions, meilleures lignes).
+- **Gestion façon « airline manager »** : hubs, licences de lignes, audit de marché, demande et prix par classe (Éco / Affaires / Première / Fret), configuration cabine, planning hebdomadaire, kérosène et quotas CO₂ à cours fluctuant, personnel (salaires, moral, grèves), bilan hebdomadaire, prêts, marketing, alliances, contrats cargo.
+- **68 avions réels** avec leurs vraies photos (Wikimedia Commons), neufs, d’occasion ou en leasing, éditeur d’avion perso ; 3 tailles de départ (régionale, nationale, grand transporteur).
+- **8 compagnies concurrentes** (un rival local + 7 majors mondiales) qui ouvrent des lignes et vous attaquent ; classement mondial.
+- **Événements mondiaux** : ouragans, typhons, tempêtes de neige, cendres volcaniques, mousson, grands événements sportifs, Hajj, Nouvel An lunaire, crises pétrolières… et le détail de la RD Congo (43 aéroports, provinces, pistes en latérite).
+- **Mode pilote** : pilotez vous-même un vol sur la carte satellite (horizon artificiel, pilote automatique avec atterrissage automatique, note d’atterrissage).
 
 ## Crédits
 
 Carte du monde SVG : « Simple World Map » par Al MacDonald, éditée par Fritz Lekschas ([flekschas/simple-world-map](https://github.com/flekschas/simple-world-map)), sous licence [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
 
-Congo Sky Tycoon : imagerie satellite © Esri ; frontière de la RDC issue de Natural Earth (domaine public) via `world-atlas` ; [Leaflet](https://leafletjs.com) (BSD-2).
+Sky Empire : imagerie satellite © Esri ; aéroports [OurAirports](https://ourairports.com) (domaine public) ; longueurs de piste et fuseaux [airport-data-js](https://github.com/aashishvanand/airport-data-js) (CC BY 4.0) ; photos d’avions Wikimedia Commons (licences libres, crédit sur chaque photo) ; frontière de la RDC Natural Earth (domaine public) ; [Leaflet](https://leafletjs.com) (BSD-2).
 
 ## Structure
 
@@ -58,5 +59,5 @@ Congo Sky Tycoon : imagerie satellite © Esri ; frontière de la RDC issue de Na
 index.html    Application complète (HTML + CSS + JS, un seul fichier)
 manifest.json Manifeste PWA (icône, nom, couleurs)
 sw.js         Service worker (mise en cache, fonctionnement hors-ligne)
-avion/        Congo Sky Tycoon (index.html, data.js, sim.js, map.js, ui.js)
+avion/        Sky Empire (index.html, airports-db.js, data.js, sim.js, map.js, ui.js, pilot.js, actions.js)
 ```
