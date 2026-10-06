@@ -183,6 +183,12 @@ body.google-map .leaflet-control-attribution::before{content:"Google ";font-weig
 .rivalcard .right{text-align:right}
 .decision{display:flex;gap:14px;align-items:flex-start}
 .dicon{font-size:46px;line-height:1}
+.faf span{display:block;background:#22d3ee;color:#04202a;font:800 10px system-ui;border-radius:4px;text-align:center;padding:1px 0}
+.rwy-label.big span{font-size:14px;color:#ffe066}
+.rwy-label span{display:block;color:#fff;font:700 11px ui-monospace,monospace;text-align:center;text-shadow:0 0 3px #000,0 0 2px #000}
+.plane-icon.real .rot{filter:drop-shadow(calc(var(--sh,3px)*2) calc(var(--sh,3px)*2) 3px rgba(0,0,0,.55))}
+.tech .techleg{border-top:1px solid #1d2d48;padding:6px 0}
+.tech .kl{margin-bottom:4px}
 .ap-pin{border-radius:50%;background:#fff;border:2px solid #0b1220;box-shadow:0 1px 5px rgba(0,0,0,.65);display:grid;place-items:center;color:#0b1220;font-size:9px;line-height:1;cursor:pointer;transition:transform .12s}
 .ap-pin:hover{transform:scale(1.25)}
 .ap-pin span{pointer-events:none}
@@ -375,8 +381,10 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 <div id="toasts"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="airports-db.js"></script>
+<script src="runways-db.js"></script>
 <script src="data.js"></script>
 <script src="sim.js"></script>
+<script src="realism.js"></script>
 <script src="business.js"></script>
 <script src="map.js"></script>
 <script src="ui.js"></script>

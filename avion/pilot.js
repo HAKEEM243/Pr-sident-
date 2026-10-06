@@ -10,6 +10,18 @@ function destPoint(lat,lon,hdg,km){
   const λ2=λ1+Math.atan2(Math.sin(θ)*Math.sin(δ)*Math.cos(φ1),Math.cos(δ)-Math.sin(φ1)*Math.sin(φ2));
   return {lat:toDeg(φ2), lon:toDeg(λ2)};
 }
+// position relative à une piste : distance le long de l'axe (m, depuis le seuil) et écart latéral (m)
+function rwyFrame(r, p){
+  const kx=111320*Math.cos(toRad(r.thr.lat)), dx=(p.lon-r.thr.lon)*kx, dy=(p.lat-r.thr.lat)*110540;
+  const h=toRad(r.hdg), ux=Math.sin(h), uy=Math.cos(h);
+  return {along:dx*ux+dy*uy, xt:dx*uy-dy*ux};
+}
+function onRunway(p, code){
+  const hits=runwaysOf(code).filter(r=>{ const f=rwyFrame(r,p); return f.along>-60 && f.along<r.len+60 && Math.abs(f.xt)<(r.wid||45)/2+12; });
+  return hits.sort((a,b)=>angDiff(a.hdg,p.hdg)-angDiff(b.hdg,p.hdg))[0]||null;
+}
+// vent en altitude au point courant (km/h, composante sur le cap)
+function windHere(p){ const jet=180*Math.exp(-Math.pow((Math.abs(p.lat)-40)/13,2)) - 18*Math.exp(-Math.pow(p.lat/14,2)); return jet*Math.sin(toRad(p.hdg))*clamp(p.alt/32000,0,1); }
 function perf(m){
   const cat=planeCat(m);
   const vr = cat==='prop'? (m.seats<=20?120:190) : cat==='conc'? 370 : cat==='rj'?250 : cat==='nb'?270 : 290;
@@ -17,7 +29,7 @@ function perf(m){
 }
 function pilotCandidates(ac){
   const m=modelOf(ac);
-  return AIRPORT_CODES.filter(c=>c!==ac.loc && AP(c).cls>=m.cls && dist(ac.loc,c)<=m.range && !airportClosed(c))
+  return AIRPORT_CODES.filter(c=>c!==ac.loc && dist(ac.loc,c)<=m.range && !airportClosed(c) && !runwayCheck(m,c))
     .map(c=>({c,d:dist(ac.loc,c)})).sort((a,b)=>a.d-b.d);
 }
 function pilotSetupHtml(ac){
@@ -43,7 +55,7 @@ function startPilot(acId, to, commercial){
   const m=modelOf(ac);
   if(!AIRPORTS[to] || to===ac.loc) return 'Destination invalide';
   if(dist(ac.loc,to)>m.range) return 'Destination hors autonomie';
-  if(AP(to).cls<m.cls) return 'Piste de destination trop courte';
+  const rwErr=runwayCheck(m,to)||runwayCheck(m,ac.loc); if(rwErr) return rwErr;
   const A=AP(ac.loc), d=dist(ac.loc,to);
   let pax=null, cargo=0;
   if(commercial){
@@ -55,9 +67,11 @@ function startPilot(acId, to, commercial){
   }
   ac.status='manual';
   const pf=perf(m);
-  P={ acId, from:ac.loc, to, lat:A.lat, lon:A.lon, hdg:bearing(A,AP(to)), spd:0, alt:0, vs:0, vsT:0, thr:0, roll:0,
+  const depR=bestRunway(ac.loc, bearing(A,AP(to)), m), arrR=bestRunway(to,(bearing(AP(to),A)+180)%360, m);
+  const st0=depR? {lat:depR.thr.lat, lon:depR.thr.lon, hdg:depR.hdg} : {lat:A.lat, lon:A.lon, hdg:bearing(A,AP(to))};
+  P={ acId, from:ac.loc, to, lat:st0.lat, lon:st0.lon, hdg:st0.hdg, depR, arrR, spd:0, alt:0, vs:0, vsT:0, thr:0, roll:0,
       fuelMax:m.burn*(d/m.speed+1.3), fuel:0, phase:'ground', accel:1, ap:false, autoCam:true, t:0, air:0, pax, cargo, commercial,
-      pf, m, dist0:d, msg:'Mettez les gaz à fond pour décoller', maxAlt:0, td:null, sound:true };
+      pf, m, dist0:d, msg:depR?`Aligné piste ${depR.id} (${num0(depR.len)} m) — mettez les gaz à fond`:'Mettez les gaz à fond pour décoller', maxAlt:0, td:null, sound:true };
   P.fuel=P.fuelMax;
   openCockpit();
   return null;
@@ -69,18 +83,25 @@ function pilotPhysics(dt){
   const dTo=gcDist(P,to), brgTo=bearing(P,to);
   // pilote automatique
   if(P.ap && P.phase==='air'){
-    let diff=((brgTo-P.hdg+540)%360)-180;
+    let tgtHdg=brgTo, dThr=dTo;
+    if(P.arrR){ // interception de l'axe de piste : point d'approche finale (FAF) à 14 km, puis suivi de l'axe
+      const R=P.arrR, f=rwyFrame(R,P), faf=destPt(R.thr.lat,R.thr.lon,(R.hdg+180)%360,14);
+      const onFinal = f.along<R.len && f.along>-26000 && Math.abs(f.xt)<(P.final?2500:1500) && angDiff(P.hdg,R.hdg)<50;
+      if(onFinal){ tgtHdg=(R.hdg+clamp(-f.xt/45,-25,25)+360)%360; dThr=Math.max(0,(300-f.along)/1000); P.final=true; }
+      else { tgtHdg=bearing(P,faf); dThr=gcDist(P,faf)+14; P.final=false; }
+    }
+    let diff=((tgtHdg-P.hdg+540)%360)-180;
     P.turn=clamp(diff/4,-1,1);
-    const glide = Math.max(0,dTo-0.4)*172;              // plan de descente à 3° : ~172 ft par km
+    const glide = Math.max(0,dThr-0.3)*172;              // plan de descente à 3° : ~172 ft par km
     const cruise = Math.min(pf.ceil, Math.max(8000, P.dist0*30));
     const tgtAlt = Math.min(cruise, glide);
     let vsT=(tgtAlt-P.alt)*0.8;
     if(glide<cruise && P.alt>tgtAlt-400) vsT-=P.spd*172/60;   // anticipation de la pente
     P.vsT=clamp(vsT,-2600,pf.climb);
-    const flare = P.alt<80 && dTo<4;
-    const tgtSpd = flare? pf.vr*1.05 : dTo<15? pf.vr*1.2 : dTo<60? pf.vr*1.6 : m.speed*0.92;
+    const flare = P.alt<60 && dThr<1.5;
+    const tgtSpd = flare? pf.vr*0.98 : dThr<12? pf.vr*1.05 : dThr<40? pf.vr*1.4 : m.speed*0.92;
     P.thr=clamp(P.thr+(tgtSpd-P.spd)*0.02*dt,0,1);
-    if(P.alt<1500 && dTo<10) P.vsT=Math.max(P.vsT,-900);       // approche stabilisée
+    if(P.alt<1500 && dThr<10) P.vsT=Math.max(P.vsT,-1100);      // approche stabilisée
     if(flare) P.vsT=-160;                                        // arrondi automatique
   }
   if(P.fuel<=0){ P.thr=0; P.fuel=0; }
@@ -115,19 +136,21 @@ function pilotPhysics(dt){
     if(!P) return;
   }
   // déplacement
-  if(P.phase!=='crashed' && P.spd>0){ const p=destPoint(P.lat,P.lon,P.hdg,P.spd*dt/3600); P.lat=p.lat; P.lon=p.lon; }
+  P.gs = P.phase==='air'? Math.max(0,P.spd+windHere(P)) : P.spd;
+  if(P.phase!=='crashed' && P.gs>0){ const p=destPoint(P.lat,P.lon,P.hdg,P.gs*dt/3600); P.lat=p.lat; P.lon=p.lon; }
   P.fuel=Math.max(0,P.fuel-m.burn*(0.2+0.8*P.thr)*dt/3600);
   P.t+=dt;
   if(P.phase==='rollout' && P.spd<25) finishPilot();
 }
 function nearestAirport(p){ let best=null; for(const c of AIRPORT_CODES){ const d=gcDist(p,AP(c)); if(!best||d<best.d) best={c,d}; } return best; }
 function touchdown(){
-  const n=nearestAirport(P), vs=P.vs;
-  P.td={vs, spd:P.spd, d:n.d, code:n.c, ap:P.ap};
+  const n=nearestAirport(P), vs=P.vs, hasRw=runwaysOf(n.c).length>0, rw=hasRw? onRunway(P,n.c) : (n.d<4?{id:'?'}:null);
+  P.td={vs, spd:P.spd, d:n.d, code:n.c, ap:P.ap, rwy:rw&&rw.id, off:!rw};
   P.alt=0; P.vs=0;
-  if(n.d>4 || vs<-2500 || P.spd>P.pf.vtdMax*1.25){ P.phase='crashed'; P.spd=0; crashPilot(n.d>4?'Atterrissage hors piste !':'Impact trop violent !'); return; }
+  if(n.d>4 || vs<-2500 || P.spd>P.pf.vtdMax*1.25){ P.phase='crashed'; P.spd=0; crashPilot(n.d>4?'Atterrissage hors aéroport !':'Impact trop violent !'); return; }
+  if(!rw){ P.phase='crashed'; P.spd=0; crashPilot('Sortie de piste : l’avion s’est posé à côté de la piste !', 0.35); return; }
   P.phase='rollout'; P.thr=0; P.ap=false;
-  P.msg=vs>-200?'🧈 Kiss landing ! Freinez…':vs>-600?'Bel atterrissage, freinage…':'Atterrissage ferme… freinage';
+  P.msg=(vs>-200?'🧈 Kiss landing':vs>-600?'Bel atterrissage':'Atterrissage ferme')+` sur la piste ${rw.id} — freinage…`;
   beep(vs>-600?520:300,0.2);
 }
 
@@ -167,25 +190,25 @@ function finishPilot(){
     <div class="landing-stars">${'★'.repeat(rating)}${'☆'.repeat(5-rating)}</div>
     <div class="grid2 card"><div>Arrivée : <b>${apName(at)}</b>${div?' <span class="neg">(déroutement)</span>':''}</div>
     <div>Taux de chute : <b>${res.td?Math.round(res.td.vs):'—'} ft/min</b></div>
-    <div>Distance du seuil : <b>${res.td?res.td.d.toFixed(1):'—'} km</b></div><div>Temps de vol : <b>${fmtDur(res.hrs*HOUR)}</b></div>
+    <div>Piste : <b>${res.td&&res.td.rwy?res.td.rwy:'—'}</b></div><div>Temps de vol : <b>${fmtDur(res.hrs*HOUR)}</b></div>
     <div>Revenus : <b class="pos">${fmtMoney(res.rev)}</b></div><div>Carburant + taxes : <b class="neg">${fmtMoney(res.fuelCost+res.fees)}</b></div></div>
     <div class="small mut">${rating===5?'Kiss landing : prime de 8 % et réputation +1,5.':rating===4?'Très bon atterrissage : prime de 4 %.':rating<=2?'Atterrissage dur : usure de l’avion et réputation en baisse.':'Atterrissage correct.'}</div>
     <div class="btns"><button class="btn gold" data-act="closeModal">Continuer</button></div>`);
   P=null; renderPanel(); renderTop();
 }
-function crashPilot(why){
+function crashPilot(why, sev=1){
   const ac=S.fleet.find(a=>a.id===P.acId), m=modelOf(ac);
-  const cost=m.price*1e6*0.18+200000;
+  const cost=(m.price*1e6*0.18+200000)*sev, repLoss=Math.round(12*Math.max(0.5,sev));
   beep(120,0.6);
   const at=nearestAirport(P).c;
   settleFlight(ac, at, 1, cost);
-  ac.condition=5; S.reputation=clamp(S.reputation-12,0,100); S.stats.incidents++;
-  ac.readyAt=S.time+5*DAY;
+  ac.condition= sev<1? Math.max(5,ac.condition-40) : 5; S.reputation=clamp(S.reputation-repLoss,0,100); S.stats.incidents++;
+  ac.readyAt=S.time+(sev<1?2:5)*DAY;
   logMsg(`💥 ${ac.reg} : ${why} Avion gravement endommagé, ${fmtMoney(cost)} de frais. Aucun blessé grave.`,'bad');
   closeCockpit();
   showModal('💥 Accident', `<div class="card"><b>${why}</b><br>L’avion ${ac.reg} est gravement endommagé près de ${apName(at)}. Heureusement, l’évacuation s’est bien passée.<br>
-    Frais : <b class="neg">${fmtMoney(cost)}</b> · réputation −12 · condition technique 5 % (check D conseillé).</div>
-    <div class="small mut">Astuce : atterrissez à moins de 4 km d’un aéroport, avec un taux de chute inférieur à 600 ft/min et une vitesse proche de V<sub>R</sub>.</div>
+    Frais : <b class="neg">${fmtMoney(cost)}</b> · image −${repLoss} · condition technique ${Math.round(ac.condition)} % (check conseillé).</div>
+    <div class="small mut">Astuce : suivez la ligne magenta jusqu’au point d’approche, alignez-vous sur l’axe de la piste et touchez le sol sur la piste avec moins de 600 ft/min.</div>
     <div class="btns"><button class="btn gold" data-act="closeModal">Compris</button></div>`);
   P=null; renderPanel(); renderTop();
 }
@@ -223,7 +246,15 @@ function openCockpit(){
   if(!pilotLayer) pilotLayer=L.layerGroup().addTo(map);
   pilotLayer.clearLayers();
   const to=AP(P.to);
-  L.circle([to.lat,to.lon],{radius:4000,color:'#ff2bd6',weight:2,dashArray:'5 6',fillOpacity:0.05}).addTo(pilotLayer).bindTooltip('Zone d’atterrissage');
+  L.circle([to.lat,to.lon],{radius:4000,color:'#ff2bd6',weight:1,dashArray:'5 6',fillOpacity:0.02,interactive:false}).addTo(pilotLayer);
+  for(const R of [P.depR,P.arrR]) if(R){
+    const w=(R.wid||45)/2000, c=[destPt(R.thr.lat,R.thr.lon,R.hdg-90,w),destPt(R.end.lat,R.end.lon,R.hdg-90,w),destPt(R.end.lat,R.end.lon,R.hdg+90,w),destPt(R.thr.lat,R.thr.lon,R.hdg+90,w)].map(p=>[p.lat,p.lon]);
+    L.polygon(c,{color:'#ffffff',weight:2,fillColor:'#111827',fillOpacity:0.55,interactive:false}).addTo(pilotLayer);
+  }
+  if(P.arrR){ const R=P.arrR, faf=destPt(R.thr.lat,R.thr.lon,(R.hdg+180)%360,14);
+    L.polyline([[faf.lat,faf.lon],[R.thr.lat,R.thr.lon]],{color:'#22d3ee',weight:2,dashArray:'4 6',interactive:false}).addTo(pilotLayer);
+    L.marker([faf.lat,faf.lon],{icon:L.divIcon({className:'faf',html:'<span>FAF</span>',iconSize:[34,16],iconAnchor:[17,8]}),interactive:false}).addTo(pilotLayer);
+    L.marker([R.thr.lat,R.thr.lon],{icon:L.divIcon({className:'rwy-label big',html:`<span style="transform:rotate(${R.hdg}deg)">${R.id}</span>`,iconSize:[34,18],iconAnchor:[17,9]}),interactive:false}).addTo(pilotLayer); }
   pilotLine=L.polyline([],{color:'#ff2bd6',weight:3,opacity:0.9,dashArray:'8 8'}).addTo(pilotLayer);
   pilotTrail=L.polyline([],{color:'#fff',weight:2,opacity:0.6}).addTo(pilotLayer);
   const cat=planeCat(P.m);
@@ -277,7 +308,8 @@ function pilotFrame(now){
   if(now-pilotUiAt>250){
     pilotUiAt=now;
     const to=AP(P.to);
-    pilotLine.setLatLngs(gcPath({lat:P.lat,lon:P.lon},to,pos[1]));
+    if(P.arrR&&!P.final){ const R=P.arrR, faf=destPt(R.thr.lat,R.thr.lon,(R.hdg+180)%360,14); pilotLine.setLatLngs([...gcPath({lat:P.lat,lon:P.lon},faf,pos[1]),[R.thr.lat,unwrapLon(R.thr.lon,pos[1])]]); }
+    else pilotLine.setLatLngs(gcPath({lat:P.lat,lon:P.lon},P.arrR?P.arrR.thr:to,pos[1]));
     const tr=pilotTrail.getLatLngs(); if(!tr.length||gcDist({lat:tr[tr.length-1].lat,lon:tr[tr.length-1].lng},P)>0.3){ tr.push(L.latLng(pos)); if(tr.length>2000) tr.shift(); pilotTrail.setLatLngs(tr); }
     drawPFD(); drawCkInfo();
   }
@@ -324,10 +356,14 @@ function drawPFD(){
 }
 function drawCkInfo(){
   const box=document.getElementById('ckInfo'); if(!box) return;
-  const to=AP(P.to), d=gcDist(P,to), gs=P.spd;
+  const to=AP(P.to), d=gcDist(P,to), gs=P.gs||P.spd;
   const eta=gs>50? d/gs*HOUR : 0;
   let guide='';
-  if(P.phase==='air' && d<40){
+  if(P.phase==='air' && P.arrR && d<45){
+    const R=P.arrR, f=rwyFrame(R,P), dT=Math.max(0,-f.along/1000), ideal=dT*172, dev=P.alt-ideal;
+    const lat = Math.abs(f.xt)<40? '<span class="pos">axe ✓</span>' : `axe ${f.xt>0?'◀ à gauche':'▶ à droite'} de ${num0(Math.abs(f.xt))} m`;
+    guide = `Piste <b>${R.id}</b> · ${dT.toFixed(1)} km · ${lat} · ` + (Math.abs(dev)<250? '<span class="pos">● plan de descente</span>' : dev>0? `<span class="warnt">▼ trop haut ${num0(dev)} ft</span>` : `<span class="warnt">▲ trop bas ${num0(-dev)} ft</span>`);
+  } else if(P.phase==='air' && d<40){
     const ideal=d*172, dev=P.alt-ideal;
     guide = Math.abs(dev)<300? '<span class="pos">● Sur le plan de descente</span>' : dev>0? `<span class="warnt">▼ Trop haut de ${Math.round(dev)} ft — descendez</span>` : `<span class="warnt">▲ Trop bas de ${Math.round(-dev)} ft</span>`;
     if(d<4) guide+= ` · <b>Zone d’atterrissage</b> — visez −200 à −500 ft/min`;
@@ -345,6 +381,7 @@ function drawCkInfo(){
     <div><span>DIST</span><b>${d<10?d.toFixed(1):Math.round(d)} km</b></div>
     <div><span>ETE</span><b>${eta?fmtDur(eta):'—'}</b></div>
     <div><span>V/S</span><b>${Math.round(P.vs)} ft/min</b></div>
+    <div><span>VITESSE SOL</span><b>${Math.round(gs)} km/h <small class="${(gs-P.spd)>=0?'pos':'neg'}">${Math.abs(gs-P.spd)>=5?(gs>P.spd?'+':'')+Math.round(gs-P.spd):''}</small></b></div>
     <div><span>CAP</span><b>${String(Math.round(P.hdg)).padStart(3,'0')}° <small class="mut">→${String(Math.round(bearing(P,to))).padStart(3,'0')}°</small></b></div>
     <div><span>CARBURANT</span><b class="${fuelPct<0.15?'neg':''}">${Math.round(fuelPct*100)} %</b></div>
     <div><span>PHASE</span><b>${phase}</b></div>

@@ -236,8 +236,9 @@ function rivalFreq(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.freq,0); }
 function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.sqrt(x.freq)*(typeof isPartner==='function'&&isPartner(x.R)?0.3:1),0); }
 function routeCycleHours(route, ac){
   const m=modelOf(ac); let h=0;
-  for(let i=0;i<route.stops.length-1;i++) h+=legProfile(dist(route.stops[i],route.stops[i+1]),m).total/HOUR;
-  return 2*h + 2*turnaround(m)/HOUR;
+  for(let i=0;i<route.stops.length-1;i++){ const a=route.stops[i], b=route.stops[i+1], d=dist(a,b);
+    h+=(legProfile(d,m,windKmh(a,b)).total+legProfile(d,m,windKmh(b,a)).total)/HOUR; }
+  return h + 2*turnaround(m)/HOUR;
 }
 const MAX_WEEK_HOURS = 140; // heures de rotation programmables par avion et par semaine
 const CLASS_NAMES={y:'Économique',j:'Affaires',f:'Première',c:'Fret'};
@@ -309,14 +310,15 @@ function sizingAdvice(perFlight, seats){
 /* ---------- profil de vol ---------- */
 function turnaround(m){ const s=Math.max(m.seats,m.cargo*3); return (s<60?30:s<200?45:s<350?70:90)*MIN; }
 const _profCache=new Map();
-function legProfile(d, m){
-  const key=m.id+'|'+m.speed+'|'+Math.round(d*10);
+function legProfile(d, m, w=0){
+  w=Math.round(w||0);
+  const key=m.id+'|'+m.speed+'|'+Math.round(d*10)+'|'+w;
   let c=_profCache.get(key); if(c) return c;
   if(_profCache.size>5000) _profCache.clear();
-  c=computeProfile(d,m); _profCache.set(key,c); return c;
+  c=computeProfile(d,m,w); _profCache.set(key,c); return c;
 }
-function computeProfile(d, m){
-  const v=m.speed, turbo=m.fam==='TURBO';
+function computeProfile(d, m, w=0){
+  const v=m.speed, turbo=m.fam==='TURBO', vg=Math.max(v*0.5, v+w*(turbo?0.55:1)); // vent : moins fort à l'altitude des turbopropulseurs
   const board=(Math.max(m.seats,m.cargo*3)<60?15:Math.max(m.seats,m.cargo*3)<200?25:40);
   const taxiOut=10, to=1.5, climb=turbo?14:(v>1500?28:20), desc=turbo?14:22, app=8, land=1.5, taxiIn=6;
   const dTo=to/60*180, dClimb=climb/60*v*0.6, dDesc=desc/60*v*0.65, dApp=app/60*(turbo?250:320), dLand=land/60*150;
@@ -330,7 +332,7 @@ function computeProfile(d, m){
     [1,taxiOut,0,0,0,0,0,25],
     [2,to,0,dTo*f,0,400,0,turbo?200:280],
     [3,climb*Math.max(f,0.35),dTo*f,(dTo+dClimb)*f,400,peak,turbo?200:280,v*0.85],
-    [4,cruiseD/v*60,(dTo+dClimb)*f,(dTo+dClimb)*f+cruiseD,peak,peak,v*0.85,v],
+    [4,cruiseD/vg*60,(dTo+dClimb)*f,(dTo+dClimb)*f+cruiseD,peak,peak,v*0.85,v],
     [5,desc*Math.max(f,0.35),(dTo+dClimb)*f+cruiseD,(dTo+dClimb+dDesc)*f+cruiseD,peak,900,v,vApp+80],
     [6,app*Math.max(f,0.5),(dTo+dClimb+dDesc)*f+cruiseD,(dTo+dClimb+dDesc+dApp)*f+cruiseD,900,50,vApp+80,vApp-40],
     [7,land,(dTo+dClimb+dDesc+dApp)*f+cruiseD,d,50,0,vApp-40,40],
@@ -347,23 +349,27 @@ function computeProfile(d, m){
 function flightState(ac, t=S.time){
   const fl=ac.flight; if(!fl) return null;
   let leg=fl.legs[fl.li]; if(!leg) return null;
-  const m=modelOf(ac), prof=legProfile(leg.dist,m);
+  const m=modelOf(ac), prof=legProfile(leg.dist,m,leg.wind);
   const rel=clamp(t-leg.dep,0,prof.total);
   let seg=prof.segs.find(s=>rel<s.t1) || prof.segs[prof.segs.length-1];
   const u = seg.t1>seg.t0 ? clamp((rel-seg.t0)/(seg.t1-seg.t0),0,1) : 1;
   const dd = seg.d0+(seg.d1-seg.d0)*u;
   const A=AP(leg.from), B=AP(leg.to);
   const frac = leg.dist>0? clamp(dd/leg.dist,0,1) : 1;
-  const p = gcInterp(A,B,frac);
-  const ahead = gcInterp(A,B,Math.min(1,frac+0.01));
-  const hdg = frac<0.99 ? bearing(p,ahead) : bearing(A,B);
+  // trajectoire réelle : roulage vers la piste, décollage dans l'axe, route orthodromique, approche dans l'axe de la piste d'arrivée
+  const path=legPath(leg,m); let pp;
+  if(seg.ph<=1){ pp = seg.ph===0? {...path.gateA, hdg:path.dep?path.dep.hdg:bearing(A,B)} : lerpPt(path.gateA, path.air[0], u); }
+  else if(seg.ph>=8){ pp = lerpPt(path.air[path.air.length-1], path.gateB, u); }
+  else pp = pointOnPath(path, frac*path.total);
+  const p={lat:pp.lat, lon:pp.lon}, hdg=pp.hdg;
   const totalDist = fl.legs.reduce((s,l)=>s+l.dist,0);
   const doneDist = fl.legs.slice(0,fl.li).reduce((s,l)=>s+l.dist,0)+dd;
   const last=fl.legs[fl.legs.length-1];
-  const eta = last.dep+legProfile(last.dist,m).total;
+  const eta = last.dep+legProfile(last.dist,m,last.wind).total;
   const phase = rel>=prof.total? 8 : seg.ph;
   return { lat:p.lat, lon:unwrapLon(p.lon, A.lon), hdg, alt:seg.a0+(seg.a1-seg.a0)*u, spd:seg.s0+(seg.s1-seg.s0)*u,
-    phase, progress: totalDist? doneDist/totalDist : 1, eta, leg, from:leg.from, to:leg.to, origin:fl.legs[0].from, dest:last.to };
+    phase, frac, progress: totalDist? doneDist/totalDist : 1, eta, leg, from:leg.from, to:leg.to, origin:fl.legs[0].from, dest:last.to,
+    wind:leg.wind||0, gs:seg.ph===4? Math.max(0,(seg.s0+(seg.s1-seg.s0)*u)+(leg.wind||0)) : seg.s0+(seg.s1-seg.s0)*u, depRwy:path.dep&&path.dep.id, arrRwy:path.arr&&path.arr.id, remain:Math.max(0,totalDist-doneDist) };
 }
 
 /* ---------- équipage ---------- */
@@ -379,13 +385,13 @@ function crewCheck(ac){
 }
 
 /* ---------- dispatch ---------- */
-function legsFor(stops){ const L=[]; for(let i=0;i<stops.length-1;i++) L.push({from:stops[i],to:stops[i+1],dist:dist(stops[i],stops[i+1])}); return L; }
+function legsFor(stops){ const L=[]; for(let i=0;i<stops.length-1;i++) L.push({from:stops[i],to:stops[i+1],dist:dist(stops[i],stops[i+1]),wind:windKmh(stops[i],stops[i+1])}); return L; }
 function checkLegs(ac, legs){
   const m=modelOf(ac);
   for(const l of legs){
     if(l.dist>m.range) return `Tronçon ${l.from}→${l.to} (${Math.round(l.dist)} km) hors autonomie (${m.range} km)`;
     for(const c of [l.from,l.to]){
-      if(AP(c).cls<m.cls) return `Piste de ${AP(c).city} (${c}) trop courte pour un ${m.name}`;
+      const rw=runwayCheck(m,c); if(rw) return rw;
       if(airportClosed(c)) return `Aéroport ${AP(c).city} (${c}) fermé`;
     }
   }
@@ -409,9 +415,10 @@ function startFlight(ac, stops, kind, t, extra={}){
   let dep=Math.max(t, ac.readyAt||0);
   const route = extra.routeId? S.routes.find(r=>r.id===extra.routeId) : null;
   for(const l of legs){
-    l.dep=dep; dep+=legProfile(l.dist,m).total;
+    l.dep=dep; dep+=legProfile(l.dist,m,l.wind).total;
     if(kind==='route'&&route){
-      const mk=legMarket(route,l.from,l.to), seats=acSeats(ac), n=()=>rnd(0.86,1.12);
+      const mk=legMarket(route,l.from,l.to), seats0=acSeats(ac), n=()=>rnd(0.86,1.12), pf=payloadFactor(m,l.dist);
+      const seats={...seats0, y:Math.floor(seats0.y*pf), j:Math.floor(seats0.j*Math.min(1,pf+0.15)), f:seats0.f, cargo:seats0.cargo*pf};
       if(!isCargo(m)){
         l.pax={ f:Math.min(seats.f,Math.round(mk.f.perFlight*n())), j:Math.min(seats.j,Math.round(mk.j.perFlight*n())), w:0,
                 y:clamp(Math.round(mk.y.perFlight*n()),Math.min(2,seats.y),seats.y) };
@@ -447,7 +454,7 @@ function ferry(ac, to, t=S.time, next=null){
 
 /* ---------- arrivée d'un tronçon ---------- */
 function completeLeg(ac){
-  const fl=ac.flight, leg=fl.legs[fl.li], m=modelOf(ac), prof=legProfile(leg.dist,m);
+  const fl=ac.flight, leg=fl.legs[fl.li], m=modelOf(ac), prof=legProfile(leg.dist,m,leg.wind);
   const hrs=prof.airborne/HOUR, arr=leg.dep+prof.total;
   const route=fl.routeId? S.routes.find(r=>r.id===fl.routeId):null;
   let rev=0, cost=0;
@@ -611,7 +618,7 @@ function simStep(){
     let guard=0;
     while(ac.flight && guard++<20){
       const leg=ac.flight.legs[ac.flight.li];
-      const arr=leg.dep+legProfile(leg.dist,modelOf(ac)).total;
+      const arr=leg.dep+legProfile(leg.dist,modelOf(ac),leg.wind).total;
       if(arr<=t) completeLeg(ac); else break;
     }
     if(ac.status==='maint' && ac.maintUntil<=t) finishMaint(ac);
