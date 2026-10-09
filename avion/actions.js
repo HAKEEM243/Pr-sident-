@@ -118,9 +118,14 @@ const ACTIONS = {
     ${Object.entries(FAMILIES).filter(([f])=>!p.quals.includes(f)).map(([f,[n,c,days,sal]])=>`<div class="card row"><div class="grow"><b>${n}</b><br><span class="mut small">${fmtMoney(c)} · ${days} jours · salaire ensuite ≥ ${fmtMoney(sal)}/mois</span></div><button class="btn sm gold" data-act="doTrain" data-id="${p.id}" data-f="${f}">Former</button></div>`).join('')}`); UI.modal=null; },
   doTrain:d=>{ const p=S.pilots.find(x=>x.id===d.id), [n,c,days]=FAMILIES[d.f]; book('formation',-c); p.training={fam:d.f,start:S.time,until:S.time+days*DAY}; logMsg(`🎓 ${p.name} commence la qualification ${d.f} (${days} j).`,'info'); closeModal(); renderPanel(); },
   fire:d=>{ const p=S.pilots.find(x=>x.id===d.id); if(!confirm(`Licencier ${p.name} ? Indemnité : 2 mois de salaire.`)) return; book('salaires',-p.salary*2); S.pilots=S.pilots.filter(x=>x!==p); renderPanel(); },
-  hire:d=>{ const p=S.candidates.find(x=>x.id===d.id); if(!p) return; const q=hireQuota('pil'); if(q.left<=0) return toast(`⛔ Quota de recrutement atteint : ${q.max} pilotes par semaine maximum (les candidats se présentent progressivement).`,'bad'); useHire('pil',1); book('recrutement',-p.salary); S.pilots.push(p); S.candidates=S.candidates.filter(x=>x!==p); logMsg(`👨‍✈️ ${p.name} rejoint la compagnie (${p.quals.join(', ')}).`,'ok'); renderPanel(); },
+  hire:d=>{ const p=S.candidates.find(x=>x.id===d.id); if(!p) return; book('recrutement',-p.salary); S.pilots.push(p); S.candidates=S.candidates.filter(x=>x!==p); logMsg(`👨‍✈️ ${p.name} rejoint la compagnie (${p.quals.join(', ')}).`,'ok'); renderPanel(); },
+  hireBulk:d=>{ const k=d.k, inp=document.getElementById('hn-'+k); let n=Math.max(1,Math.min(100000,Math.floor(+(inp&&inp.value))||1));
+    (UI.hn=UI.hn||{})[k]=n;
+    if(k==='pil'){ const fam=(document.getElementById('hf')||{}).value||'A320'; UI.hfam=fam; let cost=0; for(let i=0;i<n;i++){ const p=makePilot([fam],i%3!==0); S.pilots.push(p); cost+=p.salary; } book('recrutement',-cost);
+      logMsg(`👨‍✈️ ${num(n)} pilote${n>1?'s':''} ${fam} recruté${n>1?'s':''} (${fmtMoney(cost)}).`,'ok'); toast(`✅ ${num(n)} pilote${n>1?'s':''} recruté${n>1?'s':''}`,'ok'); }
+    else { const base=STAFF_CATS[k][1], cost=base*0.6*n; book('recrutement',-cost); S.staff[k]+=n; logMsg(`${STAFF_CATS[k][0]} : ${num(n)} recrue${n>1?'s':''} (${fmtMoney(cost)}).`,'ok'); toast(`✅ ${num(n)} recrue${n>1?'s':''}`,'ok'); }
+    renderPanel(); renderTop(); },
   hireStaff:d=>{ const k=d.k; let n=+d.n||0; if(d.fill) n=Math.max(0,staffNeed()[k]-S.staff[k]); if(!n) return;
-    if(n>0){ const q=hireQuota(k); if(q.left<=0) return toast(`⛔ Quota de recrutement atteint : ${q.max} ${STAFF_CATS[k][0].toLowerCase()} par semaine maximum.`,'bad'); if(n>q.left){ n=q.left; toast(`Recrutement limité à ${n} cette semaine (quota ${q.max}/semaine).`,'warn'); } useHire(k,n); }
     const base=STAFF_CATS[k][1]; if(n>0) book('recrutement',-base*0.6*n); else book('salaires',-base*Math.min(-n,S.staff[k]));
     S.staff[k]=Math.max(0,S.staff[k]+n); if(n<0){ S.staff.morale[k]=clamp(S.staff.morale[k]-4,0,100); } renderPanel(); },
 
@@ -160,6 +165,8 @@ const ACTIONS = {
 /* ---------- saisies ---------- */
 const INPUTS = {
   autoMaint:el=>{ S.autoMaint=el.checked; },
+  autoK:el=>{ (S.auto=S.auto||{})[el.dataset.k]=el.checked; if(el.checked) autoManage(); renderPanel(); },
+  hn:el=>{ (UI.hn=UI.hn||{})[el.dataset.k]=Math.max(1,Math.min(100000,Math.floor(+el.value)||1)); },
   'ed.name':el=>{ UI.edit.name=el.value; }, 'ed.fam':el=>{ UI.edit.fam=el.value; }, 'ed.seats':el=>{ UI.edit.seats=el.value; },
   'ed.cargo':el=>{ UI.edit.cargo=el.value; }, 'ed.range':el=>{ UI.edit.range=el.value; }, 'ed.speed':el=>{ UI.edit.speed=el.value; },
   'ed.color':el=>{ UI.edit.color=el.value; }, 'ed.logo':el=>{ UI.edit.logo=el.value; },
@@ -299,7 +306,7 @@ let booted=false;
 function boot(){
   if(booted) return; booted=true;
   initMap(); renderTabs();
-  if(localStorage.getItem('se-news')!=='v6'){ try{ localStorage.setItem('se-news','v6'); }catch(e){} setTimeout(()=>toast('Nouveau : mode simple (tout est automatique), onglet 📰 Actus : classement, crashs, faillites et nouvelles compagnies qui évoluent en direct.','ok'),1500); }
+  if(localStorage.getItem('se-news')!=='v7'){ try{ localStorage.setItem('se-news','v7'); }catch(e){} setTimeout(()=>toast('Nouveau : onglet 🛂 Passagers (qui voyage, d’où, à quel prix), recrutement illimité, climat des pays (colère, essor), carte plus fluide.','ok'),1500); }
   renderTop(); setTab(window.innerWidth<820?'map':(isSimple()?'network':'dash'));
   updatePlanes(); updateRival();
   let last=performance.now(), acc1=0, acc2=0, acc30=0, acc10=0;

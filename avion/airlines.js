@@ -60,7 +60,8 @@ function aiIndexes(){
 function carriersOn(a,b){
   const k=pairKey(a,b), base=realCarriers(a,b);
   if(!aiIndexes()) return base;
-  const out=base.filter(c=>!_deadSet.has(c)&&!_cutSet.has(c+k));
+  const sp=S.ai.suspend, ca=AP(a).cc, cb=AP(b).cc, susp=sp&&((sp[ca]>S.time&&ca)||(sp[cb]>S.time&&cb));
+  const out=base.filter(c=>!_deadSet.has(c)&&!_cutSet.has(c+k)&&(!susp||homeOf(c)===susp));
   for(const c of _extraMap.get(k)||[]) if(!out.includes(c)&&!_deadSet.has(c)) out.push(c);
   return out;
 }
@@ -141,12 +142,13 @@ function rivalsOn(a,b){
 /* ---------- trafic réel visible sur la carte ---------- */
 const _ghostRoutes=new Map();
 // Lignes réelles autour des aéroports visibles (toutes compagnies), pour peupler le ciel
+let _busyAps=null;
 function visibleRealRoutes(bounds, c0, limitAirports=50){
   aiIndexes();
+  if(!_busyAps) _busyAps=AIRPORT_CODES.filter(c=>AP(c).traffic>=0.3).sort((x,y)=>AP(y).traffic-AP(x).traffic);
   const aps=[];
-  for(const code of AIRPORT_CODES){ const a=AP(code); if(!AP_ROUTES[code]||a.traffic<0.3) continue;
-    if(bounds.contains([a.lat,unwrapLon(a.lon,c0)])) aps.push(code); }
-  aps.sort((x,y)=>AP(y).traffic-AP(x).traffic);
+  for(const code of _busyAps){ if(!AP_ROUTES[code]) continue; const a=AP(code);
+    if(bounds.contains([a.lat,unwrapLon(a.lon,c0)])){ aps.push(code); if(aps.length>=limitAirports) break; } }
   const out=[], seen=new Set();
   for(const code of aps.slice(0,limitAirports)) for(const b of AP_ROUTES[code]){
     const k=pairKey(code,b); if(seen.has(k)) continue; seen.add(k);

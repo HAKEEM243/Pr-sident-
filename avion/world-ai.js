@@ -43,6 +43,7 @@ function aiWeekly(){
   const mk=monthKey(S.time); if(S.ai.lastMonth!==mk){ const first=S.ai.lastMonth===-1; S.ai.lastMonth=mk; if(!first) aiMonthly(); }
   const oilF=clamp(1.15-(S.oil-82)/160,0.6,1.3);
   for(const e of S.ai.list.slice()) if(e.status!=='dead') aiStep(e,oilF);
+  moodWeekly(); storiesWeekly(); storiesRandom();
   aiRanking();
 }
 function aiStep(e,oilF){
@@ -96,7 +97,7 @@ function aiRoute(e, mode){
     e.routes++; ai.ver++;
     if(R && !R.routes.some(r=>pairKey(r.a,r.b)===best.k)) R.routes.push({a:origin,b:best.c,freq:realFreq(origin,best.c,carriersOn(origin,best.c).length+1)});
     const mine=touchesMe(origin,best.c), notable=mine||e.fleet>=120||e.startup||AP(origin).cc===homeCC()||AP(best.c).cc===homeCC();
-    if(notable) aiNews(`🛫 ${e.name} ouvre ${keyCity(origin)} → ${keyCity(best.c)}${mine?' — sur votre marché !':''}.`, mine?'rival':'news', mine);
+    if(notable) aiNews(vary('open',[`🛫 ${e.name} ouvre ${keyCity(origin)} → ${keyCity(best.c)}${mine?' — sur votre marché !':''}.`,`🆕 Nouvelle liaison : ${e.name} desservira ${keyCity(best.c)} depuis ${keyCity(origin)}${mine?' (concurrence directe)':''}.`,`🛫 ${keyCity(origin)}–${keyCity(best.c)} : ${e.name} se lance${moodOf(AP(best.c).cc).boom>0.2?' pour profiter de l’engouement':''}${mine?', sur votre terrain':''}.`]), mine?'rival':'news', mine);
   } else {
     const list=airlinePairs(code).filter(([a,b])=>!(ai.cut[code]||[]).includes(pairKey(a,b)));
     const own=(ai.extra[code]||[]);
@@ -108,7 +109,7 @@ function aiRoute(e, mode){
     (ai.cut[code]=ai.cut[code]||[]).push(k); e.routes=Math.max(1,e.routes-1); ai.ver++;
     if(R) R.routes=R.routes.filter(r=>pairKey(r.a,r.b)!==k);
     const mine=touchesMe(a,b), notable=mine||e.fleet>=120||AP(a).cc===homeCC()||AP(b).cc===homeCC();
-    if(notable) aiNews(`✂️ ${e.name} ferme ${keyCity(a)} → ${keyCity(b)} (ligne peu rentable)${mine?' — votre concurrent se retire !':''}.`, mine?'rival':'news', mine);
+    if(notable) aiNews(vary('close',[`✂️ ${e.name} ferme ${keyCity(a)} → ${keyCity(b)} (ligne peu rentable)${mine?' — votre concurrent se retire !':''}.`,`✂️ ${e.name} abandonne ${keyCity(a)}–${keyCity(b)}${S.oil>95?' : le carburant coûte trop cher':e.cash<0?' pour économiser':''}${mine?' — place libre pour vous ?':''}.`]), mine?'rival':'news', mine);
   }
 }
 
@@ -124,9 +125,12 @@ function aiAccident(e){
   else e.rep=clamp(e.rep-rnd(1,3),10,95);
   const where=Math.random()<0.5? a:b;
   ai.crashes.unshift({t:S.time,code:e.code,name:e.name,model:m.name,a,b,sev,victims}); if(ai.crashes.length>80) ai.crashes.length=80;
-  if(sev==='fatal') aiNews(`💥 CRASH — ${e.name} : un ${m.name} s’écrase près de ${keyCity(where)} (${keyCity(a)} → ${keyCity(b)}), ${victims} victime${victims>1?'s':''}. Réputation en chute.`,'bad',true);
-  else if(sev==='hull') aiNews(`🔥 ${e.name} : sortie de piste à ${keyCity(where)}, un ${m.name} est détruit (pas de victime).`,'warn',e.fleet>=60);
-  else aiNews(`⚠️ ${e.name} : atterrissage d’urgence d’un ${m.name} à ${keyCity(where)}.`,'news');
+  const big=e.fleet>=60;
+  if(sev==='fatal'){ aiNews(vary('crash',[`💥 CRASH — ${e.name} : un ${m.name} s’écrase près de ${keyCity(where)} (${keyCity(a)} → ${keyCity(b)}), ${victims} victime${victims>1?'s':''}.`,`💥 Tragédie : le vol ${e.code}${rndi(100,999)} ${keyCity(a)}–${keyCity(b)} s’est abîmé près de ${keyCity(where)} ; ${victims} personne${victims>1?'s':''} à bord n’ont pas survécu.`,`💥 ${e.name} en deuil : ${victims} morts dans l’accident d’un ${m.name} à ${keyCity(where)}.`]),'bad',true);
+    storyStart('probe',{code:e.code,name:e.name,big,in:rndi(7,14)}); }
+  else if(sev==='hull'){ aiNews(vary('hull',[`🔥 ${e.name} : sortie de piste à ${keyCity(where)}, un ${m.name} est détruit (pas de victime).`,`🔥 Un ${m.name} de ${e.name} est détruit à l’atterrissage à ${keyCity(where)} ; équipage et passagers évacués.`]),'warn',big);
+    if(Math.random()<0.5) storyStart('probe',{code:e.code,name:e.name,big,in:rndi(10,21)}); }
+  else aiNews(vary('incident',[`⚠️ ${e.name} : atterrissage d’urgence d’un ${m.name} à ${keyCity(where)}.`,`⚠️ Un ${m.name} de ${e.name} fait demi-tour après une alerte technique, sans blessé.`,`⚠️ Fumée en cabine sur un vol ${e.name} : déroutement vers ${keyCity(where)}.`]),'news'); 
 }
 
 /* ---------- faillites et nouvelles compagnies ---------- */
@@ -222,4 +226,112 @@ function pNews(){
   }
   return `<div class="chips">${chips}</div>${body}`;
 }
-if(typeof ACTIONS!=='undefined') Object.assign(ACTIONS,{ newsTab:d=>{ UI.newsTab=d.k; renderPanel(); } });
+function registerNewsActions(){ Object.assign(ACTIONS,{ newsTab:d=>{ UI.newsTab=d.k; renderPanel(); } }); }
+
+/* ============================================================
+   CLIMAT DES PAYS : colère sociale, crises, booms touristiques
+   Quand un pays s'énerve, la demande baisse, les compagnies étrangères
+   suspendent leurs vols, l'aéroport peut fermer. Quand il explose
+   (festival, saison, pétrole…), on voit beaucoup plus d'avions.
+   ============================================================ */
+const _calm={tension:0,boom:0,note:''};
+const moodOf=cc=>(S.ai&&S.ai.mood&&S.ai.mood[cc])||_calm;
+function moodDemand(cc){ const m=S.ai&&S.ai.mood&&S.ai.mood[cc]; if(!m) return 1; return clamp(1-m.tension*0.55+m.boom*0.45,0.35,1.6); }
+function moodTraffic(cc){ const m=S.ai&&S.ai.mood&&S.ai.mood[cc]; if(!m) return 1; return moodDemand(cc)*((m.surge||0)>S.time?1.7:1); }
+function routeMoodFreq(r){ if(!S.ai||!S.ai.mood||!Object.keys(S.ai.mood).length) return r.freq; const f=Math.sqrt(moodTraffic(AP(r.a).cc)*moodTraffic(AP(r.b).cc)); return clamp(Math.round(r.freq*f*(f>1?1.35:1)-0.2),0,5); }
+function moodLabel(m){ return m.tension>0.7?'🔴 Très tendu':m.tension>0.4?'🟠 Tendu':m.tension>0.15?'🟡 Agité':m.boom>0.5?'🟢 En plein essor':m.boom>0.2?'🟢 Dynamique':'⚪ Calme'; }
+const mainAirport=cc=>cAirports(cc).find(c=>AP(c).cls>=2)||cAirports(cc)[0];
+const ccName=cc=>COUNTRIES[cc]?COUNTRIES[cc][0]:cc;
+const ccWith=cc=>`${COUNTRIES[cc][2]} ${COUNTRIES[cc][0]}`;
+const mineCountry=cc=>S.hubs.some(h=>AP(h).cc===cc)||S.routes.some(r=>r.stops.some(c=>AP(c).cc===cc));
+// choisit une formulation différente de la précédente pour un même type d'actualité
+function vary(type, list){ const L=S.ai.last||(S.ai.last={}); let i=Math.floor(Math.random()*list.length); if(list.length>1&&i===L[type]) i=(i+1)%list.length; L[type]=i; return list[i]; }
+const homeOf=c=>{ const a=typeof AIRLINE_DB!=='undefined'&&AIRLINE_DB[c]; if(a) return a[1]; const e=aiBy(c); return e?e.cc:''; };
+
+function shutAirport(code,days,why){ const ai=S.ai; ai.shut=ai.shut||{}; ai.shut[code]=S.time+days*DAY; }
+function suspendFlights(cc,weeks){
+  const ai=S.ai; ai.suspend=ai.suspend||{}; ai.suspend[cc]=Math.max(ai.suspend[cc]||0,S.time+weeks*7*DAY); ai.ver++;
+  const hub=mainAirport(cc), names=airlinesAt(hub).filter(([c])=>homeOf(c)!==cc).slice(0,3).map(([c])=>airlineName(c));
+  return names;
+}
+function moodWeekly(){
+  const ai=S.ai; ai.mood=ai.mood||{}; ai.suspend=ai.suspend||{}; ai.shut=ai.shut||{};
+  for(const [cc,m] of Object.entries(ai.mood)){ m.tension*=0.9; m.boom*=0.93; if(m.tension<0.04&&m.boom<0.04&&!(m.surge>S.time)) delete ai.mood[cc]; }
+  for(const [cc,u] of Object.entries(ai.suspend)) if(u<=S.time){ delete ai.suspend[cc]; ai.ver++; aiNews(vary('resume',[`✅ Les compagnies étrangères reprennent leurs vols vers ${ccName(cc)}.`,`🛫 Retour au calme en ${ccName(cc)} : les liaisons internationales reprennent.`,`✅ ${ccName(cc)} : fin des suspensions de vols, les avions reviennent.`]),'news',mineCountry(cc)); }
+  for(const [code,u] of Object.entries(ai.shut)) if(u<=S.time){ delete ai.shut[code]; aiNews(`🛬 L’aéroport de ${keyCity(code)} rouvre aux vols.`,'news',S.hubs.includes(code)); }
+  if(Math.random()<0.22) moodEpisode();
+}
+function moodEpisode(){
+  const ai=S.ai, ccs=Object.keys(COUNTRIES).filter(cc=>cAirports(cc).length&&countryTraffic(cc)>0.3);
+  const r=Math.random(), type=r<0.42?'unrest':r<0.74?'boom':r<0.85?'strike':r<0.9?'crisis':'event';
+  const w=ccs.map(cc=>{ const lv=incomeOf(cc), t=Math.sqrt(countryTraffic(cc)+1); return type==='unrest'||type==='crisis'? t*(lv<=1?2.4:lv===2?1.4:0.6) : t*(lv>=2?1.3:1); });
+  let x=Math.random()*w.reduce((s,v)=>s+v,0), cc=ccs[0]; for(let i=0;i<ccs.length;i++){ x-=w[i]; if(x<=0){ cc=ccs[i]; break; } }
+  const m=ai.mood[cc]||(ai.mood[cc]={tension:0,boom:0,note:''}), hub=mainAirport(cc), city=keyCity(hub), C=ccWith(cc), mine=mineCountry(cc);
+  if(type==='unrest'){
+    const reasons=S.oil>98?['la flambée du prix des carburants','la hausse du coût de la vie','une réforme contestée']:['la hausse du coût de la vie','une réforme contestée','une élection contestée','des licenciements massifs','des coupures d’électricité','la corruption'];
+    const why=pick(reasons); m.tension=clamp(m.tension+rnd(0.3,0.7),0,1); m.note=why;
+    let txt=vary('unrest',[`✊ ${C} : la colère gronde à ${city} (${why}) — routes bloquées, l’aéroport tourne au ralenti.`,`🔥 Manifestations à ${city} (${ccName(cc)}) contre ${why} ; moins de voyageurs à l’aéroport.`,`📣 Mouvement social en ${ccName(cc)} : ${why}. Les compagnies surveillent la situation de près.`]);
+    if(m.tension>0.65){ shutAirport(hub,rndi(2,6)); const names=suspendFlights(cc,rndi(2,5)); txt+=` L’aéroport de ${city} ferme quelques jours${names.length?` et ${names.join(', ')} suspendent leurs vols`:''}.`; }
+    aiNews(txt,'warn',mine||m.tension>0.8);
+  } else if(type==='crisis'){
+    m.tension=0.97; m.surge=S.time+rndi(10,21)*DAY; m.note='crise politique';
+    shutAirport(hub,rndi(5,14)); const names=suspendFlights(cc,rndi(4,10));
+    aiNews(vary('crisis',[`🚨 ${C} : coup de force à ${city}, l’espace aérien est fermé. Des vols d’évacuation s’organisent.`,`🚨 Crise politique en ${ccName(cc)} : l’aéroport de ${city} est fermé${names.length?`, ${names.join(' et ')} annulent leurs vols`:''}. Pont aérien pour évacuer les étrangers.`]),'bad',true);
+  } else if(type==='boom'){
+    const why=pick(['la pleine saison touristique','un grand festival','une compétition sportive continentale','la découverte d’un gisement de pétrole','un sommet international','les vacances scolaires','une libéralisation des visas','un concert géant']);
+    m.boom=clamp(m.boom+rnd(0.3,0.65),0,1); m.note=why; m.surge=S.time+rndi(10,24)*DAY;
+    const big=aiAlive().filter(e=>e.fleet>=40&&e.cc!==cc).sort(()=>Math.random()-0.5).slice(0,rndi(2,4)); const added=[];
+    for(const e of big){ const k=pairKey(e.hub,hub); if(carriersOn(e.hub,hub).includes(e.code)||dist(e.hub,hub)>9500||dist(e.hub,hub)<250) continue;
+      (ai.extra[e.code]=ai.extra[e.code]||[]).push(k); e.routes++; ai.ver++; added.push(e.name); }
+    aiNews(vary('boom',[`🎉 ${C} : ${why} — les réservations explosent, ${added.length?added.join(' et ')+' ajoutent des vols':'les compagnies ajoutent des vols'}.`,`📈 ${ccName(cc)} en effervescence (${why}) : avions pleins vers ${city}${added.length?` ; ${added[0]} ouvre une ligne`:''}.`,`🌟 ${why[0].toUpperCase()+why.slice(1)} en ${ccName(cc)} : la demande grimpe de ${Math.round(m.boom*55+10)} % vers ${city}.`]),'ok',mine);
+  } else if(type==='strike'){
+    shutAirport(hub,rndi(1,3)); m.tension=clamp(m.tension+0.25,0,1); m.note='grève du contrôle aérien';
+    aiNews(vary('strike',[`⛔ Grève des contrôleurs aériens en ${ccName(cc)} : l’aéroport de ${city} cloué au sol quelques jours.`,`⛔ ${city} : grève surprise du personnel d’aéroport, vols annulés.`]),'warn',mine);
+  } else {
+    m.boom=clamp(m.boom+rnd(0.2,0.4),0,1); m.note='grand événement'; m.surge=S.time+rndi(7,14)*DAY;
+    aiNews(`🎪 ${city} accueille un grand événement international : ciel chargé en ${ccName(cc)} ces prochaines semaines.`,'news',mine);
+  }
+}
+
+/* ---------- histoires qui se déroulent sur plusieurs semaines ---------- */
+const CAUSES=['une défaillance moteur','une erreur de maintenance','des conditions météo extrêmes','le givrage des sondes','la fatigue de l’équipage','un incendie de batterie','un défaut de formation'];
+function storyStart(type,data){ const ai=S.ai; (ai.stories=ai.stories||[]).push({type,...data,due:S.time+(data.in||14)*DAY}); }
+function storiesWeekly(){
+  const ai=S.ai; if(!ai.stories) return;
+  for(const st of ai.stories.slice()){
+    if(st.due>S.time) continue; const e=aiBy(st.code);
+    if(st.type==='probe'){
+      if(st.stage===undefined){ st.stage=1; st.due=S.time+rndi(14,30)*DAY; const c=pick(CAUSES); st.cause=c;
+        aiNews(vary('probe',[`🔎 Enquête sur le crash de ${st.name} : les premiers éléments pointent ${c}.`,`🔎 ${st.name} : le rapport préliminaire évoque ${c}.`]),'news',st.big);
+      } else { ai.stories=ai.stories.filter(x=>x!==st);
+        if(e&&e.status!=='dead'){ const f=Math.max(1,Math.round(e.fleet*0.04)); e.cash-=f*3e6; e.rep=clamp(e.rep-2,10,95);
+          aiNews(vary('probe2',[`⚖️ ${e.name} : les autorités imposent un audit et immobilisent ${f} appareil${f>1?'s':''} après l’accident.`,`⚖️ Après l’accident, ${e.name} est sommée de revoir sa maintenance (${st.cause}).`]),'news',e.fleet>=60); } }
+    } else if(st.type==='strike'){
+      if(!e||e.status==='dead'){ ai.stories=ai.stories.filter(x=>x!==st); continue; }
+      if(st.stage===0){ st.stage=1; st.due=S.time+rndi(5,9)*DAY; const l=e.fleet*rnd(1e6,3.5e6); e.cash-=l; e.rep=clamp(e.rep-2,10,95);
+        aiNews(vary('strike2',[`✊ Grève chez ${e.name} : des centaines de vols annulés (pertes ≈ ${fmtMoney(l)}).`,`✊ ${e.name} paralysée par la grève des ${st.who}.`]),'warn',e.fleet>=80);
+      } else { ai.stories=ai.stories.filter(x=>x!==st); aiNews(`🤝 Accord chez ${e.name} : la grève des ${st.who} est levée, les vols reprennent.`,'news',false); }
+    } else if(st.type==='merger'){
+      ai.stories=ai.stories.filter(x=>x!==st); const a=aiBy(st.code), b=aiBy(st.other);
+      if(!a||!b||a.status==='dead'||b.status==='dead') continue;
+      if(Math.random()<0.6){ a.fleet+=Math.round(b.fleet*0.75); a.routes+=Math.round(b.routes*0.5); b.status='dead'; b.deadAt=S.time; ai.ver++; if(S.rivals) S.rivals=S.rivals.filter(R=>R.code!==b.code);
+        aiNews(`🤝 C’est officiel : ${a.name} et ${b.name} fusionnent (${a.fleet} avions).`,'news',true);
+      } else aiNews(`🙅 ${b.name} dément tout rapprochement avec ${a.name}.`,'news',false);
+    }
+  }
+}
+function storiesRandom(){
+  const ai=S.ai, alive=aiAlive(); ai.stories=ai.stories||[];
+  if(Math.random()<0.05){ const e=pick(alive.filter(x=>x.fleet>=15)); if(e&&!ai.stories.some(s=>s.code===e.code&&s.type==='strike')){ const who=pick(['pilotes','hôtesses et stewards','mécaniciens','personnels au sol']);
+    storyStart('strike',{code:e.code,stage:0,who,in:rndi(6,12)}); aiNews(vary('strike1',[`📢 Préavis de grève des ${who} chez ${e.name}.`,`📢 ${e.name} : les ${who} menacent de débrayer, négociations tendues.`]),'news',false); } }
+  if(Math.random()<0.03){ const weak=alive.filter(e=>e.cash<e.fleet*4e6&&e.fleet<80), strong=alive.filter(e=>e.fleet>=40&&e.cash>e.fleet*10e6);
+    if(weak.length&&strong.length){ const a=pick(strong), b=pick(weak.filter(w=>w.code!==a.code)); if(b){ storyStart('merger',{code:a.code,other:b.code,in:rndi(21,35)}); aiNews(`🗞️ Rumeurs : ${a.name} serait en discussion pour racheter ${b.name}.`,'news',false); } } }
+  if(Math.random()<0.04){ const a=pick(alive.filter(e=>e.fleet>=30)), b=pick(alive.filter(e=>e.fleet>=30&&e.code!==(a&&a.code)));
+    if(a&&b){ a.rep=clamp(a.rep+1,10,95); b.rep=clamp(b.rep+1,10,95); aiNews(`🔗 ${a.name} et ${b.name} signent un accord de partage de codes.`,'news',false); } }
+  if(Math.random()<0.03){ const e=pick(alive.filter(x=>x.fleet>=40)); if(e){ e.rep=clamp(e.rep+2,10,95); aiNews(vary('award',[`🏅 ${e.name} élue « meilleure compagnie de la région » par les voyageurs.`,`🏅 ${e.name} dévoile sa nouvelle cabine : classe affaires remise à neuf.`,`🏅 ${e.name} annonce un programme de fidélité renforcé pour reconquérir ses clients.`]),'news',false); } }
+  // carburant
+  if(S.oil>105&&Math.random()<0.25&&!(ai.lastOilNews>S.time-56*DAY)){ ai.lastOilNews=S.time; for(const e of alive.filter(x=>x.cash<x.fleet*8e6).slice(0,3)) aiRoute(e,'close');
+    aiNews(`⛽ Kérosène à ${S.oil.toFixed(0)} $ : plusieurs compagnies réduisent leurs vols les moins rentables.`,'warn',true); }
+  else if(S.oil<62&&Math.random()<0.25&&!(ai.lastOilNews>S.time-56*DAY)){ ai.lastOilNews=S.time; for(const e of alive) e.cash+=e.fleet*0.4e6;
+    aiNews(`⛽ Le kérosène s’effondre : les compagnies engrangent des bénéfices records.`,'ok',false); }
+}

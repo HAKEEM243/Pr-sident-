@@ -34,17 +34,18 @@ function autoPlanAll(){
 
 /* ---------- gestion automatique quotidienne ---------- */
 function autoManage(){
-  if(!S.simple) return;
-  S.autoMaint=true;
-  // pilotes : 2 par avion + 2 de réserve par famille, formés immédiatement
+  const A=S.auto||{};
+  // pilotes : 2 par avion + 2 de réserve par famille, formés immédiatement (si « recrutement automatique » est activé)
   const cnt={}; for(const a of S.fleet){ const f=modelOf(a).fam; cnt[f]=(cnt[f]||0)+1; }
-  for(const [f,n] of Object.entries(cnt)){
+  if(A.pil) for(const [f,n] of Object.entries(cnt)){
     let q=qualifiedPilots(f)+S.pilots.filter(p=>p.training&&p.training.fam===f).length, guard=0;
-    while(q<2*n+2 && guard++<40 && hireQuota('pil').left>0){ const p=makePilot([f],true); S.pilots.push(p); book('recrutement',-p.salary); useHire('pil',1); q++; }
+    while(q<2*n+2 && guard++<4000){ const p=makePilot([f],true); S.pilots.push(p); book('recrutement',-p.salary); useHire('pil',1); q++; }
   }
   // personnel navigant, mécaniciens, sol
   const need=staffNeed();
-  for(const k of ['pnc','meca','sol']){ const miss=Math.min(need[k]-S.staff[k], hireQuota(k).left); if(miss>0){ book('recrutement',-STAFF_CATS[k][1]*0.6*miss); S.staff[k]+=miss; useHire(k,miss); } }
+  for(const k of ['pnc','meca','sol']){ if(!A[k]) continue; const miss=need[k]-S.staff[k]; if(miss>0){ book('recrutement',-STAFF_CATS[k][1]*0.6*miss); S.staff[k]+=miss; useHire(k,miss); } }
+  if(!S.simple) return;
+  S.autoMaint=true;
   // carburant et CO₂
   if(S.fuel.stock<S.fuel.cap*0.35){ const l=S.fuel.cap*0.85-S.fuel.stock; if(S.cash>l*fuelPrice()*1.3) buyFuel(l,true); }
   if(S.co2.stock<S.co2.cap*0.3) buyCO2(S.co2.cap*0.7-S.co2.stock);
@@ -95,6 +96,7 @@ function pMore(){
   <div class="morelist">
     ${item('finance','💰','Finances','Recettes et dépenses')}
     ${item('dash','🏠','Statistiques','Objectifs, journal')}
+    ${item('pax','🛂','Passagers','Nationalités, richesse, prix')}
     ${item('world','🌐','Monde','Pays, compagnies, marchés')}
     ${item('shop','🛒','Acheter','Avions neufs et occasion')}
     ${item('staff','👥','Personnel','Géré automatiquement')}
@@ -139,6 +141,8 @@ function renderFlightList(){
 }
 
 if(typeof ACTIONS!=='undefined'){
+if(typeof registerNewsActions==='function') registerNewsActions();
+if(typeof registerPaxActions==='function') registerPaxActions();
 Object.assign(ACTIONS,{
   flightList:()=>{ UI.fl=!UI.fl; if(UI.fl&&UI.mobile) $('#mapctl').classList.remove('open'); renderFlightList(); },
   flTab:d=>{ UI.flTab=d.k; renderFlightList(); },
