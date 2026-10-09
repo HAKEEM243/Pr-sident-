@@ -120,3 +120,60 @@ function pointOnPath(p, s){
   return {lat:pt.lat, lon:pt.lon, hdg:bearing(a,b)};
 }
 const lerpPt=(a,b,u)=>({lat:a.lat+(b.lat-a.lat)*u, lon:a.lon+(b.lon-a.lon)*u, hdg:bearing(a,b)});
+
+/* ---------- aires de stationnement et roulage ---------- */
+const M_DEG=111320;
+// repère local d'une piste : a = distance le long de l'axe depuis le seuil, x = écart latéral (m, + à droite)
+function toRw(r,p){ const k=Math.cos(toRad(r.thr.lat)), dx=(p.lon-r.thr.lon)*M_DEG*k, dy=(p.lat-r.thr.lat)*M_DEG, h=toRad(r.hdg);
+  return {a:dx*Math.sin(h)+dy*Math.cos(h), x:dx*Math.cos(h)-dy*Math.sin(h)}; }
+function fromRw(r,a,x){ const h=toRad(r.hdg), dx=a*Math.sin(h)+x*Math.cos(h), dy=a*Math.cos(h)-x*Math.sin(h);
+  return {lat:r.thr.lat+dy/M_DEG, lon:r.thr.lon+dx/(M_DEG*Math.cos(toRad(r.thr.lat)))}; }
+const _apron={};
+// Aire de trafic : le point de référence de l'aéroport, décalé hors des pistes s'il tombe dessus
+function apronOf(code){
+  if(_apron[code]) return _apron[code];
+  const A=AP(code), rws=runwaysOf(code), ref={lat:A.lat,lon:A.lon};
+  if(!rws.length) return _apron[code]={g:ref, rw:null, side:1, a:0, x:0};
+  const clear=p=>rws.every(r=>{ const f=toRw(r,p); return f.a<-200 || f.a>r.len+200 || Math.abs(f.x)>(r.wid||45)/2+170; });
+  let main=rws[0], best=1e12;
+  for(const r of rws){ const f=toRw(r,ref), dd=Math.abs(f.x)+Math.max(0,-f.a,f.a-r.len); if(dd<best-1){ best=dd; main=r; } }
+  let g=ref;
+  if(!clear(ref)){
+    const f=toRw(main,ref), sg=f.x>=0?1:-1, a=clamp(f.a,main.len*0.3,main.len*0.7);
+    search: for(const off of [330,450,600,800,1000]) for(const s of [sg,-sg]){ const p=fromRw(main,a,s*off); if(clear(p)){ g=p; break search; } }
+    if(g===ref) g=fromRw(main,a,sg*330);
+  }
+  const f=toRw(main,g);
+  return _apron[code]={g, rw:main, side:f.x>=0?1:-1, a:f.a, x:f.x};
+}
+// Poste de stationnement n° k (rangée parallèle à la piste, nez vers l'aérogare)
+function slotPt(code,k){
+  const ap=apronOf(code), off=((k%2)?1:-1)*Math.ceil(k/2)*85;
+  if(!ap.rw) return {lat:ap.g.lat, lon:ap.g.lon+off/(M_DEG*Math.cos(toRad(ap.g.lat))), hdg:0};
+  return {...fromRw(ap.rw, ap.a+off, ap.x), hdg:(ap.rw.hdg+90*ap.side+360)%360};
+}
+const acSlotHash=id=>{ let h=7; for(const c of id) h=(h*31+c.charCodeAt(0))%9973; return h; };
+function gateSlot(code, ac){ return slotPt(code, 8+acSlotHash(ac.id)%14); }
+// Roulage : poste → voie de circulation parallèle → point d'attente → seuil de piste
+function taxiOutPts(path, gp){
+  const r=path.dep; if(!r) return [gp, path.air[0]];
+  const f=toRw(r,gp), tw=(f.x>=0?1:-1)*Math.min(Math.abs(f.x)*0.6,190);
+  if(Math.abs(f.x)<40) return [gp, r.thr];
+  return [gp, fromRw(r,f.a,tw), fromRw(r,-40,tw), fromRw(r,-25,tw*0.3), r.thr];
+}
+// Dégagement : sortie rapide → voie parallèle → poste
+function taxiInPts(path, gp){
+  const r=path.arr, E=path.air[path.air.length-1]; if(!r) return [E, gp];
+  const f=toRw(r,gp), aE=toRw(r,E).a, tw=(f.x>=0?1:-1)*Math.min(Math.abs(f.x)*0.6,190);
+  if(Math.abs(f.x)<40) return [E, gp];
+  return [E, fromRw(r,aE+260,tw), fromRw(r,f.a,tw), gp];
+}
+function polyAt(pts,u){
+  let tot=0; const seg=[]; for(let i=1;i<pts.length;i++){ const d=gcDist(pts[i-1],pts[i]); seg.push(d); tot+=d; }
+  let s=clamp(u,0,1)*tot, i=0; while(i<seg.length-1 && s>seg[i]){ s-=seg[i]; i++; }
+  const a=pts[i], b=pts[i+1]||a, v=seg[i]? clamp(s/seg[i],0,1) : 1;
+  return {lat:a.lat+(b.lat-a.lat)*v, lon:a.lon+(b.lon-a.lon)*v, hdg:bearing(a,b)};
+}
+// Hauteur du soleil (degrés) en un point, pour l'éclairage des pistes
+function sunElev(lat, lon, t){ const {decl,lon:sl}=sunPosition(t);
+  return toDeg(Math.asin(Math.sin(toRad(lat))*Math.sin(toRad(decl))+Math.cos(toRad(lat))*Math.cos(toRad(decl))*Math.cos(toRad(lon-sl)))); }

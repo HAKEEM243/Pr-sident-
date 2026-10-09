@@ -237,7 +237,7 @@ function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.s
 function routeCycleHours(route, ac){
   const m=modelOf(ac); let h=0;
   for(let i=0;i<route.stops.length-1;i++){ const a=route.stops[i], b=route.stops[i+1], d=dist(a,b);
-    h+=(legProfile(d,m,windKmh(a,b)).total+legProfile(d,m,windKmh(b,a)).total)/HOUR; }
+    h+=(legProfile(d,m,windKmh(a,b),a,b).total+legProfile(d,m,windKmh(b,a),b,a).total)/HOUR; }
   return h + 2*turnaround(m)/HOUR;
 }
 const MAX_WEEK_HOURS = 140; // heures de rotation programmables par avion et par semaine
@@ -310,17 +310,24 @@ function sizingAdvice(perFlight, seats){
 /* ---------- profil de vol ---------- */
 function turnaround(m){ const s=Math.max(m.seats,m.cargo*3); return (s<60?30:s<200?45:s<350?70:90)*MIN; }
 const _profCache=new Map();
-function legProfile(d, m, w=0){
-  w=Math.round(w||0);
-  const key=m.id+'|'+m.speed+'|'+Math.round(d*10)+'|'+w;
+// Roulage réaliste : plus long dans les grands aéroports encombrés (LHR, JFK, CDG ≈ 18-22 min)
+function taxiTimes(a,b){
+  const ta=(a&&AP(a)&&AP(a).traffic)||0, tb=(b&&AP(b)&&AP(b).traffic)||0;
+  return [Math.round(clamp(7+ta*0.19,7,22)), Math.round(clamp(4+tb*0.09,4,11))];
+}
+function legProfile(d, m, w=0, a, b){
+  w=Math.round(w||0); const tx=taxiTimes(a,b);
+  const key=m.id+'|'+m.speed+'|'+Math.round(d*10)+'|'+w+'|'+tx;
   let c=_profCache.get(key); if(c) return c;
   if(_profCache.size>5000) _profCache.clear();
-  c=computeProfile(d,m,w); _profCache.set(key,c); return c;
+  c=computeProfile(d,m,w,tx); _profCache.set(key,c); return c;
 }
-function computeProfile(d, m, w=0){
-  const v=m.speed, turbo=m.fam==='TURBO', vg=Math.max(v*0.5, v+w*(turbo?0.55:1)); // vent : moins fort à l'altitude des turbopropulseurs
+function computeProfile(d, m, w=0, tx=[10,6]){
+  // vent : moins fort à l'altitude des turbopropulseurs ; face au vent, les routes aériennes contournent le cœur du courant-jet
+  const v=m.speed, turbo=m.fam==='TURBO', we=w*(turbo?0.55:1)*(w<0?0.75:1), vg=Math.max(v*0.5, v+we);
   const board=(Math.max(m.seats,m.cargo*3)<60?15:Math.max(m.seats,m.cargo*3)<200?25:40);
-  const taxiOut=10, to=1.5, climb=turbo?14:(v>1500?28:20), desc=turbo?14:22, app=8, land=1.5, taxiIn=6;
+  const d0=d; d = d*1.03 + Math.min(25, d*0.08); // routes aériennes, départs (SID) et arrivées (STAR) : un peu plus long que l'orthodromie
+  const taxiOut=tx[0], to=1.5, climb=turbo?14:(v>1500?28:20), desc=turbo?14:22, app=8, land=1.5, taxiIn=tx[1];
   const dTo=to/60*180, dClimb=climb/60*v*0.6, dDesc=desc/60*v*0.65, dApp=app/60*(turbo?250:320), dLand=land/60*150;
   const air=dTo+dClimb+dDesc+dApp+dLand;
   let f=1, cruiseD=d-air;
@@ -339,8 +346,8 @@ function computeProfile(d, m, w=0){
     [8,taxiIn,d,d,0,0,30,0],
   ];
   let t=0; const segs=[];
-  for(const [ph,dur,d0,d1,a0,a1,s0,s1] of raw){
-    const ms=dur*MIN; segs.push({ph,t0:t,t1:t+ms,d0,d1,a0,a1,s0,s1}); t+=ms;
+  for(const [ph,dur,d0_,d1,a0,a1,s0,s1] of raw){
+    const ms=dur*MIN, k=d0/d; segs.push({ph,t0:t,t1:t+ms,d0:d0_*k,d1:d1*k,a0,a1,s0,s1}); t+=ms;
   }
   const airborne = segs.filter(s=>s.ph>=2&&s.ph<=7).reduce((s,x)=>s+(x.t1-x.t0),0);
   return {segs,total:t,airborne};
@@ -349,7 +356,7 @@ function computeProfile(d, m, w=0){
 function flightState(ac, t=S.time){
   const fl=ac.flight; if(!fl) return null;
   let leg=fl.legs[fl.li]; if(!leg) return null;
-  const m=modelOf(ac), prof=legProfile(leg.dist,m,leg.wind);
+  const m=modelOf(ac), prof=legProfile(leg.dist,m,leg.wind,leg.from,leg.to);
   const rel=clamp(t-leg.dep,0,prof.total);
   let seg=prof.segs.find(s=>rel<s.t1) || prof.segs[prof.segs.length-1];
   const u = seg.t1>seg.t0 ? clamp((rel-seg.t0)/(seg.t1-seg.t0),0,1) : 1;
@@ -358,14 +365,14 @@ function flightState(ac, t=S.time){
   const frac = leg.dist>0? clamp(dd/leg.dist,0,1) : 1;
   // trajectoire réelle : roulage vers la piste, décollage dans l'axe, route orthodromique, approche dans l'axe de la piste d'arrivée
   const path=legPath(leg,m); let pp;
-  if(seg.ph<=1){ pp = seg.ph===0? {...path.gateA, hdg:path.dep?path.dep.hdg:bearing(A,B)} : lerpPt(path.gateA, path.air[0], u); }
-  else if(seg.ph>=8){ pp = lerpPt(path.air[path.air.length-1], path.gateB, u); }
+  if(seg.ph<=1){ const gp=gateSlot(leg.from,ac); pp = seg.ph===0? gp : polyAt(taxiOutPts(path,gp), u); }
+  else if(seg.ph>=8){ const gp=gateSlot(leg.to,ac); pp = rel>=prof.total? gp : polyAt(taxiInPts(path,gp), u); }
   else pp = pointOnPath(path, frac*path.total);
   const p={lat:pp.lat, lon:pp.lon}, hdg=pp.hdg;
   const totalDist = fl.legs.reduce((s,l)=>s+l.dist,0);
   const doneDist = fl.legs.slice(0,fl.li).reduce((s,l)=>s+l.dist,0)+dd;
   const last=fl.legs[fl.legs.length-1];
-  const eta = last.dep+legProfile(last.dist,m,last.wind).total;
+  const eta = last.dep+legProfile(last.dist,m,last.wind,last.from,last.to).total;
   const phase = rel>=prof.total? 8 : seg.ph;
   return { lat:p.lat, lon:unwrapLon(p.lon, A.lon), hdg, alt:seg.a0+(seg.a1-seg.a0)*u, spd:seg.s0+(seg.s1-seg.s0)*u,
     phase, frac, progress: totalDist? doneDist/totalDist : 1, eta, leg, from:leg.from, to:leg.to, origin:fl.legs[0].from, dest:last.to,
@@ -415,7 +422,7 @@ function startFlight(ac, stops, kind, t, extra={}){
   let dep=Math.max(t, ac.readyAt||0);
   const route = extra.routeId? S.routes.find(r=>r.id===extra.routeId) : null;
   for(const l of legs){
-    l.dep=dep; dep+=legProfile(l.dist,m,l.wind).total;
+    l.dep=dep; dep+=legProfile(l.dist,m,l.wind,l.from,l.to).total;
     if(kind==='route'&&route){
       const mk=legMarket(route,l.from,l.to), seats0=acSeats(ac), n=()=>rnd(0.86,1.12), pf=payloadFactor(m,l.dist);
       const seats={...seats0, y:Math.floor(seats0.y*pf), j:Math.floor(seats0.j*Math.min(1,pf+0.15)), f:seats0.f, cargo:seats0.cargo*pf};
@@ -454,7 +461,7 @@ function ferry(ac, to, t=S.time, next=null){
 
 /* ---------- arrivée d'un tronçon ---------- */
 function completeLeg(ac){
-  const fl=ac.flight, leg=fl.legs[fl.li], m=modelOf(ac), prof=legProfile(leg.dist,m,leg.wind);
+  const fl=ac.flight, leg=fl.legs[fl.li], m=modelOf(ac), prof=legProfile(leg.dist,m,leg.wind,leg.from,leg.to);
   const hrs=prof.airborne/HOUR, arr=leg.dep+prof.total;
   const route=fl.routeId? S.routes.find(r=>r.id===fl.routeId):null;
   let rev=0, cost=0;
@@ -618,7 +625,7 @@ function simStep(){
     let guard=0;
     while(ac.flight && guard++<20){
       const leg=ac.flight.legs[ac.flight.li];
-      const arr=leg.dep+legProfile(leg.dist,modelOf(ac),leg.wind).total;
+      const arr=leg.dep+legProfile(leg.dist,modelOf(ac),leg.wind,leg.from,leg.to).total;
       if(arr<=t) completeLeg(ac); else break;
     }
     if(ac.status==='maint' && ac.maintUntil<=t) finishMaint(ac);
