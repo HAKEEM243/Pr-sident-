@@ -52,20 +52,41 @@ function patchCesium(C){
 }
 // qualité graphique : « Éco » par défaut sur téléphone (fluide), « Haute » sur ordinateur
 const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); return {hq: v? v==='h' : !mob, mob}; })();
+// fonds de carte de la vue 3D (mêmes sources libres que la carte 2D)
+const ESRI3='https://server.arcgisonline.com/ArcGIS/rest/services/';
+const BASE3D={
+  hybrid:{label:'🛰️ Satellite + noms', sat:true, make:C=>[new C.UrlTemplateImageryProvider({url:ESRI3+'World_Imagery/MapServer/tile/{z}/{y}/{x}',maximumLevel:19,credit:'Imagerie © Esri, Maxar, Earthstar Geographics'}),new C.UrlTemplateImageryProvider({url:ESRI3+'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',maximumLevel:18})]},
+  satellite:{label:'🛰️ Satellite pur', sat:true, make:C=>[new C.UrlTemplateImageryProvider({url:ESRI3+'World_Imagery/MapServer/tile/{z}/{y}/{x}',maximumLevel:19,credit:'Imagerie © Esri, Maxar, Earthstar Geographics'})]},
+  sentinel:{label:'🌿 Sentinel-2', sat:true, make:C=>[new C.UrlTemplateImageryProvider({url:'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg',maximumLevel:14,credit:'Sentinel-2 cloudless © EOX (Copernicus, modifié)'})]},
+  plan:{label:'🗺️ Plan OpenStreetMap', make:C=>[new C.UrlTemplateImageryProvider({url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',maximumLevel:19,credit:'© les contributeurs d’OpenStreetMap'})]},
+  relief:{label:'⛰️ Relief (topo)', make:C=>[new C.UrlTemplateImageryProvider({url:ESRI3+'World_Topo_Map/MapServer/tile/{z}/{y}/{x}',maximumLevel:18,credit:'© Esri, HERE, Garmin, USGS'})]},
+  sombre:{label:'🌑 Sombre', make:C=>[new C.UrlTemplateImageryProvider({url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',subdomains:'abcd',maximumLevel:19,credit:'© OpenStreetMap, © CARTO'})]},
+  gris:{label:'⚪ Gris clair', make:C=>[new C.UrlTemplateImageryProvider({url:ESRI3+'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',maximumLevel:16,credit:'© Esri'})]},
+};
+let G3labels=[], G3night=null;
+function setBase3D(key){
+  const C=Cesium, V=G.viewer, L_=V.imageryLayers, def=BASE3D[key]; if(!def) return;
+  // on retire le fond et les noms, on garde la couche des lumières nocturnes
+  const keep=G3night; for(const l of [...Array(L_.length).keys()].map(i=>L_.get(i)).filter(l=>l!==keep)) L_.remove(l,true);
+  G3labels=[]; const pv=def.make(C); const b=L_.addImageryProvider(pv[0],0);
+  if(def.sat){ b.saturation=1.32; b.contrast=1.12; b.brightness=1.04; b.gamma=1.04; }
+  for(const x of pv.slice(1)) G3labels.push(L_.addImageryProvider(x));
+  G.baseKey=key; try{ localStorage.setItem('se-3dstyle',key); }catch(e){}
+}
 function initGlobe(){
   const C=Cesium; C.Ion.defaultAccessToken=''; patchCesium(C);
-  const esriImg=new C.UrlTemplateImageryProvider({url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', maximumLevel:19, credit:'Imagerie © Esri, Maxar, Earthstar Geographics'});
-  const viewer=new C.Viewer('globe',{ baseLayer:new C.ImageryLayer(esriImg), baseLayerPicker:false, geocoder:false, homeButton:false, sceneModePicker:false,
+  const base0=BASE3D[(()=>{ try{ return localStorage.getItem('se-3dstyle'); }catch(e){ return null; } })()]||BASE3D.hybrid;
+  const viewer=new C.Viewer('globe',{ baseLayer:new C.ImageryLayer(base0.make(C)[0]), baseLayerPicker:false, geocoder:false, homeButton:false, sceneModePicker:false,
     navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, msaaSamples:GQ.hq?4:1, orderIndependentTranslucency:!window.SE_NO_OIT });
-  viewer.imageryLayers.addImageryProvider(new C.UrlTemplateImageryProvider({url:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', maximumLevel:18}));
+  { const extra=base0.make(C).slice(1); G3labels=extra.map(pv=>viewer.imageryLayers.addImageryProvider(pv)); }
   // la nuit, les villes s'allument : images « Black Marble » de la NASA (GIBS, libres d'accès), affichées seulement du côté nuit du globe
   try{ const nl=viewer.imageryLayers.addImageryProvider(new C.UrlTemplateImageryProvider({url:'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', maximumLevel:8, credit:'Lumières nocturnes : NASA Black Marble (GIBS)'}),1);
-    nl.dayAlpha=0; nl.nightAlpha=1; nl.brightness=3.2; nl.contrast=1.15; }catch(e){}
+    nl.dayAlpha=0; nl.nightAlpha=1; nl.brightness=3.2; nl.contrast=1.15; G3night=nl; }catch(e){}
   // nuit réaliste même près du sol (par défaut Cesium éclaire tout quand on est proche) ; relief ombré par le soleil le jour
   try{ const gl=viewer.scene.globe; gl.lightingFadeOutDistance=1; gl.lightingFadeInDistance=2; }catch(e){}
   try{ viewer.scene.globe.showWaterEffect=true; }catch(e){}   // vagues animées et reflet du soleil (masque d'eau du relief)
   const sc=viewer.scene;
-  try{ const base=viewer.imageryLayers.get(0); base.saturation=1.32; base.contrast=1.12; base.brightness=1.04; base.gamma=1.04; }catch(e){}
+  try{ if(base0.sat){ const base=viewer.imageryLayers.get(0); base.saturation=1.32; base.contrast=1.12; base.brightness=1.04; base.gamma=1.04; } }catch(e){}
   try{ sc.postProcessStages.fxaa.enabled=true; }catch(e){}
   try{ if(typeof TERRAIN!=='undefined'&&TERRAIN.on){ terrFlattenNetwork(); sc.globe.terrainProvider=terrainProvider(); sc.globe.depthTestAgainstTerrain=true; } }catch(e){ console.warn(e); }
   try{ sc.globe.showGroundAtmosphere=true; sc.globe.atmosphereLightIntensity=12; sc.skyAtmosphere.atmosphereLightIntensity=40; }catch(e){}
@@ -81,7 +102,7 @@ function initGlobe(){
   sc.globe.enableLighting=true; sc.globe.dynamicAtmosphereLighting=true; sc.skyAtmosphere.show=true; sc.fog.enabled=true; sc.fog.density=0.00012;
   sc.globe.depthTestAgainstTerrain=false; sc.highDynamicRange=false; sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4;
   viewer.clock.shouldAnimate=false;
-  G={viewer, planes:new Map(), rivals:[], routes:[], airports:[], follow:null, cam:{mode:'chase',h:0,p:-9,range:120}, lighting:true, tiles:null, simAt:performance.now(), simTime:S.time, att:new Map(), trail:[], hudAt:0, forceDay:(()=>{ try{ return localStorage.getItem('se-day')==='1'; }catch(e){ return false; } })()};
+  G={viewer, baseKey:(BASE3D[(()=>{ try{ return localStorage.getItem('se-3dstyle'); }catch(e){ return null; } })()]?localStorage.getItem('se-3dstyle'):'hybrid'), planes:new Map(), rivals:[], routes:[], airports:[], follow:null, cam:{mode:'chase',h:0,p:-9,range:120}, lighting:true, tiles:null, simAt:performance.now(), simTime:S.time, att:new Map(), trail:[], hudAt:0, forceDay:(()=>{ try{ return localStorage.getItem('se-day')==='1'; }catch(e){ return false; } })()};
   // clic sur un avion
   const h=new C.ScreenSpaceEventHandler(sc.canvas);
   h.setInputAction(e=>{ if(G.follow) return; const p=sc.pick(e.position); const id=p&&p.id&&p.id._acId; if(id){ selectPlane(id); renderGlobeHud(); } }, C.ScreenSpaceEventType.LEFT_CLICK);
@@ -341,6 +362,7 @@ function renderGlobeHud(){
       <button class="gh ${G.forceDay?'on':''}" data-act="globeDay" title="Toujours en plein jour">☀️ Jour</button>
       <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief" title="Relief réel (montagnes, vallées)">⛰️ Relief</button>
       <button class="gh" data-act="globeQ" title="Qualité graphique">⚙️ ${GQ.hq?'Haute':'Éco'}</button>
+      <button class="gh" data-act="globeBase" title="Changer le fond : satellite, plan, relief, sombre…">🗺️ Fond</button>
       <button class="gh" data-act="photo">📸 Photo</button>
       <button class="gh" data-act="radar">📡 Radar</button>
       <button class="gh ${typeof RADIO!=='undefined'&&RADIO.voice?'on':''}" data-act="radioVoice">🗣️ Voix</button>
@@ -356,9 +378,28 @@ function renderGlobeHud(){
     <button class="gh" data-act="globeHome">🏠 Mon hub</button>
     <button class="gh ${G.lighting?'on':''}" data-act="globeLight">🌗 Soleil</button>
     <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief">⛰️ Relief</button>
-    <button class="gh ${G.tiles?'on':''}" data-act="google3D">🏙️ Villes 3D Google</button>`;
+    <button class="gh ${G.tiles?'on':''}" data-act="google3D">🏙️ Villes 3D Google</button>
+    <button class="gh" data-act="globeBase" title="Changer le fond : satellite, plan, relief, sombre…">🗺️ Fond</button>
+    <button class="gh" data-act="watchEvent" data-k="dep">🛫 Prochain décollage</button>
+    <button class="gh" data-act="watchEvent" data-k="arr">🛬 Prochain atterrissage</button>`;
+}
+// prochain décollage / atterrissage de vos avions (aussi ceux qui n'ont pas encore quitté la porte)
+function nextEvent(kind){
+  const t=S.time; let best=null;
+  for(const ac of S.fleet){ if(ac.status==='manual') continue; const m=modelOf(ac);
+    if(ac.flight){ const leg=ac.flight.legs[ac.flight.li]; if(!leg) continue; const sg=legProf(leg,m).segs.find(x=>x.ph===(kind==='dep'?2:7)); if(!sg) continue; const at=leg.dep+sg.t0; if(at>t&&(!best||at<best.at)) best={id:ac.id,at}; }
+    else if(kind==='dep'&&ac.status==='idle'&&ac.plan&&ac.plan.length){ const ws=weekStart(t), wk=weekIndex(t);
+      for(const p of ac.plan){ const done=ac.wk&&ac.wk.week===wk?(ac.wk.c[p.routeId]||0):0; if(done>=p.weekly) continue; const sl=planSlotsUtc(ac,p)[done]; if(sl===undefined) continue; const at=ws+sl+45*MIN; if(at>t&&(!best||at<best.at)) best={id:ac.id,at}; } } }
+  return best;
 }
 Object.assign(ACTIONS,{
+  globeBase:()=>{ const ks=Object.keys(BASE3D), k=ks[(ks.indexOf(G.baseKey)+1)%ks.length]; setBase3D(k); toast('🗺️ Fond : '+BASE3D[k].label,'info'); },
+  watchEvent:d=>{ const e=nextEvent(d.k); if(!e){ toast(d.k==='dep'?'Aucun décollage prévu : programmez des avions sur une ligne.':'Aucun avion en vol.','warn'); return; }
+    if(typeof fxAudioUnlock==='function') fxAudioUnlock();
+    const tgt=e.at-(d.k==='dep'?6:4)*MIN, jump=tgt-S.time;
+    if(jump>0){ UI.silent=true; advance(jump); UI.silent=false; globeNoteSim(); if(jump>HOUR) toast(`⏩ ${fmtDur?fmtDur(jump):Math.round(jump/HOUR)+' h'} de jeu écoulées jusqu’au ${d.k==='dep'?'décollage':'atterrissage'}`,'info'); }
+    const ac=S.fleet.find(a=>a.id===e.id&&a.status==='flight'); if(!ac){ toast('L’avion n’est pas encore parti, réessayez.','warn'); return; }
+    selectPlane(ac.id); globeSync(false); globeFollow(ac.id); G.tm&&(G.tm.auto=true); },
   open3D:()=>{ if(typeof fxAudioUnlock==='function') fxAudioUnlock(); return open3D(); },
   close3D:()=>close3D(),
   view3D:async d=>{ if(typeof fxAudioUnlock==='function') fxAudioUnlock(); const ok=await open3D(); if(!ok) return; const ac=S.fleet.find(a=>a.id===d.id&&a.status==='flight'); if(ac){ selectPlane(ac.id); globeSync(false); globeFollow(ac.id); } },

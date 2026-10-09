@@ -247,7 +247,15 @@ function extraDetails(rnd,o){
   for(let i=0;i<nH&&dests.length;i++){ const dest=pick2(rnd,dests), car=(typeof carriersOn==='function'?carriersOn(homeAp,dest):[]).filter(c=>AIRLINE_DB[c]); const back=new Date(S.time-(1+i*5+Math.floor(rnd()*5))*30.4*DAY);
     hist.push(`${PX_MONTHS[back.getUTCMonth()]} ${back.getUTCFullYear()} · ${AP(homeAp).city} → ${AP(dest).city} · ${car.length?AIRLINE_DB[pick2(rnd,car)][0]:'vol charter'}`); }
   const opinions=o.mood==='énervé(e)'?['« J’attends mieux pour ce prix. »','« Si ça se reproduit, je change de compagnie. »']:o.tier!=='Aucun'?['« Fidèle depuis des années, je recommande. »','« Les miles valent vraiment le coup. »']:o.mood==='ravi(e)'?['« Première fois avec vous, très agréable surprise ! »','« Je reviendrai, c’est sûr. »']:['« Correct, rien à signaler. »','« Le prix a fait la différence. »','« J’ai choisi l’horaire qui m’arrangeait. »'];
-  return {dob:`${bd} ${PX_MONTHS[bm]} ${byr}`, born, passNo, checkin:pick2(rnd,CHECKIN[o.wealth]), ciMin:minsBefore, group, with_, conn, declare:pick2(rnd,DECLARE[o.purp]||['rien à déclarer']), cash, spend, sat, hist, opinion:pick2(rnd,opinions),
+  const place=o.seatPref||pick2(rnd,['hublot','couloir','hublot','couloir','milieu']);
+  const lodging=o.purp==='family'?pick2(rnd,['chez de la famille','chez des amis']):o.purp==='business'?pick2(rnd,['hôtel réservé par l’entreprise','hôtel d’affaires','appartement de fonction']):o.wealth==='rich'?pick2(rnd,['hôtel de luxe','résidence privée']):pick2(rnd,['hôtel économique','chez la famille','location entre particuliers','auberge']);
+  const items=[pick2(rnd,['ordinateur portable','tablette','liseuse','appareil photo','casque audio']),pick2(rnd,['chargeur et batterie externe','trousse de toilette','médicaments','vêtements de rechange']),pick2(rnd,['documents de voyage','cadeaux','guide de voyage','livre','jeux pour enfants'])];
+  const fear=rnd()<0.14?pick2(rnd,['peur de l’avion (légère)','peur des turbulences','anxieux au décollage']):'';
+  const ent=pick2(rnd,['films','séries','musique','dort pendant le vol','travaille sur son ordinateur','lit','regarde la carte du vol','joue sur son téléphone']);
+  const allergy=rnd()<0.1?pick2(rnd,['arachides','fruits de mer','gluten','lactose']):'';
+  const drink=pick2(rnd,['eau','jus d’orange','café','thé','soda','verre de vin','bière locale','rien']);
+  const wifi=o.wealth==='rich'?rnd()<0.7:rnd()<0.3, insur=o.wealth==='poor'?rnd()<0.2:rnd()<0.65;
+  return {place,lodging,items,fear,ent,allergy,drink,wifi,insur,dob:`${bd} ${PX_MONTHS[bm]} ${byr}`, born, passNo, checkin:pick2(rnd,CHECKIN[o.wealth]), ciMin:minsBefore, group, with_, conn, declare:pick2(rnd,DECLARE[o.purp]||['rien à déclarer']), cash, spend, sat, hist, opinion:pick2(rnd,opinions),
     control:rnd()<(o.wealth==='poor'?0.06:0.02)?'Contrôle approfondi (vérification du visa)':'Contrôle normal ✅'};
 }
 
@@ -357,6 +365,7 @@ function passengerCardHtml(ac,i){
     <h4>📊 Avis sur ce vol</h4><div class="pc-sat"><div><span>Confort</span>${st(sat.confort||3)}</div><div><span>Repas</span>${st(sat.repas||3)}</div><div><span>Équipage</span>${st(sat.equipage||3)}</div><div><span>Ponctualité</span>${st(sat.ponctualite||3)}</div></div>
       <div class="pc-op">${esc(r.opinion||'')} <span class="mut small">· note moyenne ${avgS.toFixed(1).replace('.',',')}/5 · humeur : ${gx(r.mood,r.F)}${r.moodWhy?' ('+esc(r.moodWhy)+')':''}</span></div>
       ${row('Achats à bord',fmtMoney(r.spend||0))}
+    <h4>🎒 À bord</h4>${row('Place préférée',esc(r.place||'—'))}${row('Dans son sac',esc((r.items||[]).join(', ')||'—'))}${row('Occupation',esc(r.ent||'—'))}${row('Boisson',esc(r.drink||'—'))}${r.allergy?row('Allergie',esc(r.allergy)):''}${r.fear?row('Appréhension',esc(r.fear)):''}${row('Wi-Fi',r.wifi?'se connecte ✅':'hors ligne')}${row('Assurance voyage',r.insur?'oui':'non')}${row('Hébergement',esc(r.lodging||'—'))}
     <h4>🧳 Habitudes de voyage</h4>${row('Voyage',r.trips.toFixed(1).replace('.',',')+' fois par an')}${row('Dernier vol',`il y a ~${r.lastTrip} mois`)}${row('Vols avec vous',r.nbWithUs)}${row('Fidélité',r.tier==='Aucun'?'Aucune carte':`⭐ ${r.tier} · ${num(r.miles)} miles`)}
       ${(r.hist&&r.hist.length)?`<div class="pc-hist">${r.hist.map(h=>`<div>✈️ ${esc(h)}</div>`).join('')}</div>`:''}
     <div class="small mut" style="margin-top:10px">Passager fictif généré par le jeu à partir des statistiques du marché.</div></div>`;
