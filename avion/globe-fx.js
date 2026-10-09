@@ -229,7 +229,7 @@ function fxTick(ac,p){
   // --- pluie, ombres, PAPI, son ---
   const raining=!!(FX.forceRain||(typeof stormAt==='function'&&stormAt(st.lat,st.lon)));
   fxRain(p,raining&&!inside);
-  fxShadows(!inside&&p.h<2500&&!FX.noShadows);
+  fxShadows(!inside&&p.h<2500&&!FX.noShadows&&GQ.hq);
   fxPapi(ac,p);
   if(FX.wasAir===false&&FX._lastAir===true) FX.touchAt=now;
   FX._lastAir=air;
@@ -338,7 +338,7 @@ function fxRain(p,on){
   if(on&&!FX.rain){
     const grav=new C.Cartesian3();
     FX.rain=sc.primitives.add(new C.ParticleSystem({image:rainImage(), startColor:C.Color.WHITE.withAlpha(0.85), endColor:C.Color.WHITE.withAlpha(0.6), startScale:1, endScale:1,
-      particleLife:1.2, speed:0, imageSize:new C.Cartesian2(4,58), emissionRate:1500, emitter:new C.SphereEmitter(60), lifetime:16, sizeInMeters:false,
+      particleLife:1.2, speed:0, imageSize:new C.Cartesian2(4,58), emissionRate:GQ.hq?1500:550, emitter:new C.SphereEmitter(60), lifetime:16, sizeInMeters:false,
       updateCallback:(pt,dt)=>{ const up=C.Cartesian3.normalize(pt.position,grav); C.Cartesian3.multiplyByScalar(up,-140*dt,up); C.Cartesian3.add(pt.position,up,pt.position); }}));
     FX.rainShift={b:sc.skyAtmosphere.brightnessShift||0,s:sc.skyAtmosphere.saturationShift||0,f:sc.fog.density};
   }

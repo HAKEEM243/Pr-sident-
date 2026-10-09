@@ -168,6 +168,12 @@ function taxiInPts(path, gp){
   if(Math.abs(f.x)<40) return [E, gp];
   return [E, fromRw(r,aE+260,tw), fromRw(r,f.a,tw), gp];
 }
+// Point d'attente : sur le taxiway parallèle, avant le seuil, jamais sur la piste ; file d'attente vers l'arrière
+function holdPoint(path,gp,rank){
+  const r=path.dep; if(!r) return {lat:gp.lat,lon:gp.lon,hdg:gp.hdg||0};
+  const f=toRw(r,gp), s=f.x>=0?1:-1, lat=s*Math.max(75,Math.min(Math.abs(f.x)*0.6,190)), a=-70-(rank||0)*80;
+  const q=fromRw(r,a,lat); return {lat:q.lat,lon:q.lon,hdg:r.hdg};
+}
 function polyAt(pts,u){
   let tot=0; const seg=[]; for(let i=1;i<pts.length;i++){ const d=gcDist(pts[i-1],pts[i]); seg.push(d); tot+=d; }
   let s=clamp(u,0,1)*tot, i=0; while(i<seg.length-1 && s>seg[i]){ s-=seg[i]; i++; }

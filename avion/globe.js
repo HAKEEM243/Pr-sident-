@@ -50,11 +50,13 @@ function patchCesium(C){
     };
   }
 }
+// qualité graphique : « Éco » par défaut sur téléphone (fluide), « Haute » sur ordinateur
+const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); return {hq: v? v==='h' : !mob, mob}; })();
 function initGlobe(){
   const C=Cesium; C.Ion.defaultAccessToken=''; patchCesium(C);
   const esriImg=new C.UrlTemplateImageryProvider({url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', maximumLevel:19, credit:'Imagerie © Esri, Maxar, Earthstar Geographics'});
   const viewer=new C.Viewer('globe',{ baseLayer:new C.ImageryLayer(esriImg), baseLayerPicker:false, geocoder:false, homeButton:false, sceneModePicker:false,
-    navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, msaaSamples:4, orderIndependentTranslucency:!window.SE_NO_OIT });
+    navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, msaaSamples:GQ.hq?4:1, orderIndependentTranslucency:!window.SE_NO_OIT });
   viewer.imageryLayers.addImageryProvider(new C.UrlTemplateImageryProvider({url:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', maximumLevel:18}));
   const sc=viewer.scene;
   try{ const base=viewer.imageryLayers.get(0); base.saturation=1.32; base.contrast=1.12; base.brightness=1.04; base.gamma=1.04; }catch(e){}
@@ -70,7 +72,7 @@ function initGlobe(){
     else toast('⛔ La vue 3D rencontre un problème sur cet appareil','bad');
   });
   sc.globe.enableLighting=true; sc.globe.dynamicAtmosphereLighting=true; sc.skyAtmosphere.show=true; sc.fog.enabled=true; sc.fog.density=0.00012;
-  sc.globe.depthTestAgainstTerrain=false; sc.highDynamicRange=false; sc.globe.maximumScreenSpaceError=1.6;
+  sc.globe.depthTestAgainstTerrain=false; sc.highDynamicRange=false; sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4;
   viewer.clock.shouldAnimate=false;
   G={viewer, planes:new Map(), rivals:[], routes:[], airports:[], follow:null, cam:{mode:'chase',h:0,p:-9,range:120}, lighting:true, tiles:null, simAt:performance.now(), simTime:S.time, att:new Map(), trail:[], hudAt:0, forceDay:(()=>{ try{ return localStorage.getItem('se-day')==='1'; }catch(e){ return false; } })()};
   // clic sur un avion
@@ -178,7 +180,7 @@ function drawGlobeRivals(){
   const cands=[]; for(const it of list.slice(0,600)){ const q=typeof rivalPos==='function'? rivalPos(it.r,0,t) : null; if(q) cands.push({...it,q,dd:fst?gcDist(q.p,fst):0}); }
   if(fst) cands.sort((x,y)=>x.dd-y.dd);
   for(const {R,r,q:q0} of cands){
-    if(n>=60) return;
+    if(n>=(GQ.hq?60:22)) return;
     const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color);
     let q=q0, qAt=-1;
     const Q=()=>{ const now=performance.now(); if(now!==qAt){ qAt=now; q=rivalPos(r,0,gSimNow())||q; } return q; };
@@ -298,6 +300,7 @@ function renderGlobeHud(){
       <button class="gh" data-act="globeNext">⏭ Avion suivant</button>
       <button class="gh ${typeof FX!=='undefined'&&FX.soundOn?'on':''}" data-act="globeSound">🔊 Son</button>
       <button class="gh ${G.forceDay?'on':''}" data-act="globeDay" title="Toujours en plein jour">☀️ Jour</button>
+      <button class="gh" data-act="globeQ" title="Qualité graphique">⚙️ ${GQ.hq?'Haute':'Éco'}</button>
       <button class="gh" data-act="photo">📸 Photo</button>
       <button class="gh" data-act="radar">📡 Radar</button>
       <button class="gh ${typeof RADIO!=='undefined'&&RADIO.voice?'on':''}" data-act="radioVoice">🗣️ Voix</button>
@@ -321,6 +324,7 @@ Object.assign(ACTIONS,{
   globeFollow:()=>{ if(G.follow) return globeFollow(null); if(typeof fxAudioUnlock==='function') fxAudioUnlock(); const sel=selectedPlane&&S.fleet.find(a=>a.id===selectedPlane&&a.status==='flight'); const ac=sel||pick(S.fleet.filter(a=>a.status==='flight')); if(ac){ selectPlane(ac.id); globeFollow(ac.id); } },
   globeNext:()=>{ const fl=S.fleet.filter(a=>a.status==='flight'); if(!fl.length) return; const i=fl.findIndex(a=>a.id===G.follow); const ac=fl[(i+1)%fl.length]; selectPlane(ac.id); globeFollow(ac.id); },
   globeCam:d=>{ G.lastMode=d.k; setCam(d.k); },
+  globeQ:()=>{ GQ.hq=!GQ.hq; try{ localStorage.setItem('se-q',GQ.hq?'h':'e'); }catch(e){} toast(GQ.hq?'⚙️ Qualité haute : ombres, plus de détails (plus lourd)':'⚙️ Mode éco : plus fluide sur téléphone','info'); if(G){ G.viewer.scene.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4; G.rivAt=0; } renderGlobeHud(); },
   globeSound:()=>fxToggleSound(),
   globeRain:()=>{ FX.forceRain=!FX.forceRain; fxAudioUnlock(); renderGlobeHud(); },
   globeDay:()=>{ G.forceDay=!G.forceDay; try{ localStorage.setItem('se-day',G.forceDay?'1':'0'); }catch(e){} globeSync(false); renderGlobeHud(); },
@@ -368,7 +372,7 @@ function osmTick(p){
 async function loadOsmCell(i,j){
   const O=G.osm, key=i+','+j; O.cells.set(key,null); O.busy=true;
   const s=i*OSM_CELL, w=j*OSM_CELL, n=s+OSM_CELL, e=w+OSM_CELL;
-  const q=`[out:json][timeout:25];way["building"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});out geom 5000;`;
+  const q=`[out:json][timeout:25];way["building"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});out geom ${GQ.hq?5000:2200};`;
   let js=null;
   for(const ep of OSM_EP){ try{ const r=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}}); if(r.ok){ js=await r.json(); break; } }catch(err){} }
   O.busy=false;

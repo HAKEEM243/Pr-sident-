@@ -33,6 +33,7 @@ function newDaily(){
 function dailyProgress(c){ const t=CH_TYPES.find(x=>x.k===c.k); if(!t) return 0; return Math.max(0,t.f()-c.base); }
 function progressTick(){
   if(!S||!S.company) return;
+  if(typeof atcMigrate==='function') atcMigrate();
   const today=realDay();
   if(!S.daily||S.daily.day!==today){
     const prev=S.daily&&S.daily.day, yest=(()=>{ const d=new Date(); d.setDate(d.getDate()-1); return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate(); })();
