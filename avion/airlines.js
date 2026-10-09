@@ -143,6 +143,8 @@ function rivalsOn(a,b){
 const _ghostRoutes=new Map();
 // Lignes réelles autour des aéroports visibles (toutes compagnies), pour peupler le ciel
 let _busyAps=null;
+// route « fantôme » d'une compagnie (la même que celle dessinée sur la carte), pour lire son horaire
+function ghostRouteOf(c,a,b){ const k=pairKey(a,b), key=c+k; let r=_ghostRoutes.get(key); if(!r){ r={a:k.slice(0,3), b:k.slice(3), freq:Math.min(3,realFreq(a,b)), c}; _ghostRoutes.set(key,r); } return r; }
 function visibleRealRoutes(bounds, c0, limitAirports=50){
   aiIndexes();
   if(!_busyAps) _busyAps=AIRPORT_CODES.filter(c=>AP(c).traffic>=0.3).sort((x,y)=>AP(y).traffic-AP(x).traffic);

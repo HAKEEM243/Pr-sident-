@@ -229,13 +229,13 @@ function drawGlobeRivals(){
     if(st){ const b=L.latLngBounds([st.lat-6,st.lon-8],[st.lat+6,st.lon+8]); list.unshift(...visibleRealRoutes(b,st.lon,15)); } }
   // les plus proches d'abord (roulage, décollages et atterrissages autour de vous)
   const fol=G.follow&&S.fleet.find(a=>a.id===G.follow), fst=fol&&flightState(fol,t);
-  const cands=[]; for(const it of list.slice(0,600)){ const q=typeof rivalPos==='function'? rivalPos(it.r,0,t) : null; if(q) cands.push({...it,q,dd:fst?gcDist(q.p,fst):0}); }
+  const cands=[]; for(const it of list.slice(0,600)){ const sc=typeof rivalSched==='function'?rivalSched(it.r):null; const nP=Math.min(3,sc?sc.nP:1); for(let i=0;i<nP;i++){ const q=typeof rivalPos==='function'? rivalPos(it.r,i,t) : null; if(q) cands.push({...it,i,q,dd:fst?gcDist(q.p,fst):0}); } }
   if(fst) cands.sort((x,y)=>x.dd-y.dd);
-  for(const {R,r,q:q0} of cands){
+  for(const {R,r,i:pi,q:q0} of cands){
     if(n>=(GQ.hq?60:22)) return;
     const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color);
     let q=q0, qAt=-1; const an={}, nt={};
-    const Q=()=>{ const now=performance.now(); if(now!==qAt){ qAt=now; q=rivalPos(r,0,gSimNow())||q; } return q; };
+    const Q=()=>{ const now=performance.now(); if(now!==qAt){ qAt=now; q=rivalPos(r,pi||0,gSimNow())||q; } return q; };
     const posOf=()=>{ const v=Q(); const e=typeof gElev==='function'?gElev(gcDist(v.p,v.from)<gcDist(v.p,v.to)?v.from.code:v.to.code):0; return C.Cartesian3.fromDegrees(v.p.lon,v.p.lat,Math.max(v.alt||0,mi.R+mi.gH+0.4)+e); };
     const re=V.entities.add({position:new C.CallbackProperty(posOf,false),
       orientation:new C.CallbackProperty(()=>{ const v=Q(), pos=posOf(); const pitch=v.ph===2&&!v.gnd?8:v.ph===3?6:v.ph===6||v.ph===5?-2:0; return C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(v.hdg-90),C.Math.toRadians(pitch),0)); },false),
@@ -388,8 +388,8 @@ function nextEvent(kind){
   const t=S.time; let best=null;
   for(const ac of S.fleet){ if(ac.status==='manual') continue; const m=modelOf(ac);
     if(ac.flight){ const leg=ac.flight.legs[ac.flight.li]; if(!leg) continue; const sg=legProf(leg,m).segs.find(x=>x.ph===(kind==='dep'?2:7)); if(!sg) continue; const at=leg.dep+sg.t0; if(at>t&&(!best||at<best.at)) best={id:ac.id,at}; }
-    else if(kind==='dep'&&ac.status==='idle'&&ac.plan&&ac.plan.length){ const ws=weekStart(t), wk=weekIndex(t);
-      for(const p of ac.plan){ const done=ac.wk&&ac.wk.week===wk?(ac.wk.c[p.routeId]||0):0; if(done>=p.weekly) continue; const sl=planSlotsUtc(ac,p)[done]; if(sl===undefined) continue; const at=ws+sl+45*MIN; if(at>t&&(!best||at<best.at)) best={id:ac.id,at}; } } }
+    else if(kind==='dep'&&ac.status==='idle'&&ac.plan&&ac.plan.length){ const wk=weekIndex(t+hubTz(ac));
+      for(const p of ac.plan){ const done=ac.wk&&ac.wk.week===wk?(ac.wk.c[p.routeId]||0):0; if(done>=p.weekly) continue; const std=planSlotTimes(ac,p,t)[done]; if(std===undefined) continue; const at=std+20*MIN; if(at>t&&(!best||at<best.at)) best={id:ac.id,at}; } } }
   return best;
 }
 Object.assign(ACTIONS,{

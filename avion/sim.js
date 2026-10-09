@@ -645,8 +645,11 @@ function planSlots(ac,p){
   else { const n=Math.ceil(w/7), step=Math.max(3,Math.floor(15/n)); for(let k=0;k<w;k++){ const d=k%7, i=Math.floor(k/7); out.push(d*DAY+Math.min(23,base-4+i*step+((h>>3)%2)*0.5)*HOUR+(base%1)*HOUR); } }
   return out.sort((a,b)=>a-b);
 }
-// heure locale → UTC dans la semaine courante (ms depuis lundi 00:00 UTC)
-function planSlotsUtc(ac,p){ const A=AP(ac.hub), tz=A?A.lon/15*HOUR:0, W=7*DAY; return planSlots(ac,p).map(x=>(((x-tz)%W)+W)%W).sort((a,b)=>a-b); }
+// fuseau du hub (décalage UTC réel de l'aéroport) ; l'embarquement dure `boardMs` avant l'heure de départ affichée
+const hubTz=ac=>{ const A=AP(ac.hub); if(!A) return 0; return (A.utc!==undefined&&A.utc!==null&&A.utc!==''?+A.utc:A.lon/15)*HOUR; };
+function boardMs(ac,r){ const m=modelOf(ac), a=r.stops[0], b=r.stops[1], sg=legProfile(dist(a,b),m,windKmh(a,b),a,b).segs[0]; return sg.t1-sg.t0; }
+// heures de départ (départ du poste, repoussage) de la semaine locale du hub qui contient t, en temps absolu
+function planSlotTimes(ac,p,t){ const tz=hubTz(ac), ws=weekStart(t+tz)-tz; return planSlots(ac,p).map(x=>ws+x); }
 const fmtSlot=x=>{ const m=Math.round(x/MIN), d=Math.floor(m/1440)%7, mm=m%1440; return `${WEEK_DAYS[d]} ${String(Math.floor(mm/60)).padStart(2,'0')}:${String(mm%60).padStart(2,'0')}`; };
 // résumé lisible du calendrier (heure locale du hub)
 function planText(ac,p){ const sl=planSlots(ac,p), days=[...new Set(sl.map(x=>Math.floor(x/DAY)))], hh=x=>fmtSlot(x).slice(4);
@@ -662,12 +665,14 @@ function scheduleAircraft(ac, t, dep){
   }
   if(ac.loc!==ac.hub){ const e=ferry(ac,ac.hub,dep); ac.blocked=e&&e!=='Déjà sur place'?e:null; return; }
   if((S.staff.strikeUntil||0)>t){ ac.blocked='Grève du personnel : vols annulés'; return; }
-  const wk=weekIndex(t); if(!ac.wk||ac.wk.week!==wk) ac.wk={week:wk,c:{}};
-  const ws=weekStart(t); let best=null, bestAt=Infinity;
+  const wk=weekIndex(t+hubTz(ac)); if(!ac.wk||ac.wk.week!==wk) ac.wk={week:wk,c:{}};
+  let best=null, bestAt=Infinity;
   for(const p of ac.plan){
     const done=ac.wk.c[p.routeId]||0; if(done>=p.weekly) continue;
-    const at=ws+(planSlotsUtc(ac,p)[done]||0);                 // prochain créneau de cet avion sur cette ligne
-    if(at>t) continue;                                          // pas encore l'heure du départ
+    const r0=S.routes.find(x=>x.id===p.routeId); if(!r0) continue;
+    const std=planSlotTimes(ac,p,t)[done]; if(std===undefined) continue;   // heure de départ du poste prévue
+    const at=std-boardMs(ac,r0);                                          // début de l'embarquement : le départ du poste tombe pile à l'heure
+    if(at>t) continue;                                                    // pas encore l'heure
     if(at<bestAt){ bestAt=at; best=p; }
   }
   if(!best){ ac.blocked=null; return; }

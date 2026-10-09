@@ -98,7 +98,7 @@ function radarTargets(code){
     out.push({me:true, lat:st.lat, lon:st.lon, hdg:st.hdg, alt:st.alt, spd:st.gs||st.spd, cs:S.company.code+flightNumber(ac), hold:st.holding, ph:st.phase, gnd:st.alt<1}); }
   const b=L.latLngBounds([A.lat-R/111,A.lon-R/80],[A.lat+R/111,A.lon+R/80]);
   const list=[...((S.rivals||[]).flatMap(R0=>R0.routes.map(r=>{ if(!r.c) r.c=R0.code; return {R:R0,r}; }))), ...(typeof visibleRealRoutes==='function'?visibleRealRoutes(b,A.lon,40):[])];
-  for(const {R:Rr,r} of list.slice(0,400)){ for(let i=0;i<3;i++){ const q=rivalPos(r,i,t); if(!q) continue; const d=gcDist(A,q.p); if(d>R*1.05) continue;
+  for(const {R:Rr,r} of list.slice(0,400)){ for(let i=0;i<Math.min(3,(rivalSched(r)||{nP:0}).nP);i++){ const q=rivalPos(r,i,t); if(!q) continue; const d=gcDist(A,q.p); if(d>R*1.05) continue;
       out.push({me:false, lat:q.p.lat, lon:q.p.lon, hdg:q.hdg, alt:q.alt||(q.d<1200?6500:10500), spd:q.ph===4?(q.d<1200?520:850):300, cs:(Rr.code||'')+(100+hashStr(r.a+r.b+i)%800), hold:q.holding, ph:q.ph, gnd:q.gnd}); } }
   return out;
 }

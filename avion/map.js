@@ -366,7 +366,9 @@ function updateFlightCard(){
   const legs=ac.flight.legs, pax=legs[ac.flight.li].pax;
   const paxTxt = pax? `${pax.f+pax.j+pax.w+pax.y} passagers (F${pax.f} · J${pax.j} · W${pax.w} · Y${pax.y})` : legs[ac.flight.li].cargo? `${legs[ac.flight.li].cargo} t de fret` : '';
   box.querySelector('.fc-live').innerHTML=flightTipHtml(ac,st);
+  const sg0=legProf(st.leg,modelOf(ac)).segs.find(x=>x.ph===1), std=sg0?st.leg.dep+sg0.t0:st.leg.dep;
   const legHtml=`<div class="mut" style="margin-top:4px">Tronçon ${ac.flight.li+1}/${legs.length} : ${AP(st.from).city} → ${AP(st.to).city} · ${Math.round(st.leg.dist)} km</div>`+
+    `<div>🕒 Départ du poste prévu : <b>${fmtLocal(std,st.from)}</b>${st.leg.hOut>=MIN?` · attente piste ${Math.round(st.leg.hOut/MIN)} min`:''}</div>`+
     (paxTxt?`<div>${paxTxt}</div>`:'')+
     `<div class="phases">${PHASES.map((p,i)=>`<span class="${i<st.phase?'done':i===st.phase?'cur':''}">${p}</span>`).join('')}</div>`;
   const lg=box.querySelector('.fc-leg'); if(lg._h!==legHtml){ lg._h=legHtml; lg.innerHTML=legHtml; }
@@ -437,18 +439,28 @@ const rivalPool=new Map();
 // Les avions des autres compagnies suivent le même profil que les vôtres : roulage, décollage dans l'axe
 // de la vraie piste, montée, croisière, approche, atterrissage, dégagement et roulage jusqu'au poste.
 const TRAFFIC_MODEL={prop:'AT76', nb:'A20N', wb:'B789'};
-function rivalPos(r,i,t){
+// horaire d'une ligne d'une autre compagnie : chaque avion part du poste à une heure locale fixe (la même chaque jour)
+const _tzAp=c=>{ const a=AP(c); if(!a) return 0; return (a.utc!==undefined&&a.utc!==null&&a.utc!==''?+a.utc:a.lon/15)*HOUR; };
+function rivalSched(r){
+  let K=r._tk; if(K&&K.c===(r.c||'')&&K.P) return K;
   const A=AP(r.a), B=AP(r.b); if(!A||!B) return null;
-  // tout ce qui ne dépend pas de l'heure est calculé une seule fois par ligne
-  let K=r._tk; if(K&&K.c!==(r.c||'')) K=null;
-  if(!K){ const d=gcDist(A,B), cat=d<1200?'prop':d<5000?'nb':'wb', m=getModel(TRAFFIC_MODEL[cat]); if(!m) return null;
-    const pA=legProfile(d,m,0,r.a,r.b), pB=legProfile(d,m,0,r.b,r.a), turn=55*MIN;
-    const T0=pA.total+pB.total+2*turn, nP=Math.max(1,Math.min(r.freq||1,5)), P=Math.max(T0,nP*DAY/Math.max(1,r.freq||1));   // période : autant de départs par jour que la fréquence
-    K=r._tk={c:r.c||'',d,cat,m,pA,pB,turn,T:P,h:hashStr(r.a+r.b+(r.c||''))*1000,AB:null,BA:null}; }
-  const d=K.d, cat=K.cat, m=K.m, pA=K.pA, pB=K.pB, turn=K.turn, T=K.T, cnt=Math.max(1,Math.min(r.freq||1,5));
-  // départs étalés sur la journée avec un décalage propre à chaque avion (plus de « file indienne »)
-  const jit=((hashStr(r.a+r.b+(r.c||'')+i)%1000)/1000-0.5)*0.5*T/cnt;
-  let rel=((t+i*T/cnt+jit+K.h)%T+T)%T, from=r.a, to=r.b, prof=pA, dir='AB';
+  const d=gcDist(A,B), cat=d<1200?'prop':d<5000?'nb':'wb', m=getModel(TRAFFIC_MODEL[cat]); if(!m) return null;
+  const pA=legProfile(d,m,0,r.a,r.b), pB=legProfile(d,m,0,r.b,r.a), turn=55*MIN, T0=pA.total+pB.total+2*turn, f=Math.max(1,r.freq||1), nP=Math.max(1,Math.min(f,5));
+  const base=Math.max(T0,nP*DAY/f), P=base<=DAY? DAY/Math.floor(DAY/base) : Math.ceil(base/DAY)*DAY;   // période : un nombre entier de départs par jour (ou un départ tous les n jours)
+  const hs=hashStr(r.a+r.b+(r.c||'')), hb=(6+(hs%1000)/1000*9)*HOUR, tzA=_tzAp(r.a), tzB=_tzAp(r.b), bA=pA.segs[0].t1-pA.segs[0].t0, bB=pB.segs[0].t1-pB.segs[0].t0;
+  const anchors=[]; for(let i=0;i<nP;i++){ const x=hb+i*P/nP+(hashStr(r.a+r.b+(r.c||'')+i)%6)*5*MIN, H=Math.round(((x%DAY)+DAY)%DAY/(5*MIN))*5*MIN; anchors.push(H-tzA+(P>DAY?(i%Math.round(P/DAY))*DAY:0)); }
+  return r._tk={c:r.c||'',d,cat,m,pA,pB,turn,T:P,P,nP,anchors,bA,bB,tzA,tzB,AB:null,BA:null,h:0};
+}
+// heures locales de départ du poste, dans chaque sens : [{a:[minutes],b:[minutes],every:jours}]
+function rivalTimes(r){ const K=rivalSched(r); if(!K) return null; const day=x=>Math.round((((x%DAY)+DAY)%DAY)/MIN);
+  const a=K.anchors.map(x=>day(x+K.tzA)), b=K.anchors.map(x=>day(x+K.pA.total+K.turn+K.bB+K.tzB));
+  const rep=K.P<=DAY? Math.round(DAY/K.P):1; const out=(L)=>{ const o=[]; for(const m of L) for(let k=0;k<rep;k++) o.push((m+Math.round(k*K.P/MIN))%1440); return o.sort((x,y)=>x-y); };
+  return {a:out(a),b:out(b),every:K.P>DAY?Math.round(K.P/DAY):1}; }
+function rivalPos(r,i,t){
+  const K=rivalSched(r); if(!K) return null;
+  const d=K.d, cat=K.cat, m=K.m, pA=K.pA, pB=K.pB, turn=K.turn, T=K.P, cnt=K.nP;
+  i=Math.min(i,cnt-1);
+  let rel=((t-K.anchors[i]+K.bA)%T+T)%T, from=r.a, to=r.b, prof=pA, dir='AB';
   if(rel>=pA.total+turn){ rel-=pA.total+turn; from=r.b; to=r.a; prof=pB; dir='BA'; }
   if(rel>=prof.total) return null;                    // au poste, entre deux vols
   const seg=prof.segs.find(x=>rel<x.t1)||prof.segs[prof.segs.length-1];
@@ -544,7 +556,7 @@ function updateRival(){
   outer: for(const {R,r} of list){
     const bb=routeBBox(r);   // ligne entièrement hors de l'écran : on ne calcule rien
     if(bb.maxLat<So||bb.minLat>No||![-360,0,360].some(o=>bb.maxLon+o>=W&&bb.minLon+o<=E)) continue;
-    const cnt=typeof routeMoodFreq==='function'? Math.min(routeMoodFreq(r),5) : Math.min(r.freq,3);
+    const sc=rivalSched(r); if(!sc) continue; const cnt=Math.min(typeof routeMoodFreq==='function'? Math.min(routeMoodFreq(r),5) : Math.min(r.freq,3), sc.nP);
     for(let i=0;i<cnt;i++){
       const q=rivalPos(r,i,t); if(!q) continue;
       const lon=unwrapLon(q.p.lon,c0);
