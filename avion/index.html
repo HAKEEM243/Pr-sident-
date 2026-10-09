@@ -374,6 +374,14 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 #ticker .tk.old{opacity:.4}
 @keyframes tkin{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
 @media (max-width:820px){ #ticker{left:10px;right:10px;width:auto;bottom:74px} #flightcard:not([hidden]) ~ #ticker{display:none} }
+/* ---- fiche passager ---- */
+.mrow{cursor:pointer} .mrow:hover{border-color:var(--gold2)}
+.pcard h4{margin:12px 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold)}
+.pc-head{display:flex;gap:12px;align-items:center}
+.pc-av{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:19px;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.pc-name{font-size:19px}
+.pc-story{margin:10px 0;padding:9px 12px;background:#0e1a30;border-left:3px solid var(--gold);border-radius:8px;font-style:italic;font-size:13px}
+.pcrow{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #1b2c4a;font-size:12.5px}.pcrow b{text-align:right;font-weight:600}
 /* ---- passagers ---- */
 .pbar-row{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12.5px}
 .pbar-row .pl{flex:0 0 46%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -459,23 +467,23 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <div id="modal" hidden></div>
 <div id="toasts"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="airports-db.js?v=20261015"></script>
-<script src="runways-db.js?v=20261015"></script>
-<script src="data.js?v=20261015"></script>
-<script src="sim.js?v=20261015"></script>
-<script src="realism.js?v=20261015"></script>
-<script src="airlines-db.js?v=20261015"></script>
-<script src="airlines.js?v=20261015"></script>
-<script src="world-ai.js?v=20261015"></script>
-<script src="passengers.js?v=20261015"></script>
-<script src="pulse.js?v=20261015"></script>
-<script src="business.js?v=20261015"></script>
-<script src="map.js?v=20261015"></script>
-<script src="ui.js?v=20261015"></script>
-<script src="pilot.js?v=20261015"></script>
-<script src="actions.js?v=20261015"></script>
-<script src="globe.js?v=20261015"></script>
-<script src="ui-biz.js?v=20261015"></script>
-<script src="simple.js?v=20261015"></script>
+<script src="airports-db.js?v=20261016"></script>
+<script src="runways-db.js?v=20261016"></script>
+<script src="data.js?v=20261016"></script>
+<script src="sim.js?v=20261016"></script>
+<script src="realism.js?v=20261016"></script>
+<script src="airlines-db.js?v=20261016"></script>
+<script src="airlines.js?v=20261016"></script>
+<script src="world-ai.js?v=20261016"></script>
+<script src="passengers.js?v=20261016"></script>
+<script src="pulse.js?v=20261016"></script>
+<script src="business.js?v=20261016"></script>
+<script src="map.js?v=20261016"></script>
+<script src="ui.js?v=20261016"></script>
+<script src="pilot.js?v=20261016"></script>
+<script src="actions.js?v=20261016"></script>
+<script src="globe.js?v=20261016"></script>
+<script src="ui-biz.js?v=20261016"></script>
+<script src="simple.js?v=20261016"></script>
 </body>
 </html>
