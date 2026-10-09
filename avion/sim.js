@@ -181,7 +181,7 @@ function logMsg(text, kind='info'){
 /* ---------- prix du carburant ---------- */
 function oilMult(){ return S.events.reduce((m,e)=>m*(EV(e).oil||1),1); }
 function fuelPrice(code){ // $ par litre
-  let p = S.oil/159*1.3 + 0.12;
+  let p = (S.oil/159*1.3 + 0.12)*(S.fuelDiscount&&S.fuelDiscount.until>S.time?S.fuelDiscount.f:1);
   if(code && !isDrc(code) && AP(code).traffic<0.15 && !AP(code).fuelDepot) p*=1.18; // petits aéroports isolés
   if(code && isDrc(code)){
     if(!['FIH','FBM','GOM','FKI'].includes(code) && !AP(code).fuelDepot) p*=1.35; // acheminement vers l'intérieur
@@ -517,6 +517,7 @@ function completeLeg(ac){
       if(!late) S.reputation=clamp(S.reputation+0.5,0,100);
     }
   }
+  if(fl.kind==='charter'&&typeof charterLegDone==='function') rev+=charterLegDone(ac,fl,leg,arr);
   S.stats.flights++;
   // usure
   ac.hours+=hrs; ac.cycles++; ac.sinceA+=hrs; ac.sinceC+=hrs; ac.sinceD+=hrs;
@@ -648,6 +649,8 @@ function simStep(){
       const due=['D','C','A'].find(k=>ac['since'+k]>=MAINT[k].every*0.97);
       if(due){ startMaint(ac,due,t); continue; }
     }
+    // charter réservé : priorité dès que l'avion est libre à sa base
+    if(ac.charterQ && typeof charterQueued==='function' && charterQueued(ac,t)) continue;
     // planning hebdomadaire
     if(ac.plan && ac.plan.length && !ac.hold) scheduleAircraft(ac, t, Math.max(t-5*MIN, ac.readyAt||0));
   }
