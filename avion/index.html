@@ -165,6 +165,13 @@ body.globe-on #ticker{display:none}
 body.globe-follow #main{position:fixed;inset:0;z-index:2000;margin:0}
 body.globe-follow #panel,body.globe-follow #flightcard,body.globe-follow #tabbar{display:none!important}
 body.globe-follow #globeHud{max-width:calc(100% - 20px)}
+#city{position:absolute;inset:0;z-index:1000;background:#cfd8e3}
+#city[hidden],#cityHud[hidden]{display:none}
+#cityHud select.gh{width:auto;flex:0 0 auto}
+#cityHud{position:absolute;top:10px;left:10px;z-index:1060;display:flex;flex-wrap:wrap;gap:6px;max-width:calc(100% - 460px)}
+body.city-on #mapctl,body.city-on #guide,body.city-on #ticker{display:none}
+#mapctl .globe3d.city{background:linear-gradient(135deg,#b45309,#be185d)!important;border-color:#fcd34d!important}
+@media (max-width:800px){#cityHud{max-width:calc(100% - 20px)}}
 .gh-tip{align-self:center;font-size:11.5px;color:#cbd5e1;text-shadow:0 0 3px #000}
 /* ---- HUD de vol (vue 3D) ---- */
 #rfsHud{position:absolute;inset:0;pointer-events:none;z-index:1050;color:#3cff6b;font:600 13px ui-monospace,Menlo,monospace;text-shadow:0 0 3px #000,0 0 2px #000}
@@ -459,6 +466,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
       <button class="menu" data-act="mapMenu">☰ Carte</button>
       <button class="keep primary" data-act="flightList">🛫 Mes vols</button>
       <button class="globe3d" data-act="open3D">🌍 Vue 3D</button>
+      <button class="globe3d city" data-act="openCity">🏙️ Ville 3D</button>
       <button class="on adv" data-act="mapToggle" data-k="routes">🧭 Routes</button>
       <button class="on adv" data-act="mapToggle" data-k="airports">🛬 Aéroports</button>
       <button class="on adv" data-act="mapToggle" data-k="night">🌗 Jour/nuit</button>
@@ -506,6 +514,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="actions.js?v=20261019"></script>
 <script src="aircraft3d.js?v=20261019"></script>
 <script src="globe.js?v=20261019"></script>
+<script src="city3d.js?v=20261019"></script>
 <script src="ui-biz.js?v=20261019"></script>
 <script src="simple.js?v=20261019"></script>
 </body>
