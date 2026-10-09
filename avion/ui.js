@@ -67,7 +67,7 @@ function hydratePhotos(){
 /* ---------- notifications ---------- */
 function toast(text, kind='info'){
   const box=$('#toasts'); if(!box) return;
-  const el=document.createElement('div'); el.className='toast '+kind; el.innerHTML=text;
+  const el=document.createElement('div'); el.className='toast '+kind; el.innerHTML=text; el.addEventListener('click',ev=>{ if(!ev.target.closest('[data-act]')) el.remove(); });
   box.appendChild(el); setTimeout(()=>el.classList.add('out'),5200); setTimeout(()=>el.remove(),5800);
   while(box.children.length>(UI.mobile?2:3)) box.firstChild.remove();
 }
