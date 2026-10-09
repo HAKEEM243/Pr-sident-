@@ -107,7 +107,7 @@ function pMore(){
   </div>
   <label class="tog"><input type="checkbox" data-in="simple" ${S.simple?'checked':''}> <b>Mode simple</b> : personnel, carburant, maintenance et programmation automatiques</label>
   <div class="small mut" style="margin:4px 0 10px">Décochez pour tout gérer vous-même (mode expert : tous les onglets).</div>
-  <div class="morelist"><button data-act="daily">🎁 <b>Défis du jour</b><small>Récompense quotidienne, coffre</small></button><button data-act="charters">🛫 <b>Charters</b><small>Équipes, pèlerins, concerts…</small></button></div>
+  <div class="morelist"><button data-act="daily">🎁 <b>Défis du jour</b><small>Récompense quotidienne, coffre</small></button><button data-act="charters">🛫 <b>Charters</b><small>Équipes, pèlerins, concerts…</small></button><button data-act="livery">🎨 <b>Livrée</b><small>Peindre vos avions</small></button><button data-act="open3D">📸 <b>Vue 3D & photo</b><small>Suivre un vol, mode photo</small></button></div>
   <div class="btns"><button class="btn gold" data-act="install">📲 Application${typeof isStandalone==='function'&&isStandalone()?' (installée)':' : installer sur mon téléphone'}</button></div>
   <div class="btns"><button class="btn gold" data-act="saves">💾 Sauvegardes : sauvegarder, charger, exporter, importer</button></div>
   <div class="btns"><button class="btn" data-act="guideReset">🎓 Revoir le tutoriel</button><button class="btn" data-act="mapStyle">🗺️ Fond de carte</button></div>
@@ -152,6 +152,7 @@ if(typeof registerCityActions==='function') registerCityActions();
 if(typeof registerInboxActions==='function') registerInboxActions();
 if(typeof registerPwaActions==='function') registerPwaActions();
 if(typeof registerProgressActions==='function') registerProgressActions();
+if(typeof registerStudioActions==='function') registerStudioActions();
 Object.assign(ACTIONS,{
   flightList:()=>{ UI.fl=!UI.fl; if(UI.fl&&UI.mobile) $('#mapctl').classList.remove('open'); renderFlightList(); },
   flTab:d=>{ UI.flTab=d.k; renderFlightList(); },
