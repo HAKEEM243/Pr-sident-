@@ -92,6 +92,7 @@ function pMore(){
     <div class="kpi"><div class="kl">Cette semaine</div><div class="kv ${wk<0?'neg':'pos'}">${wk>=0?'+':''}${fmtMoney(wk)}</div></div>
     <div class="kpi"><div class="kl">Avions en vol</div><div class="kv">${flying} / ${S.fleet.length}</div></div>
     <div class="kpi"><div class="kl">Passagers</div><div class="kv">${num(S.stats.pax)}</div></div></div>
+  ${diagHtml()}
   <h3>Aller plus loin</h3>
   <div class="morelist">
     ${item('finance','💰','Finances','Recettes et dépenses')}
@@ -159,3 +160,63 @@ Object.assign(INPUTS,{
 document.addEventListener('pointerdown',e=>{ if(e.target.closest&&e.target.closest('#flightlist')) UI.flTouch=performance.now(); },true);
 setInterval(()=>{ if(typeof S!=='undefined'&&S&&UI.fl) renderFlightList(); },1500);
 }
+
+/* ============================================================
+   DIAGNOSTIC FINANCIER : pourquoi je suis dans le rouge ?
+   ============================================================ */
+function pilotsRequired(){ const n={}; for(const a of S.fleet){ const f=modelOf(a).fam; n[f]=(n[f]||0)+1; } return {map:n, total:Object.values(n).reduce((s,v)=>s+2*v+2,0)}; }
+function financeDiagnosis(){
+  const w=S.led.prevWeek&&Object.keys(S.led.prevWeek).length? S.led.prevWeek : (S.led.week||{});
+  const rev=ledSum(w,1), cost=-ledSum(w,-1), res=rev-cost, out=[];
+  const costs=Object.entries(w).filter(([k,v])=>typeof v==='number'&&v<0).sort((a,b)=>a[1]-b[1]);
+  // 1. pilotes en trop
+  const req=pilotsRequired(), keepP=Math.ceil(req.total*1.1), surP=Math.max(0,S.pilots.length-keepP);
+  if(surP>0){ const avg=S.pilots.reduce((s,p)=>s+p.salary,0)/Math.max(1,S.pilots.length), sav=surP*avg*S.staff.sal.pil/100;
+    out.push({w:sav*12/52, ico:'👨‍✈️', t:`Vous avez <b>${num(S.pilots.length)} pilotes</b> pour seulement ${num(req.total)} nécessaires : <b>${num(surP)} pilotes en trop</b> coûtent ≈ ${fmtMoney(sav)} par mois en salaires.`, fix:'trimStaff', label:`Licencier les ${num(surP)} pilotes en trop`}); }
+  // 2. personnel en trop
+  const need=staffNeed(); let savS=0, nS=0;
+  for(const k of ['pnc','meca','sol']){ const keep=Math.ceil(need[k]*1.1), sur=Math.max(0,S.staff[k]-keep); if(sur>0){ nS+=sur; savS+=sur*STAFF_CATS[k][1]*S.staff.sal[k]/100; } }
+  if(nS>0) out.push({w:savS*12/52, ico:'🧳', t:`<b>${num(nS)} employés en trop</b> (navigants, mécaniciens, sol) : ≈ ${fmtMoney(savS)} par mois.`, fix:'trimStaff', label:`Ajuster le personnel`});
+  // 3. avions sans ligne
+  const idle=S.fleet.filter(a=>!(a.plan||[]).some(p=>p.weekly>0)&&a.status!=='manual');
+  if(idle.length){ const lease=idle.filter(a=>!a.owned).reduce((s,a)=>s+a.lease,0), val=idle.reduce((s,a)=>s+(typeof acValue==='function'?acValue(a):0),0);
+    out.push({w:lease*12/52+val*0.002, ico:'✈️', t:`<b>${idle.length} avion(s) sans ligne</b> ne rapportent rien${lease?` et coûtent ${fmtMoney(lease)}/mois de location`:''} (valeur immobilisée ≈ ${fmtMoney(val)}).`, fix:'autoAll', label:`Les programmer sur vos lignes`}); }
+  // 4. lignes qui perdent
+  const losers=S.routes.filter(r=>r.stats.flights>=6&&(r.stats.rev-r.stats.cost)<0).sort((a,b)=>(a.stats.rev-a.stats.cost)-(b.stats.rev-b.stats.cost));
+  if(losers.length){ const tot=losers.reduce((s,r)=>s+(r.stats.rev-r.stats.cost),0);
+    out.push({w:-tot/20, ico:'🧭', t:`<b>${losers.length} ligne(s) perdent de l’argent</b> (pire : ${losers[0].stops.join('⇄')}, ${fmtMoney(losers[0].stats.rev-losers[0].stats.cost)}). Baissez la fréquence, ajustez les prix ou fermez-les.`, tab:'network', label:'Voir mes lignes'}); }
+  // 5. prix trop bas / trop haut
+  const rs=S.routes.filter(r=>r.audit&&routeAircraft(r).length);
+  const lowP=rs.filter(r=>(r.pm.y??1)<0.85).length;
+  if(lowP) out.push({w:1e4*lowP, ico:'🏷️', t:`<b>${lowP} ligne(s)</b> vendent leurs billets à plus de 15 % sous le prix idéal : vous remplissez les avions mais gagnez peu.`, tab:'network', label:'Ajuster les prix'});
+  // 6. carburant
+  const fuelW=-(w.carburant||0); if(S.oil>98&&fuelW>0.3*cost) out.push({w:fuelW*0.1, ico:'⛽', t:`Le kérosène est cher (${S.oil.toFixed(0)} $/baril) : il pèse ${Math.round(fuelW/Math.max(1,cost)*100)} % de vos dépenses.`, tab:'fuel', label:'Acheter le carburant'});
+  // 7. leasing
+  const lz=-(w.leasing||0); if(lz>0.2*cost) out.push({w:lz*0.2, ico:'🔑', t:`La location d’avions pèse ${Math.round(lz/Math.max(1,cost)*100)} % de vos dépenses : rendez les appareils sous-utilisés.`, tab:'fleet', label:'Voir la flotte'});
+  out.sort((a,b)=>b.w-a.w);
+  return {res, rev, cost, top:costs.slice(0,4), items:out};
+}
+function diagHtml(){
+  const d=financeDiagnosis(), ok=d.res>=0;
+  const catName=k=>(LED_CATS[k]||[k])[0];
+  return `<div class="card diag ${ok?'':'diag-bad'}"><div class="row"><b class="grow">🔍 ${ok?'Vos finances sont dans le vert':'Pourquoi je suis dans le rouge ?'}</b><span class="${ok?'pos':'neg'}"><b>${d.res>=0?'+':''}${fmtMoney(d.res)}</b> <span class="mut small">la semaine dernière</span></span></div>
+    <div class="small mut">Recettes ${fmtMoney(d.rev)} · dépenses ${fmtMoney(d.cost)} · plus gros postes : ${d.top.map(([k,v])=>`${catName(k)} ${fmtMoney(-v)}`).join(' · ')||'—'}</div>
+    ${d.items.length? d.items.slice(0,5).map(i=>`<div class="diag-item"><div class="grow">${i.ico} ${i.t}</div>${i.fix?`<button class="btn sm gold" data-act="${i.fix}">${i.label}</button>`:`<button class="btn sm" data-tab="${i.tab}">${i.label}</button>`}</div>`).join('') : `<div class="small mut" style="margin-top:6px">${ok?'Rien d’anormal : continuez ainsi.':'Pas de cause évidente : laissez passer une semaine complète pour que le bilan se stabilise (un avion neuf coûte avant de rapporter).'}</div>`}</div>`;
+}
+if(typeof ACTIONS!=='undefined') Object.assign(ACTIONS,{
+  trimStaff:()=>{
+    const req=pilotsRequired(), remain={...Object.fromEntries(Object.entries(req.map).map(([f,n])=>[f,Math.ceil((2*n+2)*1.1)]))};
+    const keep=[], fired=[];
+    for(const p of S.pilots.slice().sort((a,b)=>b.hours-a.hours)){
+      const q=p.quals.find(x=>remain[x]>0);
+      if(p.training||q){ keep.push(p); if(q) remain[q]--; } else fired.push(p);
+    }
+    let sev=fired.reduce((s,p)=>s+p.salary*0.5,0);
+    let nStaff=0; const need=staffNeed();
+    for(const k of ['pnc','meca','sol']){ const target=Math.ceil(need[k]*1.1), sur=Math.max(0,S.staff[k]-target); if(sur>0){ sev+=sur*STAFF_CATS[k][1]*0.5; S.staff[k]=target; nStaff+=sur; } }
+    if(!fired.length&&!nStaff) return toast('Rien à ajuster : vos effectifs sont déjà au bon niveau','ok');
+    S.pilots=keep; book('salaires',-sev);
+    logMsg(`✂️ Effectifs ajustés : ${num(fired.length)} pilotes et ${num(nStaff)} employés en moins (indemnités ${fmtMoney(sev)}).`,'ok');
+    toast(`✅ ${num(fired.length)} pilotes et ${num(nStaff)} employés en moins · masse salariale ramenée à ${fmtMoney(monthlyPayroll())}/mois`,'ok'); renderPanel(); renderTop();
+  },
+});
