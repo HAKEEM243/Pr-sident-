@@ -102,7 +102,7 @@ function acDims(m, lat, base){
 function zoomScale(){ const z=map?map.getZoom():5; return z<=3?0.75:z<=5?1:z<=7?1.3:z<=9?1.7:z<=11?2.2:z<=13?2.8:3.4; }
 
 function initMap(){
-  map = L.map('map', { zoomControl:false, worldCopyJump:true, minZoom:2, maxZoom:19, attributionControl:true, preferCanvas:false })
+  map = L.map('map', { zoomControl:false, worldCopyJump:true, minZoom:2, maxZoom:19, attributionControl:true, preferCanvas:false, markerZoomAnimation:false })
     .setView([AP(S.company.hub).lat, AP(S.company.hub).lon], runwaysOf(S.company.hub).length?13:6);
   L.control.zoom({position:'topleft'}).addTo(map);
   L.control.scale({position:'bottomleft', imperial:false}).addTo(map);
@@ -132,7 +132,9 @@ function initMap(){
   drawWeather(true);
   map.on('click',()=>{ selectPlane(null); });
   let _mvT=0; map.on('moveend',()=>{ clearTimeout(_mvT); _mvT=setTimeout(()=>{ drawAirports(); updateRival(); },120); });
-  map.on('zoomend',()=>{ clearRivals(); drawAirports(); for(const [,mk] of planeMarkers) L_planes.removeLayer(mk); planeMarkers.clear(); for(const [,mk] of parkedMarkers) L_planes.removeLayer(mk); parkedMarkers.clear(); updatePlanes(); updateRival(); drawWeather(); });
+  map.on('zoomend',()=>{ drawAirports(); for(const [,mk] of planeMarkers) L_planes.removeLayer(mk); planeMarkers.clear(); for(const [,mk] of parkedMarkers) L_planes.removeLayer(mk); parkedMarkers.clear(); updatePlanes(); updateRival(); drawWeather(); });
+  initRivalCanvas();
+  map.on('movestart zoomstart',()=>{ map._mv=true; }); map.on('moveend zoomend',()=>{ map._mv=false; });
   requestAnimationFrame(animateFrame);
 }
 
@@ -153,11 +155,17 @@ function airportTip(a){
 function servedSet(){ const set=new Set(S.hubs||[]); for(const r of S.routes) r.stops.forEach(c=>set.add(c)); return set; }
 let L_runways, _rwCanvas;
 // Pistes réelles : surface, marquages, balisage lumineux (allumé la nuit à l'heure locale), rampes d'approche et PAPI
-function drawRunways(){
-  if(!L_runways) return; L_runways.clearLayers();
-  const z=map.getZoom(); if(z<9 || !MAPOPT.airports) return;
+let _rwDrawn=null;
+function drawRunways(force){
+  if(!L_runways) return;
+  const z=map.getZoom();
+  if(z<9 || !MAPOPT.airports){ if(_rwDrawn){ L_runways.clearLayers(); _rwDrawn=null; } return; }
+  // inutile de tout redessiner à chaque déplacement : on garde le dessin tant que la vue reste dans la zone déjà tracée
+  const vb=map.getBounds(), key=z+'|'+currentStyle+'|'+Math.floor(S.time/(30*MIN));
+  if(!force && _rwDrawn && _rwDrawn.key===key && _rwDrawn.b.contains(vb) && _rwDrawn.lng===Math.round(map.getCenter().lng/360)) return;
+  L_runways.clearLayers(); _rwDrawn={key, b:vb.pad(0.5), lng:Math.round(map.getCenter().lng/360)};
   if(!_rwCanvas) _rwCanvas=L.canvas({padding:0.35});
-  const b=map.getBounds().pad(0.3), c0=map.getCenter().lng, sat=/hybrid|satellite|google_sat/.test(currentStyle||'hybrid');
+  const b=map.getBounds().pad(0.6), c0=map.getCenter().lng, sat=/hybrid|satellite|google_sat/.test(currentStyle||'hybrid');
   const LL=p=>[p.lat,unwrapLon(p.lon,c0)];
   const dot=(p,color,rad,op=1)=>L.circleMarker(LL(p),{renderer:_rwCanvas,interactive:false,stroke:false,fillColor:color,fillOpacity:op,radius:rad}).addTo(L_runways);
   const line=(pts,o)=>L.polyline(pts.map(LL),Object.assign({interactive:false},o)).addTo(L_runways);
@@ -203,30 +211,35 @@ function drawRunways(){
     }
   }
 }
+const airportMk=new Map();
+// Mise à jour incrémentale : on ne recrée que les aéroports qui entrent à l'écran ou changent d'aspect (carte fluide)
 function drawAirports(){
   if(!map) return;
   drawRunways();
-  L_airports.clearLayers();
-  if(!MAPOPT.airports) return;
-  const z=map.getZoom(), served=servedSet(), bounds=map.getBounds().pad(0.2), c0=map.getCenter().lng;
+  if(!MAPOPT.airports){ if(airportMk.size){ L_airports.clearLayers(); airportMk.clear(); } return; }
+  const z=map.getZoom(), served=servedSet(), bounds=map.getBounds().pad(0.2), c0=map.getCenter().lng, want=new Set();
   for(const code of AIRPORT_CODES){
-    const a=AP(code), hub=(S.hubs||[]).includes(code), mine=served.has(code), closed=airportClosed(code);
+    const a=AP(code), hub=(S.hubs||[]).includes(code), mine=served.has(code);
     // désencombrement : à petite échelle, seulement les grands aéroports et votre réseau
     const show = mine || hub || (z>=2 && a.traffic>=30) || (z>=3 && a.traffic>=15) || (z>=4 && a.traffic>=5) || (z>=5 && (a.large||a.traffic>=1.5)) || (z>=6 && a.cls>=3) || z>=7;
     if(!show) continue;
     const lon=unwrapLon(a.lon,c0);
     if(!bounds.contains([a.lat,lon])) continue;
+    const closed=airportClosed(code);
     const size = hub? 24 : a.traffic>=10||mine? 16 : a.large? 13 : 10;
-    const cls = 'ap-pin'+(hub?' hub':'')+(mine&&!hub?' mine':'')+(a.drc?' drc':'')+(closed?' closed':'')+(a.cls>=4&&!hub?' big':'');
+    const cls = 'ap-pin'+(hub?' hub':'')+(mine&&!hub?' mine':'')+(a.drc?' drc':'')+(closed?' closed':'')+(a.cls>=4&&!hub?' big':'')+((typeof moodOf==='function'&&moodOf(a.cc).tension>0.4)?' tense':(typeof moodOf==='function'&&moodOf(a.cc).boom>0.3)?' boomy':'');
     const html = hub? '<span>★</span>' : a.traffic>=10||mine? '<span>✈</span>' : '';
     const label = (hub||mine||z>=7||(z>=5&&a.traffic>=3)||(z>=4&&a.traffic>=15)||(z>=3&&a.traffic>=35)||a.traffic>=60) ? `<b class="ap-name">${a.city}</b>` : '';
-    for(const off of [0]){
-      const mk=L.marker([a.lat,lon],{icon:L.divIcon({className:cls, html:html+label, iconSize:[size,size], iconAnchor:[size/2,size/2]}), zIndexOffset:hub?600:mine?400:0, riseOnHover:true});
-      mk.bindTooltip(airportTip(a),{direction:'top',offset:[0,-size/2]});
-      mk.on('click',(e)=>{ L.DomEvent.stopPropagation(e); openAirport(code); });
-      mk.addTo(L_airports);
-    }
+    const sig=cls+'|'+size+'|'+html+label+'|'+lon.toFixed(3);
+    want.add(code);
+    const old=airportMk.get(code); if(old&&old._sig===sig) continue;
+    if(old) L_airports.removeLayer(old);
+    const mk=L.marker([a.lat,lon],{icon:L.divIcon({className:cls, html:html+label, iconSize:[size,size], iconAnchor:[size/2,size/2]}), zIndexOffset:hub?600:mine?400:0, riseOnHover:true});
+    mk.bindTooltip(()=>airportTip(a),{direction:'top',offset:[0,-size/2]});
+    mk.on('click',(e)=>{ L.DomEvent.stopPropagation(e); openAirport(code); });
+    mk._sig=sig; mk.addTo(L_airports); airportMk.set(code,mk);
   }
+  for(const [code,mk] of airportMk) if(!want.has(code)){ L_airports.removeLayer(mk); airportMk.delete(code); }
 }
 
 function drawRoutes(){
@@ -343,7 +356,7 @@ function updateFlightCard(){
   if(key!==_fcKey){
     _fcKey=key; _fcAt=0;
     box.innerHTML=`<button class="x" data-act="closeCard">×</button>`+(typeof photoHtml==='function'?photoHtml(modelOf(ac),'banner'):'')+`<div class="fc-live"></div>`+
-      `<div class="btns sm"><button class="btn sm ${followPlane?'gold':''}" data-act="followCam">🎥 ${followPlane?'Caméra attachée':'Suivre l’avion'}</button><button class="btn sm" data-act="zoomPlane">🔍 Zoom</button><button class="btn sm" data-act="zoomRoute">🧭 Trajet</button></div><div class="fc-leg"></div>`;
+      `<div class="btns sm"><button class="btn sm ${followPlane?'gold':''}" data-act="followCam">🎥 ${followPlane?'Caméra attachée':'Suivre l’avion'}</button><button class="btn sm" data-act="zoomPlane">🔍 Zoom</button><button class="btn sm" data-act="zoomRoute">🧭 Trajet</button><button class="btn sm" data-act="manifest" data-id="${ac.id}">📋 Passagers</button></div><div class="fc-leg"></div>`;
     if(typeof hydratePhotos==='function') hydratePhotos();
   }
   box.hidden=false;
@@ -430,18 +443,71 @@ function rivalPos(r,i,t){
   const p=gcInterp(from,to,f), q=gcInterp(from,to,Math.min(1,f+0.01));
   return {p, hdg:bearing(p,q), from, to, d};
 }
-function clearRivals(){ L_rival.clearLayers(); rivalPool.clear(); }
+function routeBBox(r){
+  if(r._bb) return r._bb;
+  const A=AP(r.a), B=AP(r.b); let minLat=1e9,maxLat=-1e9,minLon=1e9,maxLon=-1e9, prev=A.lon;
+  for(let i=0;i<=12;i++){ const p=gcInterp(A,B,i/12), lon=unwrapLon(p.lon,prev); prev=lon;
+    if(p.lat<minLat)minLat=p.lat; if(p.lat>maxLat)maxLat=p.lat; if(lon<minLon)minLon=lon; if(lon>maxLon)maxLon=lon; }
+  return r._bb={minLat:minLat-3,maxLat:maxLat+3,minLon:minLon-3,maxLon:maxLon+3};
+}
+/* Les avions des autres compagnies sont dessinés sur UN canvas (au lieu de centaines d'éléments HTML) : la carte reste fluide. */
+let rivalCv=null, rivalCtx=null, rivalHover=null, rivalTipLayer=null, _rvDirty=false;
+const spriteCache=new Map();
+function rivalSprite(color,cat){
+  const k=color+'|'+cat; let sp=spriteCache.get(k); if(sp) return sp.ok? sp.img : null;
+  const img=new Image(); sp={img,ok:false}; spriteCache.set(k,sp);
+  img.onload=()=>{ const c=document.createElement('canvas'); c.width=c.height=64; c.getContext('2d').drawImage(img,0,0,64,64); sp.img=c; sp.ok=true; _rvDirty=true; };   // pré-rastérisé : dessin très rapide
+  const body=SHAPES[cat]().replace(/class="b"/g,`fill="${color}" stroke="#0b1220" stroke-width="1.1" stroke-linejoin="round"`);
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">${body}<rect x="31.1" y="7" width="1.8" height="38" rx=".9" fill="#fff" opacity=".35"/></svg>`;
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+  return null;
+}
+function initRivalCanvas(){
+  const host=document.getElementById('map'); if(!host||rivalCv) return;
+  rivalCv=document.createElement('canvas'); rivalCv.className='rival-canvas'; host.appendChild(rivalCv); rivalCtx=rivalCv.getContext('2d');
+  const fit=()=>{ const r=host.getBoundingClientRect(), d=Math.min(2,window.devicePixelRatio||1); rivalCv.width=Math.round(r.width*d); rivalCv.height=Math.round(r.height*d); rivalCv._d=d; _rvDirty=true; };
+  fit(); window.addEventListener('resize',fit); map.on('resize',fit);
+  map.on('move',()=>{ _rvDirty=true; });
+  map.on('zoomstart',()=>{ rivalCv.style.visibility='hidden'; });   // pendant l'animation de zoom, on masque (réapparaît net à la fin)
+  map.on('zoomend',()=>{ rivalCv.style.visibility='visible'; _rvDirty=true; });
+  // survol / toucher : infobulle de l'avion le plus proche
+  const pick=(pt)=>{ let best=null, bd=18*18; for(const e of rivalPool.values()){ if(e.px===undefined) continue; const dx=e.px-pt.x, dy=e.py-pt.y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=e; } } return best; };
+  const show=(e)=>{ if(rivalHover===e) return; rivalHover=e; if(rivalTipLayer){ map.removeLayer(rivalTipLayer); rivalTipLayer=null; }
+    if(e) rivalTipLayer=L.tooltip({permanent:true,direction:'right',offset:[10,0],className:'flight-tip',interactive:false}).setLatLng([e.lat,e.lon]).setContent(rivalTip(e)).addTo(map); };
+  map.on('mousemove',ev=>{ if(map._mv) return; const e=pick(ev.containerPoint); host.style.cursor=e?'pointer':''; show(e); });
+  map.on('click',ev=>{ const e=pick(ev.containerPoint); if(e){ show(e); setTimeout(()=>{ if(rivalHover===e) show(null); },3500); } });
+  map.on('movestart zoomstart',()=>show(null));
+}
+function drawRivals(){
+  if(!rivalCtx||!map) return; _rvDirty=false;
+  const g=rivalCtx, d=rivalCv._d||1; g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,rivalCv.width,rivalCv.height);
+  if(!MAPOPT.rival||!rivalPool.size) return;
+  const sz=Math.round(19*zoomScale()), W=rivalCv.width/d, H=rivalCv.height/d; g.setTransform(d,0,0,d,0,0);
+  for(const e of rivalPool.values()){
+    const p=map.latLngToContainerPoint([e.lat,e.lon]); e.px=p.x; e.py=p.y;
+    if(p.x<-30||p.y<-30||p.x>W+30||p.y>H+30) continue;
+    const img=rivalSprite(e.R.color,e.cat); if(!img) continue;
+    g.save(); g.translate(p.x,p.y); g.rotate(e.hdg*Math.PI/180); g.globalAlpha=0.92; g.drawImage(img,-sz/2,-sz/2,sz,sz); g.restore();
+  }
+}
+function clearRivals(){ rivalPool.clear(); rivalHover=null; _rvDirty=true; }
+function setRivalSize(){ _rvDirty=true; }
+function rivalTip(e){ const q=rivalPos(e.r,e.i,simNow()); if(!q) return `<b>${e.R.name}</b>`; const mn=typeof realMinutes==='function'?realMinutes(e.r.a,e.r.b):0;
+  return `<b>${e.R.name}</b> <span class="mut">${e.R.code}</span><br>${q.from.city} (${q.from.code}) → ${q.to.city} (${q.to.code})<br><span class="mut">${num(q.d)} km${mn?` · vol réel ≈ ${fmtDur(mn*MIN)}`:''}</span>`; }
 function updateRival(){
   if(!map) return;
   if(!MAPOPT.rival || !S.rivals){ if(rivalPool.size) clearRivals(); return; }
-  const bounds=map.getBounds().pad(0.3), z=zoomScale(), sz=Math.round(19*z), t=simNow(), c0=map.getCenter().lng, want=new Set();
+  const bounds=map.getBounds().pad(0.3), t=simNow(), c0=map.getCenter().lng, want=new Set();
   let n=0;
   // vos concurrents suivis + toutes les compagnies réelles qui desservent les aéroports à l'écran
   const list=[]; for(const R of S.rivals) for(const r of R.routes) list.push({R,r});
   if(map.getZoom()>=4 && typeof visibleRealRoutes==='function') list.push(...visibleRealRoutes(map.getBounds().pad(0.1), c0, map.getZoom()>=7?20:45));
-  const cap=map.getZoom()>=6?160:120;
+  const cap=map.getZoom()>=6?220:160;
+  const vb=bounds, W=vb.getWest(), E=vb.getEast(), So=vb.getSouth(), No=vb.getNorth();
   outer: for(const {R,r} of list){
-    const cnt=Math.min(r.freq,3);
+    const bb=routeBBox(r);   // ligne entièrement hors de l'écran : on ne calcule rien
+    if(bb.maxLat<So||bb.minLat>No||![-360,0,360].some(o=>bb.maxLon+o>=W&&bb.minLon+o<=E)) continue;
+    const cnt=typeof routeMoodFreq==='function'? Math.min(routeMoodFreq(r),5) : Math.min(r.freq,3);
     for(let i=0;i<cnt;i++){
       const q=rivalPos(r,i,t); if(!q) continue;
       const lon=unwrapLon(q.p.lon,c0);
@@ -449,29 +515,23 @@ function updateRival(){
       if(n++>cap) break outer;
       const key=R.code+'|'+r.a+'|'+r.b+'|'+i; if(want.has(key)) continue; want.add(key);
       let e=rivalPool.get(key);
-      if(!e){
-        const cat=q.d<1200?'prop':q.d<5000?'nb':'wb';
-        const mk=L.marker([q.p.lat,lon],{icon:L.divIcon({className:'plane-icon rival', html:`<div class="rot" style="--sh:5px">${PLANE_SVG(R.color,sz,cat)}</div>`, iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]}), zIndexOffset:500})
-          .bindTooltip('',{direction:'right'});
-        mk.addTo(L_rival); e={mk,R,r,i}; rivalPool.set(key,e);
-      } else e.mk.setLatLng([q.p.lat,lon]);
-      if(e.dir!==q.from.code){ e.dir=q.from.code; const mn=typeof realMinutes==='function'?realMinutes(r.a,r.b):0; e.mk.setTooltipContent(`<b>${R.name}</b> <span class="mut">${R.code}</span><br>${q.from.city} (${q.from.code}) → ${q.to.city} (${q.to.code})<br><span class="mut">${num(q.d)} km${mn?` · vol réel ≈ ${fmtDur(mn*MIN)}`:''}</span>`); }
-      const el=e.mk.getElement(), rot=e.rot||(e.rot=el&&el.querySelector('.rot')); if(rot) setRot(rot,q.hdg);
+      if(!e){ e={R,r,i,cat:q.d<1200?'prop':q.d<5000?'nb':'wb'}; rivalPool.set(key,e); }
+      e.lat=q.p.lat; e.lon=lon; e.hdg=q.hdg;
     }
   }
-  for(const [k,e] of rivalPool) if(!want.has(k)){ L_rival.removeLayer(e.mk); rivalPool.delete(k); }
+  for(const k of rivalPool.keys()) if(!want.has(k)) rivalPool.delete(k);
+  _rvDirty=true;
 }
 function animateRivals(t,b){
   for(const e of rivalPool.values()){
-    const ll=e.mk.getLatLng(); if(!b.contains(ll)) continue;
     const q=rivalPos(e.r,e.i,t); if(!q) continue;
-    e.mk.setLatLng([q.p.lat,unwrapLon(q.p.lon,ll.lng)]);
-    if(e.rot) setRot(e.rot,q.hdg);
+    e.lat=q.p.lat; e.lon=unwrapLon(q.p.lon,e.lon); e.hdg=q.hdg;
   }
+  _rvDirty=true;
 }
 /* ---------- animation fluide (60 images/s) ---------- */
 // Rotation sans « tour complet » quand le cap passe de 359° à 1°
-function setRot(el,h){ const a=el._a===undefined?h:el._a, d=((h-a)%360+540)%360-180; if(Math.abs(d)<0.2&&el._a!==undefined) return; el._a=a+d; el.style.transform=`rotate(${el._a.toFixed(1)}deg)`; }
+function setRot(el,h){ const a=el._a===undefined?h:el._a, d=((h-a)%360+540)%360-180; if(Math.abs(d)<0.2&&el._a!==undefined) return; el._a=a+d; el.style.transform=(el._pre||'')+`rotate(${el._a.toFixed(1)}deg)`; }
 // Heure de jeu affichée : interpolée entre deux pas de simulation
 let _clk={perf:0,t:-1};
 function simNow(){
@@ -493,7 +553,8 @@ function animateFrame(now){
     const st=flightState(ac,t); if(!st) continue;
     mk.setLatLng([st.lat,st.lon]); if(mk._rot) setRot(mk._rot,st.hdg);
   }
-  animateRivals(t,b);
+  if(!map._mv) animateRivals(t,b);
+  if(_rvDirty) drawRivals();
   if(followPlane&&selectedPlane){ const mk=planeMarkers.get(selectedPlane); if(mk) map.panTo(mk.getLatLng(),{animate:false}); }
 }
 function hashStr(s){ let h=0; for(const c of s) h=(h*131+c.charCodeAt(0))%100000; return h; }

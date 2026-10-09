@@ -80,7 +80,7 @@ function newGame(opts){
     cash:opts.capital||80e6, reputation:50, service:3,
     ancillary:{seat:true, bags:true, wifi:false, meals:false},
     oil:82, oilBase:82, fleet:[], customModels:[], pilots:[], candidates:[], cabinCrew:8, routes:[],
-    v:2, simple:true, hubs:[opts.hub||'FIH'],
+    v:2, simple:true, auto:{pil:true,pnc:true,meca:true,sol:true}, hubs:[opts.hub||'FIH'],
     fuel:{stock:400000, cap:1500000, auto:false, autoBelow:0.72, hist:[]},
     co2:{stock:300, cap:3000, price:85, base:85, hist:[]},
     staff:{pnc:8, meca:6, sol:18, sal:{pil:100,pnc:100,meca:100,sol:100}, morale:{pil:70,pnc:70,meca:70,sol:70}, strikeUntil:0},
@@ -195,7 +195,9 @@ const EV = e=>EVENT_TYPES.find(t=>t.id===e.type)||{};
 function seasonMult(t){ const m=new Date(t).getUTCMonth(); return [0.85,0.85,0.95,1.0,1.0,1.08,1.25,1.25,1.0,0.95,0.95,1.3][m]; }
 function demandMult(a,b){
   let k = seasonMult(S.time);
-  const A=AP(a), B=AP(b), domestic = A.drc&&B.drc, intl = A.cc!==B.cc, africa = continentOf(a)==='AF'&&continentOf(b)==='AF';
+  const A=AP(a), B=AP(b);
+  if(typeof moodDemand==='function'&&S.ai) k*=Math.sqrt(moodDemand(A.cc)*moodDemand(B.cc));   // climat des pays (tension, essor)
+  const domestic = A.drc&&B.drc, intl = A.cc!==B.cc, africa = continentOf(a)==='AF'&&continentOf(b)==='AF';
   for(const e of S.events){
     const t=EV(e);
     if(t.demand) k*=t.demand;
@@ -381,7 +383,11 @@ function flightState(ac, t=S.time){
 }
 
 /* ---------- équipage ---------- */
-function qualifiedPilots(fam){ return S.pilots.filter(p=>p.quals.includes(fam)&&!p.training).length; }
+let _qp={t:-1,n:-1,m:{}};
+function qualifiedPilots(fam){ // mis en cache : avec des milliers de pilotes, on ne recompte qu'une fois par pas de simulation
+  if(_qp.t!==S.time||_qp.n!==S.pilots.length){ _qp={t:S.time,n:S.pilots.length,m:{}}; }
+  return _qp.m[fam]!==undefined? _qp.m[fam] : (_qp.m[fam]=S.pilots.filter(p=>p.quals.includes(fam)&&!p.training).length);
+}
 function activeOfFamily(fam, except){ return S.fleet.filter(a=>a!==except && a.status==='flight' && modelOf(a)?.fam===fam).length; }
 const cabinNeed = m=>isCargo(m)?0:Math.max(1,Math.ceil(m.seats/50));
 function cabinBusy(except){ return S.fleet.filter(a=>a!==except&&a.status==='flight').reduce((s,a)=>s+cabinNeed(modelOf(a)),0); }
@@ -407,6 +413,7 @@ function checkLegs(ac, legs){
 }
 function airportClosed(code){
   if(S.closed.includes(code)) return true;
+  if(S.ai&&S.ai.shut&&S.ai.shut[code]>S.time) return true;
   if(S.events.some(e=>EV(e).closeLaterite) && AP(code).surface==='Latérite') return true;
   return false;
 }
@@ -993,14 +1000,9 @@ function staffNeed(){
   const pil=S.fleet.reduce((s,a)=>s+2,0);
   return {pil,pnc,meca,sol};
 }
-// Recrutement progressif : on ne peut pas embaucher 1 000 personnes en un jour
-function hireQuota(k){
-  const wk=Math.floor(S.time/(7*DAY)); if(!S.hireLog||S.hireLog.wk!==wk) S.hireLog={wk,used:{}};
-  const have=k==='pil'? S.pilots.length : S.staff[k];
-  const max=Math.max(k==='pil'?3:6, Math.ceil(have*(k==='pil'?0.10:0.12)))*(S.simple?2:1);
-  const used=S.hireLog.used[k]||0; return {max, used, left:Math.max(0,max-used)};
-}
-function useHire(k,n){ hireQuota(k); S.hireLog.used[k]=(S.hireLog.used[k]||0)+n; }
+// Recrutement libre (en masse possible)
+function hireQuota(k){ return {max:Infinity, used:0, left:1e9}; }   // plus de limite : recrutez autant que vous voulez
+function useHire(k,n){}
 function staffCount(k){ return k==='pil'? S.pilots.filter(p=>!p.training).length : S.staff[k]; }
 function staffShortage(k){ const need=staffNeed()[k]; return need? clamp((need-staffCount(k))/need,0,1) : 0; }
 function monthlyPayroll(){
@@ -1118,6 +1120,7 @@ function save(){ if(!S) return; S.lastReal=Date.now(); try{ localStorage.setItem
 function migrate(){
   if(typeof ensureBiz==='function') ensureBiz();
   if(S.simple===undefined) S.simple=true;
+  if(!S.auto) S.auto={pil:!!S.simple,pnc:!!S.simple,meca:!!S.simple,sol:!!S.simple};
   if(S.rival && !S.rivals){ Object.assign(S.rival,{local:true,color:'#e5484d'}); S.rivals=[S.rival]; for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false)); delete S.rival; }
   if(!S.rivals||!S.rivals.length) initRivals();
   if(!S.ai && typeof initWorldAI==='function' && typeof AIRLINE_DB!=='undefined') initWorldAI();

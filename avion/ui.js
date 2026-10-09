@@ -13,7 +13,7 @@ const bar = (v,cls='')=>`<div class="pbar ${cls}"><i style="width:${clamp(v,0,1)
 
 const TABS_SIMPLE = [['map','🗺️','Carte'],['network','🧭','Lignes'],['fleet','✈️','Flotte'],['shop','🛒','Acheter'],['news','📰','Actus'],['more','⋯','Plus']];
 const TABS_ALL = [
-  ['map','🗺️','Carte'],['dash','🏠','Accueil'],['news','📰','Actus'],['network','🌍','Réseau'],['fleet','✈️','Flotte'],['shop','🛒','Achats'],
+  ['map','🗺️','Carte'],['dash','🏠','Accueil'],['news','📰','Actus'],['pax','🛂','Passagers'],['network','🌍','Réseau'],['fleet','✈️','Flotte'],['shop','🛒','Achats'],
   ['staff','👥','Personnel'],['fuel','⛽','Carburant'],['finance','💰','Finances'],['bourse','📈','Bourse'],['company','📣','Compagnie'],['world','🌐','Monde'],['admin','🛠️','Admin'],
 ];
 const TABS = TABS_ALL;
@@ -120,7 +120,7 @@ function setTab(t){
 }
 function renderPanel(){
   const body=$('#panelBody'); if(!body) return;
-  const fn={more:pMore, news:pNews, dash:pDash, network:pNetwork, fleet:pFleet, shop:pShop, staff:pStaff, fuel:pFuel, finance:pFinance, bourse:pBourse, company:pCompany, world:pWorld, drc:pWorld, admin:pAdmin}[UI.tab];
+  const fn={more:pMore, news:pNews, pax:pPax, dash:pDash, network:pNetwork, fleet:pFleet, shop:pShop, staff:pStaff, fuel:pFuel, finance:pFinance, bourse:pBourse, company:pCompany, world:pWorld, drc:pWorld, admin:pAdmin}[UI.tab];
   if(!fn) return;
   const st=body.scrollTop;
   body.innerHTML=(typeof simpleTop==='function'?simpleTop(UI.tab):'')+fn();
@@ -247,7 +247,8 @@ function lineDemandRows(r, compact){
     return `<tr><td>${{y:'💺 Éco',j:'💼 Affaires',f:'👑 Première',c:'📦 Fret'}[k]}</td><td>${dem}</td><td>${num(Math.min(cap,offer||cap))}${unit}${offer?` <span class="mut">/ ${num(offer)}</span>`:''}</td>
       <td><b>${fmtMoney(x.price)}</b>${audited?` <span class="${cls} small">(${ratio>=1?'+':''}${Math.round((ratio-1)*100)} %)</span>`:''}</td></tr>`;
   }).join('');
-  return `<table class="tbl dem"><tr><th>Classe</th><th>Demande/j</th><th>Captée/j <span class="mut">/ offre</span></th><th>Prix</th></tr>${rows}</table>`;
+  return `<table class="tbl dem"><tr><th>Type de billet</th><th>Voyageurs qui veulent ce trajet<br><span class="mut">(par jour)</span></th><th>Vous transportez<br><span class="mut">(par jour / places offertes)</span></th><th>Prix du billet</th></tr>${rows}</table>
+  <div class="small mut">Exemple : « 400 voyageurs » = 400 personnes veulent faire ce trajet chaque jour. « 120 / 180 » = vous en transportez 120 avec 180 places offertes. Le pourcentage à côté du prix compare votre prix au prix idéal du marché.</div>`;
 }
 function pNetwork(){
   const byHub={}; for(const r of S.routes) (byHub[r.stops[0]]=byHub[r.stops[0]]||[]).push(r);
@@ -279,7 +280,8 @@ function lineModalHtml(r){
   return `<div class="small">${r.stops.map(c=>`${flag(c)} ${AP(c).city}`).join(' → ')} · ${legs.map(l=>num(l.dist)+' km').join(' + ')}</div>
   ${lineTechHtml(r)}
   ${!r.audit?`<div class="al warn">🔍 <b>Audit non réalisé</b> : la demande exacte et les prix idéaux sont inconnus. <button class="btn sm gold" data-act="audit" data-id="${r.id}">Lancer l’audit (${fmtMoney(auditCost(r))})</button></div>`:'<div class="al ok">🔍 Ligne auditée : demande et prix idéaux connus.</div>'}
-  <h3>Demande du marché (${a} → ${b})</h3>${lineDemandRows(r)}
+  <h3>Voyageurs sur ${a} → ${b}</h3>${lineDemandRows(r)}
+  <div class="btns"><button class="btn sm" data-act="paxLine" data-a="${a}" data-b="${b}">🛂 Qui sont ces passagers ? (nationalité, richesse, prix)</button></div>
   ${(()=>{ const rv=rivalsOn(a,b), mn=typeof realMinutes==='function'?realMinutes(a,b):0;
     return rv.length? `<h3>Compagnies réelles sur cette ligne</h3>${mn?`<div class="small mut">Durée de vol réelle (horaire) ≈ <b>${fmtDur(mn*MIN)}</b></div>`:''}${rv.map(x=>`<div class="small"><span class="dot" style="background:${x.R.color}"></span><b>${x.R.name}</b> <span class="mut">${x.R.code}</span> — ≈ ${x.freq} vol(s)/j par sens</div>`).join('')}`
       : `<div class="small mut">✈️ Aucune compagnie ne relie aujourd’hui ${AP(a).city} et ${AP(b).city} en direct : marché vierge.</div>`; })()}
@@ -482,26 +484,32 @@ const editorEst=(e,d)=>`Prix estimé : <b>${fmtMoney(e.price*1e6)}</b> · Consom
 
 /* ---------- 👥 PERSONNEL ---------- */
 function pStaff(){
-  const need=staffNeed(), st=S.staff, strike=(st.strikeUntil||0)>S.time;
+  const need=staffNeed(), st=S.staff, strike=(st.strikeUntil||0)>S.time, A=S.auto||{};
+  const icon={pil:'👨‍✈️',pnc:'💁',meca:'🔧',sol:'🧳'};
   const card=k=>{ const [name,base]=STAFF_CATS[k], n=staffCount(k), mo=st.morale[k];
-    return `<div class="card staff"><div class="row"><b class="grow">${{pil:'👨‍✈️',pnc:'💁',meca:'🔧',sol:'🧳'}[k]} ${name}</b><span class="${n<need[k]?'neg':'pos'}"><b>${n}</b> / ${need[k]} requis</span></div>
+    return `<div class="card staff"><div class="row"><b class="grow">${icon[k]} ${name}</b><span class="${n<need[k]?'neg':'pos'}"><b>${num(n)}</b> / ${num(need[k])} requis</span></div>
       <div class="cond">Moral ${bar(mo/100, mo<30?'bad':mo<50?'warn':'')} <b>${Math.round(mo)} %</b></div>
-      ${(()=>{ const q=hireQuota(k); return `<div class="small mut">Recrutements cette semaine : <b>${q.used}/${q.max}</b></div>`; })()}
+      <label class="tog"><input type="checkbox" data-in="autoK" data-k="${k}" ${A[k]?'checked':''}> <b>Recrutement automatique</b> <span class="mut small">(maintient l’effectif nécessaire)</span></label>
       <label class="small">Salaire : <b>${st.sal[k]} %</b> du marché ${k==='pil'?'':`(${fmtMoney(base*st.sal[k]/100)}/mois)`}<input type="range" min="70" max="160" step="5" value="${st.sal[k]}" data-in="sal" data-k="${k}"></label>
-      ${k==='pil'?'<div class="small mut">Recrutez et formez vos pilotes ci-dessous.</div>':`<div class="btns sm"><button class="btn sm gold" data-act="hireStaff" data-k="${k}" data-n="5">+5</button><button class="btn sm" data-act="hireStaff" data-k="${k}" data-n="1">+1</button><button class="btn sm danger" data-act="hireStaff" data-k="${k}" data-n="-1">−1</button><button class="btn sm danger" data-act="hireStaff" data-k="${k}" data-n="-5">−5</button><button class="btn sm" data-act="hireStaff" data-k="${k}" data-fill="1">Compléter</button></div>`}</div>`; };
-  const fams=Object.keys(FAMILIES);
+      <div class="hirerow"><input type="number" min="1" max="100000" value="${UI.hn&&UI.hn[k]||(k==='pil'?10:20)}" id="hn-${k}" data-in="hn" data-k="${k}" inputmode="numeric">
+        ${k==='pil'?`<select id="hf">${Object.keys(FAMILIES).map(f=>`<option value="${f}" ${f===(UI.hfam||'A320')?'selected':''}>${f}</option>`).join('')}</select>`:''}
+        <button class="btn sm gold" data-act="hireBulk" data-k="${k}">➕ Recruter</button>
+        ${k==='pil'?'':`<button class="btn sm" data-act="hireStaff" data-k="${k}" data-fill="1">Combler le manque</button><button class="btn sm danger" data-act="hireStaff" data-k="${k}" data-n="-1">−1</button>`}</div>
+      <div class="small mut">Coût d’embauche : ≈ ${k==='pil'?'1 mois de salaire par pilote':fmtMoney(base*0.6)+' par personne'} · aucune limite.</div></div>`; };
+  const fams=Object.keys(FAMILIES), MAXP=30;
   return `${strike?`<div class="al bad">✊ <b>Grève en cours</b> jusqu’au ${fmtDate(st.strikeUntil)} : aucun départ depuis vos hubs.</div>`:''}
-  <div class="card">Masse salariale : <b>${fmtMoney(monthlyPayroll())}</b>/mois · Un moral sous 28 % peut déclencher une grève. Sous-effectif : mécaniciens → usure accélérée ; personnel au sol → escales plus longues ; PNC/pilotes → avions cloués au sol.</div>
+  <div class="card">Masse salariale : <b>${fmtMoney(monthlyPayroll())}</b>/mois · Recrutez autant de monde que vous voulez, en un clic. Un moral sous 28 % peut déclencher une grève ; le sous-effectif cloue les avions au sol.</div>
   <div class="staffgrid">${['pil','pnc','meca','sol'].map(card).join('')}</div>
   <h3>Qualifications des pilotes</h3>
   <table class="tbl"><tr><th>Famille</th><th>Qualifiés</th><th>Requis</th><th>En formation</th></tr>
   ${fams.map(f=>{ const q=qualifiedPilots(f), nd=2*S.fleet.filter(a=>modelOf(a).fam===f).length, tr=S.pilots.filter(p=>p.training&&p.training.fam===f).length;
-    if(!q&&!nd&&!tr) return ''; return `<tr><td>${f}</td><td>${q}</td><td class="${q<nd?'neg':''}">${nd}</td><td>${tr?tr+' ⏳':'—'}</td></tr>`;}).join('')}</table>
-  <h3>Pilotes (${S.pilots.length})</h3>
-  ${S.pilots.map(p=>`<div class="card pilot"><div class="grow"><b>${esc(p.name)}</b> ${COUNTRIES[p.nat]?COUNTRIES[p.nat][2]:'🌍'} <span class="mut small">${num(p.hours)} h · ${fmtMoney(p.salary)}/mois</span><br>
+    if(!q&&!nd&&!tr) return ''; return `<tr><td>${f}</td><td>${num(q)}</td><td class="${q<nd?'neg':''}">${nd}</td><td>${tr?tr+' ⏳':'—'}</td></tr>`;}).join('')}</table>
+  <h3>Pilotes (${num(S.pilots.length)})</h3>
+  ${S.pilots.slice(0,MAXP).map(p=>`<div class="card pilot"><div class="grow"><b>${esc(p.name)}</b> ${COUNTRIES[p.nat]?COUNTRIES[p.nat][2]:'🌍'} <span class="mut small">${num(p.hours)} h · ${fmtMoney(p.salary)}/mois</span><br>
     ${p.quals.map(q=>`<span class="chip">${q}</span>`).join('')}
     ${p.training?`<div class="small">⏳ Formation ${p.training.fam} — fin le ${fmtDate(p.training.until)} ${bar((S.time-p.training.start)/(p.training.until-p.training.start))}</div>`:''}</div>
     <div class="btns sm col"><button class="btn sm" data-act="train" data-id="${p.id}" ${p.training?'disabled':''}>🎓 Former</button><button class="btn sm danger" data-act="fire" data-id="${p.id}">Licencier</button></div></div>`).join('')}
+  ${S.pilots.length>MAXP?`<div class="small mut">… et ${num(S.pilots.length-MAXP)} autres pilotes (affichage limité aux ${MAXP} premiers).</div>`:''}
   <h3>Candidats pilotes (renouvelés chaque semaine)</h3>
   ${S.candidates.map(p=>`<div class="card pilot"><div class="grow"><b>${esc(p.name)}</b> ${COUNTRIES[p.nat]?COUNTRIES[p.nat][2]:'🌍'} <span class="mut small">${num(p.hours)} h · ${fmtMoney(p.salary)}/mois</span><br>${p.quals.map(q=>`<span class="chip">${q}</span>`).join('')}</div>
     <button class="btn sm gold" data-act="hire" data-id="${p.id}">Recruter</button></div>`).join('')}`;
