@@ -103,6 +103,7 @@ function renderTop(){
   $('#tb-time').innerHTML=`${fmtDate(S.time)} <b>${fmtTime(S.time)}</b>`;
   $('#tb-oil').innerHTML=`⛽ $${fuelPrice().toFixed(2)}/L`;
   if(typeof renderMailBadge==='function') renderMailBadge();
+  if(typeof renderDailyBadge==='function') renderDailyBadge();
   document.querySelectorAll('[data-speed]').forEach(b=>b.classList.toggle('on', b.dataset.speed===S.speed && !S.paused));
   $('#tb-pause').textContent=S.paused?'▶':'⏸';
   $('#tb-pause').classList.toggle('on',S.paused);

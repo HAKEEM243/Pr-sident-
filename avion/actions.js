@@ -328,7 +328,7 @@ function boot(){
     pilotBackground(dt);
     updatePlanes();
     acc1+=dt; acc2+=dt; acc30+=dt; acc10+=dt;
-    if(acc1>=1000){ acc1=0; checkMissions(); renderTop(); updateRival(); drawWeather(); if(typeof maybeShowDecision==='function') maybeShowDecision(); }
+    if(acc1>=1000){ acc1=0; checkMissions(); if(typeof progressTick==='function') progressTick(); renderTop(); updateRival(); drawWeather(); if(typeof maybeShowDecision==='function') maybeShowDecision(); }
     if(acc2>=2000){ acc2=0; if(!P||P.hidden) liveRefresh(); }
     if(acc30>=20000){ acc30=0; drawNight(); drawAirports(); }
     if(acc10>=10000){ acc10=0; save(); }
