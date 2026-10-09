@@ -58,6 +58,11 @@ function initGlobe(){
   const viewer=new C.Viewer('globe',{ baseLayer:new C.ImageryLayer(esriImg), baseLayerPicker:false, geocoder:false, homeButton:false, sceneModePicker:false,
     navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, msaaSamples:GQ.hq?4:1, orderIndependentTranslucency:!window.SE_NO_OIT });
   viewer.imageryLayers.addImageryProvider(new C.UrlTemplateImageryProvider({url:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', maximumLevel:18}));
+  // la nuit, les villes s'allument : images « Black Marble » de la NASA (GIBS, libres d'accès), affichées seulement du côté nuit du globe
+  try{ const nl=viewer.imageryLayers.addImageryProvider(new C.UrlTemplateImageryProvider({url:'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', maximumLevel:8, credit:'Lumières nocturnes : NASA Black Marble (GIBS)'}),1);
+    nl.dayAlpha=0; nl.nightAlpha=1; nl.brightness=3.2; nl.contrast=1.15; }catch(e){}
+  // nuit réaliste même près du sol (par défaut Cesium éclaire tout quand on est proche) ; relief ombré par le soleil le jour
+  try{ const gl=viewer.scene.globe; gl.lightingFadeOutDistance=1; gl.lightingFadeInDistance=2; }catch(e){}
   const sc=viewer.scene;
   try{ const base=viewer.imageryLayers.get(0); base.saturation=1.32; base.contrast=1.12; base.brightness=1.04; base.gamma=1.04; }catch(e){}
   try{ sc.postProcessStages.fxaa.enabled=true; }catch(e){}
@@ -134,12 +139,15 @@ function acAnimate(an,mi,ph,alt,gnd,spd,hold,push,lat,lon){
   an.t=now;
   if(now-an.litAt>2500){ an.litAt=now; const el=(G&&G.viewer.scene.globe.enableLighting&&!G.forceDay&&typeof sunElevAt==='function')? sunElevAt(lat,lon) : 45;
     an.lit=el<-4; an.el=el; }
+  an.gnd=gnd||ph<=1||ph>=8;
 }
 // lumière du soleil sur l'avion : nuit sombre (seuls hublots et feux brillent), lumière dorée à l'aube et au crépuscule
 function acLight(an,out){
   const el=an.el===undefined?45:an.el, k=Math.max(0.1,Math.min(1,(el+5)/13)), w=Math.max(0,1-Math.abs(el-3)/9)*0.35;
-  out=out||{c:new Cesium.Cartesian3(), f:new Cesium.Cartesian2()};
-  Cesium.Cartesian3.fromElements(2*k, 2*k*(1-w*0.45), 2*k*(1-w), out.c); Cesium.Cartesian2.fromElements(k,k,out.f); return out;
+  out=out||{c:new Cesium.Color(2,2,2,1), f:new Cesium.Cartesian2()};   // lightColor : une Color (composantes HDR), pas un Cartesian3
+  // au sol la nuit : éclairé par les projecteurs de l'aéroport (lumière orangée)
+  const n=an.gnd?Math.max(0,Math.min(1,-el/6)):0;
+  out.c.red=Math.max(2*k,0.85*n); out.c.green=Math.max(2*k*(1-w*0.45),0.68*n); out.c.blue=Math.max(2*k*(1-w),0.46*n); Cesium.Cartesian2.fromElements(Math.max(k,0.3*n),Math.max(k,0.3*n),out.f); return out;
 }
 
 /* ---------- synchronisation avec la simulation ---------- */
@@ -262,7 +270,7 @@ function spawnClouds(c){
   const wet=(typeof stormAt==='function'&&stormAt(c.lat,c.lon))?1.6:1;
   for(let i=0;i<Math.round(34*wet);i++){
     const d=rnd(2,70), b=rnd(0,360), q=destPt(c.lat,c.lon,b,d), alt=rnd(900,3400);
-    G.clouds.add({position:C.Cartesian3.fromDegrees(q.lon,q.lat,alt+(typeof groundAt==='function'?Math.max(0,groundAt(q.lat,q.lon)):0)), scale:new C.Cartesian2(rnd(1200,3200),rnd(500,1100)), maximumSize:new C.Cartesian3(rnd(30,60),rnd(14,26),rnd(18,30)), slice:rnd(0.3,0.7), brightness:rnd(0.85,1)});
+    G.clouds.add({position:C.Cartesian3.fromDegrees(q.lon,q.lat,alt+(typeof groundAt==='function'?Math.max(0,groundAt(q.lat,q.lon)):0)), scale:new C.Cartesian2(rnd(1200,3200),rnd(500,1100)), maximumSize:new C.Cartesian3(rnd(30,60),rnd(14,26),rnd(18,30)), slice:rnd(0.3,0.7), brightness:rnd(0.85,1)*(G.cloudK||1)});
   }
 }
 function globeFollow(id){
@@ -297,7 +305,7 @@ function renderRfsHud(ac,p){
     <div class="rf-tape left">${tape(kts,10,v=>v)}<b>${kts}</b></div>
     <div class="rf-tape right">${tape(msl,100,v=>v)}<b>${msl}</b></div>
     <div class="rf-dest">${esc(ap?ap.icao||st.to:st.to)}<br>${(st.remain/1.852).toFixed(1).replace('.',',')} NM</div>
-    <div class="rf-bar"><div><b>${wdir}/${wk}kts</b><span>Vent</span></div><div><b>${kts} kts</b><span>IAS (GS ${gs})</span></div><div><b>${msl} ft</b><span>Altitude MSL</span></div><div><b>${agl} ft</b><span>Altitude AGL</span></div><div><b>${fp}% · ${num(fob*0.8)} kg</b><span>Carburant</span></div><div><b>${ft}</b><span>Temps de vol</span></div><div><b>${st.holding?(st.holding==='out'?'Attente piste':'Attente'):PHASES[st.phase]}</b><span>Phase</span></div></div>`;
+    <div class="rf-bar"><div><b>${wdir}/${wk}kts</b><span>Vent</span></div><div><b>${kts} kts</b><span>IAS (GS ${gs})</span></div><div><b>${msl} ft</b><span>Altitude MSL</span></div><div><b>${agl} ft</b><span>Altitude AGL</span></div><div><b>${fp}% · ${num(fob*0.8)} kg</b><span>Carburant</span></div><div><b>${ft}</b><span>Temps de vol</span></div><div><b>${st.holding?(st.holding==='out'?'Attente piste':'Attente'):st.phase===0&&typeof AP3D!=='undefined'&&AP3D.gate&&AP3D.gate.stage!=='on'?(AP3D.gate.stage==='off'?'Débarquement':'Nettoyage cabine'):PHASES[st.phase]}</b><span>Phase</span></div></div>`;
 }
 async function toggleGoogle3D(on){
   const C=Cesium, key=localStorage.getItem(GKEY);
@@ -451,10 +459,11 @@ function airportsTick(p){
       const P=(along,side)=>{ const q=destPt(r.thr.lat,r.thr.lon,H,along/1000); return side? destPt(q.lat,q.lon,H+90,side/1000) : q; };
       const corners=[P(0,-W/2),P(L,-W/2),P(L,W/2),P(0,W/2)];
       // piste texturée (asphalte, marquages, numéros) ; à défaut, surface unie
-      let done=false; if(typeof runwayEntity==='function'&&d<45){ try{ N.ents.push(runwayEntity(c,r,W)); done=true; }catch(e){ console.warn(e); } }
+      let done=false; if(typeof runwayEntity==='function'&&d<45){ try{ N.ents.push(typeof apLit==='function'?apLit(runwayEntity(c,r,W),'rwy'):runwayEntity(c,r,W)); done=true; }catch(e){ console.warn(e); } }
       if(!done) surf.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(corners.flatMap(q=>[q.lon,q.lat]))), height:0.5+EL, vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(r.hard?new C.Color(0.22,0.23,0.25,0.92):new C.Color(0.45,0.38,0.28,0.9))}}));
       // balisage : bords blancs, seuil vert, fin rouge, rampe d'approche
-      const add=(q,col,sz)=>N.lights.add({position:C.Cartesian3.fromDegrees(q.lon,q.lat,1.4+EL), color:col, pixelSize:sz||4, disableDepthTestDistance:2500, scaleByDistance:new C.NearFarScalar(300,1.6,25000,0.5)});
+      const nightK=(typeof AP3D!=='undefined'&&AP3D.night)?1.5:1;
+      const add=(q,col,sz)=>N.lights.add({position:C.Cartesian3.fromDegrees(q.lon,q.lat,1.4+EL), color:col, pixelSize:(sz||4)*nightK, disableDepthTestDistance:2500, scaleByDistance:new C.NearFarScalar(300,1.6,25000,0.5)});
       for(let x=0;x<=L;x+=60){ add(P(x,-W/2-2),C.Color.fromCssColorString('#fff7d6')); add(P(x,W/2+2),C.Color.fromCssColorString('#fff7d6')); add(P(x,0),C.Color.WHITE.withAlpha(0.8),3); }
       for(let s=-W/2;s<=W/2;s+=4){ add(P(0,s),C.Color.LIME,5); add(P(L,s),C.Color.RED,5); }
       for(let x=60;x<=900;x+=60){ add(P(-x,0),C.Color.fromCssColorString('#fffbe6'),5); if(x%300===0) for(let s=-15;s<=15;s+=5) add(P(-x,s),C.Color.fromCssColorString('#fffbe6'),4); }
@@ -470,7 +479,7 @@ function airportsTick(p){
 function worldTick(p){
   const now=performance.now(); if(G.noWorld){ timeTick(p); return; }
   timeTick(p);
-  if(!G.wAt||now-G.wAt>1500){ G.wAt=now; try{ airportsTick(p); }catch(e){ console.warn(e); } try{ osmTick(p); }catch(e){ console.warn(e); } }
+  if(!G.wAt||now-G.wAt>1500){ G.wAt=now; try{ if(typeof nightTick==='function') nightTick(p); }catch(e){ console.warn(e); } try{ airportsTick(p); }catch(e){ console.warn(e); } try{ osmTick(p); }catch(e){ console.warn(e); } }
 }
 function worldClear(){
   if(!G) return; const V=G.viewer;
