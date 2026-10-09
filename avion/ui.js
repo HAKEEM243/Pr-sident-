@@ -11,10 +11,15 @@ const apName = c=>`${AP(c).city} (${c})`;
 const flag = c=>COUNTRIES[AP(c).cc][2];
 const bar = (v,cls='')=>`<div class="pbar ${cls}"><i style="width:${clamp(v,0,1)*100}%"></i></div>`;
 
-const TABS = [
-  ['map','🗺️','Carte'],['dash','🏠','Accueil'],['network','🌍','Réseau'],['fleet','✈️','Flotte'],['shop','🛒','Achats'],
+const TABS_SIMPLE = [['map','🗺️','Carte'],['network','🧭','Lignes'],['fleet','✈️','Flotte'],['shop','🛒','Acheter'],['news','📰','Actus'],['more','⋯','Plus']];
+const TABS_ALL = [
+  ['map','🗺️','Carte'],['dash','🏠','Accueil'],['news','📰','Actus'],['network','🌍','Réseau'],['fleet','✈️','Flotte'],['shop','🛒','Achats'],
   ['staff','👥','Personnel'],['fuel','⛽','Carburant'],['finance','💰','Finances'],['bourse','📈','Bourse'],['company','📣','Compagnie'],['world','🌐','Monde'],['admin','🛠️','Admin'],
 ];
+const TABS = TABS_ALL;
+const isSimple=()=>!!(typeof S!=='undefined'&&S&&S.simple!==false);
+function renderTabs(){ const T=isSimple()?TABS_SIMPLE:TABS_ALL; $('#tabs').innerHTML=T.map(([k,i,l])=>`<button data-tab="${k}"><span>${i}</span><small>${l}</small></button>`).join(''); document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tabKey(UI.tab))); }
+function tabKey(t){ if(!isSimple()) return t; return TABS_SIMPLE.some(x=>x[0]===t)? t : 'more'; }
 
 /* ---------- photos réelles des avions (Wikimedia Commons via l'API Wikipédia) ---------- */
 const PHOTO_MEM={}, PHOTO_PENDING={};
@@ -36,10 +41,17 @@ function photoFetch(t){
       hydratePhotos();
     }).catch(()=>{ setTimeout(()=>{ PHOTO_PENDING[t]=false; },60000); });
 }
+// Illustrations fournies avec le jeu (affichées tant que la photo Wikimedia n'est pas chargée)
+const MODEL_IMG={A20N:'a320',A320:'a320',A19N:'a320',A318:'a320',A321:'a320',A21N:'a320',A21X:'a320',B738:'b737',B38M:'b737',B3XM:'b737',B737:'b737',B39M:'b737',B38F:'b737',
+  A388:'a380',B744:'b747',B748:'b747',B74F:'b747',B788:'b787',B789:'b787',B78X:'b787',CONC:'conc',A359:'a350',A35K:'a350',A35F:'a350',
+  B77E:'b777',B77W:'b777',B779:'b777',B77F:'b777',B77L:'b777',B778:'b777',AT76:'atr',AT46:'atr',AT7F:'atr',CRJ2:'crj',CRJ7:'crj',CRJ9:'crj',
+  E175:'e195',E190:'e195',E195:'e195',E170:'e195',E290:'e195',E295:'e195',C208:'c208'};
 function photoHtml(m, cls='', color){
   const t=WIKI_TITLES[m.id], c=color||m.color||S.company.color, svg=PLANE_SVG(c,cls.includes('thumb')?44:92,planeCat(m));
   const rec=t&&photoRec(t);
   if(rec) return `<div class="photo ok ${cls}"><img src="${rec.src}" alt="${esc(m.name)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('fail')"><a class="credit" href="${rec.file}" target="_blank" rel="noopener" title="Photo Wikimedia Commons — auteur et licence">📷 Wikimedia</a>${svg}</div>`;
+  const fb=MODEL_IMG[m.id];
+  if(fb) return `<div class="photo ok fallback ${cls}" ${t?`data-pt="${esc(t)}" data-mid="${m.id}"`:''}><img src="img/ac-${fb}.jpg" alt="${esc(m.name)}" loading="lazy"></div>`;
   return `<div class="photo ${cls}" ${t?`data-pt="${esc(t)}" data-mid="${m.id}"`:''}>${svg}</div>`;
 }
 function hydratePhotos(){
@@ -99,7 +111,7 @@ function renderTop(){
 /* ---------- onglets ---------- */
 function setTab(t){
   UI.tab=t;
-  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('on',b.dataset.tab===tabKey(t)));
   document.body.classList.toggle('show-map', t==='map');
   if(t==='map'){ $('#panel').classList.add('hide'); setTimeout(()=>map&&map.invalidateSize(),50); return; }
   $('#panel').classList.remove('hide');
@@ -108,10 +120,10 @@ function setTab(t){
 }
 function renderPanel(){
   const body=$('#panelBody'); if(!body) return;
-  const fn={dash:pDash, network:pNetwork, fleet:pFleet, shop:pShop, staff:pStaff, fuel:pFuel, finance:pFinance, bourse:pBourse, company:pCompany, world:pWorld, drc:pWorld, admin:pAdmin}[UI.tab];
+  const fn={more:pMore, news:pNews, dash:pDash, network:pNetwork, fleet:pFleet, shop:pShop, staff:pStaff, fuel:pFuel, finance:pFinance, bourse:pBourse, company:pCompany, world:pWorld, drc:pWorld, admin:pAdmin}[UI.tab];
   if(!fn) return;
   const st=body.scrollTop;
-  body.innerHTML=fn();
+  body.innerHTML=(typeof simpleTop==='function'?simpleTop(UI.tab):'')+fn();
   body.scrollTop=st;
   hydratePhotos();
   if(UI.tab==='finance'){ drawChart(); drawWeeksChart(); }
@@ -143,6 +155,7 @@ let _msc={t:-1,v:null};
 function marketStatsCache(){ if(_msc.t!==S.time){ _msc={t:S.time,v:marketStats()}; } return _msc.v; }
 function loadFactor(){ let p=0,s=0; for(const r of S.routes){ p+=r.stats.pax; s+=r.stats.seats; } return s? p/s : 0; }
 function competitors(){
+  if(S.ai&&typeof aiRows==='function') return aiRows();
   return [
     {name:S.company.name, value:fleetValue()+Math.max(0,S.cash), fleet:S.fleet.length, me:true, color:S.company.color, hub:S.company.hub, routes:S.routes.length, pax:marketStatsCache().playerDaily, rep:S.reputation},
     ...(S.rivals||[]).map(R=>({name:R.name, value:R.fleet*45e6+Math.max(0,R.cash), fleet:R.fleet, color:R.color, hub:R.hub, routes:R.network||R.routes.length, pax:R.paxDay, rep:R.rep, R})),
@@ -205,8 +218,10 @@ function pDash(){
   <div class="alerts">${alerts().map(([k,t,tab])=>`<div class="al ${k}" ${tab?`data-tab="${tab}"`:''}>${t}</div>`).join('')||'<div class="mut">Tout va bien, commandant.</div>'}</div>
   <h3>Meilleures lignes</h3>
   ${top.length?`<table class="tbl"><tr><th>Ligne</th><th>Vols</th><th>Rempl.</th><th>Résultat</th></tr>${top.map(r=>`<tr data-act="line" data-id="${r.id}" class="click"><td>${r.stops.join('⇄')}</td><td>${r.stats.flights}</td><td>${r.stats.seats?pct(r.stats.pax/r.stats.seats):'—'}</td><td class="${r.stats.rev-r.stats.cost<0?'neg':'pos'}">${fmtMoney(r.stats.rev-r.stats.cost)}</td></tr>`).join('')}</table>`:'<div class="mut">Aucune ligne pour l’instant.</div>'}
+  <h3>Actualités du secteur <button class="btn sm" data-tab="news">Tout voir</button></h3>
+  <div class="log">${typeof feedRows==='function'&&S.ai?feedRows(S.ai.news,5):''}</div>
   <h3>Classement mondial des compagnies</h3>
-  <div class="tblwrap"><table class="tbl rank"><tr><th>#</th><th>Compagnie</th><th>Hub</th><th>Flotte</th><th>Lignes</th><th>PAX/j</th><th>Image</th><th>Valeur</th></tr>${comp.map((c,i)=>`<tr class="${c.me?'me':''}"><td>${['🥇','🥈','🥉'][i]||i+1}</td><td><span class="dot" style="background:${c.color}"></span>${esc(c.name)}${c.R&&c.R.local?' <span class="badge bad">rival local</span>':''}</td><td>${flag(c.hub)} ${c.hub}</td><td>${c.fleet}</td><td>${c.routes}</td><td>${num(c.pax||0)}</td><td>${stars(c.rep)}</td><td>${fmtMoney(c.value)}</td></tr>`).join('')}</table></div>
+  <div class="tblwrap"><table class="tbl rank"><tr><th>#</th><th>Compagnie</th><th>Hub</th><th>Flotte</th><th>Lignes</th><th>PAX/j</th><th>Image</th><th>Valeur</th></tr>${comp.map((c,i)=>`<tr class="${c.me?'me':''}"><td>${['🥇','🥈','🥉'][i]||i+1}${c.delta>0?'<sup class="pos">▲</sup>':c.delta<0?'<sup class="neg">▼</sup>':''}</td><td><span class="dot" style="background:${c.color}"></span>${esc(c.name)}${c.startup?' <span class="badge">🆕</span>':''}${c.crashes?` <span class="mut">💥${c.crashes}</span>`:''}${c.R&&c.R.local?' <span class="badge bad">rival local</span>':''}</td><td>${flag(c.hub)} ${c.hub}</td><td>${c.fleet}</td><td>${c.routes}</td><td>${num(c.pax||0)}</td><td>${stars(c.rep)}</td><td>${fmtMoney(c.value)}</td></tr>`).join('')}</table></div>
   <h3>Journal</h3>
   <div class="log">${S.log.slice(0,18).map(l=>`<div class="lg ${l.kind}"><span class="mut">${fmtDate(l.t)} ${fmtTime(l.t)}</span> ${l.text}</div>`).join('')}</div>`;
 }
@@ -236,7 +251,7 @@ function lineDemandRows(r, compact){
 }
 function pNetwork(){
   const byHub={}; for(const r of S.routes) (byHub[r.stops[0]]=byHub[r.stops[0]]||[]).push(r);
-  return `<div class="btns"><button class="btn gold big" data-act="openLine">➕ Ouvrir une ligne</button><button class="btn big" data-act="buyHubModal">🏢 Acheter un hub</button></div>
+  return `<div class="btns">${isSimple()?'':'<button class="btn gold big" data-act="openLine">➕ Ouvrir une ligne</button>'}<button class="btn ${isSimple()?'sm':'big'}" data-act="buyHubModal">🏢 Acheter un hub</button></div>
   <div class="hubs">${S.hubs.map(h=>{ const a=AP(h), n=(byHub[h]||[]).length, f=S.fleet.filter(x=>x.hub===h).length; return `<div class="hubcard" data-act="openAp" data-c="${h}">
     <div class="hc-top">${flag(h)} <b>${a.city}</b> <span class="mut">${h}</span></div><div class="small">${n} ligne(s) · ${f} avion(s)</div><div class="small mut">${a.name} · piste cl.${a.cls}</div></div>`; }).join('')}</div>
   ${S.hubs.map(h=>`<h3>Lignes depuis ${AP(h).city}</h3>${(byHub[h]||[]).map(lineCard).join('')||'<div class="mut small">Aucune ligne depuis ce hub.</div>'}`).join('')}`;
@@ -471,6 +486,7 @@ function pStaff(){
   const card=k=>{ const [name,base]=STAFF_CATS[k], n=staffCount(k), mo=st.morale[k];
     return `<div class="card staff"><div class="row"><b class="grow">${{pil:'👨‍✈️',pnc:'💁',meca:'🔧',sol:'🧳'}[k]} ${name}</b><span class="${n<need[k]?'neg':'pos'}"><b>${n}</b> / ${need[k]} requis</span></div>
       <div class="cond">Moral ${bar(mo/100, mo<30?'bad':mo<50?'warn':'')} <b>${Math.round(mo)} %</b></div>
+      ${(()=>{ const q=hireQuota(k); return `<div class="small mut">Recrutements cette semaine : <b>${q.used}/${q.max}</b></div>`; })()}
       <label class="small">Salaire : <b>${st.sal[k]} %</b> du marché ${k==='pil'?'':`(${fmtMoney(base*st.sal[k]/100)}/mois)`}<input type="range" min="70" max="160" step="5" value="${st.sal[k]}" data-in="sal" data-k="${k}"></label>
       ${k==='pil'?'<div class="small mut">Recrutez et formez vos pilotes ci-dessous.</div>':`<div class="btns sm"><button class="btn sm gold" data-act="hireStaff" data-k="${k}" data-n="5">+5</button><button class="btn sm" data-act="hireStaff" data-k="${k}" data-n="1">+1</button><button class="btn sm danger" data-act="hireStaff" data-k="${k}" data-n="-1">−1</button><button class="btn sm danger" data-act="hireStaff" data-k="${k}" data-n="-5">−5</button><button class="btn sm" data-act="hireStaff" data-k="${k}" data-fill="1">Compléter</button></div>`}</div>`; };
   const fams=Object.keys(FAMILIES);

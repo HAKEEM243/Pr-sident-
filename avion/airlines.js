@@ -38,15 +38,39 @@ const pairKey=(a,b)=>a<b?a+b:b+a;
 function realPair(a,b){ return PAIR_DB.get(pairKey(a,b))||null; }
 function realCarriers(a,b){ const p=realPair(a,b); return p?p.c:[]; }
 function realMinutes(a,b){ const p=realPair(a,b); return p&&p.min||0; }
-function airlineName(code){ const a=typeof AIRLINE_DB!=='undefined'&&AIRLINE_DB[code]; return a?a[0]:code; }
-function airlinePairs(code){ const out=[]; for(const [k,p] of PAIR_DB) if(p.c.includes(code)) out.push([k.slice(0,3),k.slice(3)]); return out; }
+function airlineName(code){ const a=typeof AIRLINE_DB!=='undefined'&&AIRLINE_DB[code]; if(a) return a[0]; const e=typeof S!=='undefined'&&S&&S.ai&&S.ai.list.find(x=>x.code===code); return e?e.name:code; }
+let _alIdx=null;
+function airlinePairs(code){
+  if(!_alIdx){ _alIdx={}; for(const [k,p] of PAIR_DB) for(const c of p.c) (_alIdx[c]=_alIdx[c]||[]).push([k.slice(0,3),k.slice(3)]); }
+  return _alIdx[code]||[];
+}
+/* ---------- monde vivant : lignes ouvertes/fermées, compagnies disparues ---------- */
+let _aiVer=-1, _aiSrc=null, _cutSet=new Set(), _extraMap=new Map(), _deadSet=new Set();
+function aiIndexes(){
+  const ai=typeof S!=='undefined'&&S&&S.ai; if(!ai) return false;
+  if(_aiSrc===ai && _aiVer===ai.ver) return true;
+  _aiSrc=ai; _aiVer=ai.ver; _cutSet=new Set(); _extraMap=new Map(); _deadSet=new Set(ai.list.filter(e=>e.status==='dead').map(e=>e.code));
+  for(const [c,l] of Object.entries(ai.cut||{})) for(const k of l) _cutSet.add(c+k);
+  for(const [c,l] of Object.entries(ai.extra||{})) for(const k of l){ (_extraMap.get(k)||_extraMap.set(k,[]).get(k)).push(c);
+    const a=k.slice(0,3), b=k.slice(3); (AP_ROUTES[a]=AP_ROUTES[a]||[]); if(!AP_ROUTES[a].includes(b)) AP_ROUTES[a].push(b); (AP_ROUTES[b]=AP_ROUTES[b]||[]); if(!AP_ROUTES[b].includes(a)) AP_ROUTES[b].push(a); }
+  _realOn.clear(); _ghostRoutes.clear();
+  return true;
+}
+// Compagnies qui desservent réellement une ligne aujourd'hui (données réelles ± évolutions du monde vivant)
+function carriersOn(a,b){
+  const k=pairKey(a,b), base=realCarriers(a,b);
+  if(!aiIndexes()) return base;
+  const out=base.filter(c=>!_deadSet.has(c)&&!_cutSet.has(c+k));
+  for(const c of _extraMap.get(k)||[]) if(!out.includes(c)&&!_deadSet.has(c)) out.push(c);
+  return out;
+}
 function airlinesOfCountry(cc, minPairs=3){
   if(typeof AIRLINE_DB==='undefined') return [];
   return Object.entries(AIRLINE_DB).filter(([c,a])=>a[1]===cc && AP(a[2]) && AP(a[2]).cc===cc && a[3]>=minPairs)
     .sort((x,y)=>y[1][3]-x[1][3]).map(([c])=>c);
 }
 function airlinesAt(code){
-  const cnt={}; for(const b of AP_ROUTES[code]||[]) for(const c of realCarriers(code,b)) cnt[c]=(cnt[c]||0)+1;
+  aiIndexes(); const cnt={}; for(const b of AP_ROUTES[code]||[]) for(const c of carriersOn(code,b)) cnt[c]=(cnt[c]||0)+1;
   return Object.entries(cnt).sort((x,y)=>y[1]-x[1]);
 }
 // Fréquence quotidienne estimée d'une compagnie sur une ligne (par sens) : demande ÷ sièges ÷ nombre de compagnies
@@ -67,8 +91,9 @@ const realFleet=(pairs,code)=>REAL_FLEET[code]||Math.max(4,Math.round(1.2*Math.p
 const _ghost=new Map();
 function ghostAirline(code){
   let R=_ghost.get(code); if(R) return R;
-  const a=(typeof AIRLINE_DB!=='undefined'&&AIRLINE_DB[code])||[code,'',null,1];
-  R={name:a[0], code, color:airlineColor(code), hub:a[2], real:true, ghost:true, quality:1, rep:62, fleet:realFleet(a[3],code), routes:[]};
+  const ai=typeof S!=='undefined'&&S&&S.ai&&S.ai.list.find(x=>x.code===code);
+  const a=(typeof AIRLINE_DB!=='undefined'&&AIRLINE_DB[code])||(ai?[ai.name,ai.cc,ai.hub,ai.routes||1]:[code,'',null,1]);
+  R={name:a[0], code, color:ai?ai.color:airlineColor(code), hub:a[2], real:true, ghost:true, quality:1, rep:62, fleet:realFleet(a[3],code), routes:[]};
   _ghost.set(code,R); return R;
 }
 function makeRealRival(code, local){
@@ -104,9 +129,9 @@ function rivalIndex(){
 const _realOn=new Map();
 // Toutes les compagnies présentes sur une ligne : vos concurrents suivis + les autres compagnies réelles
 function rivalsOn(a,b){
-  const k=pairKey(a,b), own=rivalIndex().get(k)||[];
+  const k=pairKey(a,b), own=rivalIndex().get(k)||[]; aiIndexes();
   let rest=_realOn.get(k);
-  if(!rest){ const cs=realCarriers(a,b); rest=cs.map(c=>({c, freq:realFreq(a,b,cs.length)})); _realOn.set(k,rest); }
+  if(!rest){ const cs=carriersOn(a,b); rest=cs.map(c=>({c, freq:realFreq(a,b,cs.length)})); _realOn.set(k,rest); }
   if(!rest.length) return own;
   const out=own.slice(), seen=new Set(own.map(x=>x.R.code));
   for(const x of rest) if(!seen.has(x.c) && !(S.absorbed||[]).includes(x.c)) out.push({R:ghostAirline(x.c), freq:x.freq});
@@ -117,6 +142,7 @@ function rivalsOn(a,b){
 const _ghostRoutes=new Map();
 // Lignes réelles autour des aéroports visibles (toutes compagnies), pour peupler le ciel
 function visibleRealRoutes(bounds, c0, limitAirports=50){
+  aiIndexes();
   const aps=[];
   for(const code of AIRPORT_CODES){ const a=AP(code); if(!AP_ROUTES[code]||a.traffic<0.3) continue;
     if(bounds.contains([a.lat,unwrapLon(a.lon,c0)])) aps.push(code); }
@@ -124,7 +150,7 @@ function visibleRealRoutes(bounds, c0, limitAirports=50){
   const out=[], seen=new Set();
   for(const code of aps.slice(0,limitAirports)) for(const b of AP_ROUTES[code]){
     const k=pairKey(code,b); if(seen.has(k)) continue; seen.add(k);
-    for(const c of realCarriers(code,b).slice(0,3)){
+    for(const c of carriersOn(code,b).slice(0,3)){
       const key=c+k; let r=_ghostRoutes.get(key);
       if(!r){ r={a:k.slice(0,3), b:k.slice(3), freq:Math.min(3,realFreq(code,b))}; _ghostRoutes.set(key,r); }
       out.push({R:ghostAirline(c), r});

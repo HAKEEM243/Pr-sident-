@@ -128,6 +128,30 @@ details.prov summary{cursor:pointer}
 #mapctl button{background:rgba(11,18,32,.88);border:1px solid var(--line);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:12px;text-align:left}
 #mapctl button.on{border-color:var(--gold);color:var(--gold)}
 #mapctl .menu{display:none;font-weight:700}
+#mapctl:not(.advopen) .adv{display:none}
+#mapctl button.primary{background:var(--gold);color:#111;border-color:var(--gold);font-weight:700}
+#flightlist{position:absolute;left:150px;top:84px;z-index:850;width:330px;max-height:calc(100% - 130px);display:flex;flex-direction:column;background:rgba(11,18,32,.96);border:1px solid var(--gold2);border-radius:12px;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.5)}
+#flightlist[hidden]{display:none}
+#flightlist .fl-head{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line)}
+#flightlist .fl-head b{flex:1}
+#flightlist .fl-tabs{display:flex}
+#flightlist .fl-tabs button{flex:1;background:#14233b;border:0;color:var(--mut);padding:8px 4px;font-size:12px;cursor:pointer;font-weight:600}
+#flightlist .fl-tabs button.on{background:#1e5ba8;color:#fff}
+#flightlist .fl-body{overflow-y:auto;flex:1}
+#flightlist .fl-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px}
+#flightlist .fl-row:hover{background:#14233b}
+#flightlist .fl-row .grow{min-width:0}
+#flightlist .fl-row .pbar{margin-top:3px}
+#flightlist .fl-empty{padding:16px;text-align:center;color:var(--mut);font-size:12.5px}
+#flightlist .fl-act{padding:8px;display:flex;gap:6px}
+#flightlist .fl-act .btn{flex:1}
+.bigcta{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+.bigcta .btn{padding:14px;font-size:15px;text-align:left}
+.bigcta .btn small{display:block;font-weight:400;opacity:.8;font-size:11.5px;margin-top:2px}
+.simplehelp{background:#10243f;border:1px solid #1e5ba8;border-radius:10px;padding:9px 12px;margin:6px 0 10px;font-size:12.5px;line-height:1.45}
+.morelist{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.morelist button{background:#14233b;border:1px solid var(--line);border-radius:10px;padding:12px 8px;color:var(--txt);cursor:pointer;font-size:13px;text-align:left}
+.morelist button small{display:block;color:var(--mut);font-size:11px;margin-top:2px}
 #mapctl .globe3d{background:linear-gradient(135deg,#1d4ed8,#0e7490)!important;border-color:#7dd3fc!important;font-weight:700}
 #globe{position:absolute;inset:0;z-index:1000;background:#000}
 #globe[hidden],#globeHud[hidden]{display:none}
@@ -307,7 +331,9 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
   #mapctl .menu{display:block}
   #globeHud{max-width:calc(100% - 20px)}
   #mapctl:not(.open) button.globe3d{display:block}
+  #flightlist{left:10px;right:10px;width:auto;top:92px;max-height:calc(100% - 190px)}
   #mapctl:not(.open) button:not(.menu){display:none}
+  #mapctl:not(.open) button.keep{display:block}
   #mapctl{top:58px}
   #panel{top:auto!important;height:var(--sheet,58%)!important;border-radius:16px 16px 0 0;border-top:1px solid var(--gold2)}
   #panel.hide{height:auto!important}
@@ -335,6 +361,27 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
   .kpis.three{grid-template-columns:1fr 1fr}
   .leaflet-bottom.leaflet-right{margin-bottom:4px}
 }
+
+/* ---- finition graphique ---- */
+body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+#topbar{box-shadow:0 2px 14px rgba(0,0,0,.45)}
+#tb-name .logo{box-shadow:0 0 0 2px rgba(255,255,255,.15),0 2px 8px rgba(0,0,0,.4)}
+#panel{backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.card{background:linear-gradient(180deg,rgba(24,40,68,.92),rgba(16,28,48,.92));border-color:#27406a;box-shadow:0 2px 10px rgba(0,0,0,.28)}
+.kpi{background:linear-gradient(180deg,#16284a,#101e38);border:1px solid #27406a;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.btn{border-radius:10px;transition:transform .08s,border-color .15s,background .15s}
+.btn:active:not(:disabled){transform:scale(.97)}
+.btn.gold{background:linear-gradient(180deg,#ffd23d,#e8b10c);box-shadow:0 2px 10px rgba(245,197,24,.28);color:#1a1300}
+.chip.on{background:linear-gradient(180deg,#ffd23d,#e8b10c)}
+#mapctl button,#flightlist,#flightcard,#guide{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#mapctl button{box-shadow:0 2px 8px rgba(0,0,0,.35);border-radius:10px}
+#tabs button.on span{filter:drop-shadow(0 0 6px rgba(245,197,24,.55))}
+.photo{box-shadow:0 3px 12px rgba(0,0,0,.4)}
+.photo.fallback img{object-position:50% 70%}
+.plane-icon .rot{will-change:transform}
+.lg.bad{border-left:3px solid var(--bad);padding-left:6px} .lg.warn{border-left:3px solid var(--warn);padding-left:6px} .lg.ok{border-left:3px solid var(--ok);padding-left:6px} .lg.rival{border-left:3px solid var(--rival);padding-left:6px}
+.log.big{max-height:none}
+@media (max-width:820px){ .btn{min-height:40px} #tabs button{min-width:56px} #tabs button small{font-size:10px} .bigcta .btn{padding:16px} }
 </style>
 </head>
 <body>
@@ -356,18 +403,21 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
     <div id="map"></div>
     <div id="mapctl">
       <button class="menu" data-act="mapMenu">☰ Carte</button>
+      <button class="keep primary" data-act="flightList">🛫 Mes vols</button>
       <button class="globe3d" data-act="open3D">🌍 Vue 3D</button>
-      <button class="on" data-act="mapToggle" data-k="routes">🧭 Routes</button>
-      <button class="on" data-act="mapToggle" data-k="airports">🛬 Aéroports</button>
-      <button class="on" data-act="mapToggle" data-k="night">🌗 Jour/nuit</button>
-      <button class="on" data-act="mapToggle" data-k="rival">🔴 Rival</button>
-      <button class="on" data-act="mapToggle" data-k="trails">〰️ Traînées</button>
-      <button class="on" data-act="mapToggle" data-k="weather">⛈️ Météo</button>
-      <button data-act="mapStyle">🗺️ Fond de carte</button>
-      <button data-act="focusHub">🛬 Mon aéroport</button>
+      <button class="on adv" data-act="mapToggle" data-k="routes">🧭 Routes</button>
+      <button class="on adv" data-act="mapToggle" data-k="airports">🛬 Aéroports</button>
+      <button class="on adv" data-act="mapToggle" data-k="night">🌗 Jour/nuit</button>
+      <button class="on adv" data-act="mapToggle" data-k="rival">🔴 Rival</button>
+      <button class="on adv" data-act="mapToggle" data-k="trails">〰️ Traînées</button>
+      <button class="on adv" data-act="mapToggle" data-k="weather">⛈️ Météo</button>
+      <button class="adv" data-act="mapStyle">🗺️ Fond de carte</button>
+      <button class="keep" data-act="focusHub">🛬 Mon aéroport</button>
       <button data-act="focusHome">🏠 Mon pays</button>
       <button data-act="focusWorld">🌍 Monde</button>
+      <button class="keep" data-act="mapAdv">⚙️ Options</button>
     </div>
+    <div id="flightlist" hidden></div>
     <div id="flightcard" hidden></div>
     <div id="globe" hidden></div>
     <div id="globeHud" hidden></div>
@@ -383,19 +433,21 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 <div id="modal" hidden></div>
 <div id="toasts"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="airports-db.js?v=20261010"></script>
-<script src="runways-db.js?v=20261010"></script>
-<script src="data.js?v=20261010"></script>
-<script src="sim.js?v=20261010"></script>
-<script src="realism.js?v=20261010"></script>
-<script src="airlines-db.js?v=20261010"></script>
-<script src="airlines.js?v=20261010"></script>
-<script src="business.js?v=20261010"></script>
-<script src="map.js?v=20261010"></script>
-<script src="ui.js?v=20261010"></script>
-<script src="pilot.js?v=20261010"></script>
-<script src="actions.js?v=20261010"></script>
-<script src="globe.js?v=20261010"></script>
-<script src="ui-biz.js?v=20261010"></script>
+<script src="airports-db.js?v=20261011"></script>
+<script src="runways-db.js?v=20261011"></script>
+<script src="data.js?v=20261011"></script>
+<script src="sim.js?v=20261011"></script>
+<script src="realism.js?v=20261011"></script>
+<script src="airlines-db.js?v=20261011"></script>
+<script src="airlines.js?v=20261011"></script>
+<script src="world-ai.js?v=20261011"></script>
+<script src="business.js?v=20261011"></script>
+<script src="map.js?v=20261011"></script>
+<script src="ui.js?v=20261011"></script>
+<script src="pilot.js?v=20261011"></script>
+<script src="actions.js?v=20261011"></script>
+<script src="globe.js?v=20261011"></script>
+<script src="ui-biz.js?v=20261011"></script>
+<script src="simple.js?v=20261011"></script>
 </body>
 </html>

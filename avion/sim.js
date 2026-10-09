@@ -80,7 +80,7 @@ function newGame(opts){
     cash:opts.capital||80e6, reputation:50, service:3,
     ancillary:{seat:true, bags:true, wifi:false, meals:false},
     oil:82, oilBase:82, fleet:[], customModels:[], pilots:[], candidates:[], cabinCrew:8, routes:[],
-    v:2, hubs:[opts.hub||'FIH'],
+    v:2, simple:true, hubs:[opts.hub||'FIH'],
     fuel:{stock:400000, cap:1500000, auto:false, autoBelow:0.72, hist:[]},
     co2:{stock:300, cap:3000, price:85, base:85, hist:[]},
     staff:{pnc:8, meca:6, sol:18, sal:{pil:100,pnc:100,meca:100,sol:100}, morale:{pil:70,pnc:70,meca:70,sol:70}, strikeUntil:0},
@@ -645,6 +645,7 @@ function dailyTick(){
   const t=S.time;
   // salaires, moral et grèves
   book('salaires',-monthlyPayroll()/30);
+  if(typeof autoManage==='function') autoManage(); // mode simple : personnel, carburant et programmation automatiques
   staffDaily();
   const lease=S.fleet.filter(a=>!a.owned).reduce((s,a)=>s+a.lease,0);
   if(lease) book('leasing',-lease/30);
@@ -992,6 +993,14 @@ function staffNeed(){
   const pil=S.fleet.reduce((s,a)=>s+2,0);
   return {pil,pnc,meca,sol};
 }
+// Recrutement progressif : on ne peut pas embaucher 1 000 personnes en un jour
+function hireQuota(k){
+  const wk=Math.floor(S.time/(7*DAY)); if(!S.hireLog||S.hireLog.wk!==wk) S.hireLog={wk,used:{}};
+  const have=k==='pil'? S.pilots.length : S.staff[k];
+  const max=Math.max(k==='pil'?3:6, Math.ceil(have*(k==='pil'?0.10:0.12)))*(S.simple?2:1);
+  const used=S.hireLog.used[k]||0; return {max, used, left:Math.max(0,max-used)};
+}
+function useHire(k,n){ hireQuota(k); S.hireLog.used[k]=(S.hireLog.used[k]||0)+n; }
 function staffCount(k){ return k==='pil'? S.pilots.filter(p=>!p.training).length : S.staff[k]; }
 function staffShortage(k){ const need=staffNeed()[k]; return need? clamp((need-staffCount(k))/need,0,1) : 0; }
 function monthlyPayroll(){
@@ -1019,6 +1028,7 @@ function weeklyTick(){
   S.lastWeekReport={rev, cost, profit:rev-cost, pax:S.stats.pax-snap.pax, flights:S.stats.flights-snap.flights, t:S.time};
   S.weekSnap={pax:S.stats.pax, flights:S.stats.flights};
   if(typeof businessWeekly==='function') businessWeekly(S.lastWeekReport);
+  if(typeof aiWeekly==='function') aiWeekly();
   S.led.prevWeek=w; S.led.week={};
   logMsg(`📅 Bilan de la semaine : bénéfice ${fmtMoney(rev-cost)} · ${num0(S.lastWeekReport.pax)} passagers · ${S.lastWeekReport.flights} vols.`, rev>=cost?'ok':'warn');
 }
@@ -1107,8 +1117,10 @@ function catchUp(){
 function save(){ if(!S) return; S.lastReal=Date.now(); try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
 function migrate(){
   if(typeof ensureBiz==='function') ensureBiz();
+  if(S.simple===undefined) S.simple=true;
   if(S.rival && !S.rivals){ Object.assign(S.rival,{local:true,color:'#e5484d'}); S.rivals=[S.rival]; for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false)); delete S.rival; }
   if(!S.rivals||!S.rivals.length) initRivals();
+  if(!S.ai && typeof initWorldAI==='function' && typeof AIRLINE_DB!=='undefined') initWorldAI();
   // anciennes parties : les compagnies fictives sont remplacées par les vraies compagnies
   if(!S.rivalsReal && typeof initRealRivals==='function' && typeof AIRLINE_DB!=='undefined'){
     let refund=0; if(S.stock&&S.stock.holdings) for(const [code,pct] of Object.entries(S.stock.holdings)){ const R=S.rivals.find(x=>x.code===code); if(R&&typeof rivalValue==='function') refund+=pct*rivalValue(R); }

@@ -52,7 +52,9 @@ const ACTIONS = {
   olFilter:d=>{ UI.ol.f=d.f; refreshModal(); },
   olPick:d=>{ UI.ol.stops.push(d.c); refreshModal(); $('#modal .mbody').scrollTop=0; },
   olPop:()=>{ if(UI.ol.stops.length>1) UI.ol.stops.pop(); refreshModal(); },
-  buyLine:()=>{ const r=openLine(UI.ol.stops); if(typeof r==='string') return err(r); toast(`🧭 Ligne ${r.stops.join('⇄')} achetée !`,'ok'); S.tutoLine=true; drawRoutes(); openM('line',r.id); renderPanel(); },
+  buyLine:()=>{ const r=openLine(UI.ol.stops); if(typeof r==='string') return err(r); S.tutoLine=true; drawRoutes();
+    if(isSimple()){ r.audit=true; const n=autoPlanAll(); closeModal(); toast(n?`🧭 Ligne ${r.stops.join('⇄')} ouverte : ${n} avion(s) programmé(s) automatiquement !`:`🧭 Ligne ${r.stops.join('⇄')} ouverte. Achetez un avion : il sera programmé tout seul.`,'ok'); renderPanel(); return; }
+    toast(`🧭 Ligne ${r.stops.join('⇄')} achetée !`,'ok'); openM('line',r.id); renderPanel(); },
   line:d=>openM('line',d.id),
   audit:d=>{ if(!err(auditLine(findRoute(d.id)))){ toast('🔍 Audit terminé : prix idéaux disponibles','ok'); after(); } },
   price:d=>{ const r=findRoute(d.id); if(d.set) r.pm[d.k]=1; else r.pm[d.k]=clamp(+(((r.pm[d.k]??1)+(+d.d)).toFixed(3)),0.3,3); after(); },
@@ -91,8 +93,9 @@ const ACTIONS = {
     const ac=addAircraft(m.id,{owned:mode!=='lease', used:mode==='used', hub});
     S.cash-=cost;
     logMsg(`🛬 ${mode==='lease'?'Leasing':'Achat'} : ${m.name}${mode==='used'?' (occasion)':''} ${ac.reg}, livré à ${AP(hub).city}.`,'ok');
-    toast(`✈️ ${m.name} ${ac.reg} livré à ${AP(hub).city} ! Programmez-le dans 📅 Planning.`,'ok');
-    if(qualifiedPilots(m.fam)<2) toast(`⚠️ Il vous faut 2 pilotes qualifiés ${m.fam} (onglet 👥 Personnel)`,'warn');
+    if(isSimple()){ const r=autoPlan(ac); toast(r?`✈️ ${m.name} ${ac.reg} livré et programmé sur ${r.stops.join('⇄')} !`:`✈️ ${m.name} ${ac.reg} livré à ${AP(hub).city}. Ouvrez une ligne : il y volera tout seul.`,'ok'); }
+    else { toast(`✈️ ${m.name} ${ac.reg} livré à ${AP(hub).city} ! Programmez-le dans 📅 Planning.`,'ok');
+    if(qualifiedPilots(m.fam)<2) toast(`⚠️ Il vous faut 2 pilotes qualifiés ${m.fam} (onglet 👥 Personnel)`,'warn'); }
     renderTop(); renderPanel();
   },
   editor:()=>openM('editor'),
@@ -115,8 +118,9 @@ const ACTIONS = {
     ${Object.entries(FAMILIES).filter(([f])=>!p.quals.includes(f)).map(([f,[n,c,days,sal]])=>`<div class="card row"><div class="grow"><b>${n}</b><br><span class="mut small">${fmtMoney(c)} · ${days} jours · salaire ensuite ≥ ${fmtMoney(sal)}/mois</span></div><button class="btn sm gold" data-act="doTrain" data-id="${p.id}" data-f="${f}">Former</button></div>`).join('')}`); UI.modal=null; },
   doTrain:d=>{ const p=S.pilots.find(x=>x.id===d.id), [n,c,days]=FAMILIES[d.f]; book('formation',-c); p.training={fam:d.f,start:S.time,until:S.time+days*DAY}; logMsg(`🎓 ${p.name} commence la qualification ${d.f} (${days} j).`,'info'); closeModal(); renderPanel(); },
   fire:d=>{ const p=S.pilots.find(x=>x.id===d.id); if(!confirm(`Licencier ${p.name} ? Indemnité : 2 mois de salaire.`)) return; book('salaires',-p.salary*2); S.pilots=S.pilots.filter(x=>x!==p); renderPanel(); },
-  hire:d=>{ const p=S.candidates.find(x=>x.id===d.id); book('recrutement',-p.salary); S.pilots.push(p); S.candidates=S.candidates.filter(x=>x!==p); logMsg(`👨‍✈️ ${p.name} rejoint la compagnie (${p.quals.join(', ')}).`,'ok'); renderPanel(); },
+  hire:d=>{ const p=S.candidates.find(x=>x.id===d.id); if(!p) return; const q=hireQuota('pil'); if(q.left<=0) return toast(`⛔ Quota de recrutement atteint : ${q.max} pilotes par semaine maximum (les candidats se présentent progressivement).`,'bad'); useHire('pil',1); book('recrutement',-p.salary); S.pilots.push(p); S.candidates=S.candidates.filter(x=>x!==p); logMsg(`👨‍✈️ ${p.name} rejoint la compagnie (${p.quals.join(', ')}).`,'ok'); renderPanel(); },
   hireStaff:d=>{ const k=d.k; let n=+d.n||0; if(d.fill) n=Math.max(0,staffNeed()[k]-S.staff[k]); if(!n) return;
+    if(n>0){ const q=hireQuota(k); if(q.left<=0) return toast(`⛔ Quota de recrutement atteint : ${q.max} ${STAFF_CATS[k][0].toLowerCase()} par semaine maximum.`,'bad'); if(n>q.left){ n=q.left; toast(`Recrutement limité à ${n} cette semaine (quota ${q.max}/semaine).`,'warn'); } useHire(k,n); }
     const base=STAFF_CATS[k][1]; if(n>0) book('recrutement',-base*0.6*n); else book('salaires',-base*Math.min(-n,S.staff[k]));
     S.staff[k]=Math.max(0,S.staff[k]+n); if(n<0){ S.staff.morale[k]=clamp(S.staff.morale[k]-4,0,100); } renderPanel(); },
 
@@ -137,8 +141,8 @@ const ACTIONS = {
   import:()=>{ const i=document.createElement('input'); i.type='file'; i.accept='.json,application/json'; i.onchange=()=>{ const f=i.files[0]; if(!f) return; f.text().then(t=>{ try{ const o=JSON.parse(t); if(!o.fleet||!o.company) throw 0; S=o; save(); location.reload(); }catch(e){ err('Fichier de sauvegarde invalide'); } }); }; i.click(); },
   reset:()=>{ if(confirm('Effacer la partie et recommencer ?')){ booted=false; localStorage.removeItem(SAVE_KEY); location.reload(); } },
   guideReset:()=>{ S.tuto=0; renderGuide(); toast('Tutoriel relancé','ok'); },
-  guideGo:()=>{ const st=GUIDE[S.tuto]; if(st) st.go(); },
-  guideSkip:()=>{ S.tuto=GUIDE.length; renderGuide(); },
+  guideGo:()=>{ const st=guideSteps()[S.tuto]; if(st) st.go(); },
+  guideSkip:()=>{ S.tuto=99; renderGuide(); },
 
   // admin
   adCash:d=>{ book('admin',+d.v); renderTop(); renderPanel(); },
@@ -207,14 +211,16 @@ const GUIDE = [
   {t:'Agrandissez votre flotte', d:'Achetez ou louez un nouvel avion dans la boutique.', done:()=>S.fleet.length+(S.orders||[]).length>=(START_PACKS[S.packId||'regional']?START_PACKS[S.packId||'regional'].fleet.length+1:3),
    go:()=>setTab('shop')},
 ];
+const guideSteps=()=>isSimple()&&typeof SIMPLE_GUIDE!=='undefined'?SIMPLE_GUIDE:GUIDE;
 function renderGuide(){
   const box=$('#guide'); if(!box||!S) return;
   if(S.tuto===undefined) S.tuto=0;
-  while(S.tuto<GUIDE.length && GUIDE[S.tuto].done()){ S.tuto++; if(S.tuto<GUIDE.length) toast(`🎓 Étape réussie ! Suivante : ${GUIDE[S.tuto].t}`,'ok'); }
-  const st=GUIDE[S.tuto];
+  const G=guideSteps();
+  while(S.tuto<G.length && G[S.tuto].done()){ S.tuto++; if(S.tuto<G.length) toast(`🎓 Étape réussie ! Suivante : ${G[S.tuto].t}`,'ok'); }
+  const st=G[S.tuto];
   if(!st || document.body.classList.contains('piloting')){ box.hidden=true; return; }
   box.hidden=false;
-  box.innerHTML=`<div class="g-step">🎓 ${S.tuto+1}/${GUIDE.length}</div><div class="g-txt"><b>${st.t}</b><span>${st.d}</span></div><button class="btn sm gold" data-act="guideGo">Montre-moi</button><button class="x" data-act="guideSkip" title="Passer le tutoriel">×</button>`;
+  box.innerHTML=`<div class="g-step">🎓 ${S.tuto+1}/${G.length}</div><div class="g-txt"><b>${st.t}</b><span>${st.d}</span></div><button class="btn sm gold" data-act="guideGo">Montre-moi</button><button class="x" data-act="guideSkip" title="Passer le tutoriel">×</button>`;
 }
 
 /* ---------- démarrage ---------- */
@@ -231,7 +237,7 @@ function ngHtml(){
   const H=AP(ng.hub);
   const packOk=k=>START_PACKS[k].fleet.every(id=>getModel(id).cls<=H.cls);
   if(!packOk(ng.pack)) ng.pack='regional';
-  return `<div class="ng-hero">${PLANE_SVG('#f5c518',90,'wb')}<div class="small">Créez votre compagnie n’importe où dans le monde : <b>3 200 aéroports</b> dans <b>${Object.keys(COUNTRIES).length} pays</b>, 68 avions réels, 7 compagnies concurrentes. Achetez des hubs, ouvrez des lignes, fixez vos prix, planifiez vos avions… et pilotez-les vous-même.</div></div>
+  return `<div class="ng-hero">${PLANE_SVG('#f5c518',90,'wb')}<div class="small">Créez votre compagnie n’importe où dans le monde : <b>3 200 aéroports</b>, <b>${Object.keys(COUNTRIES).length} pays</b>, 68 avions réels et les vraies compagnies. C’est simple : <b>1.</b> choisissez votre hub, <b>2.</b> ouvrez une ligne, <b>3.</b> vos avions volent tout seuls.</div></div>
   <div class="form">
     <label>Nom de la compagnie<input id="ng-name" value="${esc(ng.name)}" data-in="ngName"></label>
     <label>Code (2-3 lettres)<input id="ng-code" maxlength="3" value="${esc(ng.code)}" data-in="ngCode"></label>
@@ -246,15 +252,18 @@ function ngHtml(){
     <label class="row">Livrée<input type="color" value="${ng.color}" data-in="ngColor" style="width:60px"></label><label class="row">Logo<input maxlength="3" value="${esc(ng.logo)}" data-in="ngLogo" style="width:70px"></label></div>
   <div class="btns"><button class="btn gold big" data-act="ngGo">🛫 Créer la compagnie à ${esc(H.city)}</button></div>`;
 }
+// Nom de compagnie proposé selon le hub : Air Kongo pour la RD Congo
+function ngBrand(){ const ng=UI.ng; if(ng.edited) return; const cd=AP(ng.hub).cc==='CD';
+  Object.assign(ng, cd? {name:'Air Kongo', code:'KO', color:'#0b6bcb', logo:'🐆'} : {name:'Sky Empire', code:'SE', color:'#d4a72c', logo:'✈️'}); }
 function newGameModal(){
-  UI.ng=UI.ng||{name:'Sky Empire', code:'SE', hub:guessHub(), pack:'regional', diff:1, color:'#d4a72c', logo:'✈️', q:''};
+  if(!UI.ng){ UI.ng={hub:guessHub(), pack:'regional', diff:1, q:''}; ngBrand(); }
   $('#modal').hidden=false;
   $('#modal').innerHTML=`<div class="mbox wide"><div class="mhead"><h2>✈️ Fondez votre compagnie aérienne</h2></div><div class="mbody" id="ngBody">${ngHtml()}</div></div>`;
   hydratePhotos&&hydratePhotos();
 }
 function refreshNg(focusId){ const b=$('#ngBody'); if(!b) return; const el=focusId&&$('#'+focusId), pos=el?el.selectionStart:0; b.innerHTML=ngHtml(); if(focusId){ const n=$('#'+focusId); if(n){ n.focus(); n.setSelectionRange(pos,pos); } } }
 Object.assign(ACTIONS,{
-  ngHub:d=>{ UI.ng.hub=d.c; UI.ng.q=''; refreshNg(); },
+  ngHub:d=>{ UI.ng.hub=d.c; UI.ng.q=''; ngBrand(); refreshNg(); },
   ngPack:d=>{ UI.ng.pack=d.k; refreshNg(); },
   ngDiff:d=>{ UI.ng.diff=+d.v; refreshNg(); },
   ngGo:()=>{ const ng=UI.ng;
@@ -263,7 +272,7 @@ Object.assign(ACTIONS,{
 });
 Object.assign(INPUTS,{
   ngq:el=>{ UI.ng.q=el.value; refreshNg('ngq'); },
-  ngName:el=>{ UI.ng.name=el.value.slice(0,40); }, ngCode:el=>{ UI.ng.code=el.value.toUpperCase().slice(0,3); },
+  ngName:el=>{ UI.ng.name=el.value.slice(0,40); UI.ng.edited=true; }, ngCode:el=>{ UI.ng.code=el.value.toUpperCase().slice(0,3); UI.ng.edited=true; },
   ngColor:el=>{ UI.ng.color=el.value; }, ngLogo:el=>{ UI.ng.logo=el.value||'✈️'; },
 });
 function offlineReport(r){
@@ -289,9 +298,9 @@ function initSheet(){
 let booted=false;
 function boot(){
   if(booted) return; booted=true;
-  initMap();
-  if(localStorage.getItem('se-news')!=='v5'){ try{ localStorage.setItem('se-news','v5'); }catch(e){} setTimeout(()=>toast('Nouveau : les vraies compagnies (Air France, Emirates, Ethiopian…) et leurs vraies lignes dans le ciel. Survolez un avion pour voir sa compagnie et sa ligne.','ok'),1500); }
-  renderTop(); setTab(window.innerWidth<820?'map':'dash');
+  initMap(); renderTabs();
+  if(localStorage.getItem('se-news')!=='v6'){ try{ localStorage.setItem('se-news','v6'); }catch(e){} setTimeout(()=>toast('Nouveau : mode simple (tout est automatique), onglet 📰 Actus : classement, crashs, faillites et nouvelles compagnies qui évoluent en direct.','ok'),1500); }
+  renderTop(); setTab(window.innerWidth<820?'map':(isSimple()?'network':'dash'));
   updatePlanes(); updateRival();
   let last=performance.now(), acc1=0, acc2=0, acc30=0, acc10=0;
   setInterval(()=>{
@@ -313,7 +322,7 @@ function boot(){
 
 document.addEventListener('DOMContentLoaded',()=>{
   UI.mobile = window.matchMedia('(max-width: 820px)').matches;
-  $('#tabs').innerHTML=TABS.map(([k,i,l])=>`<button data-tab="${k}"><span>${i}</span><small>${l}</small></button>`).join('');
+  renderTabs();
   document.addEventListener('click',e=>{
     const t=e.target.closest('[data-tab]'); if(t){ e.preventDefault(); if($('#modal').contains(t)) closeModal(); setTab(t.dataset.tab); return; }
     const sp=e.target.closest('[data-speed]'); if(sp){ S.speed=sp.dataset.speed; S.paused=false; renderTop(); if(UI.tab==='company') renderPanel(); return; }
