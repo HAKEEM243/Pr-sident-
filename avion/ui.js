@@ -707,7 +707,7 @@ function boardHtml(code){
     if(!ac.flight) continue; const m=modelOf(ac);
     ac.flight.legs.forEach((l,i)=>{
       if(i<ac.flight.li) return;
-      const prof=legProfile(l.dist,m,l.wind,l.from,l.to), tOff=l.dep+prof.segs[1].t0, tOn=l.dep+prof.segs[8].t0;
+      const prof=legProf(l,m), tOff=l.dep+prof.segs.find(x=>x.ph===2).t0, tOn=l.dep+prof.segs.find(x=>x.ph===8).t0;
       const st=i===ac.flight.li? flightState(ac):null;
       const fn=S.company.code+flightNumber(ac);
       if(l.from===code) dep.push({t:tOff, fn, other:l.to, ac, status: st? (st.phase<=1?(st.phase===0?'Embarquement':'Roulage'):'Parti') : 'Prévu'});

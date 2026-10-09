@@ -333,7 +333,7 @@ function flightTipHtml(ac,st){
   const w=st.wind||0, cruise=st.phase>=3&&st.phase<=5;
   return `<b>${S.company.code}${flightNumber(ac)} · ${ac.reg}</b> <span class="mut">${m.name}</span><br>`+
     `${st.origin} → ${st.dest} <span class="mut">(${kind})</span><br>`+
-    `Phase : <b>${PHASES[st.phase]}</b>${st.depRwy||st.arrRwy?` <span class="mut">· piste ${st.depRwy||'—'} → ${st.arrRwy||'—'}</span>`:''}<br>`+
+    `Phase : <b>${st.holding?(st.holding==='out'?'⏸ Attente au point d’arrêt (piste occupée)':'🔄 Circuit d’attente (piste occupée)'):PHASES[st.phase]}</b>${st.depRwy||st.arrRwy?` <span class="mut">· piste ${st.depRwy||'—'} → ${st.arrRwy||'—'}</span>`:''}<br>`+
     `Altitude : <b>${fl}</b> · Vitesse sol : <b>${Math.round(cruise?st.gs:st.spd)} km/h</b>${cruise&&Math.abs(w)>=10?` <span class="${w>0?'pos':'neg'}">(vent ${w>0?'arrière +':'de face '}${w} km/h)</span>`:''}<br>`+
     `Reste : <b>${num(st.remain||0)} km</b> <span class="mut">(${num((st.remain||0)/1.852)} NM)</span> · Cap ${String(Math.round(st.hdg)).padStart(3,'0')}°<br>`+
     `Arrivée : <b>${fmtLocal(st.eta,st.dest)}</b> <span class="mut">(${fmtTime(st.eta)} UTC, dans ${fmtDur(st.eta-S.time)})</span> · <b>${Math.round(st.progress*100)} %</b>`+
@@ -438,10 +438,10 @@ const TRAFFIC_MODEL={prop:'AT76', nb:'A20N', wb:'B789'};
 function rivalPos(r,i,t){
   const A=AP(r.a), B=AP(r.b); if(!A||!B) return null;
   // tout ce qui ne dépend pas de l'heure est calculé une seule fois par ligne
-  let K=r._tk;
+  let K=r._tk; if(K&&K.c!==(r.c||'')) K=null;
   if(!K){ const d=gcDist(A,B), cat=d<1200?'prop':d<5000?'nb':'wb', m=getModel(TRAFFIC_MODEL[cat]); if(!m) return null;
     const pA=legProfile(d,m,0,r.a,r.b), pB=legProfile(d,m,0,r.b,r.a), turn=55*MIN;
-    K=r._tk={d,cat,m,pA,pB,turn,T:pA.total+pB.total+2*turn,h:hashStr(r.a+r.b)*1000,AB:null,BA:null}; }
+    K=r._tk={c:r.c||'',d,cat,m,pA,pB,turn,T:pA.total+pB.total+2*turn,h:hashStr(r.a+r.b+(r.c||''))*1000,AB:null,BA:null}; }
   const d=K.d, cat=K.cat, m=K.m, pA=K.pA, pB=K.pB, turn=K.turn, T=K.T, cnt=Math.max(1,Math.min(r.freq||1,5));
   let rel=((t+i*T/cnt+K.h)%T+T)%T, from=r.a, to=r.b, prof=pA, dir='AB';
   if(rel>=pA.total+turn){ rel-=pA.total+turn; from=r.b; to=r.a; prof=pB; dir='BA'; }
@@ -458,12 +458,21 @@ function rivalPos(r,i,t){
     return {p:{lat:a.lat,lon:a.lon}, hdg:bearing(a,b2), from:F, to:Tt, d, alt, ph:4, gnd:false, cat};
   }
   const path=K[dir]||(K[dir]=legPath({from,to,dist:d},m)), fake={id:r.a+r.b+i};
+  // contrôle aérien : une seule machine sur la piste — sinon on attend
+  if((seg.ph===2||seg.ph===7||(seg.ph===6&&alt<300))&&typeof atcRivalBlocked==='function'){
+    const dep=seg.ph===2, rw=dep?path.dep:path.arr;
+    if(rw&&atcRivalBlocked(rwyKey(dep?from:to,rw),r.a+r.b+(r.c||'')+i+dir,t)){
+      if(dep){ const hp=polyAt(taxiOutPts(path,gateSlot(from,fake)),0.985); return {p:{lat:hp.lat,lon:hp.lon}, hdg:hp.hdg, from:AP(from), to:AP(to), d, alt:0, ph:1, gnd:true, cat, holding:'out'}; }
+      const s6=prof.segs.find(x=>x.ph===6), f=pointOnPath(path,clamp(s6.d0/d,0,1)*path.total), c=destPt(f.lat,f.lon,(f.hdg||0)+90,4.5), b0=bearing(c,f), th=(t/(4*MIN)*360)%360, q2=destPt(c.lat,c.lon,b0+th,4.5);
+      return {p:{lat:q2.lat,lon:q2.lon}, hdg:(b0+th+90)%360, from:AP(from), to:AP(to), d, alt:900, ph:6, gnd:false, cat, holding:'in'};
+    }
+  }
   if(seg.ph===1) pp=polyAt(taxiOutPts(path,gateSlot(from,fake)),u);
   else if(seg.ph>=8) pp=polyAt(taxiInPts(path,gateSlot(to,fake)),u);
   else { const dd=seg.d0+(seg.d1-seg.d0)*uD; pp=pointOnPath(path, clamp(dd/d,0,1)*path.total); }
   return {p:{lat:pp.lat,lon:pp.lon}, hdg:pp.hdg, from:AP(from), to:AP(to), d, alt, ph:seg.ph, gnd:alt<5, cat};
 }
-const phaseLbl=q=>q.ph===2?(q.gnd?'🛫 décolle':'🛫 décollage'):q.ph===7?(q.gnd?'🛬 atterrit':'🛬 toucher'):(q.ph===6&&q.alt<450)?'🛬 finale':'';
+const phaseLbl=q=>q.holding==='out'?'⏸ attend la piste':q.holding==='in'?'🔄 attente':q.ph===2?(q.gnd?'🛫 décolle':'🛫 décollage'):q.ph===7?(q.gnd?'🛬 atterrit':'🛬 toucher'):(q.ph===6&&q.alt<450)?'🛬 finale':'';
 function routeBBox(r){
   if(r._bb) return r._bb;
   const A=AP(r.a), B=AP(r.b); let minLat=1e9,maxLat=-1e9,minLon=1e9,maxLon=-1e9, prev=A.lon;
@@ -523,7 +532,7 @@ function updateRival(){
   const bounds=map.getBounds().pad(0.3), t=simNow(), c0=map.getCenter().lng, want=new Set();
   let n=0;
   // vos concurrents suivis + toutes les compagnies réelles qui desservent les aéroports à l'écran
-  const list=[]; for(const R of S.rivals) for(const r of R.routes) list.push({R,r});
+  const list=[]; for(const R of S.rivals) for(const r of R.routes){ if(!r.c) r.c=R.code; list.push({R,r}); }
   if(map.getZoom()>=4 && typeof visibleRealRoutes==='function') list.push(...visibleRealRoutes(map.getBounds().pad(0.1), c0, map.getZoom()>=7?20:45));
   const cap=map.getZoom()>=6?220:160;
   const vb=bounds, W=vb.getWest(), E=vb.getEast(), So=vb.getSouth(), No=vb.getNorth();
