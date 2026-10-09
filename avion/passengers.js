@@ -49,7 +49,21 @@ function tripsPerYear(wealth,purpose){
 const AGE_RANGE={business:[27,62],tourism:[22,72],family:[18,78],study:[17,29],work:[19,48],medical:[4,82],pilgrim:[38,78],humanitarian:[24,58]};
 const PROF={rich:['chef d’entreprise','avocat d’affaires','médecin spécialiste','cadre dirigeant','ingénieur pétrolier','banquier','investisseur','diplomate','architecte','promoteur immobilier','armateur'],
   mid:['enseignant','ingénieur','commerçant','infirmier','comptable','consultant','journaliste','technicien','cadre de PME','fonctionnaire','pharmacien','chauffeur-livreur','agent de voyage'],
-  poor:['étudiant boursier','commerçant ambulant','ouvrier','agriculteur','travailleur saisonnier','chauffeur','artisan','employé de maison','petit exportateur','vendeuse de marché','mineur artisanal']};
+  poor:['étudiant boursier','commerçant ambulant','ouvrier','agriculteur','travailleur saisonnier','chauffeur','artisan','employé de maison','petit exportateur','vendeur de marché','mineur artisanal']};
+
+/* ---------- cohérence des fiches : genre, métier, âge ---------- */
+const FEM_NAMES=new Set(['Christelle','Grâce','Merveille','Rachel','Sarah','Esther','Nathalie','Prisca','Gloire','Ruth','Bénédicte','Amina','Fatou','Aïcha','Grace','Mariam','Zainab','Emma','Sofia','Anna','Elena','Julia','Inès','Yuki','Aisha','Mei','Priya','Linh','Emily','Olivia','Sophia','Chloe','María','Ana','Valentina','Camila','Lucía','Isabela','Mariana','Mia','Charlotte','Ruby','Isla','Aroha','Zoe','Marie','Hannah','Olga','Patience','Gloria','Fatima','Layla','Ngozi','Adaeze','Anjali','Jennifer','Linda','Amelia','Claire','Katrin','Jing','Leïla','Ingrid','Nadia','Isabel','Camille']);
+const MASC_NAMES=new Set(['Junior','Trésor','Héritier','Fiston','Dieudonné','Blaise','Serge','Cédric','Fabrice','Olivier','Jonathan','Patrick','Jean-Pierre','Moussa','Kofi','Tunde','Ibrahim','Kwame','Chinedu','Omar','Ahmed','Wei','Ravi','Arjun','Hiroshi','Min-jun','Lucas','Thomas','Marco','Jan','Pierre','Lars','James','Michael','Daniel','Carlos','José','Ethan','João','Mateo','Pedro','Diego','Rafael','Santiago','Jack','Oliver','Noah','Liam','Tane','Harry','David','Chen','Emeka','Rahul','Amit','Khalid','Robert','Lukas','Felix','Antoine','Julien','Mathieu','Kenji','Samuel']);
+const isFem=n=>FEM_NAMES.has(n)?true:MASC_NAMES.has(n)?false:/(a|ine|elle|ette|ie|ée|ah)$/i.test(n);
+const JOB_F={'chef d’entreprise':'cheffe d’entreprise','avocat d’affaires':'avocate d’affaires','cadre dirigeant':'cadre dirigeante','ingénieur pétrolier':'ingénieure pétrolière','banquier':'banquière','investisseur':'investisseuse','promoteur immobilier':'promotrice immobilière','armateur':'armatrice','enseignant':'enseignante','ingénieur':'ingénieure','commerçant':'commerçante','infirmier':'infirmière','consultant':'consultante','technicien':'technicienne','pharmacien':'pharmacienne','chauffeur-livreur':'chauffeuse-livreuse','agent de voyage':'agente de voyage','étudiant boursier':'étudiante boursière','commerçant ambulant':'commerçante ambulante','ouvrier':'ouvrière','agriculteur':'agricultrice','travailleur saisonnier':'travailleuse saisonnière','chauffeur':'chauffeuse','artisan':'artisane','employé de maison':'employée de maison','petit exportateur':'petite exportatrice','vendeur de marché':'vendeuse de marché','mineur artisanal':'mineuse artisanale','humanitaire (ONG)':'humanitaire (ONG)','logisticien humanitaire':'logisticienne humanitaire','retraité':'retraitée','élève':'élève','étudiant':'étudiante'};
+const gj=(job,f)=>f?(JOB_F[job]||job):job;
+const gx=(m,f)=>f?m.replace(/\(e\)/g,'e').replace(/\(s\)/g,'s'):m.replace(/\(e\)/g,'');
+const STUDENT_JOBS=new Set(['étudiant boursier']);
+const TONES={AF:['🏿','🏾','🏾'],EU:['🏻','🏼'],NA:['🏻','🏼','🏽','🏾'],SA:['🏽','🏼'],AS:['🏻','🏽'],OC:['🏻','🏼','🏽']};
+function avatarOf(age,f,cc,rnd){ const reg=(COUNTRIES[cc]&&COUNTRIES[cc][1])||'EU', t=pick2(rnd,TONES[reg]||['🏽']);
+  const b=age<13?(f?'👧':'👦'):age>=65?(f?'👵':'👴'):(f?'👩':'👨'); return b+t; }
+const DECLARE={business:['ordinateur portable professionnel','échantillons commerciaux','documents contractuels'],tourism:['appareil photo','souvenirs','rien à déclarer'],family:['cadeaux pour la famille','pagnes en wax','produits alimentaires du pays','médicaments pour un proche'],study:['ordinateur portable','livres','documents d’inscription'],work:['outils de travail','vêtements pour la saison','contrat de travail'],medical:['dossier médical','médicaments sur ordonnance'],pilgrim:['vêtements de cérémonie','rien à déclarer'],humanitarian:['matériel médical (lettre de l’ONG)','kits d’urgence']};
+const CHECKIN={rich:['En ligne (appli)','Comptoir prioritaire','Salon VIP'],mid:['En ligne (appli)','Borne libre-service','Comptoir'],poor:['Comptoir','Comptoir','Borne libre-service']};
 const BOOKING={rich:['Appli de la compagnie','Agence premium','Compte entreprise','Programme fidélité (miles)'],mid:['Site comparateur','Agence en ligne','Appli de la compagnie','Compte entreprise'],poor:['Agence locale (espèces)','Revendeur du quartier','Billet offert par la famille','Site comparateur']};
 
 /* ---------- nationalités ---------- */
@@ -141,19 +155,21 @@ function countryImmigration(cc){
 const LANG={FR:'français',CD:'français, lingala',CG:'français, lingala',BE:'français, néerlandais',CH:'français, allemand',GB:'anglais',US:'anglais',CA:'anglais, français',DE:'allemand',ES:'espagnol',IT:'italien',PT:'portugais',BR:'portugais',AO:'portugais',CN:'chinois',JP:'japonais',IN:'hindi, anglais',AE:'arabe, anglais',SA:'arabe',EG:'arabe',MA:'arabe, français',NG:'anglais, haoussa',KE:'swahili, anglais',TZ:'swahili',ET:'amharique',RU:'russe',TR:'turc',ZA:'anglais, zoulou',KP:'coréen',KR:'coréen'};
 const MEALS=['Menu standard','Végétarien','Halal','Sans gluten','Sans porc','Repas enfant','Casher'];
 const FAMILY_REL=['sa mère','son frère','sa sœur','ses grands-parents','son fils étudiant','sa fille','son oncle','un ami d’enfance'];
+const BUSINESS_SMALL=['acheter des marchandises à revendre','une foire commerciale','rencontrer un grossiste','livrer une commande à un client','un stage de formation professionnelle','renouveler son stock'];
 const BUSINESS_WHY=['un salon professionnel','un rendez-vous avec un fournisseur','un audit chez un client','la négociation d’un contrat','la formation d’une équipe commerciale','une réunion de conseil d’administration','l’ouverture d’un bureau'];
 const TOURISM_WHY=['randonnée et nature','plages et détente','visite des musées','un safari','shopping et gastronomie','une croisière sur le fleuve','un festival de musique'];
 const STUDY_WHY=['master en droit','licence d’informatique','études de médecine','école d’ingénieurs','école de commerce','doctorat en géologie'];
 const MED_WHY=['consultation en cardiologie','suivi d’une opération','bilan de santé complet','soins dentaires spécialisés','examens en oncologie'];
 const HUM_WHY=['distribution d’aide alimentaire','campagne de vaccination','construction d’un dispensaire','mission d’évaluation après des inondations'];
 const MARITAL=['célibataire','marié(e)','marié(e), 1 enfant','marié(e), 2 enfants','marié(e), 3 enfants','divorcé(e)','en couple'];
-function tripStory(p,rnd,A,B){
+function tripStory(p,rnd,A,B,o){
+  o=o||{}; const age=o.age||35;
   const city=B.city, days=Math.max(2,Math.round(2+rnd()*(p==='tourism'?12:p==='family'?18:p==='work'?60:p==='study'?200:6)));
   switch(p){
-    case 'family': return `Rend visite à ${pick2(rnd,FAMILY_REL)} à ${city} (séjour de ${days} jours).`;
-    case 'business': return `Se rend à ${city} pour ${pick2(rnd,BUSINESS_WHY)} (${days} jours).`;
-    case 'tourism': return `Séjour de ${days} jours à ${city} : ${pick2(rnd,TOURISM_WHY)}.`;
-    case 'study': return `Rentrée à ${city} : ${pick2(rnd,STUDY_WHY)} (aller simple).`;
+    case 'family': { const rel=FAMILY_REL.filter(r=>!(age<40&&/fils|fille/.test(r))&&!(age>45&&/grands-parents/.test(r))&&!(age>70&&/mère/.test(r))); return `Rend visite à ${pick2(rnd,rel.length?rel:FAMILY_REL)} à ${city} (séjour de ${days} jours).`; }
+    case 'business': return `Se rend à ${city} pour ${pick2(rnd,o.wealth&&o.wealth!=='rich'?BUSINESS_SMALL:BUSINESS_WHY)} (${days} jours).`;
+    case 'tourism': { const af=COUNTRIES[B.cc]&&COUNTRIES[B.cc][1]==='AF', tw=TOURISM_WHY.filter(x=>af||!/safari|fleuve/.test(x)); return `Séjour de ${days} jours à ${city} : ${pick2(rnd,tw)}.`; }
+    case 'study': return `Rentrée universitaire à ${city} : ${o.field||pick2(rnd,STUDY_WHY)} (aller simple, ${o.F?'inscrite':'inscrit'} pour l’année).`;
     case 'work': return `Prend un nouveau poste à ${city} (contrat de ${Math.max(3,Math.round(days/10))} mois).`;
     case 'medical': return `Voyage à ${city} pour ${pick2(rnd,MED_WHY)}.`;
     case 'pilgrim': return `Pèlerinage à ${city} avec un groupe de ${Math.round(10+rnd()*40)} personnes.`;
@@ -178,26 +194,62 @@ function flightManifest(ac){
     const pmx=purposeMix(wealth,pr.lvlFrom,pr.lvlTo,pr.km,A.cc,B.cc);
     const purp=pickW(rnd,Object.entries(pmx));
     const [a0,a1]=AGE_RANGE[purp]; const age=Math.round(a0+rnd()*(a1-a0));
-    const P=pool(nat), first=P[0][Math.floor(rnd()*P[0].length)], last=P[1][Math.floor(rnd()*P[1].length)];
+    const P=pool(nat), fem=rnd()<(purp==='business'?0.38:purp==='work'?0.42:0.52);
+    const fpool=P[0].filter(n=>isFem(n)===fem), first=(fpool.length?fpool:P[0])[Math.floor(rnd()*(fpool.length||P[0].length))], last=P[1][Math.floor(rnd()*P[1].length)], F=isFem(first);
     const trips=Math.max(.3,tripsPerYear(wealth,purp)*(0.6+rnd()*0.8));
     const base=idealPrice(leg.from,leg.to,k==='w'?'y':k)*(k==='w'?1.35:1), mult=(pm[k==='w'?'y':k]??1)*(0.9+rnd()*0.22)*(k==='y'&&wealth==='poor'?0.92:1);
     const row=(seatRow[k]+((used[k]=(used[k]||0)+1)>>2)), seat=row+'ABCDEF'[(used[k]-1)%6];
     const visaReq = pr.lvlTo>pr.lvlFrom && A.cc!==B.cc && rnd()<0.62;
     const home=cAirports(nat).length? AP(pick2(rnd,cAirports(nat).slice(0,6))).city : (COUNTRIES[nat]?COUNTRIES[nat][0]:'—');
-    const job=pick2(rnd,PROF[wealth]), kids=age<25?0:pick2(rnd,[0,0,1,1,2,3]);
+    const field=pick2(rnd,STUDY_WHY);
+    let job=pick2(rnd,PROF[wealth].filter(j=>purp==='study'||!STUDENT_JOBS.has(j)));
+    if(purp==='study') job=gj('étudiant',F)+' ('+field+')';
+    else if(age<17) job='élève';
+    else if(purp==='humanitarian') job=pick2(rnd,[gj('humanitaire (ONG)',F),gj('logisticien humanitaire',F),'médecin bénévole',gj('infirmier',F)]);
+    else if(age>=65) job=gj('retraité',F)+' · '+(F?'ancienne ':'ancien ')+gj(job,F);
+    else job=gj(job,F);
+    const kids=age<25?0:pick2(rnd,[0,0,1,1,2,3]);
     const tier=pickW(rnd,[['Aucun',trips<2?.8:.4],['Silver',.28],['Gold',wealth==='rich'?.3:.08],['Platinum',wealth==='rich'?.12:.01]]);
     const mood=pickW(rnd,[['ravi(e)',.14],['calme',.55],['impatient(e)',.21],['énervé(e)',.10]]);
     const moodWhy=mood==='énervé(e)'?pick2(rnd,['retard annoncé à l’embarquement','siège qui ne s’incline pas','bagage perdu au dernier vol','prix du billet jugé excessif','repas indisponible']):mood==='impatient(e)'?pick2(rnd,['correspondance serrée','file d’attente à l’embarquement','réunion dès l’arrivée']):mood==='ravi(e)'?pick2(rnd,['surclassement offert','premier voyage en avion','vol avec vue sur la côte','équipage aux petits soins']):'';
     rows.push({i, first, last, name:first+' '+last, age, nat, home, wealth, purp, cls:k, seat, price:base*mult, trips, channel:pick2(rnd,BOOKING[wealth]), job,
-      marital:kids?`marié(e), ${kids} enfant${kids>1?'s':''}`:pick2(rnd,['célibataire','marié(e)','en couple','divorcé(e)']), langs:LANG[nat]||'anglais', story:tripStory(purp,rnd,A,B),
+      marital:age<17?'mineur'+(F?'e':'')+' accompagné'+(F?'e':''):kids?`${gx('marié(e)',F)}, ${kids} enfant${kids>1?'s':''}`:gx(pick2(rnd,['célibataire','marié(e)','en couple','divorcé(e)']),F), langs:LANG[nat]||'anglais', story:tripStory(purp,rnd,A,B,{age,F,field,wealth}),
       bags:purp==='tourism'?pick2(rnd,[1,2,2,3]):purp==='business'?pick2(rnd,[0,1,1]):pick2(rnd,[1,1,2]), bag:Math.round((purp==='tourism'?22:purp==='business'?12:purp==='work'?30:20)*(0.6+rnd()*0.9)),
       meal:age<12?'Repas enfant':pick2(rnd,MEALS.filter(x=>x!=='Repas enfant')), assist:rnd()<0.04?pick2(rnd,['fauteuil roulant','accompagnement','famille avec poussette']):'', tier, miles:tier==='Aucun'?0:Math.round(5000+rnd()*90000), mood, moodWhy,
       nbWithUs:Math.max(0,Math.round(trips*(0.4+rnd()*2.4)-1)), passportCC:nat, passExp:2026+Math.round(1+rnd()*8),
-      visa:visaReq?'Visa obtenu':'Pas de visa requis', lastTrip:Math.max(1,Math.round(12/trips*(0.5+rnd())))});
+      visa:visaReq?'Visa obtenu':'Pas de visa requis', lastTrip:Math.max(1,Math.round(12/trips*(0.5+rnd()))),
+      F, avatar:avatarOf(age,F,nat,rnd), ...extraDetails(rnd,{age,F,nat,wealth,purp,k,trips,tier,A,B,mood,home})});
   }
   return {leg, from:A, to:B, total, shown:N, pr, rows};
 }
 const pick2=(rnd,arr)=>arr[Math.floor(rnd()*arr.length)];
+const PX_MONTHS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+function extraDetails(rnd,o){
+  const now=new Date(S.time), yr=now.getUTCFullYear(), byr=yr-o.age, bm=Math.floor(rnd()*12), bd=1+Math.floor(rnd()*28);
+  const cities=cAirports(o.nat).slice(0,8).map(c=>AP(c).city); const born=cities.length?pick2(rnd,cities):o.home;
+  const L='ABCDEFGHJKLMNPRSTUVWXYZ', passNo=(o.nat||'XX').slice(0,2)+L[Math.floor(rnd()*L.length)]+String(Math.floor(1e6+rnd()*8.99e6));
+  const minsBefore=o.wealth==='rich'?Math.round(45+rnd()*60):Math.round(70+rnd()*130);
+  const group=o.k==='f'||o.k==='j'?1:o.k==='w'?2:3+Math.floor(rnd()*3);
+  let with_='seul'+(o.F?'e':'');
+  if(o.age<17) with_=pick2(rnd,['avec ses parents','avec sa mère','avec son père','mineur non accompagné (pris en charge par l’équipage)']);
+  else if((o.purp==='tourism'||o.purp==='family')&&rnd()<0.45) with_=pick2(rnd,['avec son conjoint','avec son conjoint et leurs enfants','avec des amis','avec sa sœur','avec son frère']);
+  else if(o.purp==='pilgrim') with_='avec un groupe paroissial';
+  else if(o.purp==='business'&&rnd()<0.3) with_='avec deux collègues';
+  let conn='';
+  const onward=((typeof AP_ROUTES!=='undefined'&&AP_ROUTES[o.B.code])||[]).filter(c=>c!==o.A.code&&AP(c));
+  if(onward.length>=3&&rnd()<0.22){ const X=AP(pick2(rnd,onward)); conn=`Correspondance à ${o.B.city} vers ${X.city} (${X.code})`; }
+  const cash=Math.round((o.wealth==='rich'?800+rnd()*4000:o.wealth==='mid'?200+rnd()*1200:40+rnd()*400)/10)*10;
+  const spend=Math.round((o.k==='y'?rnd()*35:rnd()*120)*(o.wealth==='poor'?0.4:1));
+  const q=v=>clamp(Math.round(v),1,5), sv=S.service||3;
+  const sat={confort:q((o.k==='f'?4.6:o.k==='j'?4.2:o.k==='w'?3.6:3)+rnd()*1.2-0.5), repas:q(sv-0.3+rnd()*1.4), equipage:q(sv+0.2+rnd()*1.2-0.4), ponctualite:q(o.mood==='énervé(e)'?2+rnd():3.4+rnd()*1.6)};
+  const hist=[]; const homeAp=cAirports(o.nat)[0]||o.A.code, dests=((typeof AP_ROUTES!=='undefined'&&AP_ROUTES[homeAp])||[]).filter(c=>AP(c));
+  const nH=Math.min(3,Math.max(0,Math.round(o.trips)));
+  for(let i=0;i<nH&&dests.length;i++){ const dest=pick2(rnd,dests), car=(typeof carriersOn==='function'?carriersOn(homeAp,dest):[]).filter(c=>AIRLINE_DB[c]); const back=new Date(S.time-(1+i*5+Math.floor(rnd()*5))*30.4*DAY);
+    hist.push(`${PX_MONTHS[back.getUTCMonth()]} ${back.getUTCFullYear()} · ${AP(homeAp).city} → ${AP(dest).city} · ${car.length?AIRLINE_DB[pick2(rnd,car)][0]:'vol charter'}`); }
+  const opinions=o.mood==='énervé(e)'?['« J’attends mieux pour ce prix. »','« Si ça se reproduit, je change de compagnie. »']:o.tier!=='Aucun'?['« Fidèle depuis des années, je recommande. »','« Les miles valent vraiment le coup. »']:o.mood==='ravi(e)'?['« Première fois avec vous, très agréable surprise ! »','« Je reviendrai, c’est sûr. »']:['« Correct, rien à signaler. »','« Le prix a fait la différence. »','« J’ai choisi l’horaire qui m’arrangeait. »'];
+  return {dob:`${bd} ${PX_MONTHS[bm]} ${byr}`, born, passNo, checkin:pick2(rnd,CHECKIN[o.wealth]), ciMin:minsBefore, group, with_, conn, declare:pick2(rnd,DECLARE[o.purp]||['rien à déclarer']), cash, spend, sat, hist, opinion:pick2(rnd,opinions),
+    control:rnd()<(o.wealth==='poor'?0.06:0.02)?'Contrôle approfondi (vérification du visa)':'Contrôle normal ✅'};
+}
 
 /* ---------- affichage ---------- */
 const UNITS={day:['jour',1],week:['semaine',7],month:['mois',30.4],year:['an',365]};
@@ -256,35 +308,65 @@ function paxProfileHtml(a,b){
 function manifestHtml(ac){
   const m=flightManifest(ac); if(!m) return '<div class="mut">Pas de vol en cours.</div>';
   if(m.cargo) return '<div class="mut">Vol cargo : pas de passagers à bord.</div>';
-  const A=m.from, B=m.to, pr=m.pr;
-  const hdr=`<div class="small mut">Vol ${esc(S.company.code)}${flightNumber(ac)} · ${esc(A.city)} → ${esc(B.city)} · <b>${m.total}</b> passagers à bord · ${m.shown} fiches affichées. <b>Passagers fictifs</b> générés par le jeu à partir des statistiques du marché.</div>`;
-  const wc={rich:0,mid:0,poor:0}, nc={}; for(const r of m.rows){ wc[r.wealth]++; nc[r.nat]=(nc[r.nat]||0)+1; }
-  const sum=`<div class="chips">${Object.entries(nc).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([c,n])=>`<span class="chip">${COUNTRIES[c]?COUNTRIES[c][2]:'🌍'} ${n}</span>`).join('')}<span class="chip">🟣 ${wc.rich}</span><span class="chip">🔵 ${wc.mid}</span><span class="chip">🟠 ${wc.poor}</span></div>`;
-  const clsL={f:'👑 1ʳᵉ',j:'💼 Aff.',w:'💺 Prem. éco',y:'💺 Éco'};
-  return hdr+sum+`<div class="manifest">${m.rows.map(r=>`<div class="mrow" data-act="paxCard" data-id="${ac.id}" data-i="${r.i}"><div class="mh"><b>${esc(r.first)}</b> ${esc(r.last)} <span class="mut">${r.age} ans</span> <span class="mseat">${r.seat}</span></div>
-    <div class="small">${COUNTRIES[r.nat]?COUNTRIES[r.nat][2]:'🌍'} ${esc(COUNTRIES[r.nat]?COUNTRIES[r.nat][0]:r.nat)} · ${esc(r.job)} · <span class="w-${r.wealth}">${WEALTH_LABEL[r.wealth]}</span></div>
-    <div class="small mut">${esc(r.story)}</div>
-    <div class="small mut">${clsL[r.cls]} · billet <b>${fmtMoney(r.price)}</b> · ${r.mood==='énervé(e)'?'😠':r.mood==='ravi(e)'?'😄':r.mood==='impatient(e)'?'😬':'🙂'} ${r.mood} <span class="mut">· touchez pour la fiche complète</span></div></div>`).join('')}</div>${m.total>m.shown?`<div class="small mut">… et ${m.total-m.shown} autres passagers.</div>`:''}`;
+  const A=m.from, B=m.to, f=UI.manF||'all';
+  const wc={rich:0,mid:0,poor:0}, nc={}, cc={f:0,j:0,w:0,y:0}; let rev=0, angry=0, happy=0;
+  for(const r of m.rows){ wc[r.wealth]++; nc[r.nat]=(nc[r.nat]||0)+1; cc[r.cls]++; rev+=r.price; if(r.mood==='énervé(e)') angry++; if(r.mood==='ravi(e)') happy++; }
+  const avg=rev/Math.max(1,m.rows.length);
+  const hdr=`<div class="mf-head"><div class="mf-route">${esc(S.company.code)}${flightNumber(ac)} · <b>${esc(A.city)}</b> → <b>${esc(B.city)}</b></div>
+    <div class="kpis mf-k"><div class="kpi"><div class="kl">À bord</div><div class="kv">${m.total}</div></div><div class="kpi"><div class="kl">Billet moyen</div><div class="kv">${fmtMoney(avg)}</div></div>
+    <div class="kpi"><div class="kl">Recette estimée</div><div class="kv">${fmtMoney(avg*m.total)}</div></div><div class="kpi"><div class="kl">Humeur</div><div class="kv">😄 ${happy} · 😠 ${angry}</div></div></div></div>`;
+  const leg=`<div class="mf-leg"><span>🟣 Aisés <b>${wc.rich}</b></span><span>🔵 Classe moyenne <b>${wc.mid}</b></span><span>🟠 Modestes <b>${wc.poor}</b></span></div>
+    <div class="mf-leg">${Object.entries(nc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([c,n])=>`<span>${COUNTRIES[c]?COUNTRIES[c][2]:'🌍'} ${esc(COUNTRIES[c]?COUNTRIES[c][0]:c)} <b>${n}</b></span>`).join('')}</div>`;
+  const F=[['all','Tous'],['f',`👑 1ʳᵉ (${cc.f})`],['j',`💼 Affaires (${cc.j})`],['y',`💺 Éco (${cc.y+cc.w})`],['angry',`😠 Mécontents (${angry})`],['vip','⭐ Fidèles']].filter(([k])=>k==='all'||k==='angry'||k==='vip'||(k==='y'?cc.y+cc.w:cc[k]));
+  const filt=`<div class="chips">${F.map(([k,l])=>`<button class="chip ${f===k?'on':''}" data-act="manF" data-id="${ac.id}" data-k="${k}">${l}</button>`).join('')}</div>`;
+  const rows=m.rows.filter(r=>f==='all'||(f==='angry'?r.mood==='énervé(e)':f==='vip'?r.tier!=='Aucun':f==='y'?(r.cls==='y'||r.cls==='w'):r.cls===f));
+  const clsL={f:'👑 1ʳᵉ',j:'💼 Affaires',w:'💺 Premium',y:'💺 Éco'}, moodI=r=>r.mood==='énervé(e)'?'😠':r.mood==='ravi(e)'?'😄':r.mood==='impatient(e)'?'😬':'🙂';
+  return hdr+leg+filt+`<div class="manifest">${rows.map(r=>`<div class="mrow" data-act="paxCard" data-id="${ac.id}" data-i="${r.i}">
+    <div class="mr-av">${r.avatar}</div>
+    <div class="mr-body"><div class="mh"><b>${esc(r.first)} ${esc(r.last)}</b> <span class="mut">${r.age} ans</span></div>
+      <div class="small">${COUNTRIES[r.nat]?COUNTRIES[r.nat][2]:'🌍'} ${esc(r.job)} · <span class="w-${r.wealth}">${WEALTH_LABEL[r.wealth]}</span></div>
+      <div class="small mut mr-story">${esc(r.story)}</div>
+      <div class="small">${clsL[r.cls]} · <b>${fmtMoney(r.price)}</b> · ${moodI(r)} ${gx(r.mood,r.F)}${r.tier!=='Aucun'?` · ⭐ ${r.tier}`:''}</div></div>
+    <div class="mseat">${r.seat}</div></div>`).join('')||'<div class="mut small">Aucun passager dans ce filtre.</div>'}</div>
+  <div class="small mut">${m.total>m.shown?`${m.shown} fiches affichées sur ${m.total} passagers. `:''}Passagers fictifs générés à partir des statistiques du marché · touchez une fiche pour tout voir.</div>`;
 }
 function passengerCardHtml(ac,i){
   const m=flightManifest(ac); if(!m||!m.rows) return '';
   const r=m.rows[i]; if(!r) return '';
   const clsFull={f:'Première',j:'Affaires',w:'Premium éco',y:'Économique'};
   const row=(k,v)=>`<div class="pcrow"><span class="mut">${k}</span><b>${v}</b></div>`;
-  return `<div class="pcard"><div class="pc-head"><div class="pc-av" style="background:hsl(${hashS(r.name)%360},45%,38%)">${esc(r.first[0])}${esc(r.last[0])}</div><div><div class="pc-name">${esc(r.first)} <b>${esc(r.last)}</b></div><div class="mut small">${r.age} ans · ${COUNTRIES[r.nat]?COUNTRIES[r.nat][2]+' '+COUNTRIES[r.nat][0]:r.nat} · <span class="w-${r.wealth}">${WEALTH_LABEL[r.wealth]}</span></div></div></div>
-    <div class="pc-story">« ${esc(r.story)} »</div>
-    <h4>Identité</h4>${row('Prénom',esc(r.first))}${row('Nom',esc(r.last))}${row('Âge',r.age+' ans')}${row('Réside à',esc(r.home)+', '+esc(COUNTRIES[r.nat]?COUNTRIES[r.nat][0]:''))}${row('Situation',esc(r.marital))}${row('Profession',esc(r.job))}${row('Langues',esc(r.langs))}
-    <h4>Voyage</h4>${row('Vol',`${esc(S.company.code)}${flightNumber(ac)} · ${esc(m.from.city)} → ${esc(m.to.city)}`)}${row('Motif',PURPOSE_LABEL[r.purp])}${row('Classe / siège',`${clsFull[r.cls]} · ${r.seat}`)}${row('Billet payé',fmtMoney(r.price))}${row('Réservé via',esc(r.channel))}${row('Bagages',`${r.bags} (${r.bag} kg)`)}${row('Repas',esc(r.meal))}${r.assist?row('Assistance',esc(r.assist)):''}
-    <h4>Habitudes</h4>${row('Voyage par an',r.trips.toFixed(1).replace('.',',')+' fois')}${row('Dernier vol',`il y a ~${r.lastTrip} mois`)}${row('Vols avec vous',r.nbWithUs)}${row('Fidélité',r.tier==='Aucun'?'Aucune carte':`${r.tier} · ${num(r.miles)} miles`)}
-    <h4>Documents</h4>${row('Passeport',`${esc(COUNTRIES[r.passportCC]?COUNTRIES[r.passportCC][0]:r.passportCC)} · valable jusqu’en ${r.passExp}`)}${row('Visa',r.visa)}
-    <h4>À bord</h4>${row('Humeur',`${r.mood}${r.moodWhy?' — '+esc(r.moodWhy):''}`)}
-    <div class="small mut" style="margin-top:8px">Passager fictif généré par le jeu à partir des statistiques du marché.</div></div>`;
+  const st=n=>`<span class="pst">${'★'.repeat(n)}<i>${'★'.repeat(5-n)}</i></span>`;
+  const sat=r.sat||{}, avgS=sat.confort?((sat.confort+sat.repas+sat.equipage+sat.ponctualite)/4):0;
+  const nat=COUNTRIES[r.nat]?COUNTRIES[r.nat]:null, dep=leg=>leg;
+  const fl=ac.flight&&ac.flight.legs[ac.flight.li], depT=fl?fl.dep:S.time;
+  const t=x=>fmtTime(x);
+  return `<div class="pcard">
+    <div class="pc-head"><div class="pc-av2">${r.avatar}</div><div class="grow"><div class="pc-name">${esc(r.first)} <b>${esc(r.last.toUpperCase())}</b></div>
+      <div class="small">${nat?nat[2]+' '+esc(nat[0]):''} · ${r.age} ans · <span class="w-${r.wealth}">${WEALTH_LABEL[r.wealth]}</span></div>
+      <div class="small mut">${esc(r.job)}</div></div><div class="pc-seat"><small>SIÈGE</small><b>${r.seat}</b><small>${clsFull[r.cls]}</small></div></div>
+    <div class="pc-story">« ${esc(r.story)} »${r.conn?`<br><small>🔁 ${esc(r.conn)}</small>`:''}</div>
+    <div class="pc-pass"><div class="pp-top"><span>PASSEPORT · ${nat?esc(nat[0]).toUpperCase():r.nat}</span><span>${nat?nat[2]:''}</span></div>
+      <div class="pp-grid"><div><small>Nom</small><b>${esc(r.last.toUpperCase())}</b></div><div><small>Prénom</small><b>${esc(r.first)}</b></div>
+      <div><small>Né${r.F?'e':''} le</small><b>${esc(r.dob||'—')}</b></div><div><small>à</small><b>${esc(r.born||r.home)}</b></div>
+      <div><small>N°</small><b>${esc(r.passNo||'—')}</b></div><div><small>Expire</small><b>${r.passExp}</b></div></div>
+      <div class="pp-mrz">P&lt;${esc((r.nat||'XX'))}${esc(r.last.toUpperCase().replace(/[^A-Z]/g,''))}&lt;&lt;${esc(r.first.toUpperCase().replace(/[^A-Z]/g,''))}&lt;&lt;&lt;&lt;&lt;&lt;</div></div>
+    <h4>👤 Profil</h4>${row('Réside à',esc(r.home)+(nat?', '+esc(nat[0]):''))}${row('Situation',esc(r.marital))}${row('Langues',esc(r.langs))}${row('Voyage',esc(r.with_||'—'))}
+    <h4>🎫 Ce voyage</h4>${row('Vol',`${esc(S.company.code)}${flightNumber(ac)} · ${esc(m.from.city)} → ${esc(m.to.city)}`)}${row('Motif',PURPOSE_LABEL[r.purp])}${row('Billet payé',fmtMoney(r.price))}${row('Réservé via',esc(r.channel))}
+      ${row('Enregistrement',`${esc(r.checkin||'—')} · ${t(depT-(r.ciMin||90)*MIN)} (${r.ciMin||90} min avant)`)}${row('Embarquement',`groupe ${r.group||3}`)}${row('Bagages',r.bags?`${r.bags} en soute · ${r.bag} kg`:'bagage cabine seulement')}${row('Repas',esc(r.meal))}${r.assist?row('Assistance',esc(r.assist)):''}
+    <h4>🛃 Douane & immigration</h4>${row('Visa',r.visa)}${row('Contrôle',esc(r.control||'Contrôle normal ✅'))}${row('Déclare',esc(r.declare||'rien à déclarer'))}${row('Argent liquide',fmtMoney(r.cash||0))}
+    <h4>📊 Avis sur ce vol</h4><div class="pc-sat"><div><span>Confort</span>${st(sat.confort||3)}</div><div><span>Repas</span>${st(sat.repas||3)}</div><div><span>Équipage</span>${st(sat.equipage||3)}</div><div><span>Ponctualité</span>${st(sat.ponctualite||3)}</div></div>
+      <div class="pc-op">${esc(r.opinion||'')} <span class="mut small">· note moyenne ${avgS.toFixed(1).replace('.',',')}/5 · humeur : ${gx(r.mood,r.F)}${r.moodWhy?' ('+esc(r.moodWhy)+')':''}</span></div>
+      ${row('Achats à bord',fmtMoney(r.spend||0))}
+    <h4>🧳 Habitudes de voyage</h4>${row('Voyage',r.trips.toFixed(1).replace('.',',')+' fois par an')}${row('Dernier vol',`il y a ~${r.lastTrip} mois`)}${row('Vols avec vous',r.nbWithUs)}${row('Fidélité',r.tier==='Aucun'?'Aucune carte':`⭐ ${r.tier} · ${num(r.miles)} miles`)}
+      ${(r.hist&&r.hist.length)?`<div class="pc-hist">${r.hist.map(h=>`<div>✈️ ${esc(h)}</div>`).join('')}</div>`:''}
+    <div class="small mut" style="margin-top:10px">Passager fictif généré par le jeu à partir des statistiques du marché.</div></div>`;
 }
 function registerPaxActions(){ Object.assign(ACTIONS,{
   paxCountry:d=>{ UI.paxCountry=d.cc; renderPanel(); },
   paxUnit:d=>{ UI.paxUnit=d.k; renderPanel(); },
-  manifest:d=>{ const ac=findAc(d.id); if(ac) showModal(`📋 Manifeste ${ac.reg}`, manifestHtml(ac), true); },
+  manifest:d=>{ if(UI.manFor!==d.id){ UI.manF='all'; UI.manFor=d.id; } const ac=findAc(d.id); if(ac) showModal(`📋 Manifeste ${ac.reg}`, manifestHtml(ac), true); },
   paxCard:d=>{ const ac=findAc(d.id); if(ac) showModal(`🪪 Fiche passager`, passengerCardHtml(ac,+d.i)+`<div class="btns"><button class="btn" data-act="manifest" data-id="${ac.id}">← Retour au manifeste</button></div>`, true); },
+  manF:d=>{ UI.manF=d.k; const ac=findAc(d.id); if(ac) showModal(`📋 Manifeste ${ac.reg}`, manifestHtml(ac), true); },
   paxLine:d=>{ showModal('🛂 Profil des passagers', paxProfileHtml(d.a,d.b), true); },
 }); Object.assign(INPUTS,{ paxCountry:el=>{ UI.paxCountry=el.value; renderPanel(); } }); }
 
