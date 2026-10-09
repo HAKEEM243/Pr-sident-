@@ -316,7 +316,7 @@ let booted=false;
 function boot(){
   if(booted) return; booted=true;
   initMap(); renderTabs();
-  if(localStorage.getItem('se-news')!=='v10'){ try{ localStorage.setItem('se-news','v10'); }catch(e){} setTimeout(()=>toast('Nouveau en vue 3D : 👥 cabine avec les passagers, 🎬 caméra de bord de piste au décollage et à l’atterrissage, feux de l’avion, fumée des pneus, 🔊 son des moteurs et ☀️ plein jour.','ok'),1500); }
+  if(localStorage.getItem('se-news')!=='v11'){ try{ localStorage.setItem('se-news','v11'); }catch(e){} setTimeout(()=>toast('Nouveau en vue 3D : vraies pistes (marquages, numéros, PAPI), ombre de l’avion, son automatique des moteurs, 🌧️ pluie et orage, 👥 cabine avec les passagers.','ok'),1500); }
   if(typeof maybeInstallHint==='function') maybeInstallHint();
   renderTop(); setTab(window.innerWidth<820?'map':(isSimple()?'network':'dash'));
   updatePlanes(); updateRival();
