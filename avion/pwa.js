@@ -17,19 +17,19 @@ if(isStandalone()) document.documentElement.classList.add('pwa');
 function installHtml(){
   const ios=isIOS();
   const steps=ios? `<ol class="inst">
-      <li>Dans <b>Safari</b>, touchez le bouton <b>Partager</b> <span class="ico">⬆️</span> (carré avec une flèche, en bas ou en haut de l’écran).</li>
+      <li>Dans <b>Safari</b> ou <b>Chrome</b>, touchez le bouton <b>Partager</b> <span class="ico">⬆️</span> (dans Chrome : en haut à droite, à côté de l’adresse).</li>
       <li>Faites défiler et touchez <b>« Sur l’écran d’accueil »</b> <span class="ico">➕</span>.</li>
       <li>Touchez <b>Ajouter</b>. L’icône <b>Sky Empire</b> ✈️ apparaît sur votre écran d’accueil.</li>
       <li>Ouvrez le jeu <b>depuis cette icône</b> : il s’affiche en plein écran, comme une vraie application, sans la barre de Safari.</li></ol>
-      <p class="small mut">Sur iPhone, cela ne marche qu’avec Safari (pas depuis Google, Chrome ou une autre appli). Si vous êtes dans un autre navigateur, ouvrez ce lien dans Safari.</p>`
+      <p class="small mut">Marche avec Safari, et avec Chrome sur iOS 16.4 ou plus récent. Pas depuis l’appli Google ni depuis un lien ouvert dans une autre appli.</p>`
     : _installEvt? `<p>Touchez le bouton ci-dessous, puis <b>Installer</b>.</p><div class="btns"><button class="btn gold" data-act="pwaPrompt">📲 Installer Sky Empire</button></div>`
     : `<ol class="inst"><li>Ouvrez le menu du navigateur <b>⋮</b> (en haut à droite).</li><li>Touchez <b>« Installer l’application »</b> ou <b>« Ajouter à l’écran d’accueil »</b>.</li><li>Ouvrez ensuite le jeu depuis l’icône <b>Sky Empire</b> ✈️.</li></ol>`;
   return `${isStandalone()?`<div class="al ok">✅ Vous utilisez déjà l’application Sky Empire.</div>`:''}
     <p>Installez Sky Empire comme une <b>application</b> : icône sur l’écran d’accueil, plein écran, démarrage rapide, et le jeu marche même avec une connexion faible.</p>
     ${isStandalone()?'':steps}
     <h3>🔁 Garder ma partie</h3>
-    <p class="small">${ios?'Sur iPhone, l’application installée et Safari ont chacun leur propre mémoire.':'L’application et le navigateur peuvent avoir chacun leur mémoire.'} Pour retrouver votre compagnie dans l’application :</p>
-    <ol class="inst"><li>${isStandalone()?'Dans Safari (l’ancien onglet du jeu)':'Ici, avant d’installer'} : touchez <b>📋 Copier ma partie</b>.</li><li>Dans l’application : <b>Plus → 📲 Application → 📥 Coller une partie</b>.</li></ol>
+    <p class="small">${ios?'Sur iPhone, l’application installée, Safari et Chrome ont chacun leur propre mémoire.':'L’application et le navigateur peuvent avoir chacun leur mémoire.'} Pour retrouver votre compagnie dans l’application :</p>
+    <ol class="inst"><li>${isStandalone()?'Dans le navigateur où vous jouiez avant (Chrome ou Safari)':'Ici, avant d’installer'} : touchez <b>📋 Copier ma partie</b>.</li><li>Dans l’application : <b>Plus → 📲 Application → 📥 Coller une partie</b>.</li></ol>
     <div class="btns"><button class="btn" data-act="pwaCopy">📋 Copier ma partie</button><button class="btn" data-act="pwaPaste">📥 Coller une partie</button></div>`;
 }
 function registerPwaActions(){

@@ -71,14 +71,14 @@ async function savesHtml(){
   return `${cur}
   <div class="btns"><button class="btn gold" data-act="svNow">💾 Sauvegarder maintenant</button><button class="btn" data-act="svSlot">➕ Nouvel emplacement</button></div>
   <h3>📤 Mettre ma partie à l’abri</h3>
-  <p class="small mut">Le fichier exporté vous permet de retrouver votre compagnie sur n’importe quel appareil, dans Safari ou dans l’application. Sur iPhone : <b>Exporter</b> → <b>« Enregistrer dans Fichiers »</b>.</p>
+  <p class="small mut">Le fichier exporté vous permet de retrouver votre compagnie sur n’importe quel appareil, dans Chrome, Safari ou l’application. Sur iPhone : <b>Exporter</b> → <b>« Enregistrer dans Fichiers »</b>.</p>
   <div class="btns"><button class="btn" data-act="svExport">📤 Exporter (fichier)</button><button class="btn" data-act="svImport">📥 Importer un fichier</button></div>
   <div class="btns"><button class="btn" data-act="pwaCopy">📋 Copier (texte)</button><button class="btn" data-act="pwaPaste">📋 Coller (texte)</button></div>
   <h3>🗂️ Mes emplacements</h3>
   ${slots.length? slots.map(s=>`<div class="svrow"><div>${s.label?`<b>${esc(s.label)}</b><br>`:''}${svLine(s.m)}</div><div class="svb"><button class="btn sm gold" data-act="svLoad" data-k="${s.k}">Charger</button><button class="btn sm" data-act="svDelete" data-k="${s.k}">🗑️</button></div></div>`).join('') : '<p class="small mut">Aucun emplacement. « ➕ Nouvel emplacement » garde une copie de votre partie que vous pourrez recharger plus tard.</p>'}
   <h3>♻️ Secours automatiques</h3>
   ${bks.length? bks.map(s=>`<div class="svrow"><div>${svLine(s.m)}</div><div class="svb"><button class="btn sm" data-act="svLoad" data-k="${s.k}">Restaurer</button></div></div>`).join('') : '<p class="small mut">Une copie de secours est faite toutes les 10 minutes de jeu (les 4 dernières sont gardées).</p>'}
-  <p class="small mut" style="margin-top:12px">ℹ️ Sur iPhone, l’application installée et Safari ont chacun leur propre mémoire : pour passer de l’un à l’autre, exportez dans l’un et importez dans l’autre.</p>`;
+  <p class="small mut" style="margin-top:12px">ℹ️ Sur iPhone, l’application installée, Chrome et Safari ont chacun leur propre mémoire : pour passer de l’un à l’autre, exportez dans l’un et importez dans l’autre.</p>`;
 }
 async function openSaves(){ UI.modal='saves'; showModal('💾 Sauvegardes', '<p class="mut">Chargement…</p>'); const h=await savesHtml(); if(UI.modal==='saves'||!UI.modal) showModal('💾 Sauvegardes', h); }
 async function svExport(){
@@ -120,7 +120,7 @@ async function ngRestoreHtml(){
   return `<div class="ngrestore"><b>📂 Vous avez déjà une partie ?</b>
     <div class="btns"><button class="btn gold" data-act="svImport">📥 Importer un fichier</button><button class="btn" data-act="pwaPaste">📋 Coller une partie</button></div>
     ${bks.slice(0,3).map(s=>`<div class="svrow"><div>${svLine(s.m)}</div><div class="svb"><button class="btn sm gold" data-act="svLoad" data-k="${s.k}">Reprendre</button></div></div>`).join('')}
-    ${typeof isStandalone==='function'&&isStandalone()?`<small class="mut">Votre partie était dans Safari ? Ouvrez le jeu dans Safari → Plus → 💾 Sauvegardes → <b>Exporter</b>, puis ici : <b>Importer un fichier</b>.</small>`:''}</div>`;
+    ${typeof isStandalone==='function'&&isStandalone()?`<small class="mut">Votre partie était dans Chrome ou Safari ? Ouvrez le jeu dans ce navigateur → Plus → 💾 Sauvegardes → <b>Exporter</b> → « Enregistrer dans Fichiers », puis ici : <b>Importer un fichier</b>.</small>`:''}</div>`;
 }
 async function decorateNewGame(){
   const b=document.getElementById('ngBody'); if(!b||b.querySelector('.ngrestore')) return;
