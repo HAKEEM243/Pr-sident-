@@ -209,6 +209,15 @@ body.cabin-on #rfsHud .rf-tape,body.cabin-on #rfsHud .rf-dest,body.cabin-on #rfs
 .chart select{width:0;max-width:100%;min-width:0;flex:1 1 160px;text-overflow:ellipsis} .chart .row{flex-wrap:wrap;gap:6px} .chart{overflow:hidden}
 .chart .ch-h{display:flex;gap:10px;align-items:center;margin-bottom:4px} .chart .ch-ic{font-size:28px} .chart .ch-pay{color:var(--gold);font-size:16px}
 @media (max-width:600px){.dcal .dl{font-size:9px}.dcal .dl .dl-i{font-size:18px}}
+.lv-prev{background:linear-gradient(180deg,#7dd3fc,#e0f2fe 70%,#94a3b8);border-radius:12px;padding:6px;margin-bottom:8px}
+.lv-svg{width:100%;height:auto;display:block}
+.lv-cols{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.lv-c{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px}
+.lv-c input{width:52px;height:40px;border:1px solid var(--line);border-radius:10px;background:none;padding:2px}
+body.photo-on #globeHud,body.photo-on #rfsHud,body.photo-on #cabinPanel{display:none!important}
+body.globe-on #instBar,body.city-on #instBar{display:none}
+#photoBar .gh{white-space:nowrap}
+#photoBar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));z-index:1070;display:flex;gap:8px}
 ol.inst{padding-left:20px;line-height:1.55} ol.inst li{margin:4px 0} .ico{display:inline-block;background:#1e3a5f;border-radius:6px;padding:0 5px}
 textarea.savebox{width:100%;height:160px;background:#0b1220;color:var(--txt);border:1px solid var(--line);border-radius:8px;font:11px ui-monospace,monospace}
 #tb-daily{position:relative;background:#14233b;border:1px solid var(--line);border-radius:9px;padding:4px 9px;font-size:16px;cursor:pointer;color:var(--txt)}
@@ -608,17 +617,18 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="map.js?v=20261023"></script>
 <script src="ui.js?v=20261035"></script>
 <script src="pilot.js?v=20261019"></script>
-<script src="actions.js?v=20261035"></script>
-<script src="aircraft3d.js?v=20261019"></script>
-<script src="globe.js?v=20261034"></script>
+<script src="actions.js?v=20261038"></script>
+<script src="aircraft3d.js?v=20261037"></script>
+<script src="globe.js?v=20261037"></script>
 <script src="runway3d.js?v=20261034"></script>
-<script src="globe-fx.js?v=20261034"></script>
+<script src="globe-fx.js?v=20261037"></script>
 <script src="city3d.js?v=20261019"></script>
 <script src="ui-biz.js?v=20261019"></script>
-<script src="progress.js?v=20261036"></script>
+<script src="progress.js?v=20261038"></script>
+<script src="studio.js?v=20261038"></script>
 <script src="paxcases.js?v=20261030"></script>
 <script src="inbox.js?v=20261030"></script>
 <script src="pwa.js?v=20261026"></script>
-<script src="simple.js?v=20261035"></script>
+<script src="simple.js?v=20261037"></script>
 </body>
 </html>

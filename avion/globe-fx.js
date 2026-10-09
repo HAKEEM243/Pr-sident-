@@ -165,6 +165,7 @@ function fxCamera(ac,p,c){
     return true;
   }
   if(FX.cabin) fxCabinOff();
+  if(FX.orbit) c.h=(c.h+0.12)%360;
   if(c.mode!=='auto') return false;
   const st=p.st, ph=st.phase;
   const spotPhase=ph===2||ph===7||(ph===6&&st.alt<260)||(ph===3&&st.alt<180);

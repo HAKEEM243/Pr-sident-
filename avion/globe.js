@@ -19,7 +19,7 @@ function loadCesium(){
 }
 // modèle représentatif pour les avions des autres compagnies
 const REP_MODEL={prop:'AT76', rj:'CRJ9', nb:'A20N', wb:'B789', quad:'B748', conc:'CONC'};
-const liveryOf=ac=>S.company.color;
+const liveryOf=ac=>S.livery||S.company.color;
 function modelInfo(m,color){ return AC3D.uri(m,color); }
 
 /* ---------- ouverture / fermeture ---------- */
@@ -297,6 +297,7 @@ function renderGlobeHud(){
       <button class="gh" data-act="globeNext">⏭ Avion suivant</button>
       <button class="gh ${typeof FX!=='undefined'&&FX.soundOn?'on':''}" data-act="globeSound">🔊 Son</button>
       <button class="gh ${G.forceDay?'on':''}" data-act="globeDay" title="Toujours en plein jour">☀️ Jour</button>
+      <button class="gh" data-act="photo">📸 Photo</button>
       <button class="gh ${typeof FX!=='undefined'&&FX.forceRain?'on':''}" data-act="globeRain" title="Pluie et orage (sinon : selon la météo du jeu)">🌧️ Pluie</button>
       <span class="gh-sep"></span>
       <button class="gh ${G.tm&&G.tm.auto?'on':''}" data-act="globeTime" data-k="auto" title="Temps réel au décollage et à l’atterrissage, accéléré en croisière">🎬 Auto</button>

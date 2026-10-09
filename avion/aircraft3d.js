@@ -98,7 +98,13 @@ const AC3D=(function(){
       if(v==='a380') P.dark.push(strip(fz, z0+L*0.2, z1-L*0.16, 0.62, 0.74, R, 1.006, 14), mirrorX(strip(fz, z0+L*0.2, z1-L*0.16, 0.62, 0.74, R, 1.006, 14)));
       if(v==='747') P.dark.push(strip(fz, z1-L*0.34, z1-L*0.12, 0.85, 0.95, R, 1.006, 6), mirrorX(strip(fz, z1-L*0.34, z1-L*0.12, 0.85, 0.95, R, 1.006, 6)));
     }
-    if(!conc) P.stripe.push(strip(fz, z0+L*0.12, z1-L*0.06, -0.32, -0.2, R, 1.008, 14), mirrorX(strip(fz, z0+L*0.12, z1-L*0.06, -0.32, -0.2, R, 1.008, 14)));
+    const sty=(livery&&livery.style)||'classique';
+    // bande en arc (ventre) : plusieurs subdivisions angulaires
+    const arc=(za,zb,a0,a1,sc)=>{ const secs=[], cs=[]; for(let i=0;i<=14;i++){ const z=lerp(za,zb,i/14), f=fz(z), ring=[]; for(let k=0;k<=12;k++){ const a=lerp(a0,a1,k/12), s2=Math.sin(a); ring.push([Math.cos(a)*f.r*sc*(f.wide||1), f.yc+s2*f.r*sc*(s2>0?f.top:1), z]); } secs.push(ring); cs.push([0,f.yc,z]); } return loft(secs,{centers:cs,open:true}); };
+    if(!conc&&(sty==='classique'||sty==='double')) P.stripe.push(strip(fz, z0+L*0.12, z1-L*0.06, -0.32, -0.2, R, 1.008, 14), mirrorX(strip(fz, z0+L*0.12, z1-L*0.06, -0.32, -0.2, R, 1.008, 14)));
+    if(!conc&&sty==='double') P.stripe.push(strip(fz, z0+L*0.14, z1-L*0.08, -0.12, -0.07, R, 1.008, 14), mirrorX(strip(fz, z0+L*0.14, z1-L*0.08, -0.12, -0.07, R, 1.008, 14)));
+    if(!conc&&sty==='ventre') P.stripe.push(arc(z0+L*0.1, z1-L*0.04, -Math.PI+0.28, -0.28, 1.008));
+    if(!conc&&sty==='queue') P.stripe.push(arc(z0+L*0.03, z0+L*0.3, -0.2, Math.PI+0.2, 1.01));
     // ailes
     const high=v==='prop'||v==='single'||v==='otter';
     const wingYr = high? R*0.86 : -R*0.55;
@@ -159,9 +165,10 @@ const AC3D=(function(){
   function hexc(c){ if(!c) return [0.9,0.9,0.92,1]; if(c.startsWith('hsl')){ const m=c.match(/[\d.]+/g).map(Number); const h=m[0]/360,s=m[1]/100,l=m[2]/100; const q=l<.5?l*(1+s):l+s-l*s, p=2*l-q; const f=t=>{ t=(t+1)%1; return t<1/6?p+(q-p)*6*t:t<.5?q:t<2/3?p+(q-p)*(2/3-t)*6:p; }; return [f(h+1/3),f(h),f(h-1/3),1]; }
     const n=parseInt(c.replace('#',''),16); return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255,1]; }
   function uri(m, color){
-    const key=(m.id||'X')+'|'+color; if(_cache[key]) return _cache[key];
-    const B=build(m), lc=hexc(color);
-    const mats={white:[0.95,0.96,0.97,1], grey:[0.74,0.77,0.82,1], tail:lc, stripe:lc, dark:[0.1,0.12,0.18,1], glass:[0.04,0.07,0.13,1], eng:[0.86,0.88,0.9,1], fan:[0.12,0.13,0.16,1], prop:[0.15,0.15,0.17,0.32], gear:[0.55,0.57,0.6,1], tire:[0.06,0.06,0.07,1]};
+    const lv=(color&&typeof color==='object')? color : {tail:color, stripe:color};
+    const key=(m.id||'X')+'|'+JSON.stringify(lv); if(_cache[key]) return _cache[key];
+    const B=build(m,lv), lc=hexc(lv.tail||'#1e5ba8'), sc=hexc(lv.stripe||lv.tail||'#1e5ba8');
+    const mats={white:lv.body?hexc(lv.body):[0.95,0.96,0.97,1], grey:[0.74,0.77,0.82,1], tail:lc, stripe:sc, dark:[0.1,0.12,0.18,1], glass:[0.04,0.07,0.13,1], eng:lv.engine?hexc(lv.engine):[0.86,0.88,0.9,1], fan:[0.12,0.13,0.16,1], prop:[0.15,0.15,0.17,0.32], gear:[0.55,0.57,0.6,1], tire:[0.06,0.06,0.07,1]};
     const gltf={asset:{version:'2.0',generator:'Sky Empire 3D'}, scene:0, scenes:[{nodes:[0,1]}], nodes:[{mesh:0,name:'body'},{mesh:1,name:'gear'}], meshes:[{primitives:[]},{primitives:[]}], materials:[], accessors:[], bufferViews:[], buffers:[]};
     const chunks=[]; let off=0;
     const addView=(arr,target)=>{ const bytes=new Uint8Array(arr.buffer); const pad=(4-bytes.length%4)%4; chunks.push(bytes); if(pad) chunks.push(new Uint8Array(pad));
