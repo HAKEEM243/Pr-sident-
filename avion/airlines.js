@@ -154,7 +154,7 @@ function visibleRealRoutes(bounds, c0, limitAirports=50){
     const k=pairKey(code,b); if(seen.has(k)) continue; seen.add(k);
     for(const c of carriersOn(code,b).slice(0,3)){
       const key=c+k; let r=_ghostRoutes.get(key);
-      if(!r){ r={a:k.slice(0,3), b:k.slice(3), freq:Math.min(3,realFreq(code,b))}; _ghostRoutes.set(key,r); }
+      if(!r){ r={a:k.slice(0,3), b:k.slice(3), freq:Math.min(3,realFreq(code,b)), c}; _ghostRoutes.set(key,r); }
       out.push({R:ghostAirline(c), r});
     }
   }

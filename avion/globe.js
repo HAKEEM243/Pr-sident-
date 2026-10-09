@@ -169,7 +169,7 @@ function drawGlobeRivals(){
   for(const e of G.rivals) V.entities.remove(e); G.rivals=[];
   if(!MAPOPT.rival) return;
   let n=0; const t=gSimNow();
-  const list=[]; for(const R of S.rivals||[]) for(const r of R.routes) list.push({R,r});
+  const list=[]; for(const R of S.rivals||[]) for(const r of R.routes){ if(!r.c) r.c=R.code; list.push({R,r}); }
   // autour de l'avion suivi : le trafic réel des aéroports proches
   if(G.follow&&typeof visibleRealRoutes==='function'){ const ac=S.fleet.find(a=>a.id===G.follow), st=ac&&flightState(ac,t);
     if(st){ const b=L.latLngBounds([st.lat-6,st.lon-8],[st.lat+6,st.lon+8]); list.unshift(...visibleRealRoutes(b,st.lon,15)); } }
@@ -228,6 +228,7 @@ function globeFollowTick(){
   if(G.clouds){ const ll={lat:p.st.lat,lon:p.st.lon}; if(!G.cloudC||gcDist(G.cloudC,ll)>45){ G.cloudC=ll; spawnClouds(ll); } }
   worldTick(p);
   if(typeof fxTick==='function'){ try{ fxTick(ac,p); }catch(e){ console.warn(e); } }
+  if(typeof atcTick==='function'){ try{ atcTick(ac,p.st); }catch(e){ console.warn(e); } }
   if(now-G.hudAt>120){ G.hudAt=now; try{ renderRfsHud(ac,p); }catch(e){ console.warn(e); } }
 }
 function spawnClouds(c){
@@ -241,7 +242,7 @@ function spawnClouds(c){
 function globeFollow(id){
   if(!G) return;
   const C=Cesium, sc=G.viewer.scene;
-  if(!id){ for(const e of G.planes.values()) e.show=true; G.follow=null; G.viewer.camera.lookAtTransform(C.Matrix4.IDENTITY); sc.screenSpaceCameraController.enableInputs=true; G.trail=[]; if(G.trailEnt){ G.viewer.entities.remove(G.trailEnt); G.trailEnt=null; } if(G.clouds) G.clouds.removeAll(); G.cloudC=null; const hd=$('#rfsHud'); if(hd) hd.hidden=true; worldClear(); if(typeof fxClear==='function') fxClear(); document.body.classList.remove('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); renderGlobeHud(); return; }
+  if(!id){ for(const e of G.planes.values()) e.show=true; G.follow=null; G.viewer.camera.lookAtTransform(C.Matrix4.IDENTITY); sc.screenSpaceCameraController.enableInputs=true; G.trail=[]; if(G.trailEnt){ G.viewer.entities.remove(G.trailEnt); G.trailEnt=null; } if(G.clouds) G.clouds.removeAll(); G.cloudC=null; const hd=$('#rfsHud'); if(hd) hd.hidden=true; worldClear(); if(typeof fxClear==='function') fxClear(); { const rb=document.getElementById('radioBox'); if(rb) rb.remove(); } document.body.classList.remove('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); renderGlobeHud(); return; }
   if(!G.tm) G.tm={auto:true, prev:S.speed};
   G.follow=id; sc.screenSpaceCameraController.enableInputs=false; document.body.classList.add('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); setCam(G.lastMode&&CAM_MODES[G.lastMode]?G.lastMode:'auto');
   if(!G.trailEnt) G.trailEnt=G.viewer.entities.add({polyline:{positions:new C.CallbackProperty(()=>G.trail.length>1?G.trail:[],false), width:4, material:C.Color.WHITE.withAlpha(0.45)}});
@@ -258,7 +259,7 @@ function renderRfsHud(ac,p){
   const oat=Math.round(Math.max(-56.5,15-6.5*st.alt/1000));
   const ap=AP(st.to), apE=AP(st.frac>0.5?st.to:st.from), agl=Math.max(0,altFt), msl=Math.round(altFt+((apE&&apE.elev)||0));
   const w=st.wind||0, wdir=Math.round((st.hdg+(w>0?180:0)+360)%360), wk=Math.round(Math.abs(w)/1.852);
-  const leg=st.leg, prof=legProfile(leg.dist,m,leg.wind,leg.from,leg.to), el=Math.max(0,gSimNow()-leg.dep), fuel0=m.burn*(prof.total/HOUR+1)*0.8, fuel=Math.max(0,fuel0-m.burn*Math.max(0,(el-prof.segs[2].t0)/HOUR)*0.8);
+  const leg=st.leg, prof=legProf(leg,m), el=Math.max(0,gSimNow()-leg.dep), fuel0=m.burn*(prof.total/HOUR+1)*0.8, fuel=Math.max(0,fuel0-m.burn*Math.max(0,(el-prof.segs.find(x=>x.ph===2&&!x.hold).t0)/HOUR)*0.8);
   const cap=m.burn*(m.range/m.speed+1)*0.8, fob=Math.round(fuel), fp=Math.round(clamp(fuel/cap*100,0,100));
   const ft=`${Math.floor(el/HOUR)}:${String(Math.floor(el%HOUR/MIN)).padStart(2,'0')} h`;
   const tape=(v,step,fmt)=>{ let s=''; const base=Math.round(v/step)*step; for(let i=-3;i<=3;i++){ const val=base+i*step; s+=`<div style="top:${50-(val-v)/step*14}%">${fmt(val)}—</div>`; } return s; };
@@ -269,7 +270,7 @@ function renderRfsHud(ac,p){
     <div class="rf-tape left">${tape(kts,10,v=>v)}<b>${kts}</b></div>
     <div class="rf-tape right">${tape(msl,100,v=>v)}<b>${msl}</b></div>
     <div class="rf-dest">${esc(ap?ap.icao||st.to:st.to)}<br>${(st.remain/1.852).toFixed(1).replace('.',',')} NM</div>
-    <div class="rf-bar"><div><b>${wdir}/${wk}kts</b><span>Vent</span></div><div><b>${kts} kts</b><span>IAS (GS ${gs})</span></div><div><b>${msl} ft</b><span>Altitude MSL</span></div><div><b>${agl} ft</b><span>Altitude AGL</span></div><div><b>${fp}% · ${num(fob*0.8)} kg</b><span>Carburant</span></div><div><b>${ft}</b><span>Temps de vol</span></div><div><b>${PHASES[st.phase]}</b><span>Phase</span></div></div>`;
+    <div class="rf-bar"><div><b>${wdir}/${wk}kts</b><span>Vent</span></div><div><b>${kts} kts</b><span>IAS (GS ${gs})</span></div><div><b>${msl} ft</b><span>Altitude MSL</span></div><div><b>${agl} ft</b><span>Altitude AGL</span></div><div><b>${fp}% · ${num(fob*0.8)} kg</b><span>Carburant</span></div><div><b>${ft}</b><span>Temps de vol</span></div><div><b>${st.holding?(st.holding==='out'?'Attente piste':'Attente'):PHASES[st.phase]}</b><span>Phase</span></div></div>`;
 }
 async function toggleGoogle3D(on){
   const C=Cesium, key=localStorage.getItem(GKEY);
@@ -298,6 +299,8 @@ function renderGlobeHud(){
       <button class="gh ${typeof FX!=='undefined'&&FX.soundOn?'on':''}" data-act="globeSound">🔊 Son</button>
       <button class="gh ${G.forceDay?'on':''}" data-act="globeDay" title="Toujours en plein jour">☀️ Jour</button>
       <button class="gh" data-act="photo">📸 Photo</button>
+      <button class="gh" data-act="radar">📡 Radar</button>
+      <button class="gh ${typeof RADIO!=='undefined'&&RADIO.voice?'on':''}" data-act="radioVoice">🗣️ Voix</button>
       <button class="gh ${typeof FX!=='undefined'&&FX.forceRain?'on':''}" data-act="globeRain" title="Pluie et orage (sinon : selon la météo du jeu)">🌧️ Pluie</button>
       <span class="gh-sep"></span>
       <button class="gh ${G.tm&&G.tm.auto?'on':''}" data-act="globeTime" data-k="auto" title="Temps réel au décollage et à l’atterrissage, accéléré en croisière">🎬 Auto</button>

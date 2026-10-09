@@ -316,7 +316,7 @@ let booted=false;
 function boot(){
   if(booted) return; booted=true;
   initMap(); renderTabs();
-  if(localStorage.getItem('se-news')!=='v12'){ try{ localStorage.setItem('se-news','v12'); }catch(e){} setTimeout(()=>toast('Nouveau : 🎁 récompenses et défis du jour, 🛫 vols charters, 🎨 atelier de livrée (Plus → Livrée) et 📸 mode photo en vue 3D !','ok'),1500); }
+  if(localStorage.getItem('se-news')!=='v13'){ try{ localStorage.setItem('se-news','v13'); }catch(e){} setTimeout(()=>toast('Nouveau : 🗼 contrôle aérien (un seul avion par piste, attentes, autorisations), 📻 radio de la tour avec voix et 📡 radar !','ok'),1500); }
   if(typeof maybeInstallHint==='function') maybeInstallHint();
   renderTop(); setTab(window.innerWidth<820?'map':(isSimple()?'network':'dash'));
   updatePlanes(); updateRival();
