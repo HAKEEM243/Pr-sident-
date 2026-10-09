@@ -441,9 +441,12 @@ function rivalPos(r,i,t){
   let K=r._tk; if(K&&K.c!==(r.c||'')) K=null;
   if(!K){ const d=gcDist(A,B), cat=d<1200?'prop':d<5000?'nb':'wb', m=getModel(TRAFFIC_MODEL[cat]); if(!m) return null;
     const pA=legProfile(d,m,0,r.a,r.b), pB=legProfile(d,m,0,r.b,r.a), turn=55*MIN;
-    K=r._tk={c:r.c||'',d,cat,m,pA,pB,turn,T:pA.total+pB.total+2*turn,h:hashStr(r.a+r.b+(r.c||''))*1000,AB:null,BA:null}; }
+    const T0=pA.total+pB.total+2*turn, nP=Math.max(1,Math.min(r.freq||1,5)), P=Math.max(T0,nP*DAY/Math.max(1,r.freq||1));   // période : autant de départs par jour que la fréquence
+    K=r._tk={c:r.c||'',d,cat,m,pA,pB,turn,T:P,h:hashStr(r.a+r.b+(r.c||''))*1000,AB:null,BA:null}; }
   const d=K.d, cat=K.cat, m=K.m, pA=K.pA, pB=K.pB, turn=K.turn, T=K.T, cnt=Math.max(1,Math.min(r.freq||1,5));
-  let rel=((t+i*T/cnt+K.h)%T+T)%T, from=r.a, to=r.b, prof=pA, dir='AB';
+  // départs étalés sur la journée avec un décalage propre à chaque avion (plus de « file indienne »)
+  const jit=((hashStr(r.a+r.b+(r.c||'')+i)%1000)/1000-0.5)*0.5*T/cnt;
+  let rel=((t+i*T/cnt+jit+K.h)%T+T)%T, from=r.a, to=r.b, prof=pA, dir='AB';
   if(rel>=pA.total+turn){ rel-=pA.total+turn; from=r.b; to=r.a; prof=pB; dir='BA'; }
   if(rel>=prof.total) return null;                    // au poste, entre deux vols
   const seg=prof.segs.find(x=>rel<x.t1)||prof.segs[prof.segs.length-1];
