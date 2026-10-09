@@ -107,6 +107,7 @@ function pMore(){
   </div>
   <label class="tog"><input type="checkbox" data-in="simple" ${S.simple?'checked':''}> <b>Mode simple</b> : personnel, carburant, maintenance et programmation automatiques</label>
   <div class="small mut" style="margin:4px 0 10px">Décochez pour tout gérer vous-même (mode expert : tous les onglets).</div>
+  <div class="btns"><button class="btn" data-act="exportSave">💾 Exporter ma sauvegarde</button><button class="btn" data-act="importSave">📂 Importer</button></div>
   <div class="btns"><button class="btn" data-act="guideReset">🎓 Revoir le tutoriel</button><button class="btn" data-act="mapStyle">🗺️ Fond de carte</button></div>
   <div class="btns"><button class="btn" data-tab="admin">🛠️ Outils de test</button></div>`;
 }
@@ -144,6 +145,7 @@ function renderFlightList(){
 if(typeof ACTIONS!=='undefined'){
 if(typeof registerNewsActions==='function') registerNewsActions();
 if(typeof registerPaxActions==='function') registerPaxActions();
+if(typeof registerAirlineActions==='function') registerAirlineActions();
 Object.assign(ACTIONS,{
   flightList:()=>{ UI.fl=!UI.fl; if(UI.fl&&UI.mobile) $('#mapctl').classList.remove('open'); renderFlightList(); },
   flTab:d=>{ UI.flTab=d.k; renderFlightList(); },
@@ -153,6 +155,8 @@ Object.assign(ACTIONS,{
   mapAdv:()=>{ $('#mapctl').classList.toggle('advopen'); },
   autoAll:()=>{ const n=autoPlanAll(); toast(n?`⚡ ${n} avion(s) programmé(s)`:'Aucune ligne disponible pour ces avions : ouvrez une ligne depuis leur hub','ok'); after(); renderFlightList(); },
   goShop:()=>{ closeModal(); setTab('shop'); },
+  exportSave:()=>{ save(); const blob=new Blob([localStorage.getItem(SAVE_KEY)||JSON.stringify(S)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`sky-empire-${S.company.code}-${new Date().toISOString().slice(0,10)}.json`; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },600); toast('💾 Sauvegarde téléchargée : gardez ce fichier précieusement','ok'); },
+  importSave:()=>{ const f=document.getElementById('importFile'); if(f) f.click(); },
 });
 Object.assign(INPUTS,{
   simple:el=>{ S.simple=el.checked; renderTabs(); renderGuide(); toast(S.simple?'Mode simple activé : gestion automatique':'Mode expert : vous gérez tout vous-même','ok'); setTab(S.simple?'more':'dash'); },
@@ -219,4 +223,18 @@ if(typeof ACTIONS!=='undefined') Object.assign(ACTIONS,{
     logMsg(`✂️ Effectifs ajustés : ${num(fired.length)} pilotes et ${num(nStaff)} employés en moins (indemnités ${fmtMoney(sev)}).`,'ok');
     toast(`✅ ${num(fired.length)} pilotes et ${num(nStaff)} employés en moins · masse salariale ramenée à ${fmtMoney(monthlyPayroll())}/mois`,'ok'); renderPanel(); renderTop();
   },
+});
+
+if(typeof document!=='undefined') document.addEventListener('DOMContentLoaded',()=>{
+  const f=document.getElementById('importFile'); if(!f) return;
+  f.addEventListener('change',()=>{
+    const file=f.files&&f.files[0]; if(!file) return;
+    const rd=new FileReader();
+    rd.onload=()=>{ try{ const o=JSON.parse(rd.result); if(!o||!o.company||!o.fleet||!o.time) throw new Error('fichier invalide');
+        if(!confirm(`Importer la sauvegarde « ${o.company.name} » ? Votre partie actuelle sera remplacée.`)) return;
+        localStorage.setItem(SAVE_KEY,rd.result); location.reload(); }
+      catch(e){ toast('⛔ Sauvegarde illisible : '+e.message,'bad'); }
+      f.value=''; };
+    rd.readAsText(file);
+  });
 });

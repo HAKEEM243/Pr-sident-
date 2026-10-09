@@ -303,6 +303,7 @@ function onFlightDone(ac,leg,info){
     (S.reviews=S.reviews||[]).unshift({t:S.time,stars,name:r.first+' '+r.last.charAt(0)+'.',nat:r.nat,route:leg.from+'→'+leg.to,cls:r.cls,text,job:r.job});
     if(S.reviews.length>80) S.reviews.length=80;
     S.reputation=clamp(S.reputation+(stars-3)*0.04,0,100);
+    if(Math.random()<0.3&&typeof tickerPush==='function') tickerPush(`✈️ ${S.company.code}${flightNumber(ac)} est arrivé à ${AP(leg.to).city} avec ${info.paxCount} passagers.`,'ok');
     if(stars===1||stars===5) logMsg(`${'★'.repeat(stars)}${'☆'.repeat(5-stars)} Avis de ${r.first} (${leg.from}→${leg.to}) : « ${text} »`, stars===5?'ok':'warn');
   }catch(e){}
 }

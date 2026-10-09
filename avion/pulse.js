@@ -12,6 +12,8 @@ function pickAir(filter){ const l=aiAlive().filter(filter||(()=>true)); if(!l.le
 // compagnie réellement présente dans un aéroport / aéroport réellement desservi par une compagnie (histoires plausibles)
 function airAt(c){ const l=airlinesAt(c).slice(0,6).map(([k])=>aiBy(k)).filter(Boolean); return l.length?pick(l):null; }
 function apOf(e){ const p=airlinePairs(e.code); return p.length? pick(pick(p)) : e.hub; }
+// aéroport de déroutement réaliste : proche de la route
+function divertTo(a,b){ const mid=gcInterp(AP(a),AP(b),rnd(0.25,0.75)); let best=null,bd=1e9; for(let i=0;i<120;i++){ const c=pick(AIRPORT_CODES); if(c===a||c===b||AP(c).cls<3) continue; const d=gcDist(mid,AP(c)); if(d<bd){ bd=d; best=c; } } return best||b; }
 function pickAp(minT=1, filter){ for(let i=0;i<60;i++){ const c=pick(AIRPORT_CODES), a=AP(c); if(a.cls>=2&&a.traffic>=minT&&(!filter||filter(c))) return c; } return pick(AIRPORT_CODES); }
 const FIRSTN={CD:['Fiston','Jean-Pierre','Patience','Gloria','Dieudonné','Rachel','Trésor','Merveille'],FR:['Camille','Antoine','Nathalie','Julien','Claire','Mathieu'],GB:['Oliver','Charlotte','James','Amelia','Harry'],US:['Michael','Jennifer','Robert','Linda','David'],DE:['Lukas','Anna','Felix','Katrin'],CN:['Wei','Li','Jing','Chen'],IN:['Rahul','Priya','Amit','Anjali'],AE:['Khalid','Fatima','Omar','Layla'],NG:['Chinedu','Ngozi','Emeka','Adaeze']};
 const LASTN={CD:['Mulumba','Tshisekedi','Bokungu','Kabila','Mukendi','Ilunga'],FR:['Martin','Dubois','Lefèvre','Moreau'],GB:['Smith','Taylor','Brown','Wilson'],US:['Johnson','Miller','Davis','Clark'],DE:['Müller','Schmidt','Weber'],CN:['Wang','Zhang','Liu'],IN:['Sharma','Patel','Iyer'],AE:['Al Mansoori','Al Hashimi'],NG:['Okafor','Adeyemi','Balogun']};
@@ -26,7 +28,7 @@ const CAUSE_DIV=['météo défavorable','un malaise d’un passager','une alerte
 const MICRO=[
  {id:'delay',w:12,cd:3,fn:()=>{ const c=pickAp(3), e=airAt(c)||pickAir(x=>x.fleet>=20); if(!e) return null; const n=rndi(8,60); const cause=pick(CAUSE_DELAY);
    return {text:vary('m_delay',[`⏱️ ${keyCity(c)} : ${n} vols retardés (${cause}), ${e.name} est la plus touchée.`,`⏱️ Retards en cascade à ${keyCity(c)} — ${cause}. ${e.name} annonce ${rndi(1,4)} h d’attente.`,`🌫️ ${keyCity(c)} : ${cause}, ${n} départs décalés.`])}; }},
- {id:'divert',w:7,cd:4,fn:()=>{ const e=pickAir(x=>x.fleet>=10); if(!e) return null; const pr=airlinePairs(e.code); if(!pr.length) return null; const [a,b]=pick(pr), c=pickAp(1);
+ {id:'divert',w:7,cd:4,fn:()=>{ const e=pickAir(x=>x.fleet>=10); if(!e) return null; const pr=airlinePairs(e.code); if(!pr.length) return null; const [a,b]=pick(pr), c=divertTo(a,b);
    return {text:`🔀 Vol ${e.code}${rndi(100,999)} ${keyCity(a)}–${keyCity(b)} dérouté vers ${keyCity(c)} (${pick(CAUSE_DIV)}).`}; }},
  {id:'promo',w:9,cd:5,fn:()=>{ const e=pickAir(x=>x.fleet>=6); if(!e) return null; const pr=airlinePairs(e.code); if(!pr.length) return null; const [a,b]=pick(pr);
    const price=idealPrice(a,b,'y')*rnd(0.55,0.75); const ai=S.ai; (ai.promos=ai.promos||{})[e.code+pairKey(a,b)]={code:e.code,a,b,until:S.time+rndi(24,96)*HOUR};
@@ -60,6 +62,7 @@ function aiHourly(){
   S.ai.hourN=(S.ai.hourN||0)+1;
   const n=1+(Math.random()<0.55?1:0)+(Math.random()<0.2?1:0);
   for(let i=0;i<n;i++) microEvent();
+  playerHourly();
   // promotions et guerres des prix expirées
   const ai=S.ai; for(const k of Object.keys(ai.promos||{})) if(ai.promos[k].until<S.time) delete ai.promos[k];
   for(const k of Object.keys(ai.wars||{})) if(ai.wars[k].until<S.time){ const w=ai.wars[k]; delete ai.wars[k]; aiNews(`🕊️ Fin de la guerre des prix ${keyCity(w.a)}–${keyCity(w.b)} : ${aiBy(w.code)?aiBy(w.code).name:w.code} remonte ses tarifs.`,'news',touchesMe(w.a,w.b)); }
@@ -127,4 +130,38 @@ function tickerPush(text,kind){
   const d=document.createElement('div'); d.className='tk '+(kind||'news'); d.textContent=text; d.onclick=()=>setTab('news');
   box.prepend(d); while(box.children.length>3) box.lastChild.remove();
   setTimeout(()=>d.classList.add('old'),9000); setTimeout(()=>{ d.remove(); },24000);
+}
+
+/* ============================================================
+   VOTRE COMPAGNIE AUSSI VIT À CHAQUE HEURE
+   Pannes au sol, passagers célèbres, urgences médicales, turbulences,
+   oiseaux dans un réacteur… + bilan quotidien dans le journal.
+   ============================================================ */
+function playerHourly(){
+  if(!S.fleet||!S.fleet.length||S.fleet.length>400) return;
+  for(const ac of S.fleet){
+    const m=modelOf(ac), reg=ac.reg;
+    if(ac.status==='flight'&&ac.flight){
+      const leg=ac.flight.legs[ac.flight.li]; if(!leg||!leg.pax||Math.random()>0.0035) continue;
+      const A=AP(leg.from), B=AP(leg.to), fn=S.company.code+(typeof flightNumber==='function'?flightNumber(ac):'');
+      const r=Math.random();
+      if(r<0.28){ const who=personName(A.cc), job=pick(['ministre','chanteur populaire','footballeur international','homme d’affaires','présentatrice télé','évêque','champion olympique']);
+        S.reputation=clamp(S.reputation+0.15,0,100); logMsg(`🌟 ${who}, ${job}, voyage sur votre vol ${fn} (${A.city} → ${B.city}) : de la publicité gratuite.`,'ok'); }
+      else if(r<0.52){ book('incidents',-rnd(4e3,15e3)); S.reputation=clamp(S.reputation+0.25,0,100);
+        logMsg(`🩺 Vol ${fn} : un passager se sent mal ; ${pick(['un médecin à bord','l’équipage formé aux premiers secours'])} intervient. Pris en charge à l’arrivée à ${B.city}.`,'ok'); }
+      else if(r<0.74){ S.reputation=clamp(S.reputation-0.1,0,100); logMsg(`🌀 Vol ${fn} : fortes turbulences au-dessus de ${pick(['la forêt équatoriale','les Alpes','l’océan','les montagnes','un orage'])}. Quelques passagers secoués, rien de grave.`,'warn'); }
+      else if(r<0.9){ ac.condition=clamp(ac.condition-rnd(1,4),0,100); logMsg(`🐦 ${reg} : impact d’oiseau pendant l’approche vers ${B.city}. Inspection prévue à l’arrivée.`,'warn'); }
+      else { S.reputation=clamp(S.reputation-0.2,0,100); logMsg(`😠 Vol ${fn} : un passager énervé fait un scandale à bord (${pick(['siège échangé','refus de boire','bagage cabine refusé'])}). L’équipage reprend la main.`,'warn'); }
+    } else if(ac.status==='idle'&&(ac.readyAt||0)<=S.time&&Math.random()<0.0016){
+      const h=rndi(3,14), cost=rnd(15e3,120e3)*(m.seats>=250?3:1);
+      book('maintenance',-cost); ac.readyAt=S.time+h*HOUR;
+      logMsg(`🔧 ${reg} (${m.name}) cloué au sol à ${AP(ac.loc).city} : ${pick(['panne hydraulique','capteur défectueux','pneu à remplacer','alerte moteur','porte de soute bloquée'])}. Réparé en ${h} h (${fmtMoney(cost)}).`,'warn');
+    }
+  }
+}
+function dailyDigest(){
+  const d=S.led.day||{}, res=ledSum(d,1)+ledSum(d,-1); const sn=S.dayStat||{flights:S.stats.flights,pax:S.stats.pax};
+  const fl=S.stats.flights-sn.flights, px=S.stats.pax-sn.pax; S.dayStat={flights:S.stats.flights,pax:S.stats.pax};
+  if(!fl&&!S.fleet.length) return;
+  logMsg(`📅 Bilan du jour : ${fl} vols, ${num0(px)} passagers, résultat ${res>=0?'+':''}${fmtMoney(res)}.`, res>=0?'ok':'warn');
 }
