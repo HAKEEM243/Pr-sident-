@@ -146,6 +146,7 @@ if(typeof ACTIONS!=='undefined'){
 if(typeof registerNewsActions==='function') registerNewsActions();
 if(typeof registerPaxActions==='function') registerPaxActions();
 if(typeof registerAirlineActions==='function') registerAirlineActions();
+if(typeof registerCityActions==='function') registerCityActions();
 Object.assign(ACTIONS,{
   flightList:()=>{ UI.fl=!UI.fl; if(UI.fl&&UI.mobile) $('#mapctl').classList.remove('open'); renderFlightList(); },
   flTab:d=>{ UI.flTab=d.k; renderFlightList(); },
