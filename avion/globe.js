@@ -411,6 +411,7 @@ function airportsTick(p){
       label:{text:`✈ ${c} · ${a.city}`, font:`${big?'700 14px':'600 12px'} system-ui`, fillColor:mine?C.Color.fromCssColorString('#ffe066'):C.Color.fromCssColorString('#e0f2fe'), outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, verticalOrigin:C.VerticalOrigin.BOTTOM, pixelOffset:new C.Cartesian2(0,-6), distanceDisplayCondition:new C.DistanceDisplayCondition(0,big?400000:150000), disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
     if(d>70) continue;
     const surf=[];
+    if(d<45&&typeof airportProps==='function'){ try{ airportProps(c,N); }catch(e){ console.warn(e); } }
     for(const r of runwaysOf(c)){
       const L=r.len, W=Math.max(23,r.wid||45), H=r.hdg;
       if(r._drawn===G.apNear) continue; // une seule fois par piste physique

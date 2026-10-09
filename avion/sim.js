@@ -389,7 +389,7 @@ function flightState(ac, t=S.time){
   const frac = leg.dist>0? clamp(dd/leg.dist,0,1) : 1;
   // trajectoire réelle : roulage vers la piste, décollage dans l'axe, route orthodromique, approche dans l'axe de la piste d'arrivée
   const path=legPath(leg,m); let pp;
-  let holding=null;
+  let holding=null, pushback=false;
   if(seg.hold==='out'){ const gp=gateSlot(leg.from,ac), left=seg.t1-rel;
     if(left<25000&&path.dep){ const h0=holdPoint(path,gp,0), k=1-left/25000; pp=polyAt([h0,path.dep.thr,destPt(path.dep.thr.lat,path.dep.thr.lon,path.dep.hdg,0.03)],k*0.9); spd=15; }   // s'aligne sur la piste
     else { pp=holdPoint(path,gp,Math.min(6,left/(2*MIN))); spd=0; }
@@ -398,7 +398,12 @@ function flightState(ac, t=S.time){
     const f=pointOnPath(path,clamp(seg.d0/leg.dist,0,1)*path.total), r=4.5, dur=seg.t1-seg.t0, orbits=Math.max(1,Math.round(dur/(4*MIN)));
     const c=destPt(f.lat,f.lon,(f.hdg||0)+90,r), b0=bearing(c,f), th=360*orbits*u, q=destPt(c.lat,c.lon,b0+th,r);
     pp={lat:q.lat,lon:q.lon,hdg:(b0+th+90)%360}; holding='in'; alt=seg.a0+Math.min(1830,305*(seg.t1-rel)/(4*MIN))*Math.min(1,(rel-seg.t0)/60000); }
-  else if(seg.ph<=1){ const gp=gateSlot(leg.from,ac); if(seg.ph===0) pp=gp; else { const pts=taxiOutPts(path,gp); if(leg.hOut&&pts.length>2) pts.splice(-2,2,holdPoint(path,gp,Math.min(6,leg.hOut/(2*MIN)))); pp=polyAt(pts,u); } }
+  else if(seg.ph<=1){ const gp=gateSlot(leg.from,ac); if(seg.ph===0) pp=gp; else { const pts=taxiOutPts(path,gp); if(leg.hOut&&pts.length>2) pts.splice(-2,2,holdPoint(path,gp,Math.min(6,leg.hOut/(2*MIN))));
+      // repoussage : le tracteur pousse l'avion en arrière (≈ 90 s), puis l'avion tourne vers le taxiway
+      const pb=Math.min(0.3,90000/Math.max(1,seg.t1-seg.t0)), g0=gp.hdg||0, P1=destPt(gp.lat,gp.lon,g0+180,0.055);
+      if(u<pb){ const k=u/pb, e=k*k*(3-2*k), q=destPt(gp.lat,gp.lon,g0+180,0.055*e), tgt=pts[1]?bearing(P1,pts[1]):g0, dh=((tgt-g0+540)%360)-180;
+        pp={lat:q.lat,lon:q.lon,hdg:(g0+dh*Math.max(0,(k-0.5)*2)+360)%360}; spd=5; pushback=true; }
+      else pp=polyAt([P1,...pts.slice(1)],(u-pb)/(1-pb)); } }
   else if(seg.ph>=8){ const gp=gateSlot(leg.to,ac); pp = rel>=prof.total? gp : polyAt(taxiInPts(path,gp), u); }
   else pp = pointOnPath(path, frac*path.total);
   const p={lat:pp.lat, lon:pp.lon}, hdg=pp.hdg;
@@ -408,7 +413,7 @@ function flightState(ac, t=S.time){
   const eta = legEnd(last,m);
   const phase = rel>=prof.total? 8 : seg.ph;
   return { lat:p.lat, lon:unwrapLon(p.lon, A.lon), hdg, alt, spd,
-    phase, frac, progress: totalDist? doneDist/totalDist : 1, eta, leg, holding, holdEnd:holding?leg.dep+seg.t1:0, from:leg.from, to:leg.to, origin:fl.legs[0].from, dest:last.to,
+    phase, frac, progress: totalDist? doneDist/totalDist : 1, eta, leg, holding, pushback, holdEnd:holding?leg.dep+seg.t1:0, from:leg.from, to:leg.to, origin:fl.legs[0].from, dest:last.to,
     wind:leg.wind||0, gs:seg.ph===4? Math.max(0,spd+(leg.wind||0)) : spd, depRwy:path.dep&&path.dep.id, arrRwy:path.arr&&path.arr.id, remain:Math.max(0,totalDist-doneDist) };
 }
 
