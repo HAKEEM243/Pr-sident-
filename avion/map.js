@@ -356,7 +356,7 @@ function updateFlightCard(){
   if(key!==_fcKey){
     _fcKey=key; _fcAt=0;
     box.innerHTML=`<button class="x" data-act="closeCard">×</button>`+(typeof photoHtml==='function'?photoHtml(modelOf(ac),'banner'):'')+`<div class="fc-live"></div>`+
-      `<div class="btns sm"><button class="btn sm ${followPlane?'gold':''}" data-act="followCam">🎥 ${followPlane?'Caméra attachée':'Suivre l’avion'}</button><button class="btn sm" data-act="zoomPlane">🔍 Zoom</button><button class="btn sm" data-act="zoomRoute">🧭 Trajet</button><button class="btn sm" data-act="manifest" data-id="${ac.id}">📋 Passagers</button></div><div class="fc-leg"></div>`;
+      `<div class="btns sm"><button class="btn sm ${followPlane?'gold':''}" data-act="followCam">🎥 ${followPlane?'Caméra attachée':'Suivre l’avion'}</button><button class="btn sm" data-act="zoomPlane">🔍 Zoom</button><button class="btn sm" data-act="zoomRoute">🧭 Trajet</button><button class="btn sm gold" data-act="view3D" data-id="${ac.id}">🎥 Vue 3D</button><button class="btn sm" data-act="manifest" data-id="${ac.id}">📋 Passagers</button></div><div class="fc-leg"></div>`;
     if(typeof hydratePhotos==='function') hydratePhotos();
   }
   box.hidden=false;
