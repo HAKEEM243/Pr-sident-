@@ -65,13 +65,16 @@ const AC3D=(function(){
     if(id==='A388') return 'a380';
     if(/^B74/.test(id)) return '747';
     if(id==='MD11') return 'md11';
-    if(/^CRJ/.test(id)||id==='B712'||id==='E145') return 'rear';
+    if(/^CRJ/.test(id)||['B712','E145','MD83','F100'].includes(id)) return 'rear';
+    if(id==='DC10') return 'md11';
+    if(id==='IL96') return 'quadwb';
+    if(id==='PC12') return 'single';
     if(id==='C208') return 'single';
     if(id==='DHC6') return 'otter';
     if(['AT46','AT76','AT7F','DH8C','Q400','SF34'].includes(id)||m.fam==='TURBO') return 'prop';
     if(['A343','A346','A345'].includes(id)) return 'quadwb';
     const s=Math.max(m.seats,m.cargo*3);
-    if(s>=240||/^(A33|A35|B77|B78|B76|A34)/.test(id)) return 'wb';
+    if(s>=240||/^(A31|A33|A35|B77|B78|B76|A34)/.test(id)) return 'wb';
     return 'nb';
   }
   // couleur d'une livrée : extrémité de dérive, liseré, moteurs

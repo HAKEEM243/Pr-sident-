@@ -22,6 +22,8 @@ const MAP_STYLES = {
   plan:{label:'🗺️ Plan (OpenStreetMap)', desc:'Carte routière détaillée.', make:()=>[L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© les contributeurs d’OpenStreetMap'})]},
   relief:{label:'⛰️ Relief', desc:'Topographie (fleuves, montagnes, forêts).', make:()=>[esri('World_Topo_Map',{attribution:'© Esri, HERE, Garmin, USGS'})]},
   sombre:{label:'🌑 Sombre', desc:'Fond sobre pour mieux voir les avions.', make:()=>[L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',attribution:'© OpenStreetMap, © CARTO'})]},
+  sentinel:{label:'🌿 Satellite Sentinel-2 (sans nuages)', desc:'Mosaïque Sentinel-2 de l’Agence spatiale européenne, sans nuages (résolution moyenne).', make:()=>[L.tileLayer('https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg',{maxZoom:19,maxNativeZoom:14,attribution:'Sentinel-2 cloudless © EOX (Copernicus, modifié)'})]},
+  gris:{label:'⚪ Gris clair', desc:'Fond clair et discret : les avions ressortent.', make:()=>[esri('Canvas/World_Light_Gray_Base',{native:16,attribution:'© Esri'}),esri('Canvas/World_Light_Gray_Reference',{native:16})]},
   google_sat:{label:'🌍 Google Maps — Satellite', google:'sat', desc:'Les vraies images Google Maps / Google Earth avec noms et routes (clé API Google requise).'},
   google_road:{label:'🌍 Google Maps — Plan', google:'road', desc:'Le plan Google Maps classique (clé API Google requise).'},
 };

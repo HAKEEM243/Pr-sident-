@@ -26,7 +26,7 @@ function aiBrainInit(){
   }
 }
 // probabilité d'accident par semaine : plus haute pour les compagnies peu sûres et à flotte vieillissante
-function aiRisk(e){ return Math.min(0.05,0.0055*Math.sqrt(Math.max(1,e.fleet)/100)*Math.pow(1/Math.max(0.25,e.safety||1),1.5)*(e.startup?1.4:1)*(1+Math.max(0,(e.age||8)-12)*0.05)); }
+function aiRisk(e){ return Math.min(0.05,0.004*Math.sqrt(Math.max(1,e.fleet)/100)*Math.pow(1/Math.max(0.25,e.safety||1),1.5)*(e.startup?1.4:1)*(1+Math.max(0,(e.age||8)-12)*0.05)); }
 
 /* ---------- décisions des compagnies ---------- */
 const PLAN_TXT={grow:'accélère son expansion',retrench:'se serre la ceinture',renew:'prépare le renouvellement de sa flotte',steady:'garde le cap'};
@@ -62,8 +62,13 @@ function aiBrain(e,oilF,margin){
       if(n>=4) aiNews(`🛫 ${e.name} loue ${n} avions pour absorber la demande : ${e.fleet} appareils.`,'news',e.fleet>=100&&n>=8); }
   } else if(m==='renew'){
     if(Math.random()<0.22){ const n=Math.max(1,Math.ceil(e.fleet*rnd(0.05,0.1))); e.cash-=n*rnd(4e6,8e6); e.age=Math.max(3,e.age-n/e.fleet*(e.age-3)*1.4); e.safety=Math.min(1.6,(e.safety||1)+0.02); e.rep=clamp(e.rep+0.6,20,95);
-      if(e.fleet>=60) aiNews(`🆕 ${e.name} renouvelle sa flotte : ${n} appareils récents remplacent des avions de ${Math.round(e.age+3)} ans.`,'news'); }
+      if(e.fleet>=60){ const nm=modelFor(e).name.replace(/ \(occasion\)/,''); aiNews(`🆕 ${e.name} renouvelle sa flotte : ${n} ${nm} remplacent des avions de ${Math.round(e.age+3)} ans.`,'news'); } }
   } else if(e.rep<50&&e.cash>e.fleet*8e6&&Math.random()<0.05){ e.cash-=e.fleet*0.4e6; e.rep=clamp(e.rep+2.5,20,95); if(e.fleet>=60) aiNews(`📣 ${e.name} lance une campagne pour redorer son image.`,'news'); }
+  // couverture carburant : les compagnies riches achètent du carburant à terme quand il est bon marché, et en profitent quand il flambe
+  if(rich&&S.oil<78&&!(e.hedgeUntil>S.time)&&Math.random()<0.05){ e.hedgeUntil=S.time+rndi(20,40)*7*DAY; if(e.fleet>=100) aiNews(`🛢️ ${e.name} sécurise son carburant à terme : elle sera protégée d’une hausse des prix.`,'news'); }
+  if(e.hedgeUntil>S.time&&S.oil>95) e.cash+=e.fleet*0.12e6;
+  else if(!(e.hedgeUntil>S.time)&&S.oil>100&&!poor) e.cash-=e.fleet*0.05e6;
+  // une compagnie qui vient de commander ou de renouveler cite le type d'avion
   // 3. la sécurité revient lentement vers sa valeur de base (investissements) ; apprendre ou régresser
   if(e.real){ const base=aiSafetyOf(e.code); e.safety=+((e.safety||base)+(base-(e.safety||base))*0.01).toFixed(3); }
   e.skill=clamp((e.skill||0)+(e.mavg>0.15?0.004:e.mavg<-0.1?-0.005:0)+rnd(-0.003,0.003),-0.6,0.5);
@@ -105,3 +110,25 @@ function crash3D(list){
     G.crashE.set(c.id,es); }
 }
 setInterval(()=>{ try{ crashSync(); }catch(e){} },6000);
+
+/* ---------- alliances entre compagnies ---------- */
+const ALLIANCE_NAMES=['Sky Alliance','Global Wings','Horizon Pact','Star Link','Orbit Alliance','Meridian Group'];
+function aiAlliances(){
+  const ai=S.ai; if(!ai) return; const al=ai.alliances||(ai.alliances=[]); const alive=aiAlive();
+  for(const a of al) a.members=a.members.filter(c=>alive.some(e=>e.code===c));
+  ai.alliances=al.filter(a=>a.members.length>=2);
+  const inA=c=>ai.alliances.some(a=>a.members.includes(c));
+  // création ou adhésion : des compagnies solides de continents différents se rapprochent
+  if(Math.random()<0.35){
+    const cand=alive.filter(e=>e.fleet>=40&&e.rep>=55&&e.cash>0&&!inA(e.code));
+    if(cand.length>=2){ const a=pick(cand), b=pick(cand.filter(x=>x!==a&&AP(x.hub)&&AP(a.hub)&&AP(x.hub).cc!==AP(a.hub).cc)||[]); if(b){
+      const ex=ai.alliances.find(x=>x.members.length<6&&Math.random()<0.5);
+      if(ex){ ex.members.push(a.code); aiNews(`🤝 ${a.name} rejoint ${ex.name}.`,'news',a.fleet>=100); }
+      else if(ai.alliances.length<ALLIANCE_NAMES.length){ const nm=ALLIANCE_NAMES.find(n=>!ai.alliances.some(x=>x.name===n)); ai.alliances.push({name:nm,members:[a.code,b.code]}); aiNews(`🤝 Naissance de ${nm} : ${a.name} et ${b.name} partagent leurs codes et leurs salons.`,'news',true); } } }
+  }
+  // départ d'un membre en difficulté
+  for(const a of ai.alliances) for(const c of a.members.slice()){ const e=aiBy(c); if(e&&(e.debt>=3||e.rep<35)&&Math.random()<0.4){ a.members=a.members.filter(x=>x!==c); aiNews(`🚪 ${e.name} quitte ${a.name}.`,'news'); } }
+  // bénéfice : les membres gagnent un peu de réputation et de trafic
+  for(const a of ai.alliances) for(const c of a.members){ const e=aiBy(c); if(e){ e.rep=clamp(e.rep+0.08,20,95); e.cash+=e.fleet*0.04e6; } }
+}
+{ const _am=aiMonthly; aiMonthly=function(){ _am(); try{ aiAlliances(); }catch(e){ console.warn(e); } }; }
