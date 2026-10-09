@@ -14,7 +14,7 @@ const _cAP={}; const cAirports=cc=>_cAP[cc]||(_cAP[cc]=AIRPORT_CODES.filter(c=>A
 /* ---------- état ---------- */
 function makeAI(code){
   const a=AIRLINE_DB[code], fleet=(typeof REAL_FLEET!=='undefined'&&REAL_FLEET[code])||realFleet(a[3],code);
-  return { code, name:a[0], color:airlineColor(code), hub:a[2], cc:AP(a[2]).cc, real:true, fleet, cash:fleet*rnd(3e6,22e6), rep:Math.round(rnd(46,78)), skill:+rnd(-0.4,0.25).toFixed(2),
+  return { code, name:a[0], color:airlineColor(code), hub:a[2], cc:AP(a[2]).cc, real:true, fleet, cash:fleet*rnd(3e6,22e6), rep:Math.round(rnd(46,78)), pax:Math.round(fleet*520), skill:+rnd(-0.4,0.25).toFixed(2),
     safety:+rnd(0.6,1.4).toFixed(2), routes:a[3], crashes:0, incidents:0, status:'ok', debt:0, pax:0, hist:[] };
 }
 function initWorldAI(){
@@ -172,7 +172,7 @@ function aiStartup(){
 /* ---------- classement ---------- */
 function aiRows(){
   const me={name:S.company.name, code:S.company.code, value:fleetValue()+Math.max(0,S.cash), fleet:S.fleet.length, me:true, color:S.company.color, hub:S.company.hub, routes:S.routes.length, pax:typeof marketStatsCache==='function'? marketStatsCache().playerDaily : 0, rep:S.reputation, crashes:S.stats.crashes||0};
-  const others=aiAlive().map(e=>({name:e.name, code:e.code, value:e.fleet*40e6+Math.max(0,e.cash), fleet:e.fleet, color:e.color, hub:e.hub, routes:e.routes, pax:e.pax, rep:e.rep, crashes:e.crashes, incidents:e.incidents, startup:e.startup, e, R:(S.rivals||[]).find(x=>x.code===e.code)}));
+  const others=aiAlive().map(e=>({name:e.name, code:e.code, value:e.fleet*40e6+Math.max(0,e.cash), fleet:e.fleet, color:e.color, hub:e.hub, routes:e.routes, pax:e.pax||Math.round(e.fleet*520*(0.6+e.rep/150)), rep:e.rep, crashes:e.crashes, incidents:e.incidents, startup:e.startup, e, R:(S.rivals||[]).find(x=>x.code===e.code)}));
   const rows=[me,...others].sort((a,b)=>b.value-a.value);
   rows.forEach((r,i)=>{ r.rank=i+1; const p=S.ai&&S.ai.rank[r.code]; r.delta=p? p-(i+1) : 0; });
   return rows;
