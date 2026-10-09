@@ -43,7 +43,7 @@ Un second jeu, indépendant : simulateur de gestion de compagnie aérienne sur c
 - **Le monde entier** : 3 200 aéroports avec vols réguliers dans 234 pays (n’importe lequel peut devenir votre hub), onglet 🌐 Monde pour explorer chaque pays (marché intérieur, régions, meilleures lignes).
 - **Gestion façon « airline manager »** : hubs, licences de lignes, audit de marché, demande et prix par classe (Éco / Affaires / Première / Fret), configuration cabine, planning hebdomadaire, kérosène et quotas CO₂ à cours fluctuant, personnel (salaires, moral, grèves), bilan hebdomadaire, prêts, marketing, alliances, contrats cargo.
 - **68 avions réels** avec leurs vraies photos (Wikimedia Commons), neufs, d’occasion ou en leasing, éditeur d’avion perso ; 3 tailles de départ (régionale, nationale, grand transporteur).
-- **8 compagnies concurrentes** (un rival local + 7 majors mondiales) qui ouvrent des lignes et vous attaquent ; classement mondial.
+- **Les vraies compagnies aériennes** : 569 compagnies réelles et 26 900 lignes régulières réelles. Vos concurrents sont les compagnies de votre pays (aucune si le pays n’en a pas) et les grandes compagnies mondiales ; sur chaque ligne vous affrontez les compagnies qui la desservent vraiment, avec la durée de vol réelle ; le ciel affiche leur trafic (compagnie, ligne, durée au survol) ; classement mondial.
 - **Événements mondiaux** : ouragans, typhons, tempêtes de neige, cendres volcaniques, mousson, grands événements sportifs, Hajj, Nouvel An lunaire, crises pétrolières… et le détail de la RD Congo (43 aéroports, provinces, pistes en latérite).
 - **Réalisme** : 4 400 vraies pistes (position, orientation, longueur, revêtement, altitude) dessinées sur la carte au zoom ; décollages et atterrissages alignés sur la piste réelle avec approche finale dans l’axe ; distance de décollage réelle de chaque avion (corrigée de l’altitude : La Paz refuse un 787) ; courants-jets d’ouest (JFK → LHR ≈ 7 h, LHR → JFK ≈ 8 h) ; charge limitée près de l’autonomie maximale ; avions à l’échelle réelle (envergure, longueur) au zoom ; infobulle de vol avec niveau, vitesse sol, vent, pistes, distance restante en NM et heure d’arrivée locale ; fiche technique de chaque ligne.
 - **Fluidité et aéroports vivants** : avions animés en continu (60 images/s), roulage réel du poste de stationnement à la piste par la voie parallèle, postes alignés le long des pistes, balisage lumineux allumé à l’heure locale (feux de bord, rampes d’approche, seuils, PAPI), marquages au sol au zoom maximal ; durées de vol calées sur les horaires réels (roulage selon la taille de l’aéroport, routes aériennes, vents).
@@ -55,7 +55,7 @@ Un second jeu, indépendant : simulateur de gestion de compagnie aérienne sur c
 
 Carte du monde SVG : « Simple World Map » par Al MacDonald, éditée par Fritz Lekschas ([flekschas/simple-world-map](https://github.com/flekschas/simple-world-map)), sous licence [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
 
-Sky Empire : imagerie satellite © Esri ; aéroports et pistes [OurAirports](https://ourairports.com) (domaine public) ; longueurs de piste et fuseaux [airport-data-js](https://github.com/aashishvanand/airport-data-js) (CC BY 4.0) ; photos d’avions Wikimedia Commons (licences libres, crédit sur chaque photo) ; frontière de la RDC Natural Earth (domaine public) ; [Leaflet](https://leafletjs.com) (BSD-2) ; [CesiumJS](https://cesium.com/platform/cesiumjs/) (Apache 2.0).
+Sky Empire : imagerie satellite © Esri ; aéroports et pistes [OurAirports](https://ourairports.com) (domaine public) ; lignes aériennes réelles [Jonty/airline-route-data](https://github.com/Jonty/airline-route-data) ; pays des compagnies [OpenFlights](https://openflights.org/data) (ODbL) ; longueurs de piste et fuseaux [airport-data-js](https://github.com/aashishvanand/airport-data-js) (CC BY 4.0) ; photos d’avions Wikimedia Commons (licences libres, crédit sur chaque photo) ; frontière de la RDC Natural Earth (domaine public) ; [Leaflet](https://leafletjs.com) (BSD-2) ; [CesiumJS](https://cesium.com/platform/cesiumjs/) (Apache 2.0).
 
 ## Structure
 
@@ -63,5 +63,5 @@ Sky Empire : imagerie satellite © Esri ; aéroports et pistes [OurAirports](htt
 index.html    Application complète (HTML + CSS + JS, un seul fichier)
 manifest.json Manifeste PWA (icône, nom, couleurs)
 sw.js         Service worker (mise en cache, fonctionnement hors-ligne)
-avion/        Sky Empire (index.html, airports-db.js, runways-db.js, data.js, sim.js, realism.js, map.js, ui.js, ui-biz.js, business.js, pilot.js, actions.js, globe.js)
+avion/        Sky Empire (index.html, airports-db.js, runways-db.js, airlines-db.js, data.js, sim.js, realism.js, airlines.js, map.js, ui.js, ui-biz.js, business.js, pilot.js, actions.js, globe.js)
 ```

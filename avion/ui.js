@@ -145,7 +145,7 @@ function loadFactor(){ let p=0,s=0; for(const r of S.routes){ p+=r.stats.pax; s+
 function competitors(){
   return [
     {name:S.company.name, value:fleetValue()+Math.max(0,S.cash), fleet:S.fleet.length, me:true, color:S.company.color, hub:S.company.hub, routes:S.routes.length, pax:marketStatsCache().playerDaily, rep:S.reputation},
-    ...(S.rivals||[]).map(R=>({name:R.name, value:R.fleet*45e6+Math.max(0,R.cash), fleet:R.fleet, color:R.color, hub:R.hub, routes:R.routes.length, pax:R.paxDay, rep:R.rep, R})),
+    ...(S.rivals||[]).map(R=>({name:R.name, value:R.fleet*45e6+Math.max(0,R.cash), fleet:R.fleet, color:R.color, hub:R.hub, routes:R.network||R.routes.length, pax:R.paxDay, rep:R.rep, R})),
   ].sort((a,b)=>b.value-a.value);
 }
 const routeLosing = r=>r.stats.recent.length>=4 && r.stats.recent.reduce((s,v)=>s+v,0)<0;
@@ -265,7 +265,9 @@ function lineModalHtml(r){
   ${lineTechHtml(r)}
   ${!r.audit?`<div class="al warn">🔍 <b>Audit non réalisé</b> : la demande exacte et les prix idéaux sont inconnus. <button class="btn sm gold" data-act="audit" data-id="${r.id}">Lancer l’audit (${fmtMoney(auditCost(r))})</button></div>`:'<div class="al ok">🔍 Ligne auditée : demande et prix idéaux connus.</div>'}
   <h3>Demande du marché (${a} → ${b})</h3>${lineDemandRows(r)}
-  ${rivalsOn(a,b).map(x=>`<div class="small"><span class="dot" style="background:${x.R.color}"></span><b>${x.R.name}</b> opère cette ligne (${x.freq} vol(s)/j par sens).</div>`).join('')}
+  ${(()=>{ const rv=rivalsOn(a,b), mn=typeof realMinutes==='function'?realMinutes(a,b):0;
+    return rv.length? `<h3>Compagnies réelles sur cette ligne</h3>${mn?`<div class="small mut">Durée de vol réelle (horaire) ≈ <b>${fmtDur(mn*MIN)}</b></div>`:''}${rv.map(x=>`<div class="small"><span class="dot" style="background:${x.R.color}"></span><b>${x.R.name}</b> <span class="mut">${x.R.code}</span> — ≈ ${x.freq} vol(s)/j par sens</div>`).join('')}`
+      : `<div class="small mut">✈️ Aucune compagnie ne relie aujourd’hui ${AP(a).city} et ${AP(b).city} en direct : marché vierge.</div>`; })()}
   ${legMarket(r,a,b).transfer>1?`<div class="small">🔁 Correspondances via votre réseau : +${num(legMarket(r,a,b).transfer)} pax/j potentiels.</div>`:''}
   <h3>Prix des billets</h3>
   <div class="prices">${['y','j','f','c'].map(priceRow).join('')}</div>
@@ -620,7 +622,7 @@ function pWorld(){
   let domMarket=0; for(const p of pairs) domMarket+=2*p.dem;
   let domMine=0; for(const r of dom){ if(!routeAircraft(r).length) continue; for(let i=0;i<r.stops.length-1;i++){ domMine+=legMarket(r,r.stops[i],r.stops[i+1]).daily+legMarket(r,r.stops[i+1],r.stops[i]).daily; } }
   const regions={}; for(const c of aps){ const a=AP(c), k=a.prov||(a.region||'').replace(cc+'-','')||'—'; (regions[k]=regions[k]||[]).push(c); }
-  const rivalsHere=(S.rivals||[]).filter(R=>AP(R.hub).cc===cc);
+  const rivalsHere=(S.rivals||[]).filter(R=>AP(R.hub).cc===cc), realHere=typeof airlinesOfCountry==='function'? airlinesOfCountry(cc,1) : [];
   const evs=S.events.filter(e=>{ const t=EV(e); return (e.airports||[]).some(c=>AP(c).cc===cc) || (e.airport&&AP(e.airport).cc===cc) || (e.boostAirport&&AP(e.boostAirport).cc===cc) || ((e.ccs||t.ccs||[]).includes(cc)) || (t.drc&&cc==='CD'); });
   const intl = cc!==homeCC()? S.hubs.flatMap(h=>aps.slice(0,15).map(c=>({h,c,d:dist(h,c),dem:marketDemand(h,c)}))).filter(x=>x.h!==x.c).sort((x,y)=>y.dem-x.dem).slice(0,10) : [];
   const suggest=(p)=>{ const minCls=Math.min(AP(p.a).cls,AP(p.b).cls); const ok=MODELS.filter(m=>!isCargo(m)&&m.cls<=minCls&&m.range>=p.d).sort((x,y)=>Math.abs(x.seats-p.dem*0.3)-Math.abs(y.seats-p.dem*0.3)); return ok[0]?ok[0].name:'—'; };
@@ -640,7 +642,8 @@ function pWorld(){
     <div class="kpi"><div class="kl">Kérosène</div><div class="kv">$${fuelPrice(aps[0]).toFixed(2)}/L</div></div>
   </div>
   ${evs.length?`<h3>Actualité du pays</h3>${evs.map(e=>{const t=EV(e);return `<div class="ev">${t.icon} <b>${t.name}</b>${e.where||''} — ${t.desc} <span class="mut">(jusqu’au ${fmtDate(e.until)})</span></div>`;}).join('')}`:''}
-  ${rivalsHere.length?`<h3>Concurrents basés ici</h3>${rivalsHere.map(R=>`<div class="card small"><span class="dot" style="background:${R.color}"></span><b>${R.name}</b> — hub ${apName(R.hub)} · ${R.fleet} avions · ${R.routes.length} lignes · ${stars(R.rep)}</div>`).join('')}`:''}
+  <h3>Compagnies aériennes du pays</h3>${realHere.length? realHere.slice(0,12).map(c=>{ const A=AIRLINE_DB[c]; return `<div class="card small"><span class="dot" style="background:${airlineColor(c)}"></span><b>${A[0]}</b> <span class="mut">${c}</span> — base ${apName(A[2])} · ${A[3]} ligne(s) régulière(s)${rivalsHere.some(R=>R.code===c)?' · <span class="badge">concurrent suivi</span>':''}</div>`; }).join('') : `<div class="al">Aucune compagnie aérienne n’est basée dans ce pays : il est desservi uniquement par des compagnies étrangères${cc===homeCC()?' — vous serez la compagnie nationale !':''}.</div>`}
+  ${rivalsHere.length&&false?`<h3>Concurrents basés ici</h3>${rivalsHere.map(R=>`<div class="card small"><span class="dot" style="background:${R.color}"></span><b>${R.name}</b> — hub ${apName(R.hub)} · ${R.fleet} avions · ${R.routes.length} lignes · ${stars(R.rep)}</div>`).join('')}`:''}
   ${intl.length?`<h3>Meilleures lignes depuis vos hubs vers ce pays</h3><table class="tbl"><tr><th>Ligne</th><th>km</th><th>Demande/j</th><th></th></tr>${intl.map(x=>`<tr><td>${x.h} → ${AP(x.c).city}</td><td>${num(x.d)}</td><td>${num(x.dem)}</td><td><button class="btn sm" data-act="draftPair" data-a="${x.h}" data-b="${x.c}">Ouvrir</button></td></tr>`).join('')}</table>`:''}
   <h3>Lignes intérieures les plus demandées</h3>
   ${pairs.length?`<table class="tbl"><tr><th>Ligne</th><th>km</th><th>Demande/j</th><th>Avion conseillé</th><th></th></tr>
@@ -703,7 +706,6 @@ function mapStyleHtml(){
 function airportHtml(code){
   const a=AP(code), c=COUNTRIES[a.cc], isHub=S.hubs.includes(code);
   const here=S.fleet.filter(x=>x.loc===code&&x.status==='idle');
-  const rv=(S.rivals||[]).map(R=>({R,dests:R.routes.filter(r=>r.a===code||r.b===code).map(r=>r.a===code?r.b:r.a)})).filter(x=>x.dests.length);
   const projects=(S.projects||[]).filter(p=>p.code===code);
   return `<div class="small">${a.name}${a.icao?' · OACI '+a.icao:''}<br>${a.drc?'Province : <b>'+a.prov+'</b> · ':''}${c[0]} · ${CONTINENTS[c[1]]}</div>
     <div class="grid2 small card"><div>Piste : <b>${a.runway} m</b> (${a.surface})</div><div>Classe : <b>${a.cls}</b>/5</div>
@@ -717,7 +719,8 @@ function airportHtml(code){
     ${isHub?'<div class="al ok">🏢 C’est l’un de vos hubs.</div>':a.cls>=2?`<div class="btns"><button class="btn gold" data-act="buyHub" data-c="${code}">🏢 Acheter ce hub · ${fmtMoney(hubCost(code))}</button></div>`:''}
     <div class="btns">${S.hubs.filter(h=>h!==code).map(h=>`<button class="btn sm" data-act="draftPair" data-a="${h}" data-b="${code}">➕ Ligne ${h} → ${code} · ${num(dist(h,code))} km</button>`).join('')}</div>
     ${here.length?`<div class="small">Vos avions au sol ici : ${here.map(x=>`<button class="btn sm" data-act="pilot" data-id="${x.id}">🕹️ Piloter ${x.reg}</button>`).join(' ')}</div>`:''}
-    ${rv.map(x=>`<div class="small"><span class="dot" style="background:${x.R.color}"></span><b>${x.R.name}</b>${x.R.hub===code?' (hub)':''} vole vers : ${x.dests.slice(0,12).join(', ')}${x.dests.length>12?'…':''}</div>`).join('')}
+    ${(()=>{ const al=typeof airlinesAt==='function'?airlinesAt(code):[]; if(!al.length) return '<div class="small mut">Aucune ligne régulière connue au départ de cet aéroport.</div>';
+      return `<div class="card small"><b>🛫 Compagnies présentes</b> · ${(AP_ROUTES[code]||[]).length} destination(s) directe(s)<div class="chips">${al.slice(0,18).map(([c,n])=>`<span class="chip"><span class="dot" style="background:${airlineColor(c)}"></span>${esc(airlineName(c))} · ${n}</span>`).join('')}${al.length>18?`<span class="chip">+${al.length-18}</span>`:''}</div></div>`; })()}
     ${boardHtml(code)}
     ${true?`<h3>Investir dans l’aéroport${a.drc?' (partenariat RVA)':''}</h3>${projects.map(p=>`<div class="al">${UPGRADES[p.type].icon} ${UPGRADES[p.type].name} — fin le ${fmtDate(p.until)}</div>`).join('')}
       ${Object.entries(UPGRADES).filter(([k,u])=>u.can(a)&&!projects.some(p=>p.type===k)).map(([k,u])=>`<div class="card row"><div class="grow">${u.icon} <b>${u.name}</b> — ${fmtMoney(u.cost(a))} · ${u.days} j<br><span class="small mut">${u.desc}</span></div><button class="btn sm gold" data-act="project" data-c="${code}" data-k="${k}">Lancer</button></div>`).join('')||'<div class="mut small">Aucun chantier disponible ici.</div>'}`:''}`;

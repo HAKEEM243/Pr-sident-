@@ -266,7 +266,8 @@ function priceFactor(r){ return r<=1? 1+(1-r)*0.9 : Math.pow(r,-3); }
 function legMarket(route, a, b, freqOverride){
   const fp=Math.max(0.05, freqOverride ?? routeFreq(route));
   const base=marketDemand(a,b), split=classSplit(a,b), q=playerQuality(), rf=rivalFreq(a,b);
-  const attrC=Math.sqrt(Math.max(0.4,base/160)) + rivalAttr(a,b);
+  // compagnies réelles présentes : elles remplacent une partie de la concurrence « anonyme »
+  const attrC=Math.sqrt(Math.max(0.4,base/160))*(rf>0?0.55:1) + rivalAttr(a,b)*0.6;
   const transfer=connectingDemand(a,b);
   const out={freq:fp, rivalFreq:rf, market:base, transfer};
   let daily=0;
@@ -790,7 +791,7 @@ const AI_MAJORS = [
   {name:'Andes Air', code:'AA', color:'#22c55e', hub:'GRU'},
   {name:'Sahara Wings', code:'SW', color:'#f97316', hub:'ADD'},
 ];
-const R0 = ()=>S.rivals&&S.rivals[0];
+const R0 = ()=>S.rivals&&(S.rivals.find(R=>R.local)||null); // compagnie nationale concurrente (aucune si le pays n'en a pas)
 function makeRival(t, local){
   const R={ name:t.name, code:t.code, color:t.color, hub:t.hub, local:!!local, cash:local?140e6:900e6, fleet:local?7:60, quality:local?0.95:1.05, rep:local?55:68, paxDay:0, revDay:0, routes:[] };
   const H=AP(t.hub), maxD=local?2500:7000;
@@ -800,6 +801,7 @@ function makeRival(t, local){
   return R;
 }
 function initRivals(){
+  if(typeof initRealRivals==='function' && typeof AIRLINE_DB!=='undefined') return initRealRivals();
   const H=AP(S.company.hub);
   // rival local : le plus grand autre aéroport du pays (ou de la région)
   let lh=AIRPORT_CODES.filter(c=>c!==S.company.hub && AP(c).cc===H.cc && AP(c).cls>=3).sort((x,y)=>AP(y).traffic-AP(x).traffic)[0];
@@ -810,17 +812,28 @@ function initRivals(){
 }
 function initRival(){ initRivals(); }
 function rivalTick(){ for(const R of S.rivals||[]) rivalStep(R); }
+const _rdem=new WeakMap(); // demande des lignes concurrentes, recalculée une fois par semaine (évite les à-coups)
 function rivalStep(R){
   let pax=0, rev=0;
   for(const r of R.routes){
-    const d=dist(r.a,r.b), dem=marketDemand(r.a,r.b)+marketDemand(r.b,r.a);
-    const seats = d<1200?70:d<4000?180:300;
-    const p = Math.min(seats*r.freq*2*0.85, dem*0.3);
-    pax+=p; rev+=p*baseFare(r.a,r.b);
+    let c=_rdem.get(r); const wk=Math.floor((S.time+((r.a.charCodeAt(2)+r.b.charCodeAt(2))%7)*DAY)/(7*DAY)); // recalcul étalé sur la semaine
+    if(!c||c.wk!==wk||c.f!==r.freq){
+      const d=dist(r.a,r.b), dem=marketDemand(r.a,r.b)+marketDemand(r.b,r.a), seats = d<1200?70:d<4000?180:300;
+      const p=Math.min(seats*r.freq*2*0.85, dem*0.3); c={wk, f:r.freq, p, rev:p*baseFare(r.a,r.b)}; _rdem.set(r,c);
+    }
+    pax+=c.p; rev+=c.rev;
   }
   const profit = rev*rnd(0.02,0.12);
   R.cash+=profit; R.paxDay=Math.round(pax); R.revDay=Math.round(rev);
   R.rep=clamp(R.rep+rnd(-0.6,0.7),30,92); R.quality=0.75+R.rep/200;
+  // compagnies réelles : réseau réel ; elles renforcent leurs vols quand vous les attaquez sur leurs lignes
+  if(R.real){
+    if(Math.random()<0.05){
+      const hit=S.routes.filter(r=>routeAircraft(r).length).map(r=>R.routes.find(x=>(x.a===r.stops[0]&&x.b===r.stops[1])||(x.a===r.stops[1]&&x.b===r.stops[0]))).filter(Boolean);
+      if(hit.length){ const ex=pick(hit); if(ex.freq<12){ ex.freq++; R._v=(R._v||0)+1; logMsg(`🛩️ ${R.name} ajoute un vol sur ${AP(ex.a).city} – ${AP(ex.b).city} (votre ligne !).`,'rival'); } }
+    }
+    return;
+  }
   // expansion : le rival local copie vos lignes, les majors s'attaquent à celles proches de leur hub
   if(R.cash>50e6 && Math.random()<(R.local?0.12:0.06)){
     let a,b;
@@ -835,7 +848,7 @@ function rivalStep(R){
   }
   if(R.cash<0 && R.routes.length>2){ R.routes.sort((x,y)=>x.freq-y.freq).shift(); R.fleet=Math.max(3,R.fleet-1); R.cash+=25e6; }
 }
-function rivalsOn(a,b){ const out=[]; for(const R of S.rivals||[]) for(const r of R.routes) if((r.a===a&&r.b===b)||(r.a===b&&r.b===a)) out.push({R,freq:r.freq}); return out; }
+if(typeof rivalsOn!=='function') var rivalsOn=function(a,b){ const out=[]; for(const R of S.rivals||[]) for(const r of R.routes) if((r.a===a&&r.b===b)||(r.a===b&&r.b===a)) out.push({R,freq:r.freq}); return out; };
 
 /* ---------- météo : cellules orageuses ---------- */
 function stormAt(lat,lon){ for(const c of S.weather||[]){ if(gcDist(c,{lat,lon})<c.r) return c; } return null; }
@@ -1038,7 +1051,7 @@ const MISSIONS = [
   {id:'alliance', name:'Membre d’alliance', desc:'Rejoindre une alliance', cash:5e6, rep:3, done:()=>!!S.alliance},
   {id:'fivestar', name:'Compagnie 5 étoiles', desc:'Atteindre 90 de réputation', cash:20e6, rep:0, done:()=>S.reputation>=90},
   {id:'top3', name:'Top 3 mondial', desc:'Entrer dans le top 3 du classement des compagnies', cash:50e6, rep:6, done:()=>typeof competitors==='function' && competitors().findIndex(x=>x.me)<3},
-  {id:'beat', name:'Détrôner le rival local', desc:'Dépasser StarWing en nombre d’avions (après 200 vols)', cash:25e6, rep:5, done:()=>R0() && S.fleet.length>R0().fleet && S.stats.flights>200},
+  {id:'beat', name:'Détrôner la compagnie nationale', desc:'Avoir plus d’avions que la première compagnie de votre pays (après 200 vols)', cash:25e6, rep:5, done:()=>R0() && S.fleet.length>R0().fleet && S.stats.flights>200},
   {id:'continents', name:'Tour du monde', desc:'Desservir les 6 continents', cash:60e6, rep:8, done:()=>new Set([...servedAirports()].map(continentOf)).size>=6},
   {id:'ipo', name:'Introduction en bourse', desc:'Faire coter votre compagnie', cash:0, rep:5, done:()=>S.stock&&S.stock.ipo},
   {id:'codeshare', name:'Premier partage de codes', desc:'Signer un accord avec une grande compagnie', cash:2e6, rep:3, done:()=>S.codeshares&&S.codeshares.length>0},
@@ -1096,6 +1109,13 @@ function migrate(){
   if(typeof ensureBiz==='function') ensureBiz();
   if(S.rival && !S.rivals){ Object.assign(S.rival,{local:true,color:'#e5484d'}); S.rivals=[S.rival]; for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false)); delete S.rival; }
   if(!S.rivals||!S.rivals.length) initRivals();
+  // anciennes parties : les compagnies fictives sont remplacées par les vraies compagnies
+  if(!S.rivalsReal && typeof initRealRivals==='function' && typeof AIRLINE_DB!=='undefined'){
+    let refund=0; if(S.stock&&S.stock.holdings) for(const [code,pct] of Object.entries(S.stock.holdings)){ const R=S.rivals.find(x=>x.code===code); if(R&&typeof rivalValue==='function') refund+=pct*rivalValue(R); }
+    if(S.stock) S.stock.holdings={}; S.codeshares=[];
+    initRealRivals(); S.cash+=refund;
+    logMsg(`✈️ Le ciel est désormais celui du monde réel : vos concurrents sont les vraies compagnies${refund?` (participations remboursées : ${fmtMoney(refund)})`:''}.`,'info');
+  }
   if(!S.v || S.v<2){
     S.v=2; S.hubs=S.hubs||[S.company.hub];
     S.fuel=S.fuel||{stock:400000, cap:1500000, auto:false, autoBelow:0.72, hist:[]};

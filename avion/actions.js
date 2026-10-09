@@ -150,7 +150,7 @@ const ACTIONS = {
   adCrew:()=>{ const n=staffNeed(); for(const k of ['pnc','meca','sol']) S.staff[k]=Math.max(S.staff[k],n[k]+5); for(const k of Object.keys(S.staff.morale)) S.staff.morale[k]=90; S.staff.strikeUntil=0; toast('Personnel au complet','ok'); },
   adFuel:()=>{ S.fuel.stock=S.fuel.cap; S.co2.stock=S.co2.cap; toast('Réservoirs pleins','ok'); },
   adCargo:()=>{ genCargoOffers(4); toast('Nouvelles offres cargo','ok'); },
-  adRival:d=>{ const R=R0(); if(+d.v>0) R.cash+=100e6; else { R.cash=-5e6; R.rep=35; } toast('Rival modifié','ok'); },
+  adRival:d=>{ const R=R0()||(S.rivals||[])[0]; if(!R) return toast('Aucun concurrent','bad'); if(+d.v>0) R.cash+=100e6; else { R.cash=-5e6; R.rep=35; } toast('Rival modifié','ok'); },
 };
 
 /* ---------- saisies ---------- */
@@ -290,7 +290,7 @@ let booted=false;
 function boot(){
   if(booted) return; booted=true;
   initMap();
-  if(localStorage.getItem('se-news')!=='v4'){ try{ localStorage.setItem('se-news','v4'); }catch(e){} setTimeout(()=>toast('Nouveau : animation fluide, roulage réel vers la piste, balisage lumineux la nuit, durées de vol réalistes. Bouton « 🛬 Mon aéroport » pour zoomer.','ok'),1500); }
+  if(localStorage.getItem('se-news')!=='v5'){ try{ localStorage.setItem('se-news','v5'); }catch(e){} setTimeout(()=>toast('Nouveau : les vraies compagnies (Air France, Emirates, Ethiopian…) et leurs vraies lignes dans le ciel. Survolez un avion pour voir sa compagnie et sa ligne.','ok'),1500); }
   renderTop(); setTab(window.innerWidth<820?'map':'dash');
   updatePlanes(); updateRival();
   let last=performance.now(), acc1=0, acc2=0, acc30=0, acc10=0;
