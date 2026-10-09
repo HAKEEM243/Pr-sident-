@@ -68,7 +68,7 @@ function simpleTop(tab){
   if(!isSimple()) return '';
   if(tab==='network'){
     const nf=S.routes.length? S.fleet.filter(a=>!(a.plan||[]).some(p=>p.weekly>0)&&a.status!=='manual').length : 0;
-    return `<div class="simplehelp">🧭 Une <b>ligne</b> relie votre hub à une ville. Ouvrez-en une : un avion libre y est programmé <b>automatiquement</b>.${S.routes.length===0?' Commencez par là !':''}</div>
+    return advisorHtml()+`<div class="simplehelp">🧭 Une <b>ligne</b> relie votre hub à une ville. Ouvrez-en une : un avion libre y est programmé <b>automatiquement</b>.${S.routes.length===0?' Commencez par là !':''}</div>
     <div class="bigcta"><button class="btn gold" data-act="openLine">➕ Ouvrir une ligne<small>Choisissez une ville, c’est tout</small></button>
     ${nf?`<button class="btn" data-act="autoAll">⚡ Programmer mes ${nf} avion(s) libre(s)<small>Chacun va sur la meilleure ligne</small></button>`:''}</div>`;
   }
@@ -237,4 +237,50 @@ if(typeof document!=='undefined') document.addEventListener('DOMContentLoaded',(
       f.value=''; };
     rd.readAsText(file);
   });
+});
+
+/* ============================================================
+   CONSEILLER : propose les meilleures actions du moment
+   ============================================================ */
+let _adv={k:'',v:[]};
+function advisorSuggestions(){
+  const key=Math.floor(S.time/DAY)+'|'+S.routes.length+'|'+S.fleet.length+'|'+S.hubs.join(); if(_adv.k===key) return _adv.v;
+  const out=[], fleet=S.fleet; if(!S.hubs.length) return out;
+  const pool=typeof airportRanking==='function'? airportRanking().slice(0,220) : AIRPORT_CODES;
+  const have=new Set(S.routes.map(r=>r.stops.join('>')));
+  const maxRange=fleet.length? Math.max(...fleet.map(a=>modelOf(a).range)) : 1500;
+  for(const h of S.hubs.slice(0,3)){
+    const usable=fleet.filter(a=>a.hub===h);
+    const cands=[];
+    for(const c of pool){
+      if(c===h||AP(c).cls<2||have.has(h+'>'+c)) continue;
+      const d=dist(h,c); if(d<180||d>Math.min(maxRange*0.92,9000)) continue;
+      const comp=usable.filter(a=>!checkLegs(a,legsFor([h,c])));
+      if(fleet.length&&!comp.length) continue;
+      const dem=marketDemand(h,c), riv=carriersOn(h,c).length, war=0;
+      cands.push({h,c,d,dem,riv,comp:comp.length,score:dem/(1+riv*1.3)});
+    }
+    cands.sort((a,b)=>b.score-a.score);
+    for(const x of cands.slice(0,3)) out.push({kind:'line',...x,w:x.score});
+  }
+  // lignes pleines : ajouter un avion ; lignes déficitaires : alléger
+  for(const r of S.routes){
+    if(!routeAircraft(r).length||r.stats.flights<6) continue;
+    const lf=r.stats.seats? r.stats.pax/r.stats.seats : 0;
+    if(lf>0.9&&(r.stats.rev-r.stats.cost)>0) out.push({kind:'add',r,lf,w:lf*(r.stats.rev-r.stats.cost)/50});
+    else if((r.stats.rev-r.stats.cost)<0&&lf<0.5) out.push({kind:'cut',r,lf,w:Math.abs(r.stats.rev-r.stats.cost)/80});
+  }
+  out.sort((a,b)=>b.w-a.w);
+  _adv={k:key,v:out.slice(0,4)};
+  return _adv.v;
+}
+function advisorHtml(){
+  const L=advisorSuggestions(); if(!L.length) return '';
+  return `<div class="card advisor"><b>🧠 Conseiller</b> <span class="small mut">— les meilleures actions du moment</span>${L.map(x=>{
+    if(x.kind==='line') return `<div class="diag-item"><div class="grow">➕ Ouvrez <b>${esc(AP(x.h).city)} → ${esc(AP(x.c).city)}</b> · ${num(x.d)} km · ≈ ${num(x.dem)} voyageurs/jour · ${x.riv?x.riv+' concurrent(s)':'<b>aucun concurrent</b>'}${x.comp?` · ${x.comp} avion(s) compatible(s)`:''}</div><button class="btn sm gold" data-act="advLine" data-a="${x.h}" data-b="${x.c}">Ouvrir · ${fmtMoney(lineCost([x.h,x.c]))}</button></div>`;
+    if(x.kind==='add') return `<div class="diag-item"><div class="grow">📈 <b>${x.r.stops.join('⇄')}</b> est pleine (${Math.round(x.lf*100)} %) et rentable : un avion de plus y gagnerait de l’argent.</div><button class="btn sm" data-tab="shop">Acheter un avion</button></div>`;
+    return `<div class="diag-item"><div class="grow">✂️ <b>${x.r.stops.join('⇄')}</b> perd de l’argent (remplissage ${Math.round(x.lf*100)} %) : réduisez les rotations ou fermez-la.</div><button class="btn sm" data-act="line" data-id="${x.r.id}">Voir la ligne</button></div>`; }).join('')}</div>`;
+}
+if(typeof ACTIONS!=='undefined') Object.assign(ACTIONS,{
+  advLine:d=>{ const r=openLine([d.a,d.b]); if(typeof r==='string') return toast('⛔ '+r,'bad'); r.audit=true; const n=autoPlanAll(); drawRoutes(); toast(n?`🧭 Ligne ${d.a}⇄${d.b} ouverte : ${n} avion(s) programmé(s)`:`🧭 Ligne ${d.a}⇄${d.b} ouverte. Achetez un avion pour la desservir.`,'ok'); renderPanel(); },
 });
