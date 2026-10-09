@@ -108,7 +108,7 @@ function pMore(){
   <label class="tog"><input type="checkbox" data-in="simple" ${S.simple?'checked':''}> <b>Mode simple</b> : personnel, carburant, maintenance et programmation automatiques</label>
   <div class="small mut" style="margin:4px 0 10px">Décochez pour tout gérer vous-même (mode expert : tous les onglets).</div>
   <div class="btns"><button class="btn gold" data-act="install">📲 Application${typeof isStandalone==='function'&&isStandalone()?' (installée)':' : installer sur mon téléphone'}</button></div>
-  <div class="btns"><button class="btn" data-act="exportSave">💾 Exporter ma sauvegarde</button><button class="btn" data-act="importSave">📂 Importer</button></div>
+  <div class="btns"><button class="btn gold" data-act="saves">💾 Sauvegardes : sauvegarder, charger, exporter, importer</button></div>
   <div class="btns"><button class="btn" data-act="guideReset">🎓 Revoir le tutoriel</button><button class="btn" data-act="mapStyle">🗺️ Fond de carte</button></div>
   <div class="btns"><button class="btn" data-tab="admin">🛠️ Outils de test</button></div>`;
 }
@@ -235,6 +235,7 @@ if(typeof document!=='undefined') document.addEventListener('DOMContentLoaded',(
     const file=f.files&&f.files[0]; if(!file) return;
     const rd=new FileReader();
     rd.onload=()=>{ try{ const o=JSON.parse(rd.result); if(!o||!o.company||!o.fleet||!o.time) throw new Error('fichier invalide');
+        if(typeof applySave==='function'){ applySave(rd.result,'Importer'); return; }
         if(!confirm(`Importer la sauvegarde « ${o.company.name} » ? Votre partie actuelle sera remplacée.`)) return;
         localStorage.setItem(SAVE_KEY,rd.result); location.reload(); }
       catch(e){ toast('⛔ Sauvegarde illisible : '+e.message,'bad'); }

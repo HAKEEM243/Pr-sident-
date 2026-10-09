@@ -1122,7 +1122,7 @@ function catchUp(){
     rev:ledSum(S.led.total,1)-before.rev, cost:ledSum(S.led.total,-1)-before.cost, cash:S.cash-before.cash };
 }
 
-function save(){ if(!S) return; S.lastReal=Date.now(); try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
+function save(){ if(!S||(typeof window!=='undefined'&&window._svNoUnloadSave)) return; S.lastReal=Date.now(); const txt=JSON.stringify(S); if(typeof saveAll==='function') return saveAll(txt); try{ localStorage.setItem(SAVE_KEY, txt); }catch(e){} }
 function migrate(){
   if(typeof ensureBiz==='function') ensureBiz();
   if(S.simple===undefined) S.simple=true;
