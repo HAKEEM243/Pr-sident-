@@ -30,8 +30,9 @@ const aiAlive=()=>S.ai.list.filter(e=>e.status!=='dead');
 const aiBy=code=>S.ai&&S.ai.list.find(e=>e.code===code);
 function aiNews(text, kind='news', important=false){
   const ai=S.ai; ai.news.unshift({t:S.time,text,kind});
-  if(ai.news.length>150) ai.news.length=150;
+  if(ai.news.length>300) ai.news.length=300;
   if(important) logMsg(text, kind==='news'?'info':kind);
+  if(typeof tickerPush==='function') tickerPush(text,kind);
 }
 const touchesMe=(a,b)=>S.hubs.includes(a)||S.hubs.includes(b)||S.routes.some(r=>r.stops.includes(a)&&r.stops.includes(b));
 const modelFor=e=>{ const big=e.fleet>=60, pool=MODELS.filter(m=>!isCargo(m)&&m.fam!=='CONC'&&(big? m.seats>=120 : e.fleet>=12? m.seats>=70&&m.seats<=300 : m.seats<=120)); return pick(pool.length?pool:MODELS.filter(m=>!isCargo(m))); };
@@ -43,7 +44,7 @@ function aiWeekly(){
   const mk=monthKey(S.time); if(S.ai.lastMonth!==mk){ const first=S.ai.lastMonth===-1; S.ai.lastMonth=mk; if(!first) aiMonthly(); }
   const oilF=clamp(1.15-(S.oil-82)/160,0.6,1.3);
   for(const e of S.ai.list.slice()) if(e.status!=='dead') aiStep(e,oilF);
-  moodWeekly(); storiesWeekly(); storiesRandom();
+  moodWeekly(); storiesWeekly(); storiesRandom(); if(typeof aiReact==='function') aiReact();
   aiRanking();
 }
 function aiStep(e,oilF){
