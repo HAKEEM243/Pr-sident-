@@ -102,6 +102,7 @@ function renderTop(){
   $('#tb-week').innerHTML=`<span class="mut">Semaine</span> <b class="${wk<0?'neg':'pos'}">${wk>=0?'+':''}${fmtMoney(wk)}</b>`;
   $('#tb-time').innerHTML=`${fmtDate(S.time)} <b>${fmtTime(S.time)}</b>`;
   $('#tb-oil').innerHTML=`⛽ $${fuelPrice().toFixed(2)}/L`;
+  if(typeof renderMailBadge==='function') renderMailBadge();
   document.querySelectorAll('[data-speed]').forEach(b=>b.classList.toggle('on', b.dataset.speed===S.speed && !S.paused));
   $('#tb-pause').textContent=S.paused?'▶':'⏸';
   $('#tb-pause').classList.toggle('on',S.paused);
