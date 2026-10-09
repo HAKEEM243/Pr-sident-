@@ -227,6 +227,7 @@ function fxTick(ac,p){
   FX.wasAir=air;
   if(FX.puffs.length){ FX.puffs=FX.puffs.filter(u=>{ const age=(now-u.t0)/1000; if(age>3.2){ FX.smoke.remove(u.b); return false; } if(age>0){ u.b.scale=u.s+age*1.6; u.b.color=C.Color.WHITE.withAlpha(Math.max(0,0.85-age*0.27)); } return true; }); }
   if(typeof groundVehicles==='function') groundVehicles(ac,p);
+  if(typeof gateFx==='function'){ try{ gateFx(ac,p); }catch(e){ console.warn(e); } }
   // --- pluie, ombres, PAPI, son ---
   const raining=!!(FX.forceRain||(typeof stormAt==='function'&&stormAt(st.lat,st.lon)));
   fxRain(p,raining&&!inside);
@@ -377,7 +378,7 @@ function fxShake(p){
   cam.lookUp((Math.random()-0.5)*a*k); cam.lookRight((Math.random()-0.5)*a*k);
 }
 function fxClear(){
-  fxCabinOff(); if(typeof groundClear==='function') groundClear();
+  fxCabinOff(); if(typeof groundClear==='function') groundClear(); if(typeof gateClear==='function') gateClear();
   if(FX.lights){ FX.lights.removeAll(); }
   if(FX.smoke){ FX.smoke.removeAll(); FX.puffs=[]; }
   FX.spot=null; FX.wasAir=null;
