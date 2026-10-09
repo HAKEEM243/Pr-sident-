@@ -63,6 +63,7 @@ function aiHourly(){
   const n=1+(Math.random()<0.55?1:0)+(Math.random()<0.2?1:0);
   for(let i=0;i<n;i++) microEvent();
   playerHourly();
+  if(typeof paxCaseTick==='function') paxCaseTick();
   if(typeof ceoTick==='function') ceoTick();
   // promotions et guerres des prix expirées
   const ai=S.ai; for(const k of Object.keys(ai.promos||{})) if(ai.promos[k].until<S.time) delete ai.promos[k];
