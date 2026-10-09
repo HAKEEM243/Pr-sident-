@@ -44,7 +44,7 @@ function aiWeekly(){
   const mk=monthKey(S.time); if(S.ai.lastMonth!==mk){ const first=S.ai.lastMonth===-1; S.ai.lastMonth=mk; if(!first) aiMonthly(); }
   const oilF=clamp(1.15-(S.oil-82)/160,0.6,1.3);
   for(const e of S.ai.list.slice()) if(e.status!=='dead') aiStep(e,oilF);
-  moodWeekly(); storiesWeekly(); storiesRandom(); if(typeof aiReact==='function') aiReact();
+  moodWeekly(); storiesWeekly(); storiesRandom(); if(typeof aiReact==='function') aiReact(); if(typeof inboxWeekly==='function') inboxWeekly();
   aiRanking();
 }
 function aiStep(e,oilF){

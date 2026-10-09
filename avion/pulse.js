@@ -63,6 +63,7 @@ function aiHourly(){
   const n=1+(Math.random()<0.55?1:0)+(Math.random()<0.2?1:0);
   for(let i=0;i<n;i++) microEvent();
   playerHourly();
+  if(typeof ceoTick==='function') ceoTick();
   // promotions et guerres des prix expirées
   const ai=S.ai; for(const k of Object.keys(ai.promos||{})) if(ai.promos[k].until<S.time) delete ai.promos[k];
   for(const k of Object.keys(ai.wars||{})) if(ai.wars[k].until<S.time){ const w=ai.wars[k]; delete ai.wars[k]; aiNews(`🕊️ Fin de la guerre des prix ${keyCity(w.a)}–${keyCity(w.b)} : ${aiBy(w.code)?aiBy(w.code).name:w.code} remonte ses tarifs.`,'news',touchesMe(w.a,w.b)); }
@@ -93,7 +94,7 @@ function aiReact(){
     // 1. guerre des prix : un rival agressif s'attaque à une ligne que vous dominez
     if(sh>0.3&&rivals.length&&Math.random()<0.12){
       const e=rivals.sort((x,y)=>personaOf(y.code).agg-personaOf(x.code).agg)[0];
-      if(Math.random()<personaOf(e.code).agg&&!ai.wars[e.code+key]){
+      if(Math.random()<personaOf(e.code).agg&&!ai.wars[e.code+key]&&!(typeof isAlly==='function'&&(isAlly(e.code)||inTruce(e.code)))){
         ai.wars[e.code+key]={code:e.code,a,b,until:S.time+rndi(10,28)*DAY,kind:'prix'};
         aiNews(vary('war',[`⚔️ Guerre des prix : ${e.name} casse ses tarifs sur ${keyCity(a)}–${keyCity(b)}, face à vous. Votre part de marché va baisser.`,`⚔️ ${e.name} s’attaque à votre ligne ${keyCity(a)}–${keyCity(b)} avec des billets bradés.`,`⚔️ Offensive tarifaire de ${e.name} sur ${keyCity(a)}–${keyCity(b)} : à vous de répondre (prix, service ou fréquence).`]),'rival',true);
         continue; }

@@ -167,6 +167,18 @@ body.globe-follow #panel,body.globe-follow #flightcard,body.globe-follow #tabbar
 body.globe-follow #globeHud{max-width:calc(100% - 20px)}
 #city{position:absolute;inset:0;z-index:1000;background:#cfd8e3}
 #city[hidden],#cityHud[hidden]{display:none}
+#tb-mail{position:relative;background:#14233b;border:1px solid var(--line);border-radius:9px;padding:4px 9px;font-size:16px;cursor:pointer;color:var(--txt)}
+#tb-mail.has{border-color:var(--gold);animation:mailp 2s infinite}
+#tb-mail i{position:absolute;top:-6px;right:-7px;background:#dc2626;color:#fff;font:700 10.5px system-ui;font-style:normal;border-radius:9px;padding:1px 5px}
+@keyframes mailp{50%{box-shadow:0 0 0 4px rgba(250,204,21,.25)}}
+.mail{border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin:0 0 9px;background:#0f1b2e}
+.mail.new{border-color:#b45309;background:#1a1d2b}
+.mail.done,.mail.exp{opacity:.72}
+.mail-h{display:flex;gap:10px;align-items:center;margin-bottom:6px}
+.mail-av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff;font-size:12.5px;flex:0 0 34px;text-shadow:0 1px 2px #000}
+.mail-b{font-size:13px;line-height:1.5}
+.mail-a{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.mail-r{margin-top:7px;font-size:12.5px;color:#a7f3d0}
 #cityHud select.gh{width:auto;flex:0 0 auto}
 #cityHud{position:absolute;top:10px;left:10px;z-index:1060;display:flex;flex-wrap:wrap;gap:6px;max-width:calc(100% - 460px)}
 body.city-on #mapctl,body.city-on #guide,body.city-on #ticker{display:none}
@@ -453,6 +465,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     <div id="tb-time"></div>
     <div id="tb-week" data-tab="finance" title="Voir mes finances" style="cursor:pointer"></div>
     <div id="tb-oil" class="mut"></div>
+    <button id="tb-mail" data-act="inbox" title="Messagerie : les PDG des autres compagnies">📬</button>
     <div class="tb-sp">
       <button data-speed="realiste" title="Temps réel">Réaliste</button>
       <button data-speed="standard" title="1 s = 1 min">Standard</button>
@@ -504,18 +517,19 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="realism.js?v=20261019"></script>
 <script src="airlines-db.js?v=20261019"></script>
 <script src="airlines.js?v=20261019"></script>
-<script src="world-ai.js?v=20261019"></script>
+<script src="world-ai.js?v=20261020"></script>
 <script src="passengers.js?v=20261019"></script>
-<script src="pulse.js?v=20261019"></script>
+<script src="pulse.js?v=20261020"></script>
 <script src="business.js?v=20261019"></script>
 <script src="map.js?v=20261019"></script>
-<script src="ui.js?v=20261019"></script>
+<script src="ui.js?v=20261020"></script>
 <script src="pilot.js?v=20261019"></script>
-<script src="actions.js?v=20261019"></script>
+<script src="actions.js?v=20261020"></script>
 <script src="aircraft3d.js?v=20261019"></script>
 <script src="globe.js?v=20261019"></script>
 <script src="city3d.js?v=20261019"></script>
 <script src="ui-biz.js?v=20261019"></script>
-<script src="simple.js?v=20261019"></script>
+<script src="inbox.js?v=20261019"></script>
+<script src="simple.js?v=20261020"></script>
 </body>
 </html>
