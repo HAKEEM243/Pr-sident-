@@ -223,7 +223,7 @@ function pDash(){
   <h3>Classement mondial des compagnies</h3>
   <div class="tblwrap"><table class="tbl rank"><tr><th>#</th><th>Compagnie</th><th>Hub</th><th>Flotte</th><th>Lignes</th><th>PAX/j</th><th>Image</th><th>Valeur</th></tr>${comp.map((c,i)=>`<tr class="${c.me?'me':''}"><td>${['🥇','🥈','🥉'][i]||i+1}${c.delta>0?'<sup class="pos">▲</sup>':c.delta<0?'<sup class="neg">▼</sup>':''}</td><td><span class="dot" style="background:${c.color}"></span>${esc(c.name)}${c.startup?' <span class="badge">🆕</span>':''}${c.crashes?` <span class="mut">💥${c.crashes}</span>`:''}${c.R&&c.R.local?' <span class="badge bad">rival local</span>':''}</td><td>${flag(c.hub)} ${c.hub}</td><td>${c.fleet}</td><td>${c.routes}</td><td>${num(c.pax||0)}</td><td>${stars(c.rep)}</td><td>${fmtMoney(c.value)}</td></tr>`).join('')}</table></div>
   <h3>Journal</h3>
-  <div class="log">${S.log.slice(0,18).map(l=>`<div class="lg ${l.kind}"><span class="mut">${fmtDate(l.t)} ${fmtTime(l.t)}</span> ${l.text}</div>`).join('')}</div>`;
+  <div class="log">${S.log.slice(0,30).map(l=>`<div class="lg ${l.kind}"><span class="mut">${fmtDate(l.t)} ${fmtTime(l.t)}</span> ${l.text}</div>`).join('')}</div>`;
 }
 function missionsHtml(){
   const done=S.missions||[], todo=MISSIONS.filter(m=>!done.includes(m.id)&&missionAvail(m));
@@ -283,8 +283,8 @@ function lineModalHtml(r){
   <h3>Voyageurs sur ${a} → ${b}</h3>${lineDemandRows(r)}
   <div class="btns"><button class="btn sm" data-act="paxLine" data-a="${a}" data-b="${b}">🛂 Qui sont ces passagers ? (nationalité, richesse, prix)</button></div>
   ${(()=>{ const rv=rivalsOn(a,b), mn=typeof realMinutes==='function'?realMinutes(a,b):0;
-    return rv.length? `<h3>Compagnies réelles sur cette ligne</h3>${mn?`<div class="small mut">Durée de vol réelle (horaire) ≈ <b>${fmtDur(mn*MIN)}</b></div>`:''}${rv.map(x=>`<div class="small"><span class="dot" style="background:${x.R.color}"></span><b>${x.R.name}</b> <span class="mut">${x.R.code}</span> — ≈ ${x.freq} vol(s)/j par sens</div>`).join('')}`
-      : `<div class="small mut">✈️ Aucune compagnie ne relie aujourd’hui ${AP(a).city} et ${AP(b).city} en direct : marché vierge.</div>`; })()}
+    return (typeof warNote==='function'?warNote(a,b):'')+(rv.length? `<h3>Compagnies réelles sur cette ligne</h3>${mn?`<div class="small mut">Durée de vol réelle (horaire) ≈ <b>${fmtDur(mn*MIN)}</b></div>`:''}${rv.map(x=>`<div class="small"><span class="dot" style="background:${x.R.color}"></span><b>${x.R.name}</b> <span class="mut">${x.R.code}</span> — ≈ ${x.freq} vol(s)/j par sens</div>`).join('')}`
+      : `<div class="small mut">✈️ Aucune compagnie ne relie aujourd’hui ${AP(a).city} et ${AP(b).city} en direct : marché vierge.</div>`); })()}
   ${legMarket(r,a,b).transfer>1?`<div class="small">🔁 Correspondances via votre réseau : +${num(legMarket(r,a,b).transfer)} pax/j potentiels.</div>`:''}
   <h3>Prix des billets</h3>
   <div class="prices">${['y','j','f','c'].map(priceRow).join('')}</div>

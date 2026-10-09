@@ -174,7 +174,7 @@ const ledSum = (l,sign)=>Object.entries(l).filter(([k])=>!['admin','ventes','inv
 
 function logMsg(text, kind='info'){
   S.log.unshift({t:S.time, text, kind});
-  if(S.log.length>80) S.log.length=80;
+  if(S.log.length>300) S.log.length=300;
   if(typeof onLog==='function') onLog(text, kind);
 }
 
@@ -235,7 +235,7 @@ function baseFare(a,b){
 function ancillaryPenalty(){ const a=S.ancillary; return 1-(a.seat?0.02:0)-(a.bags?0.03:0)-(a.wifi?0.005:0)-(a.meals?(S.service>=4?0.04:0.01):0); }
 function playerQuality(){ return (0.55+S.reputation/100)*SERVICE_ATTR[S.service-1]*ancillaryPenalty()*(S.loyalty?1.06:1); }
 function rivalFreq(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.freq,0); }
-function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.sqrt(x.freq)*(typeof isPartner==='function'&&isPartner(x.R)?0.3:1),0); }
+function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.sqrt(x.freq)*(typeof isPartner==='function'&&isPartner(x.R)?0.3:1)*(typeof warFactor==='function'?warFactor(x.R.code,a,b):1),0); }
 function routeCycleHours(route, ac){
   const m=modelOf(ac); let h=0;
   for(let i=0;i<route.stops.length-1;i++){ const a=route.stops[i], b=route.stops[i+1], d=dist(a,b);
@@ -627,7 +627,7 @@ function simStep(){
   if(S.lastWeek===undefined) S.lastWeek=wki;
   if(S.lastWeek!==wki){ S.lastWeek=wki; weeklyTick(); }
   const hr=Math.floor(t/HOUR);
-  if((S.wxHour||0)!==hr){ S.wxHour=hr; weatherTick(); }
+  if((S.wxHour||0)!==hr){ S.wxHour=hr; weatherTick(); if(typeof aiHourly==='function') aiHourly(); }
   for(const ac of S.fleet){
     // arrivées
     let guard=0;
@@ -1110,7 +1110,7 @@ function catchUp(){
   S.lastReal=Date.now();
   if(S.paused || realDt<5000) return null;
   const gameDt=Math.min(realDt*SPEEDS[S.speed].mult, 30*DAY);
-  const before={cash:S.cash, flights:S.stats.flights, pax:S.stats.pax, rev:ledSum(S.led.total,1), cost:ledSum(S.led.total,-1), time:S.time};
+  S.awayFrom=S.time; const before={cash:S.cash, flights:S.stats.flights, pax:S.stats.pax, rev:ledSum(S.led.total,1), cost:ledSum(S.led.total,-1), time:S.time};
   advance(gameDt);
   return { real:realDt, game:S.time-before.time, flights:S.stats.flights-before.flights, pax:S.stats.pax-before.pax,
     rev:ledSum(S.led.total,1)-before.rev, cost:ledSum(S.led.total,-1)-before.cost, cash:S.cash-before.cash };

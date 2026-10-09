@@ -284,11 +284,20 @@ Object.assign(INPUTS,{
 });
 function offlineReport(r){
   if(!r || r.game<HOUR) return;
-  showModal('Pendant votre absence…', `<div class="card"><div>Temps réel écoulé : <b>${fmtDur(r.real)}</b> · temps de jeu simulé : <b>${fmtDur(r.game)}</b></div>
+  // briefing du réveil : ce qui s'est passé dans le monde pendant l'absence
+  const since=S.awayFrom||(S.time-r.game), news=(S.ai&&S.ai.news||[]).filter(n=>n.t>=since);
+  const key=news.filter(n=>n.kind!=='news'), rest=news.filter(n=>n.kind==='news');
+  const shown=[...key.slice(0,9),...rest.slice(0,Math.max(0,12-Math.min(9,key.length)))].sort((a,b)=>b.t-a.t);
+  const crashes=(S.ai&&S.ai.crashes||[]).filter(c=>c.t>=since).length;
+  const al=typeof alerts==='function'?alerts().slice(0,4):[];
+  showModal('🌅 Pendant votre absence…', `<div class="card"><div>Temps réel écoulé : <b>${fmtDur(r.real)}</b> · temps de jeu simulé : <b>${fmtDur(r.game)}</b></div>
   <div class="grid2"><div>Vols effectués : <b>${num(r.flights)}</b></div><div>Passagers : <b>${num(r.pax)}</b></div>
   <div>Revenus : <b class="pos">${fmtMoney(r.rev)}</b></div><div>Coûts : <b class="neg">${fmtMoney(r.cost)}</b></div></div>
   <div>Variation de trésorerie : <b class="${r.cash<0?'neg':'pos'}">${fmtMoney(r.cash)}</b></div></div>
-  <div class="btns"><button class="btn gold" data-act="closeModal">Reprendre les commandes</button></div>`);
+  ${al.length?`<h3>À régler</h3>${al.map(([k,t])=>`<div class="al ${k}">${t}</div>`).join('')}`:''}
+  <h3>Dans le monde (${news.length} nouvelles${crashes?` · ${crashes} accident(s)`:''})</h3>
+  <div class="log">${shown.map(n=>`<div class="lg ${n.kind}"><span class="mut">${fmtDate(n.t)} ${fmtTime(n.t)}</span> ${n.text}</div>`).join('')||'<div class="mut small">Journée calme.</div>'}</div>
+  <div class="btns"><button class="btn gold" data-act="closeModal">Reprendre les commandes</button><button class="btn" data-tab="news">📰 Toutes les actus</button></div>`, true);
 }
 
 /* ---------- panneau mobile glissant ---------- */
