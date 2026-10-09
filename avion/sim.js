@@ -390,12 +390,15 @@ function flightState(ac, t=S.time){
   // trajectoire réelle : roulage vers la piste, décollage dans l'axe, route orthodromique, approche dans l'axe de la piste d'arrivée
   const path=legPath(leg,m); let pp;
   let holding=null;
-  if(seg.hold==='out'){ const gp=gateSlot(leg.from,ac); pp=polyAt(taxiOutPts(path,gp),0.985); holding='out'; spd=0; }
+  if(seg.hold==='out'){ const gp=gateSlot(leg.from,ac), left=seg.t1-rel;
+    if(left<25000&&path.dep){ const h0=holdPoint(path,gp,0), k=1-left/25000; pp=polyAt([h0,path.dep.thr,destPt(path.dep.thr.lat,path.dep.thr.lon,path.dep.hdg,0.03)],k*0.9); spd=15; }   // s'aligne sur la piste
+    else { pp=holdPoint(path,gp,Math.min(6,left/(2*MIN))); spd=0; }
+    holding='out'; }
   else if(seg.hold==='in'){ // circuit d'attente : virages à droite autour d'un point près de l'approche
     const f=pointOnPath(path,clamp(seg.d0/leg.dist,0,1)*path.total), r=4.5, dur=seg.t1-seg.t0, orbits=Math.max(1,Math.round(dur/(4*MIN)));
     const c=destPt(f.lat,f.lon,(f.hdg||0)+90,r), b0=bearing(c,f), th=360*orbits*u, q=destPt(c.lat,c.lon,b0+th,r);
-    pp={lat:q.lat,lon:q.lon,hdg:(b0+th+90)%360}; holding='in'; }
-  else if(seg.ph<=1){ const gp=gateSlot(leg.from,ac); pp = seg.ph===0? gp : polyAt(taxiOutPts(path,gp), u); }
+    pp={lat:q.lat,lon:q.lon,hdg:(b0+th+90)%360}; holding='in'; alt=seg.a0+Math.min(1830,305*(seg.t1-rel)/(4*MIN))*Math.min(1,(rel-seg.t0)/60000); }
+  else if(seg.ph<=1){ const gp=gateSlot(leg.from,ac); if(seg.ph===0) pp=gp; else { const pts=taxiOutPts(path,gp); if(leg.hOut&&pts.length>2) pts.splice(-2,2,holdPoint(path,gp,Math.min(6,leg.hOut/(2*MIN)))); pp=polyAt(pts,u); } }
   else if(seg.ph>=8){ const gp=gateSlot(leg.to,ac); pp = rel>=prof.total? gp : polyAt(taxiInPts(path,gp), u); }
   else pp = pointOnPath(path, frac*path.total);
   const p={lat:pp.lat, lon:pp.lon}, hdg=pp.hdg;

@@ -152,3 +152,15 @@ function registerAtcActions(){
   });
   INPUTS.radarAp=el=>openRadar(el.value);
 }
+
+// vols programmés avant l'arrivée du contrôle aérien (anciennes sauvegardes) : créneaux attribués au chargement
+function atcMigrate(){
+  if(!S||!S.fleet||S._atcMig) return; S._atcMig=1;
+  const fl=S.fleet.filter(a=>a.flight&&a.status==='flight').map(a=>({a,l:a.flight.legs[a.flight.li]})).filter(x=>x.l&&x.l.hOut===undefined).sort((x,y)=>x.l.dep-y.l.dep);
+  for(const {a,l} of fl){ const m=modelOf(a), base=legProfile(l.dist,m,l.wind,l.from,l.to), tTO=l.dep+base.segs.find(x=>x.ph===2).t0;
+    if(S.time<tTO-20000){ atcPlanLeg(l,m,a); }   // pas encore décollé : créneau de décollage et d'atterrissage
+    else { l.hOut=0; const sLD=base.segs.find(x=>x.ph===6); if(S.time<l.dep+sLD.t0-60000){ const keep=l.dep; atcPlanLeg(l,m,a); l.hOut=0; l.dep=keep; } }
+    // les tronçons suivants de ce vol sont recalés
+    let dep=legEnd(l,m); for(let i=a.flight.li+1;i<a.flight.legs.length;i++){ const n=a.flight.legs[i]; n.dep=Math.max(n.dep,dep); atcPlanLeg(n,m,a); dep=legEnd(n,m); }
+  }
+}

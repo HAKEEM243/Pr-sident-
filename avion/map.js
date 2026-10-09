@@ -462,9 +462,9 @@ function rivalPos(r,i,t){
   if((seg.ph===2||seg.ph===7||(seg.ph===6&&alt<300))&&typeof atcRivalBlocked==='function'){
     const dep=seg.ph===2, rw=dep?path.dep:path.arr;
     if(rw&&atcRivalBlocked(rwyKey(dep?from:to,rw),r.a+r.b+(r.c||'')+i+dir,t)){
-      if(dep){ const hp=polyAt(taxiOutPts(path,gateSlot(from,fake)),0.985); return {p:{lat:hp.lat,lon:hp.lon}, hdg:hp.hdg, from:AP(from), to:AP(to), d, alt:0, ph:1, gnd:true, cat, holding:'out'}; }
+      if(dep){ const hp=holdPoint(path,gateSlot(from,fake),1+hashStr(r.a+r.b+(r.c||'')+i)%4); return {p:{lat:hp.lat,lon:hp.lon}, hdg:hp.hdg, from:AP(from), to:AP(to), d, alt:0, ph:1, gnd:true, cat, holding:'out'}; }
       const s6=prof.segs.find(x=>x.ph===6), f=pointOnPath(path,clamp(s6.d0/d,0,1)*path.total), c=destPt(f.lat,f.lon,(f.hdg||0)+90,4.5), b0=bearing(c,f), th=(t/(4*MIN)*360)%360, q2=destPt(c.lat,c.lon,b0+th,4.5);
-      return {p:{lat:q2.lat,lon:q2.lon}, hdg:(b0+th+90)%360, from:AP(from), to:AP(to), d, alt:900, ph:6, gnd:false, cat, holding:'in'};
+      return {p:{lat:q2.lat,lon:q2.lon}, hdg:(b0+th+90)%360, from:AP(from), to:AP(to), d, alt:900+305*(1+hashStr(r.a+r.b+(r.c||'')+i)%5), ph:6, gnd:false, cat, holding:'in'};
     }
   }
   if(seg.ph===1) pp=polyAt(taxiOutPts(path,gateSlot(from,fake)),u);
