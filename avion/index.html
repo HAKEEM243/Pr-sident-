@@ -364,6 +364,9 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 
 /* ---- avions des autres compagnies : légers (taille pilotée par une variable CSS, aucun filtre) ---- */
 #map .rival-canvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:590}
+.diag{border-left:4px solid var(--ok)} .diag-bad{border-left-color:var(--bad)}
+.diag-item{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #22365a;font-size:12.5px;line-height:1.4}
+.diag-item .grow{flex:1 1 100%} .diag-item .btn{flex:0 0 auto}
 /* ---- passagers ---- */
 .pbar-row{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12.5px}
 .pbar-row .pl{flex:0 0 46%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -405,7 +408,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     <div id="tb-name"></div>
     <div id="tb-cash"></div>
     <div id="tb-time"></div>
-    <div id="tb-week"></div>
+    <div id="tb-week" data-tab="finance" title="Voir mes finances" style="cursor:pointer"></div>
     <div id="tb-oil" class="mut"></div>
     <div class="tb-sp">
       <button data-speed="realiste" title="Temps réel">Réaliste</button>
@@ -448,22 +451,22 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <div id="modal" hidden></div>
 <div id="toasts"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="airports-db.js?v=20261013"></script>
-<script src="runways-db.js?v=20261013"></script>
-<script src="data.js?v=20261013"></script>
-<script src="sim.js?v=20261013"></script>
-<script src="realism.js?v=20261013"></script>
-<script src="airlines-db.js?v=20261013"></script>
-<script src="airlines.js?v=20261013"></script>
-<script src="world-ai.js?v=20261013"></script>
-<script src="passengers.js?v=20261013"></script>
-<script src="business.js?v=20261013"></script>
-<script src="map.js?v=20261013"></script>
-<script src="ui.js?v=20261013"></script>
-<script src="pilot.js?v=20261013"></script>
-<script src="actions.js?v=20261013"></script>
-<script src="globe.js?v=20261013"></script>
-<script src="ui-biz.js?v=20261013"></script>
-<script src="simple.js?v=20261013"></script>
+<script src="airports-db.js?v=20261014"></script>
+<script src="runways-db.js?v=20261014"></script>
+<script src="data.js?v=20261014"></script>
+<script src="sim.js?v=20261014"></script>
+<script src="realism.js?v=20261014"></script>
+<script src="airlines-db.js?v=20261014"></script>
+<script src="airlines.js?v=20261014"></script>
+<script src="world-ai.js?v=20261014"></script>
+<script src="passengers.js?v=20261014"></script>
+<script src="business.js?v=20261014"></script>
+<script src="map.js?v=20261014"></script>
+<script src="ui.js?v=20261014"></script>
+<script src="pilot.js?v=20261014"></script>
+<script src="actions.js?v=20261014"></script>
+<script src="globe.js?v=20261014"></script>
+<script src="ui-biz.js?v=20261014"></script>
+<script src="simple.js?v=20261014"></script>
 </body>
 </html>

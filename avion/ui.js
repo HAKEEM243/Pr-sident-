@@ -562,7 +562,7 @@ function pFinance(){
   const cols=[['week','Semaine'],['prevWeek','Sem. préc.'],['month','Ce mois'],['total','Total']];
   const col=(l,k)=>{ const v=(l||{})[k]||0; return `<td class="${v<0?'neg':v>0?'pos':'mut'}">${v?fmtMoney(v):'—'}</td>`; };
   const tot=l=>{ const v=ledSum(l||{},1)+ledSum(l||{},-1); return `<td class="${v<0?'neg':'pos'}"><b>${fmtMoney(v)}</b></td>`; };
-  return `<div class="kpis three">
+  return `${typeof diagHtml==='function'?diagHtml():''}<div class="kpis three">
     <div class="kpi"><div class="kl">Capital</div><div class="kv ${S.cash<0?'neg':''}">${fmtMoney(S.cash)}</div></div>
     <div class="kpi"><div class="kl">Valeur nette</div><div class="kv">${fmtMoney(netWorth())}</div></div>
     <div class="kpi"><div class="kl">Dette</div><div class="kv">${fmtMoney(debt())}</div></div></div>
