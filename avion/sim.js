@@ -531,6 +531,7 @@ function completeLeg(ac){
   let pInc = 0.0015 + (100-ac.condition)/100*0.02 + (overdue?0.03:0);
   if(S.recallRisk && S.recallRisk.fam===m.fam && S.time<S.recallRisk.until) pInc*=4;
   if(Math.random()<pInc) incident(ac, arr);
+  if(typeof onFlightDone==='function') onFlightDone(ac,leg,{delay,rev,cost,route,paxCount,hrs});
   // tronçon suivant
   fl.li++;
   if(fl.li>=fl.legs.length){
