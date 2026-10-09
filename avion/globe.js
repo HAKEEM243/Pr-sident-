@@ -39,13 +39,33 @@ function close3D(){
   const h=$('#rfsHud'); if(h) h.hidden=true;
   setTimeout(()=>map&&map.invalidateSize(),60);
 }
+function patchCesium(C){
+  // Sur iPhone/iPad (pas de transparence indépendante de l'ordre), Cesium trie les objets transparents
+  // par distance : les nuages n'ont pas de volume englobant, ce qui faisait planter le rendu.
+  if(C.CloudCollection&&!C.CloudCollection._sePatched){
+    const up=C.CloudCollection.prototype.update; C.CloudCollection._sePatched=true;
+    C.CloudCollection.prototype.update=function(fs){
+      const n=fs.commandList.length; up.call(this,fs);
+      for(let i=n;i<fs.commandList.length;i++){ const c=fs.commandList[i]; if(c&&!c.boundingVolume) c.boundingVolume=this._seBV||(this._seBV=new C.BoundingSphere(C.Cartesian3.ZERO,6.4e6)); }
+    };
+  }
+}
 function initGlobe(){
-  const C=Cesium; C.Ion.defaultAccessToken='';
+  const C=Cesium; C.Ion.defaultAccessToken=''; patchCesium(C);
   const esriImg=new C.UrlTemplateImageryProvider({url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', maximumLevel:19, credit:'Imagerie © Esri, Maxar, Earthstar Geographics'});
   const viewer=new C.Viewer('globe',{ baseLayer:new C.ImageryLayer(esriImg), baseLayerPicker:false, geocoder:false, homeButton:false, sceneModePicker:false,
-    navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, msaaSamples:4 });
+    navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, msaaSamples:4, orderIndependentTranslucency:!window.SE_NO_OIT });
   viewer.imageryLayers.addImageryProvider(new C.UrlTemplateImageryProvider({url:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', maximumLevel:18}));
   const sc=viewer.scene;
+  // filet de sécurité : si le rendu plante, on retire les décors optionnels et on redémarre
+  viewer.showRenderLoopErrors=false;
+  sc.renderError.addEventListener((scene,err)=>{
+    console.warn('rendu 3D',err); G.safe=(G.safe||0)+1;
+    try{ if(G.clouds){ sc.primitives.remove(G.clouds); G.clouds=null; } }catch(e){}
+    if(G.safe>=2){ try{ worldClear(); }catch(e){} G.noWorld=true; }
+    if(G.safe<=4) setTimeout(()=>{ try{ viewer.useDefaultRenderLoop=true; }catch(e){} },300);
+    else toast('⛔ La vue 3D rencontre un problème sur cet appareil','bad');
+  });
   sc.globe.enableLighting=true; sc.globe.dynamicAtmosphereLighting=true; sc.skyAtmosphere.show=true; sc.fog.enabled=true; sc.fog.density=0.00012;
   sc.globe.depthTestAgainstTerrain=false; sc.highDynamicRange=false; sc.globe.maximumScreenSpaceError=1.6;
   viewer.clock.shouldAnimate=false;
@@ -194,7 +214,7 @@ function globeFollowTick(){
   if(now-G.hudAt>120){ G.hudAt=now; try{ renderRfsHud(ac,p); }catch(e){ console.warn(e); } }
 }
 function spawnClouds(c){
-  const C=Cesium; G.clouds.removeAll();
+  const C=Cesium; G.clouds.removeAll(); G.clouds._seBV=new C.BoundingSphere(C.Cartesian3.fromDegrees(c.lon,c.lat,2000),90000);
   const wet=(typeof stormAt==='function'&&stormAt(c.lat,c.lon))?1.6:1;
   for(let i=0;i<Math.round(34*wet);i++){
     const d=rnd(2,70), b=rnd(0,360), q=destPt(c.lat,c.lon,b,d), alt=rnd(900,3400);
@@ -384,7 +404,7 @@ function airportsTick(p){
   }
 }
 function worldTick(p){
-  const now=performance.now();
+  const now=performance.now(); if(G.noWorld){ timeTick(p); return; }
   timeTick(p);
   if(!G.wAt||now-G.wAt>1500){ G.wAt=now; try{ airportsTick(p); }catch(e){ console.warn(e); } try{ osmTick(p); }catch(e){ console.warn(e); } }
 }
