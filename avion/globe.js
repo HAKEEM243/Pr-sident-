@@ -121,7 +121,7 @@ function globeSync(full){
     });
     ent._acId=ac.id; G.planes.set(ac.id,ent);
   }
-  for(const [id,ent] of G.planes) if(!seen.has(id)){ V.entities.remove(ent); G.planes.delete(id); G.att.delete(id); if(G.follow===id){ globeFollow(null); toast('🛬 L’avion suivi est arrivé à destination','ok'); } }
+  for(const [id,ent] of G.planes) if(!seen.has(id)){ V.entities.remove(ent); G.planes.delete(id); G.att.delete(id); if(G.follow===id){ const nx=S.fleet.find(a=>a.status==='flight'&&a.flight&&a.id!==id); if(nx){ toast('🛬 Arrivé au parking ! On passe à un autre de vos vols en cours…','ok'); globeSync(false); globeFollow(nx.id); } else { globeFollow(null); toast('🛬 L’avion suivi est arrivé au parking','ok'); } } }
   if(full || (G.netKey!==netKey())){ drawGlobeNetwork(); }
   if(full || !G.rivAt || performance.now()-G.rivAt>3000){ G.rivAt=performance.now(); drawGlobeRivals(); }
 }
@@ -190,7 +190,8 @@ function globeFollowTick(){
   if(!G.trailAt||now-G.trailAt>350){ G.trailAt=now; if(p.h>7600){ G.trail.push(p.pos.clone()); if(G.trail.length>90) G.trail.shift(); } else if(G.trail.length) G.trail.shift(); }
   // nuages autour de l'avion
   if(G.clouds){ const ll={lat:p.st.lat,lon:p.st.lon}; if(!G.cloudC||gcDist(G.cloudC,ll)>45){ G.cloudC=ll; spawnClouds(ll); } }
-  if(now-G.hudAt>120){ G.hudAt=now; renderRfsHud(ac,p); }
+  worldTick(p);
+  if(now-G.hudAt>120){ G.hudAt=now; try{ renderRfsHud(ac,p); }catch(e){ console.warn(e); } }
 }
 function spawnClouds(c){
   const C=Cesium; G.clouds.removeAll();
@@ -203,10 +204,11 @@ function spawnClouds(c){
 function globeFollow(id){
   if(!G) return;
   const C=Cesium, sc=G.viewer.scene;
-  if(!id){ for(const e of G.planes.values()) e.show=true; G.follow=null; G.viewer.camera.lookAtTransform(C.Matrix4.IDENTITY); sc.screenSpaceCameraController.enableInputs=true; G.trail=[]; if(G.trailEnt){ G.viewer.entities.remove(G.trailEnt); G.trailEnt=null; } if(G.clouds) G.clouds.removeAll(); G.cloudC=null; const hd=$('#rfsHud'); if(hd) hd.hidden=true; document.body.classList.remove('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); renderGlobeHud(); return; }
+  if(!id){ for(const e of G.planes.values()) e.show=true; G.follow=null; G.viewer.camera.lookAtTransform(C.Matrix4.IDENTITY); sc.screenSpaceCameraController.enableInputs=true; G.trail=[]; if(G.trailEnt){ G.viewer.entities.remove(G.trailEnt); G.trailEnt=null; } if(G.clouds) G.clouds.removeAll(); G.cloudC=null; const hd=$('#rfsHud'); if(hd) hd.hidden=true; worldClear(); document.body.classList.remove('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); renderGlobeHud(); return; }
+  if(!G.tm) G.tm={auto:true, prev:S.speed};
   G.follow=id; sc.screenSpaceCameraController.enableInputs=false; document.body.classList.add('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); setCam('chase');
   if(!G.trailEnt) G.trailEnt=G.viewer.entities.add({polyline:{positions:new C.CallbackProperty(()=>G.trail.length>1?G.trail:[],false), width:4, material:C.Color.WHITE.withAlpha(0.45)}});
-  if(SPEEDS[S.speed].mult>60) toast('💡 En vitesse « Réaliste » ou « Standard », le vol est bien plus spectaculaire','info');
+  toast('🎬 Ralenti automatique : temps réel au décollage et à l’atterrissage, accéléré en croisière','info');
   renderGlobeHud();
 }
 
@@ -217,7 +219,7 @@ function renderRfsHud(ac,p){
   const st=p.st, m=modelOf(ac), altFt=Math.round(st.alt*3.28084), tas=st.spd, ias=tas/(1+st.alt/1000*0.065), kts=Math.round(ias/1.852);
   const a=1225-Math.min(11000,st.alt)*0.0185, mach=tas/a, gs=Math.round((st.gs||tas)/1.852);
   const oat=Math.round(Math.max(-56.5,15-6.5*st.alt/1000));
-  const ap=AP(st.to), agl=Math.max(0,Math.round(altFt-(ap&&ap.elev||0)*Math.min(1,st.frac>0.5?1:0)));
+  const ap=AP(st.to), apE=AP(st.frac>0.5?st.to:st.from), agl=Math.max(0,altFt), msl=Math.round(altFt+((apE&&apE.elev)||0));
   const w=st.wind||0, wdir=Math.round((st.hdg+(w>0?180:0)+360)%360), wk=Math.round(Math.abs(w)/1.852);
   const leg=st.leg, prof=legProfile(leg.dist,m,leg.wind,leg.from,leg.to), el=Math.max(0,gSimNow()-leg.dep), fuel0=m.burn*(prof.total/HOUR+1)*0.8, fuel=Math.max(0,fuel0-m.burn*Math.max(0,(el-prof.segs[2].t0)/HOUR)*0.8);
   const cap=m.burn*(m.range/m.speed+1)*0.8, fob=Math.round(fuel), fp=Math.round(clamp(fuel/cap*100,0,100));
@@ -228,9 +230,9 @@ function renderRfsHud(ac,p){
   hud.innerHTML=`<div class="rf-top">${S.company.code}${flightNumber(ac)} · ${esc(m.name)} · ${esc(st.origin)} → ${esc(st.dest)}</div>
     <div class="rf-hdg">H ${String(hdg).padStart(3,'0')}</div><div class="rf-oat">OAT ${oat}°C · M ${mach.toFixed(2).replace('.',',')} · VS ${vs>0?'+':''}${vs} ft/min</div>
     <div class="rf-tape left">${tape(kts,10,v=>v)}<b>${kts}</b></div>
-    <div class="rf-tape right">${tape(altFt,100,v=>v)}<b>${altFt}</b></div>
+    <div class="rf-tape right">${tape(msl,100,v=>v)}<b>${msl}</b></div>
     <div class="rf-dest">${esc(ap?ap.icao||st.to:st.to)}<br>${(st.remain/1.852).toFixed(1).replace('.',',')} NM</div>
-    <div class="rf-bar"><div><b>${wdir}/${wk}kts</b><span>Vent</span></div><div><b>${kts} kts</b><span>IAS (GS ${gs})</span></div><div><b>${altFt} ft</b><span>Altitude MSL</span></div><div><b>${agl} ft</b><span>Altitude AGL</span></div><div><b>${fp}% · ${num(fob*0.8)} kg</b><span>Carburant</span></div><div><b>${ft}</b><span>Temps de vol</span></div><div><b>${PHASES[st.phase]}</b><span>Phase</span></div></div>`;
+    <div class="rf-bar"><div><b>${wdir}/${wk}kts</b><span>Vent</span></div><div><b>${kts} kts</b><span>IAS (GS ${gs})</span></div><div><b>${msl} ft</b><span>Altitude MSL</span></div><div><b>${agl} ft</b><span>Altitude AGL</span></div><div><b>${fp}% · ${num(fob*0.8)} kg</b><span>Carburant</span></div><div><b>${ft}</b><span>Temps de vol</span></div><div><b>${PHASES[st.phase]}</b><span>Phase</span></div></div>`;
 }
 async function toggleGoogle3D(on){
   const C=Cesium, key=localStorage.getItem(GKEY);
@@ -256,7 +258,10 @@ function renderGlobeHud(){
       ${Object.entries(CAM_MODES).map(([k,v])=>`<button class="gh ${G.cam.mode===k?'on':''}" data-act="globeCam" data-k="${k}">${v.label}</button>`).join('')}
       <button class="gh" data-act="globeZoom" data-d="0.7">🔍＋</button><button class="gh" data-act="globeZoom" data-d="1.4">🔍－</button>
       <button class="gh" data-act="globeNext">⏭ Avion suivant</button>
-      <span class="gh-tip">Glissez pour tourner autour de l’avion</span>`;
+      <span class="gh-sep"></span>
+      <button class="gh ${G.tm&&G.tm.auto?'on':''}" data-act="globeTime" data-k="auto" title="Temps réel au décollage et à l’atterrissage, accéléré en croisière">🎬 Auto</button>
+      ${TM_STEPS.map(([k,l])=>`<button class="gh ${G.tm&&!G.tm.auto&&S.speed===k?'on':''}" data-act="globeTime" data-k="${k}">${l}</button>`).join('')}
+      <span class="gh-tip">Glissez pour tourner autour de l’avion · temps ×${SPEEDS[S.speed].mult}</span>`;
     return;
   }
   box.innerHTML=`<button class="gh" data-act="close3D">✖ Carte 2D</button>
@@ -276,4 +281,119 @@ Object.assign(ACTIONS,{
   globeHome:()=>{ globeFollow(null); const a=AP(S.company.hub); G.viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(a.lon,a.lat-6,2.2e6), orientation:{heading:0,pitch:Cesium.Math.toRadians(-55),roll:0}, duration:2}); },
   globeLight:()=>{ G.lighting=!G.lighting; G.viewer.scene.globe.enableLighting=G.lighting; renderGlobeHud(); },
   google3D:()=>toggleGoogle3D(),
+});
+
+/* =========================================================
+   Monde autour de l'avion suivi : bâtiments réels (OpenStreetMap),
+   aéroports voisins, pistes balisées, ralenti automatique.
+   ========================================================= */
+// --- vitesse du temps pendant la poursuite (comme un simulateur) ---
+const TM_STEPS=[['realiste','×1'],['x4','×4'],['x16','×16'],['standard','×60'],['rapide','×600']];
+function autoSpeedFor(st,h){
+  const ph=st.phase;
+  if(ph===0) return 'standard';                 // embarquement
+  if(ph===2||ph===7) return 'realiste';         // décollage, atterrissage
+  if((ph===3||ph===6)&&h<1500) return 'realiste'; // montée initiale, finale
+  if(ph===1||ph===8) return 'x4';               // roulage
+  if(ph===4) return 'x16';                      // croisière
+  return 'x4';
+}
+function timeTick(p){
+  const tm=G.tm; if(!tm||!tm.auto) return;
+  const want=autoSpeedFor(p.st,p.h);
+  if(S.speed!==want){ S.speed=want; S.paused=false; if(typeof renderTop==='function') renderTop(); renderGlobeHud(); }
+}
+
+// --- bâtiments OpenStreetMap (Overpass, sans clé) ---
+const OSM_CELL=0.06, OSM_EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+function osmTick(p){
+  if(!G.osm) G.osm={cells:new Map(), busy:false, fail:0};
+  const O=G.osm; if(O.busy||O.fail>=4||p.h>3200||G.tiles) return;
+  const ci=Math.floor(p.st.lat/OSM_CELL), cj=Math.floor(p.st.lon/OSM_CELL);
+  // la case sous l'avion, puis celle devant lui
+  const ahead=destPt(p.st.lat,p.st.lon,p.st.hdg,4);
+  const cand=[[ci,cj],[Math.floor(ahead.lat/OSM_CELL),Math.floor(ahead.lon/OSM_CELL)]];
+  const c=cand.find(([i,j])=>!O.cells.has(i+','+j)); if(!c) return;
+  loadOsmCell(c[0],c[1]);
+  // ménage : on garde les 8 cases les plus récentes
+  if(O.cells.size>8){ const k=O.cells.keys().next().value, prim=O.cells.get(k); if(prim&&prim.destroy) G.viewer.scene.primitives.remove(prim); O.cells.delete(k); }
+}
+async function loadOsmCell(i,j){
+  const O=G.osm, key=i+','+j; O.cells.set(key,null); O.busy=true;
+  const s=i*OSM_CELL, w=j*OSM_CELL, n=s+OSM_CELL, e=w+OSM_CELL;
+  const q=`[out:json][timeout:25];way["building"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});out geom 5000;`;
+  let js=null;
+  for(const ep of OSM_EP){ try{ const r=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}}); if(r.ok){ js=await r.json(); break; } }catch(err){} }
+  O.busy=false;
+  if(!js){ O.fail++; O.cells.delete(key); return; }
+  O.fail=0;
+  if(!G||!js.elements||!js.elements.length) return;
+  const C=Cesium, inst=[];
+  for(const el of js.elements){
+    const g=el.geometry; if(!g||g.length<4) continue;
+    const t=el.tags||{}; let h=parseFloat(t.height)||(parseFloat(t['building:levels'])||0)*3.2;
+    if(!h){ const b=t.building; h=b==='house'||b==='residential'||b==='detached'?6:b==='hangar'||b==='industrial'||b==='warehouse'?11:b==='terminal'||b==='transportation'?16:b==='apartments'?15:b==='commercial'||b==='office'?18:4+((el.id%7)); }
+    h=Math.min(h,450);
+    const pos=g.slice(0,-1).flatMap(v=>[v.lon,v.lat]);
+    const shade=0.78+((el.id%13)/13)*0.16, tall=Math.min(1,h/80);
+    const col=new C.Color(shade-0.1*tall,shade-0.06*tall,shade-0.02*tall+(t.building==='hangar'?0.05:0),1);
+    try{ inst.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(pos)), height:0, extrudedHeight:h, vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(col)}})); }catch(err){}
+  }
+  if(!inst.length) return;
+  const prim=new C.Primitive({geometryInstances:inst, appearance:new C.PerInstanceColorAppearance({flat:false, closed:true}), asynchronous:true, shadows:C.ShadowMode.DISABLED});
+  G.viewer.scene.primitives.add(prim); O.cells.set(key,prim);
+}
+
+// --- aéroports voisins, pistes et balisage lumineux ---
+function airportsTick(p){
+  const C=Cesium, V=G.viewer, here={lat:p.st.lat,lon:p.st.lon};
+  if(G.apNear&&gcDist(G.apNear.c,here)<25) return;
+  if(!G.apNear) G.apNear={c:here, ents:[], lights:V.scene.primitives.add(new C.PointPrimitiveCollection()), rwy:[]};
+  const N=G.apNear; N.c=here;
+  for(const e of N.ents) V.entities.remove(e); N.ents=[]; N.lights.removeAll();
+  for(const e of N.rwy) V.scene.primitives.remove(e); N.rwy=[];
+  const near=[]; for(const c of AIRPORT_CODES){ const a=AP(c); if(Math.abs(a.lat-here.lat)>3.5) continue; const d=gcDist(a,here); if(d<320) near.push([d,c,a]); }
+  near.sort((x,y)=>x[0]-y[0]);
+  for(const [d,c,a] of near.filter(([d,c,a])=>d<90||a.cls>=3||S.hubs.includes(c)).slice(0,16)){
+    const big=a.cls>=3, mine=S.hubs.includes(c);
+    N.ents.push(V.entities.add({position:C.Cartesian3.fromDegrees(a.lon,a.lat,40),
+      label:{text:`✈ ${c} · ${a.city}`, font:`${big?'700 14px':'600 12px'} system-ui`, fillColor:mine?C.Color.fromCssColorString('#ffe066'):C.Color.fromCssColorString('#e0f2fe'), outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, verticalOrigin:C.VerticalOrigin.BOTTOM, pixelOffset:new C.Cartesian2(0,-6), distanceDisplayCondition:new C.DistanceDisplayCondition(0,big?400000:150000), disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
+    if(d>70) continue;
+    const surf=[];
+    for(const r of runwaysOf(c)){
+      const L=r.len, W=Math.max(23,r.wid||45), H=r.hdg;
+      if(r._drawn===G.apNear) continue; // une seule fois par piste physique
+      const twin=runwaysOf(c).find(x=>x!==r&&x.thr===r.end); if(twin) twin._drawn=G.apNear;
+      const P=(along,side)=>{ const q=destPt(r.thr.lat,r.thr.lon,H,along/1000); return side? destPt(q.lat,q.lon,H+90,side/1000) : q; };
+      const corners=[P(0,-W/2),P(L,-W/2),P(L,W/2),P(0,W/2)];
+      surf.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(corners.flatMap(q=>[q.lon,q.lat]))), height:0.25, vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(r.hard?new C.Color(0.22,0.23,0.25,0.92):new C.Color(0.45,0.38,0.28,0.9))}}));
+      // marques de seuil et axe
+      for(let s=-W/2+4;s<W/2-3;s+=3.6){ const a1=P(6,s), a2=P(52,s); surf.push(new C.GeometryInstance({geometry:new C.PolylineGeometry({positions:C.Cartesian3.fromDegreesArrayHeights([a1.lon,a1.lat,0.4,a2.lon,a2.lat,0.4]), width:2, vertexFormat:C.PolylineColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(C.Color.WHITE)}})); }
+      // balisage : bords blancs, seuil vert, fin rouge, rampe d'approche
+      const add=(q,col,sz)=>N.lights.add({position:C.Cartesian3.fromDegrees(q.lon,q.lat,1.2), color:col, pixelSize:sz||4, scaleByDistance:new C.NearFarScalar(300,1.6,25000,0.5)});
+      for(let x=0;x<=L;x+=60){ add(P(x,-W/2-2),C.Color.fromCssColorString('#fff7d6')); add(P(x,W/2+2),C.Color.fromCssColorString('#fff7d6')); add(P(x,0),C.Color.WHITE.withAlpha(0.8),3); }
+      for(let s=-W/2;s<=W/2;s+=4){ add(P(0,s),C.Color.LIME,5); add(P(L,s),C.Color.RED,5); }
+      for(let x=60;x<=900;x+=60){ add(P(-x,0),C.Color.fromCssColorString('#fffbe6'),5); if(x%300===0) for(let s=-15;s<=15;s+=5) add(P(-x,s),C.Color.fromCssColorString('#fffbe6'),4); }
+    }
+    for(const r of runwaysOf(c)) delete r._drawn;
+    if(surf.length){
+      const polys=surf.filter(g=>g.geometry instanceof C.PolygonGeometry), lines=surf.filter(g=>!(g.geometry instanceof C.PolygonGeometry));
+      if(polys.length) N.rwy.push(V.scene.primitives.add(new C.Primitive({geometryInstances:polys, appearance:new C.PerInstanceColorAppearance({flat:true, translucent:true}), asynchronous:true})));
+      if(lines.length) N.rwy.push(V.scene.primitives.add(new C.Primitive({geometryInstances:lines, appearance:new C.PolylineColorAppearance(), asynchronous:true})));
+    }
+  }
+}
+function worldTick(p){
+  const now=performance.now();
+  timeTick(p);
+  if(!G.wAt||now-G.wAt>1500){ G.wAt=now; try{ airportsTick(p); }catch(e){ console.warn(e); } try{ osmTick(p); }catch(e){ console.warn(e); } }
+}
+function worldClear(){
+  if(!G) return; const V=G.viewer;
+  if(G.osm){ for(const prim of G.osm.cells.values()) if(prim) V.scene.primitives.remove(prim); G.osm.cells.clear(); }
+  if(G.apNear){ for(const e of G.apNear.ents) V.entities.remove(e); G.apNear.lights.removeAll(); for(const e of G.apNear.rwy) V.scene.primitives.remove(e); V.scene.primitives.remove(G.apNear.lights); G.apNear=null; }
+  if(G.tm){ if(G.tm.auto&&G.tm.prev&&S.speed!==G.tm.prev){ S.speed=G.tm.prev; if(typeof renderTop==='function') renderTop(); } G.tm=null; }
+}
+Object.assign(ACTIONS,{
+  globeTime:d=>{ if(!G||!G.tm) return; if(d.k==='auto'){ G.tm.auto=true; } else { G.tm.auto=false; S.speed=d.k; S.paused=false; if(typeof renderTop==='function') renderTop(); } renderGlobeHud(); },
 });

@@ -3,7 +3,7 @@
    ============================================================ */
 const SAVE_KEY = 'congo-airways-tycoon-v1';
 const MIN = 60000, HOUR = 3600000, DAY = 86400000;
-const SPEEDS = { realiste:{label:'Réaliste', mult:1}, standard:{label:'Standard', mult:60}, rapide:{label:'Rapide', mult:600} };
+const SPEEDS = { realiste:{label:'Réaliste', mult:1}, standard:{label:'Standard', mult:60}, rapide:{label:'Rapide', mult:600}, x4:{label:'×4',mult:4,hide:1}, x16:{label:'×16',mult:16,hide:1} };
 const PHASES = ['Embarquement','Roulage','Décollage','Montée','Croisière','Descente','Approche','Atterrissage','Arrivé'];
 const CLASS_MULT = { f:6, j:3.5, w:1.7, y:1 };
 const CLASS_SPACE = { f:3, j:2.2, w:1.3 };
@@ -363,7 +363,11 @@ function flightState(ac, t=S.time){
   const rel=clamp(t-leg.dep,0,prof.total);
   let seg=prof.segs.find(s=>rel<s.t1) || prof.segs[prof.segs.length-1];
   const u = seg.t1>seg.t0 ? clamp((rel-seg.t0)/(seg.t1-seg.t0),0,1) : 1;
-  const dd = seg.d0+(seg.d1-seg.d0)*u;
+  // profil physique : au décollage, roulage en accélérant puis rotation ; à l'atterrissage, arrondi, toucher puis freinage
+  let uD=u, alt=seg.a0+(seg.a1-seg.a0)*u, spd=seg.s0+(seg.s1-seg.s0)*u;
+  if(seg.ph===2){ const R=0.45; if(u<R){ const k=u/R; uD=0.4*k*k; alt=0; spd=seg.s1*0.95*k; } else { const k=(u-R)/(1-R); uD=0.4+0.6*k; alt=seg.a1*Math.pow(k,1.3); spd=seg.s1*(0.95+0.05*k); } }
+  else if(seg.ph===7){ uD=1-(1-u)*(1-u); alt=u<0.12? seg.a0*Math.pow(1-u/0.12,1.6) : 0; }
+  const dd = seg.d0+(seg.d1-seg.d0)*uD;
   const A=AP(leg.from), B=AP(leg.to);
   const frac = leg.dist>0? clamp(dd/leg.dist,0,1) : 1;
   // trajectoire réelle : roulage vers la piste, décollage dans l'axe, route orthodromique, approche dans l'axe de la piste d'arrivée
@@ -377,9 +381,9 @@ function flightState(ac, t=S.time){
   const last=fl.legs[fl.legs.length-1];
   const eta = last.dep+legProfile(last.dist,m,last.wind,last.from,last.to).total;
   const phase = rel>=prof.total? 8 : seg.ph;
-  return { lat:p.lat, lon:unwrapLon(p.lon, A.lon), hdg, alt:seg.a0+(seg.a1-seg.a0)*u, spd:seg.s0+(seg.s1-seg.s0)*u,
+  return { lat:p.lat, lon:unwrapLon(p.lon, A.lon), hdg, alt, spd,
     phase, frac, progress: totalDist? doneDist/totalDist : 1, eta, leg, from:leg.from, to:leg.to, origin:fl.legs[0].from, dest:last.to,
-    wind:leg.wind||0, gs:seg.ph===4? Math.max(0,(seg.s0+(seg.s1-seg.s0)*u)+(leg.wind||0)) : seg.s0+(seg.s1-seg.s0)*u, depRwy:path.dep&&path.dep.id, arrRwy:path.arr&&path.arr.id, remain:Math.max(0,totalDist-doneDist) };
+    wind:leg.wind||0, gs:seg.ph===4? Math.max(0,spd+(leg.wind||0)) : spd, depRwy:path.dep&&path.dep.id, arrRwy:path.arr&&path.arr.id, remain:Math.max(0,totalDist-doneDist) };
 }
 
 /* ---------- équipage ---------- */
