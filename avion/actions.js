@@ -144,7 +144,7 @@ const ACTIONS = {
   project:d=>{ const u=UPGRADES[d.k]; if(!confirm(`${u.name} à ${AP(d.c).city} : ${fmtMoney(u.cost(AP(d.c)))}, ${u.days} jours. Lancer ?`)) return; if(!err(startProject(d.c,d.k))){ toast('🏗️ Chantier lancé','ok'); after(); } },
   export:()=>{ const b=new Blob([JSON.stringify(S)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=`sauvegarde-${S.company.code}-${fmtDate(S.time).replace(/ /g,'-')}.json`; a.click(); },
   import:()=>{ const i=document.createElement('input'); i.type='file'; i.accept='.json,application/json'; i.onchange=()=>{ const f=i.files[0]; if(!f) return; f.text().then(t=>{ try{ const o=JSON.parse(t); if(!o.fleet||!o.company) throw 0; S=o; save(); location.reload(); }catch(e){ err('Fichier de sauvegarde invalide'); } }); }; i.click(); },
-  reset:()=>{ if(confirm('Effacer la partie et recommencer ?')){ booted=false; localStorage.removeItem(SAVE_KEY); location.reload(); } },
+  reset:()=>{ if(confirm('Effacer la partie et recommencer ? (une copie de secours reste dans 💾 Sauvegardes)')){ booted=false; window._svNoUnloadSave=true; localStorage.removeItem(SAVE_KEY); const go=()=>location.reload(); if(typeof svDel==='function') svDel('main').then(go,go); else go(); } },
   guideReset:()=>{ S.tuto=0; renderGuide(); toast('Tutoriel relancé','ok'); },
   guideGo:()=>{ const st=guideSteps()[S.tuto]; if(st) st.go(); },
   guideSkip:()=>{ S.tuto=99; renderGuide(); },
@@ -267,8 +267,9 @@ function newGameModal(){
   $('#modal').hidden=false;
   $('#modal').innerHTML=`<div class="mbox wide"><div class="mhead"><h2>✈️ Fondez votre compagnie aérienne</h2></div><div class="mbody" id="ngBody">${ngHtml()}</div></div>`;
   hydratePhotos&&hydratePhotos();
+  if(typeof decorateNewGame==='function') decorateNewGame();
 }
-function refreshNg(focusId){ const b=$('#ngBody'); if(!b) return; const el=focusId&&$('#'+focusId), pos=el?el.selectionStart:0; b.innerHTML=ngHtml(); if(focusId){ const n=$('#'+focusId); if(n){ n.focus(); n.setSelectionRange(pos,pos); } } }
+function refreshNg(focusId){ const b=$('#ngBody'); if(!b) return; const el=focusId&&$('#'+focusId), pos=el?el.selectionStart:0; b.innerHTML=ngHtml(); if(typeof decorateNewGame==='function') decorateNewGame(); if(focusId){ const n=$('#'+focusId); if(n){ n.focus(); n.setSelectionRange(pos,pos); } } }
 Object.assign(ACTIONS,{
   ngHub:d=>{ UI.ng.hub=d.c; UI.ng.q=''; ngBrand(); refreshNg(); },
   ngPack:d=>{ UI.ng.pack=d.k; refreshNg(); },
@@ -351,8 +352,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('#modal').addEventListener('click',e=>{ if(e.target.id==='modal' && UI.modal!=='newgame' && S) closeModal(); });
   initSheet();
   if(typeof L==='undefined'){ document.body.insertAdjacentHTML('beforeend','<div class="fatal">Impossible de charger la carte (Leaflet). Vérifiez votre connexion Internet puis rechargez.</div>'); }
-  if(load()){
-    UI.silent=true; const rep=catchUp(); UI.silent=false;
-    boot(); offlineReport(rep);
-  } else { UI.modal='newgame'; newGameModal(); }
+  (typeof loadAsync==='function'? loadAsync() : Promise.resolve(load())).catch(()=>load()).then(ok=>{
+    if(ok){ UI.silent=true; const rep=catchUp(); UI.silent=false; boot(); offlineReport(rep); }
+    else { UI.modal='newgame'; newGameModal(); }
+  });
 });

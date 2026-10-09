@@ -48,6 +48,7 @@ function registerPwaActions(){
   });
 }
 function pwaLoad(txt){
+  if(typeof applySave==='function') return applySave(txt,'Charger');
   try{ const o=JSON.parse(txt); if(!o||!o.company||!o.fleet||!o.time) throw new Error('ce n’est pas une partie Sky Empire');
     if(!confirm(`Charger la partie « ${o.company.name} » ? La partie actuelle de cet appareil sera remplacée.`)) return;
     localStorage.setItem(SAVE_KEY,txt); location.reload(); }
