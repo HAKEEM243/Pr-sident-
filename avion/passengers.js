@@ -218,7 +218,7 @@ function flightManifest(ac){
       meal:age<12?'Repas enfant':pick2(rnd,MEALS.filter(x=>x!=='Repas enfant')), assist:rnd()<0.04?pick2(rnd,['fauteuil roulant','accompagnement','famille avec poussette']):'', tier, miles:tier==='Aucun'?0:Math.round(5000+rnd()*90000), mood, moodWhy,
       nbWithUs:Math.max(0,Math.round(trips*(0.4+rnd()*2.4)-1)), passportCC:nat, passExp:2026+Math.round(1+rnd()*8),
       visa:visaReq?'Visa obtenu':'Pas de visa requis', lastTrip:Math.max(1,Math.round(12/trips*(0.5+rnd()))),
-      F, avatar:avatarOf(age,F,nat,rnd), ...extraDetails(rnd,{age,F,nat,wealth,purp,k,trips,tier,A,B,mood,home})});
+      F, avatar:avatarOf(age,F,nat,rnd), ...extraDetails(rnd,{age,F,nat,wealth,purp,k,trips,tier,A,B,mood,home,first,last})});
   }
   return {leg, from:A, to:B, total, shown:N, pr, rows};
 }
@@ -255,7 +255,19 @@ function extraDetails(rnd,o){
   const allergy=rnd()<0.1?pick2(rnd,['arachides','fruits de mer','gluten','lactose']):'';
   const drink=pick2(rnd,['eau','jus d’orange','café','thé','soda','verre de vin','bière locale','rien']);
   const wifi=o.wealth==='rich'?rnd()<0.7:rnd()<0.3, insur=o.wealth==='poor'?rnd()<0.2:rnd()<0.65;
-  return {place,lodging,items,fear,ent,allergy,drink,wifi,insur,dob:`${bd} ${PX_MONTHS[bm]} ${byr}`, born, passNo, checkin:pick2(rnd,CHECKIN[o.wealth]), ciMin:minsBefore, group, with_, conn, declare:pick2(rnd,DECLARE[o.purp]||['rien à déclarer']), cash, spend, sat, hist, opinion:pick2(rnd,opinions),
+  // carte d'embarquement, bagages détaillés, contact, santé, paiement
+  const gate=pick2(rnd,['A','B','C','D','E'])+(1+Math.floor(rnd()*28)), boardMin=(o.k==='f'||o.k==='j')?50:40, seq=1+Math.floor(rnd()*220);
+  const bagItems=['vêtements','chaussures','cadeaux','produits de beauté','médicaments','livres','nourriture locale','matériel professionnel','jouets','équipement de sport','souvenirs','produits d’artisanat'];
+  const nbags=o.k==='f'?2:o.k==='j'?2:o.wealth==='poor'?(rnd()<0.6?1:0):1+(rnd()<0.4?1:0);
+  const bagList=[]; for(let i=0;i<nbags;i++) bagList.push({tag:(L[Math.floor(rnd()*L.length)]+L[Math.floor(rnd()*L.length)])+String(Math.floor(100000+rnd()*899999)),kg:Math.round(8+rnd()*(o.k==='y'?15:22)),what:pick2(rnd,bagItems)+' et '+pick2(rnd,bagItems),color:pick2(rnd,['noir','bleu','rouge','gris','vert','marron','à fleurs','orange'])});
+  const phone='+'+(Math.floor(1+rnd()*98))+' '+Math.floor(600+rnd()*399)+' '+Math.floor(100+rnd()*899)+' '+Math.floor(100+rnd()*899);
+  const mail=((o.first||'passager')+'.'+(o.last||'x')).toLowerCase().replace(/[^a-z.]/g,'')+Math.floor(rnd()*90)+'@'+pick2(rnd,['mail.com','webmail.net','poste.org','courrier.fr']);
+  const emerg=pick2(rnd,['son conjoint','sa mère','son père','sa sœur','son frère','un ami proche','son employeur']);
+  const health=pick2(rnd,['aucun problème','aucun problème','aucun problème','vaccins à jour','asthme (inhalateur en poche)','mal de dos','tension artérielle surveillée','diabète (collation prévue)','jambes lourdes : se lèvera souvent']);
+  const jetlag=Math.abs(((o.A.lon||0)-(o.B.lon||0))/15);
+  const pay=o.wealth==='rich'?pick2(rnd,['carte premium','carte entreprise','virement']):pick2(rnd,['carte bancaire','paiement mobile','espèces à l’agence','carte bancaire']);
+  const fare=({f:'P',j:'J',w:'W',y:pick2(rnd,['Y','M','L','Q','T','K'])})[o.k]||'Y', fareCond=o.k==='y'&&'QTKL'.includes(fare)?'non remboursable':o.k==='y'?'modifiable avec frais':'flexible';
+  return {gate,boardMin,seq,bagList,phone,mail,emerg,health,jetlag:Math.round(jetlag*10)/10,pay,fare,fareCond,place,lodging,items,fear,ent,allergy,drink,wifi,insur,dob:`${bd} ${PX_MONTHS[bm]} ${byr}`, born, passNo, checkin:pick2(rnd,CHECKIN[o.wealth]), ciMin:minsBefore, group, with_, conn, declare:pick2(rnd,DECLARE[o.purp]||['rien à déclarer']), cash, spend, sat, hist, opinion:pick2(rnd,opinions),
     control:rnd()<(o.wealth==='poor'?0.06:0.02)?'Contrôle approfondi (vérification du visa)':'Contrôle normal ✅'};
 }
 
@@ -365,6 +377,10 @@ function passengerCardHtml(ac,i){
     <h4>📊 Avis sur ce vol</h4><div class="pc-sat"><div><span>Confort</span>${st(sat.confort||3)}</div><div><span>Repas</span>${st(sat.repas||3)}</div><div><span>Équipage</span>${st(sat.equipage||3)}</div><div><span>Ponctualité</span>${st(sat.ponctualite||3)}</div></div>
       <div class="pc-op">${esc(r.opinion||'')} <span class="mut small">· note moyenne ${avgS.toFixed(1).replace('.',',')}/5 · humeur : ${gx(r.mood,r.F)}${r.moodWhy?' ('+esc(r.moodWhy)+')':''}</span></div>
       ${row('Achats à bord',fmtMoney(r.spend||0))}
+    <h4>🎟️ Carte d’embarquement</h4><div class="pc-bp"><div class="bp-l"><small>VOL</small><b>${esc(S.company.code)}${flightNumber(ac)}</b><small>DE → À</small><b>${esc(m.from.code||m.from.city)} → ${esc(m.to.code||m.to.city)}</b></div><div class="bp-m"><small>PORTE</small><b>${esc(r.gate||'—')}</b><small>EMBARQUEMENT</small><b>${t(depT-(r.boardMin||40)*MIN)}</b></div><div class="bp-r"><small>SIÈGE</small><b>${r.seat}</b><small>SÉQ.</small><b>${r.seq||'—'}</b></div></div><div class="pc-barcode">${Array.from({length:46},(_,i)=>`<i style="width:${1+((i*7+(r.seq||3))%3)}px"></i>`).join('')}</div>
+    ${row('Tarif',`classe ${esc(r.fare||'Y')} · ${esc(r.fareCond||'—')}`)}${row('Paiement',esc(r.pay||'—'))}
+    <h4>🧳 Bagages (${(r.bagList||[]).length})</h4>${(r.bagList||[]).map((b,i)=>row(`Valise ${i+1}`,`${esc(b.color)} · ${b.kg} kg · étiquette ${esc(b.tag)}<br><span class="small mut">${esc(b.what)}</span>`)).join('')||row('Soute','aucun bagage en soute')}
+    <h4>📇 Contact & santé</h4>${row('Téléphone',esc(r.phone||'—'))}${row('E-mail',esc(r.mail||'—'))}${row('Contact d’urgence',esc(r.emerg||'—'))}${row('Santé',esc(r.health||'—'))}${row('Décalage horaire',(r.jetlag||0)>=1?`${String(r.jetlag).replace('.',',')} h`:'aucun')}
     <h4>🎒 À bord</h4>${row('Place préférée',esc(r.place||'—'))}${row('Dans son sac',esc((r.items||[]).join(', ')||'—'))}${row('Occupation',esc(r.ent||'—'))}${row('Boisson',esc(r.drink||'—'))}${r.allergy?row('Allergie',esc(r.allergy)):''}${r.fear?row('Appréhension',esc(r.fear)):''}${row('Wi-Fi',r.wifi?'se connecte ✅':'hors ligne')}${row('Assurance voyage',r.insur?'oui':'non')}${row('Hébergement',esc(r.lodging||'—'))}
     <h4>🧳 Habitudes de voyage</h4>${row('Voyage',r.trips.toFixed(1).replace('.',',')+' fois par an')}${row('Dernier vol',`il y a ~${r.lastTrip} mois`)}${row('Vols avec vous',r.nbWithUs)}${row('Fidélité',r.tier==='Aucun'?'Aucune carte':`⭐ ${r.tier} · ${num(r.miles)} miles`)}
       ${(r.hist&&r.hist.length)?`<div class="pc-hist">${r.hist.map(h=>`<div>✈️ ${esc(h)}</div>`).join('')}</div>`:''}

@@ -64,3 +64,32 @@ function maybeInstallHint(){
     b.querySelector('.x').onclick=()=>b.remove(); b.querySelector('[data-act]').addEventListener('click',()=>setTimeout(()=>b.remove(),50));
     document.body.appendChild(b); setTimeout(()=>b.remove(),20000); },4000);
 }
+
+/* ---------- mises à jour et nouveautés ---------- */
+const GAME_VER='20261058';
+async function checkUpdate(manual){
+  try{
+    const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
+    if(m&&cur&&m[1]!==cur){
+      if(sessionStorage.getItem('se-upd')===m[1]){ if(manual) toast('Mise à jour déjà demandée : fermez complètement l’appli puis rouvrez-la.','warn'); return; }
+      sessionStorage.setItem('se-upd',m[1]); toast('🔄 Mise à jour du jeu…','ok'); try{ save(); }catch(e){}
+      if('serviceWorker' in navigator){ const rg=await navigator.serviceWorker.getRegistrations(); for(const x of rg) await x.unregister(); }
+      if(window.caches){ for(const k of await caches.keys()) await caches.delete(k); }
+      location.reload(); return;
+    }
+    if(manual) toast('✅ Le jeu est à jour (version '+cur+')','ok');
+  }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
+}
+const WHATS_NEW=[
+  ['🗺️ Fond de carte 3D','En vue 3D : bouton <b>🗺️ Fond</b> (satellite, Sentinel-2, plan, relief, sombre…).'],
+  ['🛫 Décollage / 🛬 atterrissage','En vue 3D sans avion suivi : <b>Prochain décollage</b> et <b>Prochain atterrissage</b>.'],
+  ['🗓️ Calendrier des vols','Onglet <b>Lignes</b> → ouvrez une ligne : chaque avion a ses jours et heures de départ.'],
+  ['✈️ 17 nouveaux avions','Onglet <b>Acheter</b> : PC-12, Fokker 100, MD-83, DC-10, A310, Il-96, 747-200…'],
+  ['💥 Accidents','Carte 2D et 3D : 💥 🔥 ⚠️ au lieu d’accident ; fiche d’une compagnie dans <b>Actus → Sécurité</b>.'],
+  ['🧑‍🤝‍🧑 Passagers','Touchez un vol → <b>📋 Passagers</b> → un passager : carte d’embarquement, bagages, santé, contact…'],
+  ['🌊 Mers, 🌙 nuit','Vagues et reflets en 3D ; la nuit, villes et aéroports éclairés.'],
+];
+MODALS.whatsnew=()=>showModal('🆕 Nouveautés (version '+GAME_VER+')', `<ul class="inst">${WHATS_NEW.map(([a,b])=>`<li><b>${a}</b><br><span class="small">${b}</span></li>`).join('')}</ul><div class="btns"><button class="btn gold" data-act="checkUpdate">🔄 Vérifier la mise à jour</button></div><p class="small mut">Si une nouveauté n’apparaît pas, touchez « Vérifier la mise à jour » : le jeu vide son cache et se recharge (votre partie est gardée).</p>`);
+document.addEventListener('DOMContentLoaded',()=>{ setTimeout(()=>{ try{ Object.assign(ACTIONS,{ checkUpdate:()=>checkUpdate(true), whatsNew:()=>openM('whatsnew') });
+  checkUpdate(false);
+  if(typeof S!=='undefined'&&S&&localStorage.getItem('se-seen-ver')!==GAME_VER){ localStorage.setItem('se-seen-ver',GAME_VER); setTimeout(()=>{ if(!UI.modal) openM('whatsnew'); },2500); } }catch(e){} },2500); });
