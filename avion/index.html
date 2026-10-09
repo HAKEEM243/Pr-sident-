@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta name="se-ver" content="20261059">
+<meta name="se-ver" content="20261060">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Sky Empire</title>
@@ -555,6 +555,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 @media (max-width:820px){ .btn{min-height:40px} #tabs button{min-width:56px} #tabs button small{font-size:10px} .bigcta .btn{padding:16px} }
 .crash-ic{font-size:26px;line-height:34px;text-align:center;filter:drop-shadow(0 0 4px #000)}.crash-ic.fatal span{display:inline-block;animation:crashPulse 1.2s ease-in-out infinite}.crash-ic.incident{font-size:20px}@keyframes crashPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.35)}}
 .pc-bp{display:flex;gap:8px;background:linear-gradient(135deg,#1e3a5f,#0f2744);border:1px dashed var(--gold,#ffd60a);border-radius:10px;padding:10px;margin:6px 0}.pc-bp>div{flex:1}.pc-bp small{display:block;font-size:10px;opacity:.7;margin-top:4px}.pc-bp b{display:block;font-size:14px}.pc-barcode{display:flex;gap:1px;height:34px;align-items:stretch;background:#fff;padding:4px 6px;border-radius:6px;margin-bottom:6px}.pc-barcode i{display:block;background:#111;flex:none}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}.cal-hours{display:flex;justify-content:space-between;margin-left:64px;font-size:10px;opacity:.6}.cal-row{display:flex;align-items:stretch;gap:6px;margin:3px 0}.cal-day{width:58px;flex:none;font-size:12px;line-height:1.1;padding-top:4px}.cal-day small{display:block;opacity:.65;font-size:10px}.cal-row.today .cal-day{color:var(--gold,#ffd60a)}.cal-track{position:relative;flex:1;height:34px;background:rgba(255,255,255,.05);border-radius:6px;overflow:hidden}.cal-row.today .cal-track{outline:1px solid var(--gold,#ffd60a)}.cal-grid{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.12)}.cal-blk{position:absolute;border-radius:4px;font-size:10px;line-height:15px;color:#fff;padding:2px 3px;overflow:hidden;white-space:nowrap;text-shadow:0 1px 1px #0008;opacity:.92}
 </style>
 </head>
 <body>
@@ -571,6 +572,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
       <button data-speed="realiste" title="Temps réel">Réaliste</button>
       <button data-speed="standard" title="1 s = 1 min">Standard</button>
       <button data-speed="rapide" title="1 s = 10 min">Rapide</button>
+      <button data-speed="turbo" title="1 s = 1 heure : un jour en 24 s">Turbo</button>
+      <button data-speed="ultra" title="1 s = 8 heures : un jour en 3 s">Ultra</button>
       <button id="tb-pause" title="Pause">⏸</button>
     </div>
   </header>
@@ -626,7 +629,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="pulse.js?v=20261035"></script>
 <script src="business.js?v=20261019"></script>
 <script src="map.js?v=20261056"></script>
-<script src="ui.js?v=20261055"></script>
+<script src="ui.js?v=20261060"></script>
 <script src="pilot.js?v=20261019"></script>
 <script src="actions.js?v=20261052"></script>
 <script src="aircraft3d.js?v=20261057"></script>
@@ -639,9 +642,10 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="ui-biz.js?v=20261019"></script>
 <script src="progress.js?v=20261041"></script>
 <script src="studio.js?v=20261038"></script>
+<script src="calendar.js?v=20261061"></script>
 <script src="paxcases.js?v=20261030"></script>
 <script src="inbox.js?v=20261030"></script>
 <script src="pwa.js?v=20261058"></script>
-<script src="simple.js?v=20261058"></script>
+<script src="simple.js?v=20261060"></script>
 </body>
 </html>
