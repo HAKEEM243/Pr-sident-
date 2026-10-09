@@ -63,6 +63,7 @@ function initGlobe(){
     nl.dayAlpha=0; nl.nightAlpha=1; nl.brightness=3.2; nl.contrast=1.15; }catch(e){}
   // nuit réaliste même près du sol (par défaut Cesium éclaire tout quand on est proche) ; relief ombré par le soleil le jour
   try{ const gl=viewer.scene.globe; gl.lightingFadeOutDistance=1; gl.lightingFadeInDistance=2; }catch(e){}
+  try{ viewer.scene.globe.showWaterEffect=true; }catch(e){}   // vagues animées et reflet du soleil (masque d'eau du relief)
   const sc=viewer.scene;
   try{ const base=viewer.imageryLayers.get(0); base.saturation=1.32; base.contrast=1.12; base.brightness=1.04; base.gamma=1.04; }catch(e){}
   try{ sc.postProcessStages.fxaa.enabled=true; }catch(e){}

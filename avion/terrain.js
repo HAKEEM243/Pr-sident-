@@ -16,8 +16,9 @@ function terrTile(z,x,y){
   p=fetch(TERR_URL+k+'.png').then(r=>{ if(!r.ok) throw new Error(r.status); return r.blob(); }).then(b=>createImageBitmap(b)).then(img=>{
     const cv=(typeof OffscreenCanvas!=='undefined')? new OffscreenCanvas(256,256) : Object.assign(document.createElement('canvas'),{width:256,height:256});
     const g=cv.getContext('2d'); g.drawImage(img,0,0); const d=g.getImageData(0,0,256,256).data, h=new Float32Array(256*256);
-    for(let i=0;i<h.length;i++){ const v=d[i*4]*256+d[i*4+1]+d[i*4+2]/256-32768; h[i]=v<0?0:v; }   // la mer reste au niveau 0
-    return h; }).catch(()=>null);
+    const wm=new Uint8Array(256*256);
+    for(let i=0;i<h.length;i++){ const v=d[i*4]*256+d[i*4+1]+d[i*4+2]/256-32768; h[i]=v<0?0:v; if(v<-0.5) wm[i]=255; }   // la mer reste au niveau 0 ; masque d'eau : fonds marins
+    h.wm=wm; return h; }).catch(()=>null);
   TERRAIN.tiles.set(k,p); if(TERRAIN.tiles.size>160) TERRAIN.tiles.delete(TERRAIN.tiles.keys().next().value);
   return p;
 }
@@ -43,7 +44,7 @@ function flatWeight(f,lat,lon){ // 0 = totalement aplani, 1 = relief naturel
 function terrCallback(x,y,level){
   const Z=Math.min(level,14), f=1<<(level-Z), tx=Math.floor(x/f), ty=Math.floor(y/f), ox=(x%f)/f*256, oy=(y%f)/f*256, span=256/f;
   return terrTile(Z,tx,ty).then(h=>{
-    const out=new Float32Array(65*65); if(!h) return out;
+    const out=new Float32Array(65*65); if(!h) return {out,mask:undefined};
     const at=(px,py)=>{ px=Math.max(0,Math.min(255,px)); py=Math.max(0,Math.min(255,py)); const x0=Math.floor(px), y0=Math.floor(py), x1=Math.min(255,x0+1), y1=Math.min(255,y0+1), fx=px-x0, fy=py-y0;
       return h[y0*256+x0]*(1-fx)*(1-fy)+h[y0*256+x1]*fx*(1-fy)+h[y1*256+x0]*(1-fx)*fy+h[y1*256+x1]*fx*fy; };
     for(let j=0;j<65;j++) for(let i=0;i<65;i++) out[j*65+i]=at(ox+i/64*span-0.5, oy+j/64*span-0.5);
@@ -52,13 +53,22 @@ function terrCallback(x,y,level){
       for(const f of TERRAIN.flats){ if(f.box[1]<la0||f.box[0]>la1||f.box[3]<lon0||f.box[2]>lon1) continue;
         for(let j=0;j<65;j++){ const lat=mlat(my0+(my1-my0)*j/64); if(lat<f.box[0]||lat>f.box[1]) continue;
           for(let i=0;i<65;i++){ const lon=lon0+(lon1-lon0)*i/64; if(lon<f.box[2]||lon>f.box[3]) continue; const w=flatWeight(f,lat,lon); if(w<1){ const k=j*65+i; out[k]=f.e-0.6+(out[k]-f.e+0.6)*w; } } } } }
-    return out; });
+    // masque d'eau 256×256 (mers et océans) : active les vagues animées et le reflet du soleil de Cesium
+    let mask; if(h.wm){ let any=0; mask=new Uint8Array(256*256); for(let j=0;j<256;j++){ const sy=Math.min(255,Math.floor(oy+(j+0.5)/256*span)); for(let i=0;i<256;i++){ const v=h.wm[sy*256+Math.min(255,Math.floor(ox+(i+0.5)/256*span))]; mask[j*256+i]=v; any|=v; } }
+      if(!any) mask=new Uint8Array([0]); else if(mask.every(v=>v===255)) mask=new Uint8Array([255]); }
+    return {out,mask}; });
 }
+// fournisseur de relief avec masque d'eau (Cesium n'en propose pas pour un relief personnalisé)
+function SeTerrainProvider(){ const C=Cesium; this.tilingScheme=new C.WebMercatorTilingScheme(); this.errorEvent=new C.Event(); this.credit=new C.Credit('Relief : SRTM / GMTED — Mapzen Terrain Tiles (AWS Open Data)');
+  this.hasWaterMask=true; this.hasVertexNormals=false; this.availability=undefined; this._e0=C.TerrainProvider.getEstimatedLevelZeroGeometricErrorForAHeightmap(this.tilingScheme.ellipsoid,65,this.tilingScheme.getNumberOfXTilesAtLevel(0)); this.ready=true; }
+SeTerrainProvider.prototype.requestTileGeometry=function(x,y,level){ const C=Cesium; return terrCallback(x,y,level).then(r=>new C.HeightmapTerrainData({buffer:r.out,width:65,height:65,waterMask:r.mask})); };
+SeTerrainProvider.prototype.getLevelMaximumGeometricError=function(level){ return this._e0/(1<<level); };
+SeTerrainProvider.prototype.getTileDataAvailable=function(){ return undefined; };
+SeTerrainProvider.prototype.loadTileDataAvailability=function(){ return undefined; };
 function terrainProvider(){
   if(TERRAIN.prov) return TERRAIN.prov;
   const C=Cesium;
-  TERRAIN.prov=new C.CustomHeightmapTerrainProvider({width:65, height:65, tilingScheme:new C.WebMercatorTilingScheme(), callback:terrCallback,
-    credit:new C.Credit('Relief : SRTM / GMTED — Mapzen Terrain Tiles (AWS Open Data)')});
+  TERRAIN.prov=new SeTerrainProvider();
   return TERRAIN.prov;
 }
 // altitude du terrain (m) à un aéroport — valeur échantillonnée, sinon altitude officielle de la base
