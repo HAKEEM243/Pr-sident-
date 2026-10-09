@@ -221,7 +221,7 @@ function pDash(){
   <h3>Actualités du secteur <button class="btn sm" data-tab="news">Tout voir</button></h3>
   <div class="log">${typeof feedRows==='function'&&S.ai?feedRows(S.ai.news,5):''}</div>
   <h3>Classement mondial des compagnies</h3>
-  <div class="tblwrap"><table class="tbl rank"><tr><th>#</th><th>Compagnie</th><th>Hub</th><th>Flotte</th><th>Lignes</th><th>PAX/j</th><th>Image</th><th>Valeur</th></tr>${comp.map((c,i)=>`<tr class="${c.me?'me':''}"><td>${['🥇','🥈','🥉'][i]||i+1}${c.delta>0?'<sup class="pos">▲</sup>':c.delta<0?'<sup class="neg">▼</sup>':''}</td><td><span class="dot" style="background:${c.color}"></span>${esc(c.name)}${c.startup?' <span class="badge">🆕</span>':''}${c.crashes?` <span class="mut">💥${c.crashes}</span>`:''}${c.R&&c.R.local?' <span class="badge bad">rival local</span>':''}</td><td>${flag(c.hub)} ${c.hub}</td><td>${c.fleet}</td><td>${c.routes}</td><td>${num(c.pax||0)}</td><td>${stars(c.rep)}</td><td>${fmtMoney(c.value)}</td></tr>`).join('')}</table></div>
+  <div class="tblwrap"><table class="tbl rank"><tr><th>#</th><th>Compagnie</th><th>Hub</th><th>Flotte</th><th>Lignes</th><th>PAX/j</th><th>Image</th><th>Valeur</th></tr>${comp.map((c,i)=>`<tr class="${c.me?'me':'click'}" ${c.me||!c.code?'':`data-act="airlineCard" data-c="${c.code}"`}><td>${['🥇','🥈','🥉'][i]||i+1}${c.delta>0?'<sup class="pos">▲</sup>':c.delta<0?'<sup class="neg">▼</sup>':''}</td><td><span class="dot" style="background:${c.color}"></span>${esc(c.name)}${c.startup?' <span class="badge">🆕</span>':''}${c.crashes?` <span class="mut">💥${c.crashes}</span>`:''}${c.R&&c.R.local?' <span class="badge bad">rival local</span>':''}</td><td>${flag(c.hub)} ${c.hub}</td><td>${c.fleet}</td><td>${c.routes}</td><td>${num(c.pax||0)}</td><td>${stars(c.rep)}</td><td>${fmtMoney(c.value)}</td></tr>`).join('')}</table></div>
   <h3>Journal</h3>
   <div class="log">${S.log.slice(0,30).map(l=>`<div class="lg ${l.kind}"><span class="mut">${fmtDate(l.t)} ${fmtTime(l.t)}</span> ${l.text}</div>`).join('')}</div>`;
 }
@@ -254,7 +254,7 @@ function pNetwork(){
   const byHub={}; for(const r of S.routes) (byHub[r.stops[0]]=byHub[r.stops[0]]||[]).push(r);
   return `<div class="btns">${isSimple()?'':'<button class="btn gold big" data-act="openLine">➕ Ouvrir une ligne</button>'}<button class="btn ${isSimple()?'sm':'big'}" data-act="buyHubModal">🏢 Acheter un hub</button></div>
   <div class="hubs">${S.hubs.map(h=>{ const a=AP(h), n=(byHub[h]||[]).length, f=S.fleet.filter(x=>x.hub===h).length; return `<div class="hubcard" data-act="openAp" data-c="${h}">
-    <div class="hc-top">${flag(h)} <b>${a.city}</b> <span class="mut">${h}</span></div><div class="small">${n} ligne(s) · ${f} avion(s)</div><div class="small mut">${a.name} · piste cl.${a.cls}</div></div>`; }).join('')}</div>
+    <div class="hc-top">${flag(h)} <b>${a.city}</b> <span class="mut">${h}</span></div><div class="small">${n} ligne(s) · ${f} avion(s)</div><div class="small mut">${a.name} · piste cl.${a.cls}</div><div class="small">🏆 ${typeof airportRank==='function'?'n° '+airportRank(h)+' mondial':''}</div></div>`; }).join('')}</div>
   ${S.hubs.map(h=>`<h3>Lignes depuis ${AP(h).city}</h3>${(byHub[h]||[]).map(lineCard).join('')||'<div class="mut small">Aucune ligne depuis ce hub.</div>'}`).join('')}`;
 }
 function lineCard(r){

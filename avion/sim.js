@@ -701,6 +701,7 @@ function dailyTick(){
   if(typeof businessDaily==='function') businessDaily();
   checkMissions();
   pushHistory();
+  if(typeof dailyDigest==='function') dailyDigest();
   S.led.day={};
   // alertes
   if(S.cash<0) notify('Trésorerie négative', `Votre capital est de ${fmtMoney(S.cash)}. Empruntez ou réduisez les coûts.`);
