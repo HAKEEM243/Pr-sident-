@@ -57,6 +57,9 @@ function initGlobe(){
     navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, msaaSamples:4, orderIndependentTranslucency:!window.SE_NO_OIT });
   viewer.imageryLayers.addImageryProvider(new C.UrlTemplateImageryProvider({url:'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', maximumLevel:18}));
   const sc=viewer.scene;
+  try{ const base=viewer.imageryLayers.get(0); base.saturation=1.32; base.contrast=1.12; base.brightness=1.04; base.gamma=1.04; }catch(e){}
+  try{ sc.postProcessStages.fxaa.enabled=true; }catch(e){}
+  try{ sc.globe.showGroundAtmosphere=true; sc.globe.atmosphereLightIntensity=12; sc.skyAtmosphere.atmosphereLightIntensity=40; }catch(e){}
   // filet de sécurité : si le rendu plante, on retire les décors optionnels et on redémarre
   viewer.showRenderLoopErrors=false;
   sc.renderError.addEventListener((scene,err)=>{
@@ -69,7 +72,7 @@ function initGlobe(){
   sc.globe.enableLighting=true; sc.globe.dynamicAtmosphereLighting=true; sc.skyAtmosphere.show=true; sc.fog.enabled=true; sc.fog.density=0.00012;
   sc.globe.depthTestAgainstTerrain=false; sc.highDynamicRange=false; sc.globe.maximumScreenSpaceError=1.6;
   viewer.clock.shouldAnimate=false;
-  G={viewer, planes:new Map(), rivals:[], routes:[], airports:[], follow:null, cam:{mode:'chase',h:0,p:-9,range:120}, lighting:true, tiles:null, simAt:performance.now(), simTime:S.time, att:new Map(), trail:[], hudAt:0};
+  G={viewer, planes:new Map(), rivals:[], routes:[], airports:[], follow:null, cam:{mode:'chase',h:0,p:-9,range:120}, lighting:true, tiles:null, simAt:performance.now(), simTime:S.time, att:new Map(), trail:[], hudAt:0, forceDay:(()=>{ try{ return localStorage.getItem('se-day')==='1'; }catch(e){ return false; } })()};
   // clic sur un avion
   const h=new C.ScreenSpaceEventHandler(sc.canvas);
   h.setInputAction(e=>{ if(G.follow) return; const p=sc.pick(e.position); const id=p&&p.id&&p.id._acId; if(id){ selectPlane(id); renderGlobeHud(); } }, C.ScreenSpaceEventType.LEFT_CLICK);
@@ -78,7 +81,7 @@ function initGlobe(){
   h.setInputAction(e=>{ if(G.follow) drag={x:e.position.x,y:e.position.y}; }, C.ScreenSpaceEventType.LEFT_DOWN);
   h.setInputAction(()=>{ drag=null; }, C.ScreenSpaceEventType.LEFT_UP);
   h.setInputAction(e=>{ if(!G.follow||!drag) return; const dx=e.endPosition.x-drag.x, dy=e.endPosition.y-drag.y; drag={x:e.endPosition.x,y:e.endPosition.y};
-    if(G.cam.mode==='cockpit'){ G.cam.h+=dx*0.25; G.cam.p=clamp(G.cam.p-dy*0.2,-60,40); } else { G.cam.h-=dx*0.35; G.cam.p=clamp(G.cam.p-dy*0.25,-88,12); } }, C.ScreenSpaceEventType.MOUSE_MOVE);
+    if(G.cam.mode==='cockpit'||G.cam.mode==='cabin'){ G.cam.h+=dx*0.25; G.cam.p=clamp(G.cam.p-dy*0.2,-60,40); } else { G.cam.h-=dx*0.35; G.cam.p=clamp(G.cam.p-dy*0.25,-88,12); } }, C.ScreenSpaceEventType.MOUSE_MOVE);
   h.setInputAction(d=>{ if(G.follow) G.cam.range=clamp(G.cam.range*(d>0?0.88:1.14),15,80000); }, C.ScreenSpaceEventType.WHEEL);
   h.setInputAction(e=>{ if(!G.follow) return; const a=e.distance.startPosition, b=e.distance.endPosition; const da=Math.hypot(a.x,a.y), db=Math.hypot(b.x,b.y); if(da&&db) G.cam.range=clamp(G.cam.range*(da/db),15,80000); }, C.ScreenSpaceEventType.PINCH_MOVE);
   const hub=AP(S.company.hub);
@@ -122,7 +125,8 @@ function acPose(ac){
 function globeSync(full){
   if(!G) return;
   const C=Cesium, V=G.viewer;
-  V.clock.currentTime=C.JulianDate.fromDate(new Date(S.time));
+  let tv=S.time; if(G.forceDay){ const f=G.follow&&S.fleet.find(a=>a.id===G.follow), st=f&&flightState(f), lon=st?st.lon:(V.camera.positionCartographic?C.Math.toDegrees(V.camera.positionCartographic.longitude):0); tv=fxNoon(lon)+2*HOUR; }
+  V.clock.currentTime=C.JulianDate.fromDate(new Date(tv));
   V.scene.globe.enableLighting=G.lighting;
   const seen=new Set();
   for(const ac of S.fleet){
@@ -181,27 +185,33 @@ function drawGlobeRivals(){
     const posOf=()=>{ const v=Q(); return C.Cartesian3.fromDegrees(v.p.lon,v.p.lat,Math.max(v.alt||0,mi.R+mi.gH+0.4)); };
     G.rivals.push(V.entities.add({position:new C.CallbackProperty(posOf,false),
       orientation:new C.CallbackProperty(()=>{ const v=Q(), pos=posOf(); const pitch=v.ph===2&&!v.gnd?8:v.ph===3?6:v.ph===6||v.ph===5?-2:0; return C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(v.hdg-90),C.Math.toRadians(pitch),0)); },false),
-      model:{uri:mi.uri, scale:1, minimumPixelSize:26, maximumScale:20000},
-      label:{text:new C.CallbackProperty(()=>{ const v=Q(); return R.name+(v.ph===2?' · 🛫':v.ph===7?' · 🛬':''); },false), font:'600 11px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new C.Cartesian2(0,-24), distanceDisplayCondition:new C.DistanceDisplayCondition(0,60000), scale:0.85}}));
+      model:{uri:mi.uri, scale:1, minimumPixelSize:26, maximumScale:20000, show:new C.CallbackProperty(()=>rivalVisible(posOf()),false)},
+      label:{show:new C.CallbackProperty(()=>rivalVisible(posOf()),false), text:new C.CallbackProperty(()=>{ const v=Q(); return R.name+(v.ph===2?' · 🛫':v.ph===7?' · 🛬':''); },false), font:'600 11px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new C.Cartesian2(0,-24), distanceDisplayCondition:new C.DistanceDisplayCondition(0,60000), scale:0.85}}));
     n++;
   }
 }
 
+// un avion d'une autre compagnie ne doit pas se superposer à celui qu'on suit (même piste au même moment)
+function rivalVisible(pos){ if(!G.follow||!G.followPos) return true; return Cesium.Cartesian3.distance(pos,G.followPos)>Math.max(250,(G.followL||40)*6); }
 /* ---------- caméra façon simulateur ---------- */
-const CAM_MODES={chase:{h:0,p:-9,k:3.2,label:'🎥 Arrière'}, side:{h:-90,p:-4,k:3.5,label:'↔ Côté'}, front:{h:180,p:-6,k:2.8,label:'↩ Avant'}, top:{h:0,p:-62,k:4,label:'⬇ Dessus'}, tower:{h:35,p:-14,k:9,label:'🗼 Loin'}, cockpit:{h:0,p:-4,k:0,label:'🧑‍✈️ Cockpit'}};
+const CAM_MODES={auto:{h:0,p:-9,k:3.2,label:'🎬 Auto'}, cabin:{h:0,p:-7,k:0,label:'👥 Cabine'}, chase:{h:0,p:-9,k:3.2,label:'🎥 Arrière'}, side:{h:-90,p:-4,k:3.5,label:'↔ Côté'}, front:{h:180,p:-6,k:2.8,label:'↩ Avant'}, top:{h:0,p:-62,k:4,label:'⬇ Dessus'}, tower:{h:35,p:-14,k:9,label:'🗼 Loin'}, cockpit:{h:0,p:-4,k:0,label:'🧑‍✈️ Cockpit'}};
 function setCam(mode){
   const M=CAM_MODES[mode]||CAM_MODES.chase, ac=S.fleet.find(a=>a.id===G.follow), mi=ac&&modelInfo(modelOf(ac),liveryOf(ac));
   G.cam={mode, h:M.h, p:M.p, range:mi? Math.max(30,mi.L*M.k) : 120};
   if(mode!=='cockpit') G.viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-  for(const [id,e] of G.planes) e.show=!(mode==='cockpit'&&id===G.follow);
+  for(const [id,e] of G.planes) e.show=!((mode==='cockpit'||mode==='cabin')&&id===G.follow);
+  if(mode!=='cabin'&&typeof fxCabinOff==='function') fxCabinOff();
+  if(mode==='cabin') toast('👥 Vue cabine : glissez pour regarder autour de vous, touchez un passager dans la liste','info');
   renderGlobeHud();
 }
 function globeFollowTick(){
   if(!G||!G.follow||$('#globe').hidden) return;
   const ac=S.fleet.find(a=>a.id===G.follow); if(!ac) return;
   const p=acPose(ac); if(!p) return;
+  G.followPos=p.pos; G.followL=p.mi.L;
   const C=Cesium, cam=G.viewer.camera, c=G.cam;
-  if(c.mode==='cockpit'){
+  if(typeof fxCamera==='function'&&fxCamera(ac,p,c)){ /* caméra auto ou cabine */ }
+  else if(c.mode==='cockpit'){
     // œil du pilote : à l'avant du fuselage, au-dessus de l'axe
     const fwd=p.mi.L*0.43, off=C.Cartesian3.fromElements(0,0,0), enu=C.Transforms.eastNorthUpToFixedFrame(p.pos);
     const hd=C.Math.toRadians(p.st.hdg), e=Math.sin(hd)*fwd, n=Math.cos(hd)*fwd;
@@ -217,6 +227,7 @@ function globeFollowTick(){
   // nuages autour de l'avion
   if(G.clouds){ const ll={lat:p.st.lat,lon:p.st.lon}; if(!G.cloudC||gcDist(G.cloudC,ll)>45){ G.cloudC=ll; spawnClouds(ll); } }
   worldTick(p);
+  if(typeof fxTick==='function'){ try{ fxTick(ac,p); }catch(e){ console.warn(e); } }
   if(now-G.hudAt>120){ G.hudAt=now; try{ renderRfsHud(ac,p); }catch(e){ console.warn(e); } }
 }
 function spawnClouds(c){
@@ -230,9 +241,9 @@ function spawnClouds(c){
 function globeFollow(id){
   if(!G) return;
   const C=Cesium, sc=G.viewer.scene;
-  if(!id){ for(const e of G.planes.values()) e.show=true; G.follow=null; G.viewer.camera.lookAtTransform(C.Matrix4.IDENTITY); sc.screenSpaceCameraController.enableInputs=true; G.trail=[]; if(G.trailEnt){ G.viewer.entities.remove(G.trailEnt); G.trailEnt=null; } if(G.clouds) G.clouds.removeAll(); G.cloudC=null; const hd=$('#rfsHud'); if(hd) hd.hidden=true; worldClear(); document.body.classList.remove('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); renderGlobeHud(); return; }
+  if(!id){ for(const e of G.planes.values()) e.show=true; G.follow=null; G.viewer.camera.lookAtTransform(C.Matrix4.IDENTITY); sc.screenSpaceCameraController.enableInputs=true; G.trail=[]; if(G.trailEnt){ G.viewer.entities.remove(G.trailEnt); G.trailEnt=null; } if(G.clouds) G.clouds.removeAll(); G.cloudC=null; const hd=$('#rfsHud'); if(hd) hd.hidden=true; worldClear(); if(typeof fxClear==='function') fxClear(); document.body.classList.remove('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); renderGlobeHud(); return; }
   if(!G.tm) G.tm={auto:true, prev:S.speed};
-  G.follow=id; sc.screenSpaceCameraController.enableInputs=false; document.body.classList.add('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); setCam('chase');
+  G.follow=id; sc.screenSpaceCameraController.enableInputs=false; document.body.classList.add('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); setCam(G.lastMode&&CAM_MODES[G.lastMode]?G.lastMode:'auto');
   if(!G.trailEnt) G.trailEnt=G.viewer.entities.add({polyline:{positions:new C.CallbackProperty(()=>G.trail.length>1?G.trail:[],false), width:4, material:C.Color.WHITE.withAlpha(0.45)}});
   toast('🎬 Ralenti automatique : temps réel au décollage et à l’atterrissage, accéléré en croisière','info');
   renderGlobeHud();
@@ -284,6 +295,8 @@ function renderGlobeHud(){
       ${Object.entries(CAM_MODES).map(([k,v])=>`<button class="gh ${G.cam.mode===k?'on':''}" data-act="globeCam" data-k="${k}">${v.label}</button>`).join('')}
       <button class="gh" data-act="globeZoom" data-d="0.7">🔍＋</button><button class="gh" data-act="globeZoom" data-d="1.4">🔍－</button>
       <button class="gh" data-act="globeNext">⏭ Avion suivant</button>
+      <button class="gh ${typeof FX!=='undefined'&&FX.soundOn?'on':''}" data-act="globeSound">🔊 Son</button>
+      <button class="gh ${G.forceDay?'on':''}" data-act="globeDay" title="Toujours en plein jour">☀️ Jour</button>
       <span class="gh-sep"></span>
       <button class="gh ${G.tm&&G.tm.auto?'on':''}" data-act="globeTime" data-k="auto" title="Temps réel au décollage et à l’atterrissage, accéléré en croisière">🎬 Auto</button>
       ${TM_STEPS.map(([k,l])=>`<button class="gh ${G.tm&&!G.tm.auto&&S.speed===k?'on':''}" data-act="globeTime" data-k="${k}">${l}</button>`).join('')}
@@ -302,7 +315,9 @@ Object.assign(ACTIONS,{
   view3D:async d=>{ const ok=await open3D(); if(!ok) return; const ac=S.fleet.find(a=>a.id===d.id&&a.status==='flight'); if(ac){ selectPlane(ac.id); globeSync(false); globeFollow(ac.id); } },
   globeFollow:()=>{ if(G.follow) return globeFollow(null); const sel=selectedPlane&&S.fleet.find(a=>a.id===selectedPlane&&a.status==='flight'); const ac=sel||pick(S.fleet.filter(a=>a.status==='flight')); if(ac){ selectPlane(ac.id); globeFollow(ac.id); } },
   globeNext:()=>{ const fl=S.fleet.filter(a=>a.status==='flight'); if(!fl.length) return; const i=fl.findIndex(a=>a.id===G.follow); const ac=fl[(i+1)%fl.length]; selectPlane(ac.id); globeFollow(ac.id); },
-  globeCam:d=>setCam(d.k),
+  globeCam:d=>{ G.lastMode=d.k; setCam(d.k); },
+  globeSound:()=>fxToggleSound(),
+  globeDay:()=>{ G.forceDay=!G.forceDay; try{ localStorage.setItem('se-day',G.forceDay?'1':'0'); }catch(e){} globeSync(false); renderGlobeHud(); },
   globeZoom:d=>{ G.cam.range=clamp(G.cam.range*(+d.d),15,80000); },
   globeHome:()=>{ globeFollow(null); const a=AP(S.company.hub); G.viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(a.lon,a.lat-6,2.2e6), orientation:{heading:0,pitch:Cesium.Math.toRadians(-55),roll:0}, duration:2}); },
   globeLight:()=>{ G.lighting=!G.lighting; G.viewer.scene.globe.enableLighting=G.lighting; renderGlobeHud(); },
@@ -334,7 +349,7 @@ function timeTick(p){
 const OSM_CELL=0.06, OSM_EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
 function osmTick(p){
   if(!G.osm) G.osm={cells:new Map(), busy:false, fail:0};
-  const O=G.osm; if(O.busy||O.fail>=4||p.h>3200||G.tiles) return;
+  const O=G.osm; if(O.busy||O.fail>=4||p.h>4500||G.tiles) return;
   const ci=Math.floor(p.st.lat/OSM_CELL), cj=Math.floor(p.st.lon/OSM_CELL);
   // la case sous l'avion, puis celle devant lui
   const ahead=destPt(p.st.lat,p.st.lon,p.st.hdg,4);
