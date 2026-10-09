@@ -107,6 +107,7 @@ function pMore(){
   </div>
   <label class="tog"><input type="checkbox" data-in="simple" ${S.simple?'checked':''}> <b>Mode simple</b> : personnel, carburant, maintenance et programmation automatiques</label>
   <div class="small mut" style="margin:4px 0 10px">Décochez pour tout gérer vous-même (mode expert : tous les onglets).</div>
+  <div class="btns"><button class="btn gold" data-act="install">📲 Application${typeof isStandalone==='function'&&isStandalone()?' (installée)':' : installer sur mon téléphone'}</button></div>
   <div class="btns"><button class="btn" data-act="exportSave">💾 Exporter ma sauvegarde</button><button class="btn" data-act="importSave">📂 Importer</button></div>
   <div class="btns"><button class="btn" data-act="guideReset">🎓 Revoir le tutoriel</button><button class="btn" data-act="mapStyle">🗺️ Fond de carte</button></div>
   <div class="btns"><button class="btn" data-tab="admin">🛠️ Outils de test</button></div>`;
@@ -148,6 +149,7 @@ if(typeof registerPaxActions==='function') registerPaxActions();
 if(typeof registerAirlineActions==='function') registerAirlineActions();
 if(typeof registerCityActions==='function') registerCityActions();
 if(typeof registerInboxActions==='function') registerInboxActions();
+if(typeof registerPwaActions==='function') registerPwaActions();
 Object.assign(ACTIONS,{
   flightList:()=>{ UI.fl=!UI.fl; if(UI.fl&&UI.mobile) $('#mapctl').classList.remove('open'); renderFlightList(); },
   flTab:d=>{ UI.flTab=d.k; renderFlightList(); },
