@@ -69,7 +69,7 @@ function simpleTop(tab){
   if(tab==='network'){
     const nf=S.routes.length? S.fleet.filter(a=>!(a.plan||[]).some(p=>p.weekly>0)&&a.status!=='manual').length : 0;
     return advisorHtml()+`<div class="simplehelp">🧭 Une <b>ligne</b> relie votre hub à une ville. Ouvrez-en une : un avion libre y est programmé <b>automatiquement</b>.${S.routes.length===0?' Commencez par là !':''}</div>
-    <div class="bigcta"><button class="btn gold" data-act="openLine">➕ Ouvrir une ligne<small>Choisissez une ville, c’est tout</small></button>
+    <div class="bigcta"><button class="btn gold" data-act="openLine">➕ Ouvrir une ligne<small>Choisissez une ville, c’est tout</small></button><button class="btn" data-act="calendar">🗓️ Calendrier des vols<small>Jours et heures de chaque départ, semaine par semaine</small></button>
     ${nf?`<button class="btn" data-act="autoAll">⚡ Programmer mes ${nf} avion(s) libre(s)<small>Chacun va sur la meilleure ligne</small></button>`:''}</div>`;
   }
   if(tab==='fleet'){
@@ -107,7 +107,7 @@ function pMore(){
   </div>
   <label class="tog"><input type="checkbox" data-in="simple" ${S.simple?'checked':''}> <b>Mode simple</b> : personnel, carburant, maintenance et programmation automatiques</label>
   <div class="small mut" style="margin:4px 0 10px">Décochez pour tout gérer vous-même (mode expert : tous les onglets).</div>
-  <div class="morelist"><button data-act="daily">🎁 <b>Défis du jour</b><small>Récompense quotidienne, coffre</small></button><button data-act="charters">🛫 <b>Charters</b><small>Équipes, pèlerins, concerts…</small></button><button data-act="livery">🎨 <b>Livrée</b><small>Peindre vos avions</small></button><button data-act="open3D">📸 <b>Vue 3D & photo</b><small>Suivre un vol, mode photo</small></button><button data-act="radar">📡 <b>Radar & tour</b><small>Pistes, attentes, séquence</small></button></div>
+  <div class="morelist"><button data-act="calendar">🗓️ <b>Calendrier des vols</b><small>Chaque départ, par jour et par semaine</small></button><button data-act="daily">🎁 <b>Défis du jour</b><small>Récompense quotidienne, coffre</small></button><button data-act="charters">🛫 <b>Charters</b><small>Équipes, pèlerins, concerts…</small></button><button data-act="livery">🎨 <b>Livrée</b><small>Peindre vos avions</small></button><button data-act="open3D">📸 <b>Vue 3D & photo</b><small>Suivre un vol, mode photo</small></button><button data-act="radar">📡 <b>Radar & tour</b><small>Pistes, attentes, séquence</small></button></div>
   <div class="btns"><button class="btn" data-act="whatsNew">🆕 Nouveautés · version ${typeof GAME_VER!=='undefined'?GAME_VER:''}</button><button class="btn gold" data-act="install">📲 Application${typeof isStandalone==='function'&&isStandalone()?' (installée)':' : installer sur mon téléphone'}</button></div>
   <div class="btns"><button class="btn gold" data-act="saves">💾 Sauvegardes : sauvegarder, charger, exporter, importer</button></div>
   <div class="btns"><button class="btn" data-act="guideReset">🎓 Revoir le tutoriel</button><button class="btn" data-act="mapStyle">🗺️ Fond de carte</button></div>
@@ -138,7 +138,7 @@ function renderFlightList(){
       || `<div class="fl-empty">Tous vos avions ont une ligne 👍</div>`;
   }
   const html=`<div class="fl-head"><b>🛫 Mes vols</b><button class="btn sm" data-act="flightList">×</button></div>
-    <div class="fl-tabs"><button class="${tab==='fly'?'on':''}" data-act="flTab" data-k="fly">En vol (${fly.length})</button><button class="${tab==='ground'?'on':''}" data-act="flTab" data-k="ground">Au sol (${idle.length})</button><button class="${tab==='wait'?'on':''}" data-act="flTab" data-k="wait">Sans ligne (${wait.length})</button></div>
+    <div class="fl-tabs"><button class="${tab==='fly'?'on':''}" data-act="flTab" data-k="fly">En vol (${fly.length})</button><button class="${tab==='ground'?'on':''}" data-act="flTab" data-k="ground">Au sol (${idle.length})</button><button class="${tab==='wait'?'on':''}" data-act="flTab" data-k="wait">Sans ligne (${wait.length})</button><button data-act="calendar" title="Calendrier des vols de la semaine">🗓️</button></div>
     <div class="fl-body">${rows}</div>
     <div class="fl-act"><button class="btn sm gold" data-act="openLine">➕ Nouvelle ligne</button>${tab==='wait'&&wait.length?`<button class="btn sm" data-act="autoAll">⚡ Programmer</button>`:`<button class="btn sm" data-act="goShop">🛒 Avion</button>`}</div>`;
   if(box._h!==html && performance.now()-(UI.flTouch||0)>900){ box._h=html; box.innerHTML=html; }

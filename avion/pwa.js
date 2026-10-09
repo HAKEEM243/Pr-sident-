@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261059';
+const GAME_VER='20261060';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -83,7 +83,8 @@ async function checkUpdate(manual){
 const WHATS_NEW=[
   ['🗺️ Fond de carte 3D','En vue 3D : bouton <b>🗺️ Fond</b> (satellite, Sentinel-2, plan, relief, sombre…).'],
   ['🛫 Décollage / 🛬 atterrissage','En vue 3D sans avion suivi : <b>Prochain décollage</b> et <b>Prochain atterrissage</b>.'],
-  ['🗓️ Calendrier des vols','Onglet <b>Lignes</b> → ouvrez une ligne : chaque avion a ses jours et heures de départ.'],
+  ['🗓️ Calendrier des vols','Bouton <b>🗓️ Calendrier</b> (onglet Lignes, ou la liste des vols) : la semaine quadrillée, un bloc par rotation.'],
+  ['⏩ Vitesses Turbo et Ultra','En haut : <b>Turbo</b> (un jour en 24 s) et <b>Ultra</b> (un jour en 3 s) pour que les jours passent vite.'],
   ['✈️ 17 nouveaux avions','Onglet <b>Acheter</b> : PC-12, Fokker 100, MD-83, DC-10, A310, Il-96, 747-200…'],
   ['💥 Accidents','Carte 2D et 3D : 💥 🔥 ⚠️ au lieu d’accident ; fiche d’une compagnie dans <b>Actus → Sécurité</b>.'],
   ['🧑‍🤝‍🧑 Passagers','Touchez un vol → <b>📋 Passagers</b> → un passager : carte d’embarquement, bagages, santé, contact…'],

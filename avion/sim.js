@@ -3,7 +3,7 @@
    ============================================================ */
 const SAVE_KEY = 'congo-airways-tycoon-v1';
 const MIN = 60000, HOUR = 3600000, DAY = 86400000;
-const SPEEDS = { realiste:{label:'Réaliste', mult:1}, standard:{label:'Standard', mult:60}, rapide:{label:'Rapide', mult:600}, x4:{label:'×4',mult:4,hide:1}, x16:{label:'×16',mult:16,hide:1} };
+const SPEEDS = { realiste:{label:'Réaliste', mult:1}, standard:{label:'Standard', mult:60}, rapide:{label:'Rapide', mult:600}, x4:{label:'×4',mult:4,hide:1}, x16:{label:'×16',mult:16,hide:1}, turbo:{label:'Turbo', mult:3600}, ultra:{label:'Ultra', mult:28800} };
 const PHASES = ['Embarquement','Roulage','Décollage','Montée','Croisière','Descente','Approche','Atterrissage','Arrivé'];
 const CLASS_MULT = { f:6, j:3.5, w:1.7, y:1 };
 const CLASS_SPACE = { f:3, j:2.2, w:1.3 };
