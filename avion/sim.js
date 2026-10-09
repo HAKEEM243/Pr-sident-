@@ -330,7 +330,7 @@ function computeProfile(d, m, w=0, tx=[10,6]){
   const v=m.speed, turbo=m.fam==='TURBO', we=w*(turbo?0.55:1)*(w<0?0.75:1), vg=Math.max(v*0.5, v+we);
   const board=(Math.max(m.seats,m.cargo*3)<60?15:Math.max(m.seats,m.cargo*3)<200?25:40);
   const d0=d; d = d*1.03 + Math.min(25, d*0.08); // routes aériennes, départs (SID) et arrivées (STAR) : un peu plus long que l'orthodromie
-  const taxiOut=tx[0], to=1.5, climb=turbo?14:(v>1500?28:20), desc=turbo?14:22, app=8, land=1.5, taxiIn=tx[1];
+  const taxiOut=tx[0], to=1.5, climb=turbo?14:(v>1500?28:20), desc=turbo?15:24, app=turbo?3.8:3.2, land=1.1, taxiIn=tx[1];
   const dTo=to/60*180, dClimb=climb/60*v*0.6, dDesc=desc/60*v*0.65, dApp=app/60*(turbo?250:320), dLand=land/60*150;
   const air=dTo+dClimb+dDesc+dApp+dLand;
   let f=1, cruiseD=d-air;
