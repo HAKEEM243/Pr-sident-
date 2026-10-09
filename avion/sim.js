@@ -1149,7 +1149,7 @@ function catchUp(){
   const realDt=Date.now()-(S.lastReal||Date.now());
   S.lastReal=Date.now();
   if(S.paused || realDt<5000) return null;
-  const gameDt=Math.min(realDt*SPEEDS[S.speed].mult, 30*DAY);
+  const gameDt=Math.min(realDt*Math.max(1,SPEEDS[S.speed].mult), 30*DAY);   // absent : le temps passe au moins en temps réel
   S.awayFrom=S.time; const before={cash:S.cash, flights:S.stats.flights, pax:S.stats.pax, rev:ledSum(S.led.total,1), cost:ledSum(S.led.total,-1), time:S.time};
   advance(gameDt);
   return { real:realDt, game:S.time-before.time, flights:S.stats.flights-before.flights, pax:S.stats.pax-before.pax,

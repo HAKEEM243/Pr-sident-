@@ -322,7 +322,10 @@ function boot(){
   updatePlanes(); updateRival();
   let last=performance.now(), acc1=0, acc2=0, acc30=0, acc10=0;
   setInterval(()=>{
-    const now=performance.now(), dt=Math.min(now-last, 3600000); last=now;
+    // l'horloge de jeu suit l'heure réelle (Date.now) : un iPhone qui fige l'appli en arrière-plan ne fige plus le temps
+    const now=performance.now(), wall=Date.now(), gap=wall-(UI.lastWall||wall); UI.lastWall=wall;
+    if(gap>60000&&!S.paused){ last=now; S.lastReal=wall-gap; UI.silent=true; const rep=catchUp(); UI.silent=false; if(rep){ try{ offlineReport(rep); }catch(e){} } renderTop(); return; }
+    const dt=Math.min(now-last, 3600000); last=now; S.lastReal=wall;
     if(!S.paused){ advance(dt*SPEEDS[S.speed].mult); }
     if(typeof globeNoteSim==='function') globeNoteSim();
     pilotBackground(dt);
@@ -335,7 +338,7 @@ function boot(){
   },200);
   const pn=document.getElementById('panel'); if(pn) for(const ev of ['pointerdown','wheel','touchstart','scroll','keydown']) pn.addEventListener(ev,()=>{ UI.touchAt=performance.now(); },{capture:true,passive:true});
   window.addEventListener('beforeunload',save);
-  document.addEventListener('visibilitychange',()=>{ if(document.hidden) save(); });
+  document.addEventListener('visibilitychange',()=>{ if(document.hidden) save(); else UI.lastWall=UI.lastWall; });
 }
 
 document.addEventListener('DOMContentLoaded',()=>{

@@ -65,7 +65,7 @@ function aiStep(e,oilF){
   // lignes
   if(Math.random()<0.14) aiRoute(e, (e.cash<0||margin<-0.25)&&e.routes>3? 'close':'open');
   // sécurité
-  if(Math.random()<0.0034*Math.sqrt(Math.max(1,e.fleet)/100)/e.safety*(e.startup?1.4:1)) aiAccident(e);
+  if(Math.random()<(typeof aiRisk==='function'?aiRisk(e):0.0034*Math.sqrt(Math.max(1,e.fleet)/100)/e.safety*(e.startup?1.4:1))) aiAccident(e);
   // difficultés financières
   if(e.cash<-e.fleet*(e.startup?2e6:8e6)){
     e.debt=(e.debt||0)+1;
@@ -74,6 +74,7 @@ function aiStep(e,oilF){
     if(Math.random()<0.5) aiRoute(e,'close');
     if(e.debt>=(e.startup?4:6)){ if(e.fleet>=150){ e.cash=e.fleet*4e6; e.debt=0; e.rep=clamp(e.rep-4,15,95); aiNews(`🏛️ ${e.name} sauvée de la faillite par un plan de l’État (${e.fleet} avions, emplois préservés).`,'news',true); } else aiBankrupt(e); }
   } else e.debt=0;
+  if(typeof aiBrain==='function') aiBrain(e,oilF,margin);
   e.hist.push(Math.round((e.fleet*40e6+Math.max(0,e.cash))/1e6)); if(e.hist.length>40) e.hist.shift();
   if(R){ R.fleet=e.fleet; R.cash=e.cash; R.rep=e.rep; R.paxDay=e.pax; R.network=e.routes; }
 }
@@ -118,7 +119,7 @@ function aiRoute(e, mode){
 function aiAccident(e){
   const ai=S.ai, pairs=airlinePairs(e.code).concat((ai.extra[e.code]||[]).map(k=>[k.slice(0,3),k.slice(3)]));
   const [a,b]=pairs.length? pick(pairs):[e.hub,e.hub], m=modelFor(e), r=Math.random();
-  const sev=r<0.12?'fatal':r<0.38?'hull':'incident';
+  const bad=clamp(1/Math.max(0.3,e.safety||1),0.7,2.2), sev=r<0.12*Math.sqrt(bad)?'fatal':r<0.38?'hull':'incident';
   const victims=sev==='fatal'? Math.max(2,Math.round(m.seats*rnd(0.25,0.95)*0.9)):0;
   e.incidents++; if(sev!=='incident') e.crashes++;
   if(sev==='fatal'){ e.rep=clamp(e.rep-rnd(14,24),10,95); e.fleet=Math.max(1,e.fleet-1); e.cash-=rnd(30e6,120e6); }
