@@ -116,6 +116,7 @@ function threatOutcome(m,how){
 }
 function mailAnswer(id,k){
   const m=(S.inbox||[]).find(x=>x.id===id); if(!m||m.st!=='new') return;
+  if(m.kind&&m.kind.startsWith('pax')&&typeof paxAnswer==='function'){ const res=paxAnswer(m,k); m.st='done'; m.res=res||'Traité.'; if(res) logMsg(res,'ok'); renderMailBadge(); if(UI.modal==='inbox') openM('inbox'); if(typeof renderTop==='function') renderTop(); return; }
   const e=aiBy(m.code)||{name:m.from,code:m.code}, r=m.rid&&(S.routes||[]).find(x=>x.id===m.rid);
   let res='';
   if(m.kind==='codeshare'){
@@ -175,15 +176,15 @@ function inboxHtml(){
   const tr=Object.entries(S.truce||{}).filter(([c,u])=>u>S.time).map(([c,u])=>`🕊️ Trêve avec ${esc((aiBy(c)||{}).name||c)} jusqu’au ${fmtDate(u)}`);
   const head=[...ally,...cs,...tr].length?`<div class="simplehelp">${[...ally,...cs,...tr].join('<br>')}</div>`:'';
   return head+L.slice(0,25).map(m=>`<div class="mail ${m.st}">
-    <div class="mail-h"><span class="mail-av" style="background:${m.color}">${esc(m.ceo.split(' ').map(x=>x[0]).join(''))}</span>
-      <div><b>${esc(m.subj)}</b><br><small class="mut">${esc(m.ceo)}, PDG de ${esc(m.from)} · ${fmtDate(m.t)} ${fmtTime(m.t)}</small></div></div>
+    <div class="mail-h"><span class="mail-av" style="background:${m.color}">${m.pav?`<span style="font-size:22px">${m.pav}</span>`:esc(m.ceo.split(' ').map(x=>x[0]).join(''))}</span>
+      <div><b>${esc(m.subj)}</b><br><small class="mut">${esc(m.ceo)}, ${m.kind&&m.kind.startsWith('pax')?(m.pF?'passagère':'passager')+' · service client':'PDG de '+esc(m.from)} · ${fmtDate(m.t)} ${fmtTime(m.t)}</small></div></div>
     <div class="mail-b">${m.body}</div>
     ${m.st==='new'?`<div class="mail-a">${m.opts.map(o=>`<button class="btn sm${o.k==='ok'||o.k==='resist'||o.k==='nice'?' gold':''}" data-act="mailAns" data-id="${m.id}" data-k="${o.k}">${o.l}</button>`).join('')}<small class="mut">Réponse attendue avant le ${fmtDate(m.exp)}</small></div>`
       : `<div class="mail-r">${m.st==='exp'?'⌛ Sans réponse — offre expirée.':esc(m.res||'')}</div>`}
   </div>`).join('');
 }
 function registerInboxActions(){
-  MODALS.inbox=()=>showModal('📬 Messagerie — PDG des autres compagnies', inboxHtml(), true);
+  MODALS.inbox=()=>showModal('📬 Messagerie — PDG rivaux et passagers', inboxHtml(), true);
   Object.assign(ACTIONS,{
     inbox:()=>openM('inbox'),
     mailAns:d=>mailAnswer(d.id,d.k),
