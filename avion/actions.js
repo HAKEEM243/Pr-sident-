@@ -316,6 +316,7 @@ function boot(){
   if(booted) return; booted=true;
   initMap(); renderTabs();
   if(localStorage.getItem('se-news')!=='v8'){ try{ localStorage.setItem('se-news','v8'); }catch(e){} setTimeout(()=>toast('Nouveau : 🎥 vue de vol 3D façon simulateur (bouton sur la fiche d’un vol), 🏙️ Ville 3D avec monuments, et 📬 messagerie : les PDG rivaux vous écrivent !','ok'),1500); }
+  if(typeof maybeInstallHint==='function') maybeInstallHint();
   renderTop(); setTab(window.innerWidth<820?'map':(isSimple()?'network':'dash'));
   updatePlanes(); updateRival();
   let last=performance.now(), acc1=0, acc2=0, acc30=0, acc10=0;
