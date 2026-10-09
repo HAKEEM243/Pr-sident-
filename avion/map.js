@@ -432,17 +432,38 @@ function updateParked(){
 /* ---------- avions du rival ---------- */
 // Marqueurs conservés d'une image à l'autre et déplacés en douceur (plus de reconstruction chaque seconde)
 const rivalPool=new Map();
+// Les avions des autres compagnies suivent le même profil que les vôtres : roulage, décollage dans l'axe
+// de la vraie piste, montée, croisière, approche, atterrissage, dégagement et roulage jusqu'au poste.
+const TRAFFIC_MODEL={prop:'AT76', nb:'A20N', wb:'B789'};
 function rivalPos(r,i,t){
-  const A=AP(r.a), B=AP(r.b), d=r._d||(r._d=gcDist(A,B)), v=d<1200?520:850;
-  const T=2*(d/v*HOUR+1.2*HOUR), cnt=Math.min(r.freq,3);
-  const ph=((t+i*T/cnt+hashStr(r.a+r.b)*1000)%T)/T;
-  let f, from=A, to=B;
-  if(ph<0.5){ f=ph*2; } else { f=(ph-0.5)*2; from=B; to=A; }
-  f=clamp((f-0.08)/0.84,0,1);
-  if(f<=0||f>=1) return null;
-  const p=gcInterp(from,to,f), q=gcInterp(from,to,Math.min(1,f+0.01));
-  return {p, hdg:bearing(p,q), from, to, d};
+  const A=AP(r.a), B=AP(r.b); if(!A||!B) return null;
+  // tout ce qui ne dépend pas de l'heure est calculé une seule fois par ligne
+  let K=r._tk;
+  if(!K){ const d=gcDist(A,B), cat=d<1200?'prop':d<5000?'nb':'wb', m=getModel(TRAFFIC_MODEL[cat]); if(!m) return null;
+    const pA=legProfile(d,m,0,r.a,r.b), pB=legProfile(d,m,0,r.b,r.a), turn=55*MIN;
+    K=r._tk={d,cat,m,pA,pB,turn,T:pA.total+pB.total+2*turn,h:hashStr(r.a+r.b)*1000,AB:null,BA:null}; }
+  const d=K.d, cat=K.cat, m=K.m, pA=K.pA, pB=K.pB, turn=K.turn, T=K.T, cnt=Math.max(1,Math.min(r.freq||1,5));
+  let rel=((t+i*T/cnt+K.h)%T+T)%T, from=r.a, to=r.b, prof=pA, dir='AB';
+  if(rel>=pA.total+turn){ rel-=pA.total+turn; from=r.b; to=r.a; prof=pB; dir='BA'; }
+  if(rel>=prof.total) return null;                    // au poste, entre deux vols
+  const seg=prof.segs.find(x=>rel<x.t1)||prof.segs[prof.segs.length-1];
+  if(seg.ph===0) return null;                         // embarquement : avion au poste
+  const u=seg.t1>seg.t0? clamp((rel-seg.t0)/(seg.t1-seg.t0),0,1) : 1;
+  let uD=u, alt=seg.a0+(seg.a1-seg.a0)*u;
+  if(seg.ph===2){ const R=0.45; if(u<R){ const k=u/R; uD=0.4*k*k; alt=0; } else { const k=(u-R)/(1-R); uD=0.4+0.6*k; alt=seg.a1*Math.pow(k,1.3); } }
+  else if(seg.ph===7){ uD=1-(1-u)*(1-u); alt=u<0.12? seg.a0*Math.pow(1-u/0.12,1.6) : 0; }
+  let pp;
+  if(seg.ph===4){ // croisière : grand cercle direct (pas besoin du tracé des pistes, bien plus rapide)
+    const F=AP(from), Tt=AP(to), f=clamp((seg.d0+(seg.d1-seg.d0)*u)/d,0,1), a=gcInterp(F,Tt,f), b2=gcInterp(F,Tt,Math.min(1,f+0.002));
+    return {p:{lat:a.lat,lon:a.lon}, hdg:bearing(a,b2), from:F, to:Tt, d, alt, ph:4, gnd:false, cat};
+  }
+  const path=K[dir]||(K[dir]=legPath({from,to,dist:d},m)), fake={id:r.a+r.b+i};
+  if(seg.ph===1) pp=polyAt(taxiOutPts(path,gateSlot(from,fake)),u);
+  else if(seg.ph>=8) pp=polyAt(taxiInPts(path,gateSlot(to,fake)),u);
+  else { const dd=seg.d0+(seg.d1-seg.d0)*uD; pp=pointOnPath(path, clamp(dd/d,0,1)*path.total); }
+  return {p:{lat:pp.lat,lon:pp.lon}, hdg:pp.hdg, from:AP(from), to:AP(to), d, alt, ph:seg.ph, gnd:alt<5, cat};
 }
+const phaseLbl=q=>q.ph===2?(q.gnd?'🛫 décolle':'🛫 décollage'):q.ph===7?(q.gnd?'🛬 atterrit':'🛬 toucher'):(q.ph===6&&q.alt<450)?'🛬 finale':'';
 function routeBBox(r){
   if(r._bb) return r._bb;
   const A=AP(r.a), B=AP(r.b); let minLat=1e9,maxLat=-1e9,minLon=1e9,maxLon=-1e9, prev=A.lon;
@@ -487,13 +508,15 @@ function drawRivals(){
     const p=map.latLngToContainerPoint([e.lat,e.lon]); e.px=p.x; e.py=p.y;
     if(p.x<-30||p.y<-30||p.x>W+30||p.y>H+30) continue;
     const img=rivalSprite(e.R.color,e.cat); if(!img) continue;
-    g.save(); g.translate(p.x,p.y); g.rotate(e.hdg*Math.PI/180); g.globalAlpha=0.92; g.drawImage(img,-sz/2,-sz/2,sz,sz); g.restore();
+    const k=e.gnd?0.72:1, z=Math.round(sz*k);
+    g.save(); g.translate(p.x,p.y); g.rotate(e.hdg*Math.PI/180); g.globalAlpha=e.gnd?1:0.92; g.drawImage(img,-z/2,-z/2,z,z); g.restore();
+    if(e.lbl&&sz>=22){ g.font='600 10px system-ui'; g.fillStyle='#fff'; g.strokeStyle='rgba(0,0,0,.75)'; g.lineWidth=3; g.strokeText(e.lbl,p.x+z/2+2,p.y+3); g.fillText(e.lbl,p.x+z/2+2,p.y+3); }
   }
 }
 function clearRivals(){ rivalPool.clear(); rivalHover=null; _rvDirty=true; }
 function setRivalSize(){ _rvDirty=true; }
 function rivalTip(e){ const q=rivalPos(e.r,e.i,simNow()); if(!q) return `<b>${e.R.name}</b>`; const mn=typeof realMinutes==='function'?realMinutes(e.r.a,e.r.b):0;
-  return `<b>${e.R.name}</b> <span class="mut">${e.R.code}</span><br>${q.from.city} (${q.from.code}) → ${q.to.city} (${q.to.code})<br><span class="mut">${num(q.d)} km${mn?` · vol réel ≈ ${fmtDur(mn*MIN)}`:''}</span>`; }
+  return `<b>${e.R.name}</b> <span class="mut">${e.R.code}</span><br>${q.from.city} (${q.from.code}) → ${q.to.city} (${q.to.code})<br>${PHASES[q.ph]}${q.gnd?'':` · ${num(Math.round(q.alt*3.28/100)*100)} ft`}<br><span class="mut">${num(q.d)} km${mn?` · vol réel ≈ ${fmtDur(mn*MIN)}`:''}</span>`; }
 function updateRival(){
   if(!map) return;
   if(!MAPOPT.rival || !S.rivals){ if(rivalPool.size) clearRivals(); return; }
@@ -516,7 +539,7 @@ function updateRival(){
       const key=R.code+'|'+r.a+'|'+r.b+'|'+i; if(want.has(key)) continue; want.add(key);
       let e=rivalPool.get(key);
       if(!e){ e={R,r,i,cat:q.d<1200?'prop':q.d<5000?'nb':'wb'}; rivalPool.set(key,e); }
-      e.lat=q.p.lat; e.lon=lon; e.hdg=q.hdg;
+      e.lat=q.p.lat; e.lon=lon; e.hdg=q.hdg; e.gnd=q.gnd; e.lbl=phaseLbl(q);
     }
   }
   for(const k of rivalPool.keys()) if(!want.has(k)) rivalPool.delete(k);
@@ -525,7 +548,7 @@ function updateRival(){
 function animateRivals(t,b){
   for(const e of rivalPool.values()){
     const q=rivalPos(e.r,e.i,t); if(!q) continue;
-    e.lat=q.p.lat; e.lon=unwrapLon(q.p.lon,e.lon); e.hdg=q.hdg;
+    e.lat=q.p.lat; e.lon=unwrapLon(q.p.lon,e.lon); e.hdg=q.hdg; e.gnd=q.gnd; e.lbl=phaseLbl(q);
   }
   _rvDirty=true;
 }
