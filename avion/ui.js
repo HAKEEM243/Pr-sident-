@@ -620,7 +620,7 @@ function pCompany(){
   <h3>Contrats cargo</h3>${cargoHtml()}
   <h3>Paramètres</h3>
   <div class="card">
-    <div>Vitesse du temps :</div><div class="chips">${Object.entries(SPEEDS).map(([k,v])=>`<button class="chip ${S.speed===k?'on':''}" data-speed="${k}">${v.label} (×${v.mult})</button>`).join('')}</div>
+    <div>Vitesse du temps :</div><div class="chips">${Object.entries(SPEEDS).filter(([k,v])=>!v.hide).map(([k,v])=>`<button class="chip ${S.speed===k?'on':''}" data-speed="${k}">${v.label} (×${v.mult})</button>`).join('')}</div>
     <div class="mut small">Réaliste = temps réel. Standard : 1 s = 1 min. Rapide : 1 s = 10 min. Le jeu continue quand la page est fermée (jusqu’à 30 jours rattrapés).</div>
     <label class="tog"><input type="checkbox" data-in="notif" ${S.notifications?'checked':''}> Notifications du navigateur</label>
     <div class="btns sm"><button class="btn sm" data-act="guideReset">🎓 Revoir le tutoriel</button><button class="btn sm" data-act="export">⬇ Exporter</button><button class="btn sm" data-act="import">⬆ Importer</button><button class="btn sm danger" data-act="reset">Nouvelle partie</button></div>
