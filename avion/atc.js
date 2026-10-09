@@ -21,12 +21,18 @@ function atcPlanLeg(l,m,ac){
   const kD=rwyKey(l.from,path.dep), kA=rwyKey(l.to,path.arr), fn=S.company.code+(typeof flightNumber==='function'?flightNumber(ac):'');
   let tTO=l.dep+sTO.t0, c, n=0;
   while((c=atcFree(kD,tTO,tTO+ATC_TO,ac.id))&&n++<40){ tTO=c.e+ATC_GAP+1000; }
-  l.hOut=Math.min(25*MIN,Math.max(0,tTO-(l.dep+sTO.t0)));
-  const t0L=l.dep+sLD.t0+l.hOut; let tLD=t0L; n=0;
-  for(;;){ while((c=atcFree(kA,tLD-ATC_LDG*0.6,tLD+ATC_LDG,ac.id))&&n++<60){ tLD=c.e+ATC_GAP+ATC_LDG*0.6+1000; }
-    // un circuit d'attente dure au moins 4 min : on arrondit puis on revérifie la piste
-    if(tLD>t0L&&tLD-t0L<4*MIN){ tLD=t0L+4*MIN; if(atcFree(kA,tLD-ATC_LDG*0.6,tLD+ATC_LDG,ac.id)&&n<60) continue; }
-    break; }
+  let hOut=Math.min(40*MIN,Math.max(0,tTO-(l.dep+sTO.t0))), t0L=l.dep+sLD.t0+hOut, tLD=t0L; n=0;
+  // le contrôleur régule au sol : si la piste d'arrivée sera occupée, on retarde le départ de quelques minutes
+  // plutôt que de faire tourner l'avion en l'air (circuit d'attente seulement en dernier recours)
+  for(let it=0;it<10;it++){
+    tLD=t0L; n=0; while((c=atcFree(kA,tLD-ATC_LDG*0.6,tLD+ATC_LDG,ac.id))&&n++<60){ tLD=c.e+ATC_GAP+ATC_LDG*0.6+1000; }
+    const need=tLD-t0L; if(need<=0||hOut+need>40*MIN) break;
+    tTO=l.dep+sTO.t0+hOut+need; n=0; while((c=atcFree(kD,tTO,tTO+ATC_TO,ac.id))&&n++<40){ tTO=c.e+ATC_GAP+1000; }
+    hOut=Math.min(40*MIN,Math.max(0,tTO-(l.dep+sTO.t0))); t0L=l.dep+sLD.t0+hOut;
+  }
+  l.hOut=hOut;
+  // reste-t-il un conflit à l'arrivée ? alors seulement un circuit d'attente (au moins 4 min)
+  if(tLD>t0L&&tLD-t0L<4*MIN){ tLD=t0L+4*MIN; n=0; while((c=atcFree(kA,tLD-ATC_LDG*0.6,tLD+ATC_LDG,ac.id))&&n++<60){ tLD=c.e+ATC_GAP+ATC_LDG*0.6+1000; } }
   l.hIn=Math.min(35*MIN,Math.max(0,tLD-t0L)); tLD=t0L+l.hIn;
   atcList(kD).push({s:l.dep+sTO.t0+l.hOut, e:l.dep+sTO.t0+l.hOut+ATC_TO, ac:ac.id, k:'D', fn, o:l.to});
   atcList(kA).push({s:tLD-ATC_LDG*0.6, e:tLD+ATC_LDG, ac:ac.id, k:'A', fn, o:l.from});
