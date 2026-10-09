@@ -240,6 +240,11 @@ function setCam(mode){
   renderGlobeHud();
 }
 function globeFollowTick(){
+  // caméra libre (aucun avion suivi) : les aéroports en 3D apparaissent quand on s'en approche
+  if(G&&!G.follow&&!G.noWorld&&!$('#globe').hidden){ const now=performance.now(); if(!G.freeAt||now-G.freeAt>1500){ G.freeAt=now;
+    try{ const cp=G.viewer.camera.positionCartographic, h=cp&&cp.height;
+      if(h!==undefined&&h<60000){ const ll={lat:Cesium.Math.toDegrees(cp.latitude),lon:Cesium.Math.toDegrees(cp.longitude)}; G.cam.free=true; if(typeof nightTick==='function') nightTick({st:ll}); airportsTick({st:ll,h}); }
+      else if(G.apNear&&G.cam.free){ G.cam.free=false; worldClear(); } }catch(e){ console.warn(e); } } }
   if(!G||!G.follow||$('#globe').hidden) return;
   const ac=S.fleet.find(a=>a.id===G.follow); if(!ac) return;
   const p=acPose(ac); if(!p) return;
