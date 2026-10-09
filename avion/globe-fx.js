@@ -318,7 +318,7 @@ function fxSound(ac,st,inside,raining){
   // événements
   const L=s.last;
   if(L.ground===false&&ground&&ph===7) fxBurst('touch');
-  const gear=st.alt<600||ph<=2||ph>=6; if(L.gear!==undefined&&L.gear!==gear&&!ground) fxBurst('gear');
+  const gear=AC3D.cfg(ph,st.alt,ground,st.spd,st.holding==='in',st.pushback,'nb').gear>0.5; if(L.gear!==undefined&&L.gear!==gear&&!ground) fxBurst('gear');
   if(inside&&L.ph!==undefined&&L.ph!==ph&&(ph===2||ph===6)) fxBurst('chime');
   L.ground=ground; L.gear=gear; L.ph=ph;
 }

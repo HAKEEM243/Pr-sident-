@@ -126,6 +126,22 @@ function acPose(ac){
   return {pos,q,st,a,gear,mi,h};
 }
 
+// volets, train, aérofreins, inverseurs et hublots éclairés : suivent la phase de vol, à vitesse réaliste
+function acAnimate(an,mi,ph,alt,gnd,spd,hold,push,lat,lon){
+  const now=performance.now(), tg=AC3D.cfg(ph,alt,gnd,spd,hold,push,mi.v);
+  if(!an.t){ Object.assign(an,tg); an.litAt=0; }
+  else AC3D.step(an,tg,Math.min(0.5,(now-an.t)/1000)*Math.max(1,Math.min(20,(SPEEDS[S.speed]||{mult:1}).mult)));
+  an.t=now;
+  if(now-an.litAt>2500){ an.litAt=now; const el=(G&&G.viewer.scene.globe.enableLighting&&!G.forceDay&&typeof sunElevAt==='function')? sunElevAt(lat,lon) : 45;
+    an.lit=el<-4; an.el=el; }
+}
+// lumière du soleil sur l'avion : nuit sombre (seuls hublots et feux brillent), lumière dorée à l'aube et au crépuscule
+function acLight(an,out){
+  const el=an.el===undefined?45:an.el, k=Math.max(0.1,Math.min(1,(el+5)/13)), w=Math.max(0,1-Math.abs(el-3)/9)*0.35;
+  out=out||{c:new Cesium.Cartesian3(), f:new Cesium.Cartesian2()};
+  Cesium.Cartesian3.fromElements(2*k, 2*k*(1-w*0.45), 2*k*(1-w), out.c); Cesium.Cartesian2.fromElements(k,k,out.f); return out;
+}
+
 /* ---------- synchronisation avec la simulation ---------- */
 function globeSync(full){
   if(!G) return;
@@ -139,15 +155,18 @@ function globeSync(full){
     seen.add(ac.id);
     if(G.planes.has(ac.id)) continue;
     const m=modelOf(ac), mi=modelInfo(m,liveryOf(ac));
-    let pose=null, poseAt=-1;
+    let pose=null, poseAt=-1; const an={}, nt={};
     const P=()=>{ const now=performance.now(); if(now!==poseAt){ pose=acPose(ac); poseAt=now; } return pose; };
     const ent=V.entities.add({
       position:new C.CallbackProperty(()=>{ const p=P(); return p&&p.pos; },false),
       orientation:new C.CallbackProperty(()=>{ const p=P(); return p&&p.q; },false),
       model:{uri:mi.uri, scale:1, minimumPixelSize:54, maximumScale:20000, runAnimations:false, shadows:C.ShadowMode.CAST_ONLY,
-        nodeTransformations:new C.PropertyBag({gear:new C.CallbackProperty(()=>{ const p=P(); const s=p&&p.gear?1:0.001; return new C.TranslationRotationScale(C.Cartesian3.ZERO,C.Quaternion.IDENTITY,new C.Cartesian3(s,s,s)); },false)})},
+},
       label:{text:`${S.company.code}${flightNumber(ac)} · ${m.name}`, font:'600 13px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new C.Cartesian2(0,-38), distanceDisplayCondition:new C.DistanceDisplayCondition(2500,4e6), scale:0.9},
     });
+    // (affecté après coup : passé au constructeur, Cesium transformerait le rappel en simple sac de propriétés)
+    const lo=acLight(an); ent.model.lightColor=new C.CallbackProperty(()=>acLight(an,lo).c,false); ent.model.imageBasedLightingFactor=new C.CallbackProperty(()=>lo.f,false);
+    ent.model.nodeTransformations=new C.CallbackProperty(()=>{ const p=P(); if(!p) return nt; const st=p.st; acAnimate(an,p.mi,st.phase,st.alt,st.alt<0.6,st.spd,st.holding==='in',st.pushback,st.lat,st.lon); return AC3D.pose(p.mi,an,nt); },false);
     ent._acId=ac.id; G.planes.set(ac.id,ent);
   }
   for(const [id,ent] of G.planes) if(!seen.has(id)){ V.entities.remove(ent); G.planes.delete(id); G.att.delete(id); if(G.follow===id){ const nx=S.fleet.find(a=>a.status==='flight'&&a.flight&&a.id!==id); if(nx){ toast('🛬 Arrivé au parking ! On passe à un autre de vos vols en cours…','ok'); globeSync(false); globeFollow(nx.id); } else { globeFollow(null); toast('🛬 L’avion suivi est arrivé au parking','ok'); } } }
@@ -185,14 +204,16 @@ function drawGlobeRivals(){
   for(const {R,r,q:q0} of cands){
     if(n>=(GQ.hq?60:22)) return;
     const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color);
-    let q=q0, qAt=-1;
+    let q=q0, qAt=-1; const an={}, nt={};
     const Q=()=>{ const now=performance.now(); if(now!==qAt){ qAt=now; q=rivalPos(r,0,gSimNow())||q; } return q; };
     const posOf=()=>{ const v=Q(); const e=typeof gElev==='function'?gElev(gcDist(v.p,v.from)<gcDist(v.p,v.to)?v.from.code:v.to.code):0; return C.Cartesian3.fromDegrees(v.p.lon,v.p.lat,Math.max(v.alt||0,mi.R+mi.gH+0.4)+e); };
-    G.rivals.push(V.entities.add({position:new C.CallbackProperty(posOf,false),
+    const re=V.entities.add({position:new C.CallbackProperty(posOf,false),
       orientation:new C.CallbackProperty(()=>{ const v=Q(), pos=posOf(); const pitch=v.ph===2&&!v.gnd?8:v.ph===3?6:v.ph===6||v.ph===5?-2:0; return C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(v.hdg-90),C.Math.toRadians(pitch),0)); },false),
       model:{uri:mi.uri, scale:1, minimumPixelSize:26, maximumScale:20000, show:new C.CallbackProperty(()=>rivalVisible(posOf()),false)},
-      label:{show:new C.CallbackProperty(()=>rivalVisible(posOf()),false), text:new C.CallbackProperty(()=>{ const v=Q(); return R.name+(v.ph===2?' · 🛫':v.ph===7?' · 🛬':''); },false), font:'600 11px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new C.Cartesian2(0,-24), distanceDisplayCondition:new C.DistanceDisplayCondition(0,60000), scale:0.85}}));
-    n++;
+      label:{show:new C.CallbackProperty(()=>rivalVisible(posOf()),false), text:new C.CallbackProperty(()=>{ const v=Q(); return R.name+(v.ph===2?' · 🛫':v.ph===7?' · 🛬':''); },false), font:'600 11px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new C.Cartesian2(0,-24), distanceDisplayCondition:new C.DistanceDisplayCondition(0,60000), scale:0.85}});
+    const lo=acLight(an); re.model.lightColor=new C.CallbackProperty(()=>acLight(an,lo).c,false); re.model.imageBasedLightingFactor=new C.CallbackProperty(()=>lo.f,false);
+    re.model.nodeTransformations=new C.CallbackProperty(()=>{ const v=Q(); acAnimate(an,mi,v.ph,v.alt||0,!!v.gnd,undefined,v.holding==='in',false,v.p.lat,v.p.lon); return AC3D.pose(mi,an,nt); },false);
+    G.rivals.push(re); n++;
   }
 }
 
