@@ -143,7 +143,7 @@ function globeSync(full){
   }
   for(const [id,ent] of G.planes) if(!seen.has(id)){ V.entities.remove(ent); G.planes.delete(id); G.att.delete(id); if(G.follow===id){ const nx=S.fleet.find(a=>a.status==='flight'&&a.flight&&a.id!==id); if(nx){ toast('🛬 Arrivé au parking ! On passe à un autre de vos vols en cours…','ok'); globeSync(false); globeFollow(nx.id); } else { globeFollow(null); toast('🛬 L’avion suivi est arrivé au parking','ok'); } } }
   if(full || (G.netKey!==netKey())){ drawGlobeNetwork(); }
-  if(full || !G.rivAt || performance.now()-G.rivAt>3000){ G.rivAt=performance.now(); drawGlobeRivals(); }
+  if(full || !G.rivAt || performance.now()-G.rivAt>20000){ G.rivAt=performance.now(); drawGlobeRivals(); }
 }
 const netKey=()=>S.routes.map(r=>r.id).join()+'|'+S.hubs.join()+'|'+S.company.color;
 function drawGlobeNetwork(){
@@ -169,14 +169,20 @@ function drawGlobeRivals(){
   // autour de l'avion suivi : le trafic réel des aéroports proches
   if(G.follow&&typeof visibleRealRoutes==='function'){ const ac=S.fleet.find(a=>a.id===G.follow), st=ac&&flightState(ac,t);
     if(st){ const b=L.latLngBounds([st.lat-6,st.lon-8],[st.lat+6,st.lon+8]); list.unshift(...visibleRealRoutes(b,st.lon,15)); } }
-  for(const {R,r} of list){
-    if(n>=70) return;
-    const q=typeof rivalPos==='function'? rivalPos(r,0,t) : null; if(!q) continue;
-    const pos=C.Cartesian3.fromDegrees(q.p.lon,q.p.lat,q.d<1200?6500:10800);
-    const cat=q.d<1200?'prop':q.d<5000?'nb':'wb', mi=modelInfo(getModel(REP_MODEL[cat])||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color);
-    G.rivals.push(V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(q.hdg-90),0,0)),
+  // les plus proches d'abord (roulage, décollages et atterrissages autour de vous)
+  const fol=G.follow&&S.fleet.find(a=>a.id===G.follow), fst=fol&&flightState(fol,t);
+  const cands=[]; for(const it of list.slice(0,600)){ const q=typeof rivalPos==='function'? rivalPos(it.r,0,t) : null; if(q) cands.push({...it,q,dd:fst?gcDist(q.p,fst):0}); }
+  if(fst) cands.sort((x,y)=>x.dd-y.dd);
+  for(const {R,r,q:q0} of cands){
+    if(n>=60) return;
+    const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color);
+    let q=q0, qAt=-1;
+    const Q=()=>{ const now=performance.now(); if(now!==qAt){ qAt=now; q=rivalPos(r,0,gSimNow())||q; } return q; };
+    const posOf=()=>{ const v=Q(); return C.Cartesian3.fromDegrees(v.p.lon,v.p.lat,Math.max(v.alt||0,mi.R+mi.gH+0.4)); };
+    G.rivals.push(V.entities.add({position:new C.CallbackProperty(posOf,false),
+      orientation:new C.CallbackProperty(()=>{ const v=Q(), pos=posOf(); const pitch=v.ph===2&&!v.gnd?8:v.ph===3?6:v.ph===6||v.ph===5?-2:0; return C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(v.hdg-90),C.Math.toRadians(pitch),0)); },false),
       model:{uri:mi.uri, scale:1, minimumPixelSize:26, maximumScale:20000},
-      label:{text:R.name, font:'600 11px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new C.Cartesian2(0,-24), distanceDisplayCondition:new C.DistanceDisplayCondition(0,60000), scale:0.85}}));
+      label:{text:new C.CallbackProperty(()=>{ const v=Q(); return R.name+(v.ph===2?' · 🛫':v.ph===7?' · 🛬':''); },false), font:'600 11px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new C.Cartesian2(0,-24), distanceDisplayCondition:new C.DistanceDisplayCondition(0,60000), scale:0.85}}));
     n++;
   }
 }
