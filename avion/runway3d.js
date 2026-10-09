@@ -70,7 +70,7 @@ function runwayEntity(code,r,W){
   const C=Cesium, key=code+'|'+r.id+'|'+Math.round(r.len);
   let url=RWY3D.cache.get(key);
   if(!url){ const twin=runwaysOf(code).find(x=>x!==r&&x.thr===r.end); const cv=rwyTexture({...r,twinId:twin&&twin.id},W,r.len,r.hard); url=rwyGlb(cv,W,r.len); RWY3D.cache.set(key,url); }
-  const pos=C.Cartesian3.fromDegrees(r.thr.lon,r.thr.lat,0.3);
+  const pos=C.Cartesian3.fromDegrees(r.thr.lon,r.thr.lat,0.3+(typeof gElev==='function'?gElev(code):0));
   return G.viewer.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(r.hdg-90),0,0)),
     model:{uri:url, scale:1, minimumPixelSize:0, shadows:C.ShadowMode.RECEIVE_ONLY, distanceDisplayCondition:new C.DistanceDisplayCondition(0,90000)}});
 }

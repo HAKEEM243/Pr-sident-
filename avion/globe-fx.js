@@ -174,7 +174,7 @@ function fxCamera(ac,p,c){
     if(rw){
       const key=(ph<=3?'d':'a')+leg.from+leg.to+leg.dep;
       if(!FX.spot||FX.spot.key!==key){ const along=(ph<=3?0.62:0.28)*rw.len/1000, q=destPt(rw.thr.lat,rw.thr.lon,rw.hdg,along), s=destPt(q.lat,q.lon,rw.hdg+90,0.16);
-        FX.spot={key, pos:C.Cartesian3.fromDegrees(s.lon,s.lat,14)}; }
+        FX.spot={key, pos:C.Cartesian3.fromDegrees(s.lon,s.lat,14+(typeof gElev==='function'?gElev(ph<=3?leg.from:leg.to):0))}; }
       const dir=C.Cartesian3.normalize(C.Cartesian3.subtract(p.pos,FX.spot.pos,new C.Cartesian3()),new C.Cartesian3());
       const up=C.Ellipsoid.WGS84.geodeticSurfaceNormal(FX.spot.pos,new C.Cartesian3());
       const right=C.Cartesian3.normalize(C.Cartesian3.cross(dir,up,new C.Cartesian3()),new C.Cartesian3()), up2=C.Cartesian3.cross(right,dir,new C.Cartesian3());
@@ -363,7 +363,7 @@ function fxPapi(ac,p){
   const P=FX.papi; P.show=show; if(!show) return;
   const path=legPath(st.leg,modelOf(ac)), rw=path.arr; if(!rw){ P.show=false; return; }
   const key=st.leg.to+rw.id; if(FX.papiKey!==key){ FX.papiKey=key; P.removeAll(); const W=Math.max(23,rw.wid||45), q=destPt(rw.thr.lat,rw.thr.lon,rw.hdg,0.3);
-    for(let i=0;i<4;i++){ const s=destPt(q.lat,q.lon,rw.hdg-90,(W/2+15+i*9)/1000); P.add({position:C.Cartesian3.fromDegrees(s.lon,s.lat,1.5),pixelSize:8,color:C.Color.WHITE,scaleByDistance:new C.NearFarScalar(200,1.8,12000,0.6)}); }
+    for(let i=0;i<4;i++){ const s=destPt(q.lat,q.lon,rw.hdg-90,(W/2+15+i*9)/1000); P.add({position:C.Cartesian3.fromDegrees(s.lon,s.lat,1.5+(typeof gElev==='function'?gElev(st.leg.to):0)),pixelSize:8,color:C.Color.WHITE,scaleByDistance:new C.NearFarScalar(200,1.8,12000,0.6)}); }
     FX.papiRef=destPt(rw.thr.lat,rw.thr.lon,rw.hdg,0.3); }
   const dist=Math.max(1,gcDist(FX.papiRef,{lat:st.lat,lon:st.lon})*1000), ang=Math.atan2(st.alt,dist)*180/Math.PI;
   [3.5,3.17,2.83,2.5].forEach((th,i)=>{ P.get(i).color=ang>th?C.Color.WHITE:C.Color.RED; });   // 2 blancs + 2 rouges = sur le plan de descente

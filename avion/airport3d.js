@@ -58,7 +58,8 @@ const M_BELT=()=>{ const g=C3('#4b5563'), y=C3('#facc15'); return [[-0.8,0.8,0.3
 function rwPt(r,a,x){ return fromRw(r,a,x); }
 function airportProps(code,N){
   const C=Cesium, V=G.viewer, ap=apronOf(code), r=ap.rw; if(!r) return;
-  const mk=(p,hdg,url,minPx)=>{ const pos=C.Cartesian3.fromDegrees(p.lon,p.lat,0.2); N.ents.push(V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(hdg-90),0,0)), model:{uri:url, minimumPixelSize:minPx||0, shadows:C.ShadowMode.ENABLED, distanceDisplayCondition:new C.DistanceDisplayCondition(0,30000)}})); };
+  const EL=typeof gElev==='function'?gElev(code):0;
+  const mk=(p,hdg,url,minPx)=>{ const pos=C.Cartesian3.fromDegrees(p.lon,p.lat,0.2+EL); N.ents.push(V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(hdg-90),0,0)), model:{uri:url, minimumPixelSize:minPx||0, shadows:C.ShadowMode.ENABLED, distanceDisplayCondition:new C.DistanceDisplayCondition(0,30000)}})); };
   const s=ap.side, gx=ap.x, a0=ap.a, A=AP(code), big=A.cls>=3, hdgOut=(r.hdg+90*s+360)%360;
   const span=big?1900:700, n=big?22:8;
   // terminal derrière la ligne de portes
@@ -70,7 +71,7 @@ function airportProps(code,N){
   // avions d'autres compagnies garés aux premières portes
   if(typeof AC3D!=='undefined'){ const al=(typeof airlinesAt==='function'?airlinesAt(code):[]).slice(0,6).map(([c])=>c);
     for(let k=0;k<Math.min(6,n);k++){ if(!al.length) break; const c=al[k%al.length], sp=slotPt(code,k), m=getModel(k%3===0&&big?'B789':k%2?'A20N':'B738')||getModel('A20N');
-      const mi=AC3D.uri(m,typeof airlineColor==='function'?airlineColor(c):'#64748b'), pos=C.Cartesian3.fromDegrees(sp.lon,sp.lat,mi.R+mi.gH+0.4);
+      const mi=AC3D.uri(m,typeof airlineColor==='function'?airlineColor(c):'#64748b'), pos=C.Cartesian3.fromDegrees(sp.lon,sp.lat,mi.R+mi.gH+0.4+EL);
       N.ents.push(V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(hdgOut-90),0,0)), model:{uri:mi.uri, shadows:C.ShadowMode.CAST_ONLY, distanceDisplayCondition:new C.DistanceDisplayCondition(0,25000)}})); } }
 }
 

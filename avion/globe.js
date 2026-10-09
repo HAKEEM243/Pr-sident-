@@ -61,6 +61,7 @@ function initGlobe(){
   const sc=viewer.scene;
   try{ const base=viewer.imageryLayers.get(0); base.saturation=1.32; base.contrast=1.12; base.brightness=1.04; base.gamma=1.04; }catch(e){}
   try{ sc.postProcessStages.fxaa.enabled=true; }catch(e){}
+  try{ if(typeof TERRAIN!=='undefined'&&TERRAIN.on){ terrFlattenNetwork(); sc.globe.terrainProvider=terrainProvider(); sc.globe.depthTestAgainstTerrain=true; } }catch(e){ console.warn(e); }
   try{ sc.globe.showGroundAtmosphere=true; sc.globe.atmosphereLightIntensity=12; sc.skyAtmosphere.atmosphereLightIntensity=40; }catch(e){}
   // filet de sécurité : si le rendu plante, on retire les décors optionnels et on redémarre
   viewer.showRenderLoopErrors=false;
@@ -117,7 +118,9 @@ function acPose(ac){
   const t=gSimNow(), st=flightState(ac,t); if(!st) return null;
   const mi=modelInfo(modelOf(ac),liveryOf(ac)), a=attitude(ac,st,t);
   const gear=st.alt<600||st.phase<=2||st.phase>=6;
-  const h=Math.max(st.alt, mi.R+mi.gH+0.4);
+  let h=Math.max(st.alt, mi.R+mi.gH+0.4)+(typeof legElev==='function'?legElev(st.from,st.to,st.frac):0);
+  // jamais à travers une montagne : marge de sécurité au-dessus du relief en route
+  if(typeof TERRAIN!=='undefined'&&TERRAIN.on&&st.alt>30&&st.phase>=3&&st.phase<=5){ const g=groundAt(st.lat,st.lon); if(h<g+300) h=g+300; }
   const pos=Cesium.Cartesian3.fromDegrees(st.lon, st.lat, h);
   const q=Cesium.Transforms.headingPitchRollQuaternion(pos, new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(st.hdg-90), Cesium.Math.toRadians(a.pitch), Cesium.Math.toRadians(a.bank)));
   return {pos,q,st,a,gear,mi,h};
@@ -184,7 +187,7 @@ function drawGlobeRivals(){
     const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color);
     let q=q0, qAt=-1;
     const Q=()=>{ const now=performance.now(); if(now!==qAt){ qAt=now; q=rivalPos(r,0,gSimNow())||q; } return q; };
-    const posOf=()=>{ const v=Q(); return C.Cartesian3.fromDegrees(v.p.lon,v.p.lat,Math.max(v.alt||0,mi.R+mi.gH+0.4)); };
+    const posOf=()=>{ const v=Q(); const e=typeof gElev==='function'?gElev(gcDist(v.p,v.from)<gcDist(v.p,v.to)?v.from.code:v.to.code):0; return C.Cartesian3.fromDegrees(v.p.lon,v.p.lat,Math.max(v.alt||0,mi.R+mi.gH+0.4)+e); };
     G.rivals.push(V.entities.add({position:new C.CallbackProperty(posOf,false),
       orientation:new C.CallbackProperty(()=>{ const v=Q(), pos=posOf(); const pitch=v.ph===2&&!v.gnd?8:v.ph===3?6:v.ph===6||v.ph===5?-2:0; return C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(v.hdg-90),C.Math.toRadians(pitch),0)); },false),
       model:{uri:mi.uri, scale:1, minimumPixelSize:26, maximumScale:20000, show:new C.CallbackProperty(()=>rivalVisible(posOf()),false)},
@@ -238,13 +241,14 @@ function spawnClouds(c){
   const wet=(typeof stormAt==='function'&&stormAt(c.lat,c.lon))?1.6:1;
   for(let i=0;i<Math.round(34*wet);i++){
     const d=rnd(2,70), b=rnd(0,360), q=destPt(c.lat,c.lon,b,d), alt=rnd(900,3400);
-    G.clouds.add({position:C.Cartesian3.fromDegrees(q.lon,q.lat,alt), scale:new C.Cartesian2(rnd(1200,3200),rnd(500,1100)), maximumSize:new C.Cartesian3(rnd(30,60),rnd(14,26),rnd(18,30)), slice:rnd(0.3,0.7), brightness:rnd(0.85,1)});
+    G.clouds.add({position:C.Cartesian3.fromDegrees(q.lon,q.lat,alt+(typeof groundAt==='function'?Math.max(0,groundAt(q.lat,q.lon)):0)), scale:new C.Cartesian2(rnd(1200,3200),rnd(500,1100)), maximumSize:new C.Cartesian3(rnd(30,60),rnd(14,26),rnd(18,30)), slice:rnd(0.3,0.7), brightness:rnd(0.85,1)});
   }
 }
 function globeFollow(id){
   if(!G) return;
   const C=Cesium, sc=G.viewer.scene;
   if(!id){ for(const e of G.planes.values()) e.show=true; G.follow=null; G.viewer.camera.lookAtTransform(C.Matrix4.IDENTITY); sc.screenSpaceCameraController.enableInputs=true; G.trail=[]; if(G.trailEnt){ G.viewer.entities.remove(G.trailEnt); G.trailEnt=null; } if(G.clouds) G.clouds.removeAll(); G.cloudC=null; const hd=$('#rfsHud'); if(hd) hd.hidden=true; worldClear(); if(typeof fxClear==='function') fxClear(); { const rb=document.getElementById('radioBox'); if(rb) rb.remove(); } document.body.classList.remove('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); renderGlobeHud(); return; }
+  if(typeof terrFlatten==='function'){ const f=S.fleet.find(a=>a.id===id), lg=f&&f.flight&&f.flight.legs[f.flight.li]; let n=false; if(lg){ n=terrFlatten(lg.from)|n; n=terrFlatten(lg.to)|n; } if(n) terrReload(); }
   if(!G.tm) G.tm={auto:true, prev:S.speed};
   G.follow=id; sc.screenSpaceCameraController.enableInputs=false; document.body.classList.add('globe-follow'); setTimeout(()=>G&&G.viewer.resize(),30); setCam(G.lastMode&&CAM_MODES[G.lastMode]?G.lastMode:'auto');
   if(!G.trailEnt) G.trailEnt=G.viewer.entities.add({polyline:{positions:new C.CallbackProperty(()=>G.trail.length>1?G.trail:[],false), width:4, material:C.Color.WHITE.withAlpha(0.45)}});
@@ -300,6 +304,7 @@ function renderGlobeHud(){
       <button class="gh" data-act="globeNext">⏭ Avion suivant</button>
       <button class="gh ${typeof FX!=='undefined'&&FX.soundOn?'on':''}" data-act="globeSound">🔊 Son</button>
       <button class="gh ${G.forceDay?'on':''}" data-act="globeDay" title="Toujours en plein jour">☀️ Jour</button>
+      <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief" title="Relief réel (montagnes, vallées)">⛰️ Relief</button>
       <button class="gh" data-act="globeQ" title="Qualité graphique">⚙️ ${GQ.hq?'Haute':'Éco'}</button>
       <button class="gh" data-act="photo">📸 Photo</button>
       <button class="gh" data-act="radar">📡 Radar</button>
@@ -315,6 +320,7 @@ function renderGlobeHud(){
     <button class="gh" data-act="globeFollow" ${flying.length?'':'disabled'}>🎥 Suivre un avion${!sel&&flying.length?' (au hasard)':''}</button>
     <button class="gh" data-act="globeHome">🏠 Mon hub</button>
     <button class="gh ${G.lighting?'on':''}" data-act="globeLight">🌗 Soleil</button>
+    <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief">⛰️ Relief</button>
     <button class="gh ${G.tiles?'on':''}" data-act="google3D">🏙️ Villes 3D Google</button>`;
 }
 Object.assign(ACTIONS,{
@@ -325,6 +331,7 @@ Object.assign(ACTIONS,{
   globeNext:()=>{ const fl=S.fleet.filter(a=>a.status==='flight'); if(!fl.length) return; const i=fl.findIndex(a=>a.id===G.follow); const ac=fl[(i+1)%fl.length]; selectPlane(ac.id); globeFollow(ac.id); },
   globeCam:d=>{ G.lastMode=d.k; setCam(d.k); },
   globeQ:()=>{ GQ.hq=!GQ.hq; try{ localStorage.setItem('se-q',GQ.hq?'h':'e'); }catch(e){} toast(GQ.hq?'⚙️ Qualité haute : ombres, plus de détails (plus lourd)':'⚙️ Mode éco : plus fluide sur téléphone','info'); if(G){ G.viewer.scene.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4; G.rivAt=0; } renderGlobeHud(); },
+  globeRelief:()=>{ TERRAIN.on=!TERRAIN.on; try{ localStorage.setItem('se-relief',TERRAIN.on?'1':'0'); }catch(e){} terrainApply(); toast(TERRAIN.on?'⛰️ Relief réel activé : montagnes, vallées et volcans':'Relief désactivé (terre plate, plus léger)','info'); renderGlobeHud(); },
   globeSound:()=>fxToggleSound(),
   globeRain:()=>{ FX.forceRain=!FX.forceRain; fxAudioUnlock(); renderGlobeHud(); },
   globeDay:()=>{ G.forceDay=!G.forceDay; try{ localStorage.setItem('se-day',G.forceDay?'1':'0'); }catch(e){} globeSync(false); renderGlobeHud(); },
@@ -365,6 +372,7 @@ function osmTick(p){
   const ahead=destPt(p.st.lat,p.st.lon,p.st.hdg,4);
   const cand=[[ci,cj],[Math.floor(ahead.lat/OSM_CELL),Math.floor(ahead.lon/OSM_CELL)]];
   const c=cand.find(([i,j])=>!O.cells.has(i+','+j)); if(!c) return;
+  O.e0=typeof gElev==='function'?gElev(p.st.frac<0.5?p.st.from:p.st.to):0;
   loadOsmCell(c[0],c[1]);
   // ménage : on garde les 8 cases les plus récentes
   if(O.cells.size>8){ const k=O.cells.keys().next().value, prim=O.cells.get(k); if(prim&&prim.destroy) G.viewer.scene.primitives.remove(prim); O.cells.delete(k); }
@@ -379,6 +387,7 @@ async function loadOsmCell(i,j){
   if(!js){ O.fail++; O.cells.delete(key); return; }
   O.fail=0;
   if(!G||!js.elements||!js.elements.length) return;
+  const e0=O.e0||0, gb=v=>{ if(typeof TERRAIN==='undefined'||!TERRAIN.on) return 0; const h=groundAt(v.lat,v.lon); return h>0?h:e0; };
   const C=Cesium, inst=[];
   for(const el of js.elements){
     const g=el.geometry; if(!g||g.length<4) continue;
@@ -388,7 +397,7 @@ async function loadOsmCell(i,j){
     const pos=g.slice(0,-1).flatMap(v=>[v.lon,v.lat]);
     const shade=0.78+((el.id%13)/13)*0.16, tall=Math.min(1,h/80);
     const col=new C.Color(shade-0.1*tall,shade-0.06*tall,shade-0.02*tall+(t.building==='hangar'?0.05:0),1);
-    try{ inst.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(pos)), height:0, extrudedHeight:h, vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(col)}})); }catch(err){}
+    try{ inst.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(pos)), height:gb(g[0])-1, extrudedHeight:gb(g[0])+h, vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(col)}})); }catch(err){}
   }
   if(!inst.length) return;
   const prim=new C.Primitive({geometryInstances:inst, appearance:new C.PerInstanceColorAppearance({flat:false, closed:true}), asynchronous:true, shadows:C.ShadowMode.DISABLED});
@@ -405,9 +414,11 @@ function airportsTick(p){
   for(const e of N.rwy) V.scene.primitives.remove(e); N.rwy=[];
   const near=[]; for(const c of AIRPORT_CODES){ const a=AP(c); if(Math.abs(a.lat-here.lat)>3.5) continue; const d=gcDist(a,here); if(d<320) near.push([d,c,a]); }
   near.sort((x,y)=>x[0]-y[0]);
+  if(typeof terrFlatten==='function'){ let fresh=false; for(const [d,c] of near) if(d<300&&terrFlatten(c)&&d<60) fresh=true; if(fresh) terrReload(); }
   for(const [d,c,a] of near.filter(([d,c,a])=>d<90||a.cls>=3||S.hubs.includes(c)).slice(0,16)){
     const big=a.cls>=3, mine=S.hubs.includes(c);
-    N.ents.push(V.entities.add({position:C.Cartesian3.fromDegrees(a.lon,a.lat,40),
+    const EL=(typeof gElev==='function'?gElev(c):0);
+    N.ents.push(V.entities.add({position:C.Cartesian3.fromDegrees(a.lon,a.lat,40+EL),
       label:{text:`✈ ${c} · ${a.city}`, font:`${big?'700 14px':'600 12px'} system-ui`, fillColor:mine?C.Color.fromCssColorString('#ffe066'):C.Color.fromCssColorString('#e0f2fe'), outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, verticalOrigin:C.VerticalOrigin.BOTTOM, pixelOffset:new C.Cartesian2(0,-6), distanceDisplayCondition:new C.DistanceDisplayCondition(0,big?400000:150000), disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
     if(d>70) continue;
     const surf=[];
@@ -420,9 +431,9 @@ function airportsTick(p){
       const corners=[P(0,-W/2),P(L,-W/2),P(L,W/2),P(0,W/2)];
       // piste texturée (asphalte, marquages, numéros) ; à défaut, surface unie
       let done=false; if(typeof runwayEntity==='function'&&d<45){ try{ N.ents.push(runwayEntity(c,r,W)); done=true; }catch(e){ console.warn(e); } }
-      if(!done) surf.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(corners.flatMap(q=>[q.lon,q.lat]))), height:0.25, vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(r.hard?new C.Color(0.22,0.23,0.25,0.92):new C.Color(0.45,0.38,0.28,0.9))}}));
+      if(!done) surf.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(corners.flatMap(q=>[q.lon,q.lat]))), height:0.5+EL, vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(r.hard?new C.Color(0.22,0.23,0.25,0.92):new C.Color(0.45,0.38,0.28,0.9))}}));
       // balisage : bords blancs, seuil vert, fin rouge, rampe d'approche
-      const add=(q,col,sz)=>N.lights.add({position:C.Cartesian3.fromDegrees(q.lon,q.lat,1.2), color:col, pixelSize:sz||4, scaleByDistance:new C.NearFarScalar(300,1.6,25000,0.5)});
+      const add=(q,col,sz)=>N.lights.add({position:C.Cartesian3.fromDegrees(q.lon,q.lat,1.4+EL), color:col, pixelSize:sz||4, disableDepthTestDistance:2500, scaleByDistance:new C.NearFarScalar(300,1.6,25000,0.5)});
       for(let x=0;x<=L;x+=60){ add(P(x,-W/2-2),C.Color.fromCssColorString('#fff7d6')); add(P(x,W/2+2),C.Color.fromCssColorString('#fff7d6')); add(P(x,0),C.Color.WHITE.withAlpha(0.8),3); }
       for(let s=-W/2;s<=W/2;s+=4){ add(P(0,s),C.Color.LIME,5); add(P(L,s),C.Color.RED,5); }
       for(let x=60;x<=900;x+=60){ add(P(-x,0),C.Color.fromCssColorString('#fffbe6'),5); if(x%300===0) for(let s=-15;s<=15;s+=5) add(P(-x,s),C.Color.fromCssColorString('#fffbe6'),4); }
