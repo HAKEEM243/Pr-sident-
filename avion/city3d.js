@@ -117,7 +117,7 @@ async function openCity(lat,lon){
   document.body.classList.add('city-on');
   let el=$('#city'); if(!el){ el=document.createElement('div'); el.id='city'; $('#main').appendChild(el); }
   el.hidden=false;
-  if(!CITY) initCity(lat,lon); else { CITY.map.resize(); CITY.map.jumpTo({center:[lon,lat],zoom:15.4,pitch:62}); }
+  if(!CITY) initCity(lat,lon); else { CITY.map.resize(); CITY.map.jumpTo({center:[lon,lat],zoom:15.4,pitch:62}); if(!CITY.tick) CITY.tick=setInterval(cityPlanes,1000); cityPlanes(); }
   renderCityHud();
   return true;
 }
@@ -125,7 +125,7 @@ function closeCity(){
   document.body.classList.remove('city-on');
   const el=$('#city'); if(el) el.hidden=true;
   const h=$('#cityHud'); if(h) h.hidden=true;
-  if(CITY){ clearInterval(CITY.tick); CITY.tick=null; }
+  if(CITY){ clearInterval(CITY.tick); CITY.tick=null; CITY.follow=null; }
   setTimeout(()=>map&&map.invalidateSize(),60);
 }
 function initCity(lat,lon){
@@ -151,25 +151,57 @@ function initCity(lat,lon){
     M.addLayer({id:'lm-3d', type:'fill-extrusion', source:'lm', minzoom:10, paint:{'fill-extrusion-color':['get','color'],'fill-extrusion-base':['get','b'],'fill-extrusion-height':['get','t'],'fill-extrusion-opacity':0.97}});
     M.addLayer({id:'lm-label', type:'symbol', source:'lmpt', minzoom:11, layout:{'text-field':['concat','★ ',['get','name']], 'text-font':['Noto Sans Bold'], 'text-size':13, 'text-offset':[0,-1.6], 'text-allow-overlap':false}, paint:{'text-color':'#7c2d12','text-halo-color':'#fff7ed','text-halo-width':2}});
     M.addSource('myac',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
-    M.addLayer({id:'myac', type:'symbol', source:'myac', layout:{'text-field':'✈','text-size':['interpolate',['linear'],['zoom'],5,16,15,34],'text-rotate':['-',['get','hdg'],90],'text-rotation-alignment':'map','text-allow-overlap':true,'text-font':['Noto Sans Regular']}, paint:{'text-color':S.company.color||'#facc15','text-halo-color':'#000','text-halo-width':1.5}});
+    M.addSource('pl3d',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+    M.addLayer({id:'pl3d', type:'fill-extrusion', source:'pl3d', paint:{'fill-extrusion-color':['get','color'],'fill-extrusion-base':['get','b'],'fill-extrusion-height':['get','t'],'fill-extrusion-opacity':1,'fill-extrusion-vertical-gradient':true}});
+    M.addLayer({id:'pl3d-sh', type:'fill', source:'pl3d', filter:['==',['get','shadow'],1], paint:{'fill-color':'#000','fill-opacity':0.28}}, 'pl3d');
     M.addLayer({id:'myac-l', type:'symbol', source:'myac', minzoom:8, layout:{'text-field':['get','label'],'text-size':11,'text-offset':[0,1.6],'text-font':['Noto Sans Regular']}, paint:{'text-color':'#fff','text-halo-color':'#000','text-halo-width':1.5}});
     cityPlanes();
   });
   M.on('error',e=>{ if(!CITY.errShown && !M.isStyleLoaded()){ CITY.errShown=true; toast('⛔ Les tuiles de la ville 3D ne répondent pas','bad'); } });
   M.on('click','lm-label',e=>{ const f=e.features&&e.features[0]; if(f) toast(`★ ${f.properties.name} — ${f.properties.city}`,'info'); });
-  M.on('click','myac',e=>{ const f=e.features&&e.features[0]; if(f){ closeCity(); selectPlane(f.properties.id); } });
-  CITY.tick=setInterval(cityPlanes,1000);
+  M.on('click','pl3d',e=>{ const f=e.features&&e.features[0]; if(f&&f.properties.mine){ closeCity(); selectPlane(f.properties.id); } else if(f&&f.properties.label) toast('✈️ '+f.properties.label,'info'); });
+  CITY.tick=setInterval(cityPlanes,1000); M.on('zoomend',cityPlanes);
+}
+// silhouette d'avion en 3D (mètres → coordonnées) : fuselage, ailes, empennage ; taille réelle, agrandie pour rester visible
+function planeParts(lat,lon,hdg,alt,L,span,k,color){
+  const h=hdg*Math.PI/180, fx=Math.sin(h), fy=Math.cos(h), rx=Math.cos(h), ry=-Math.sin(h), mLat=111320, mLon=111320*Math.max(0.05,Math.cos(lat*Math.PI/180));
+  const P=(x,y)=>{ const X=(x*rx+y*fx)*k, Y=(x*ry+y*fy)*k; return [lon+X/mLon, lat+Y/mLat]; };
+  const w=L*0.07, ring=pts=>[pts.map(q=>P(q[0],q[1])).concat([P(pts[0][0],pts[0][1])])];
+  const body=[[0,L*0.5],[w*0.7,L*0.4],[w,L*0.25],[w,-L*0.3],[w*0.5,-L*0.5],[-w*0.5,-L*0.5],[-w,-L*0.3],[-w,L*0.25],[-w*0.7,L*0.4]];
+  const wing=[[w,L*0.12],[span/2,-L*0.08],[span/2,-L*0.14],[w,-L*0.04],[-w,-L*0.04],[-span/2,-L*0.14],[-span/2,-L*0.08],[-w,L*0.12]];
+  const tail=[[w*0.5,-L*0.38],[span*0.18,-L*0.5],[span*0.18,-L*0.54],[0,-L*0.5],[-span*0.18,-L*0.54],[-span*0.18,-L*0.5],[-w*0.5,-L*0.38]];
+  const fin=[[0.001*L,-L*0.36],[0.001*L,-L*0.52],[-0.001*L,-L*0.52],[-0.001*L,-L*0.36]];
+  const t=Math.max(2,L*0.08)*k;
+  return [ {r:ring(body),b:alt,t:alt+t*1.2,c:'#f4f5f7'}, {r:ring(wing),b:alt+t*0.2,t:alt+t*0.5,c:'#b9c0cb'}, {r:ring(tail),b:alt+t*0.3,t:alt+t*0.5,c:'#b9c0cb'}, {r:ring(fin),b:alt+t*0.4,t:alt+t*3.2,c:color} ];
 }
 function cityPlanes(){
-  if(!CITY||!CITY.map.getSource('myac')||$('#city').hidden) return;
-  const feats=[];
+  if(!CITY||!CITY.map.getSource('pl3d')||$('#city').hidden) return;
+  const M=CITY.map, c=M.getCenter(), z=M.getZoom(), mpp=156543*Math.cos(c.lat*Math.PI/180)/Math.pow(2,z), now=typeof simNow==='function'? simNow() : S.time;
+  const feats=[], labels=[], list=[];
+  const add=(id,mine,lat,lon,hdg,alt,L,span,color,label)=>{
+    const k=Math.min(30,Math.max(1,46*mpp/L));                    // au moins ~46 px de long à l'écran
+    const al=Math.max(alt,3)+(k>1?L*0.05:0);
+    for(const p of planeParts(lat,lon,hdg,al,L,span,k,color)) feats.push({type:'Feature',properties:{id,mine:mine?1:0,color:p.c,b:p.b,t:p.t,label,shadow:0},geometry:{type:'Polygon',coordinates:p.r}});
+    if(alt>20){ const g=planeParts(lat,lon,hdg,0,L,span,k,'#000')[0]; feats.push({type:'Feature',properties:{id,mine:mine?1:0,color:'#000',b:0,t:0.1,label,shadow:1},geometry:{type:'Polygon',coordinates:g.r}}); }  // ombre au sol
+    labels.push({type:'Feature',properties:{id,label},geometry:{type:'Point',coordinates:[lon,lat]}}); list.push({id,mine,lat,lon,label});
+  };
+  // vos avions
   for(const ac of S.fleet){
     if(ac.status!=='flight'||!ac.flight) continue;
-    const st=flightState(ac, typeof simNow==='function'? simNow() : S.time); if(!st) continue;
-    feats.push({type:'Feature',properties:{id:ac.id,hdg:st.hdg||0,label:`${S.company.code}${flightNumber(ac)} ${st.from}→${st.to} · ${Math.round(st.alt*3.28)} ft`},geometry:{type:'Point',coordinates:[st.lon,st.lat]}});
+    const st=flightState(ac,now); if(!st) continue; const sp=(typeof acSpec==='function')?acSpec(modelOf(ac)):{span:35,len:38};
+    add(ac.id,true,st.lat,st.lon,st.hdg||0,st.alt,sp.len,sp.span,S.company.color||'#facc15',`${S.company.code}${flightNumber(ac)} ${st.from}→${st.to} · ${Math.round(st.alt*3.28)} ft`);
   }
-  CITY.map.getSource('myac').setData({type:'FeatureCollection',features:feats});
-  if(CITY.spin){ const M=CITY.map; M.rotateTo((M.getBearing()+12)%360,{duration:1000,easing:t=>t}); }
+  // avions des autres compagnies autour de la zone affichée
+  if(typeof visibleRealRoutes==='function'&&typeof rivalPos==='function'&&z>=9){
+    const r=Math.max(0.12,Math.min(3,400*mpp/111320*1.4)), bb={contains:([la,lo])=>Math.abs(la-c.lat)<r&&Math.abs(lo-c.lng)<r/Math.max(0.2,Math.cos(c.lat*Math.PI/180))};
+    let n=0; for(const {R,r:rt} of visibleRealRoutes(bb,c.lng,12)){ if(n>=40) break; const cnt=Math.min(rt.freq||1,3);
+      for(let i=0;i<cnt&&n<40;i++){ const q=rivalPos(rt,i,now); if(!q||!bb.contains([q.p.lat,unwrapLon(q.p.lon,c.lng)])) continue; const m=getModel(TRAFFIC_MODEL[q.cat])||getModel('A20N'), sp=acSpec(m);
+        add('r'+R.code+rt.a+rt.b+i,false,q.p.lat,unwrapLon(q.p.lon,c.lng),q.hdg||0,q.alt||0,sp.len,sp.span,R.color||'#64748b',`${R.name} · ${m.name}${q.holding?' · en attente':''}`); n++; } } }
+  M.getSource('pl3d').setData({type:'FeatureCollection',features:feats});
+  const ml=M.getSource('myac'); if(ml) ml.setData({type:'FeatureCollection',features:labels});
+  CITY.list=list;
+  if(CITY.follow){ const f=list.find(x=>x.id===CITY.follow); if(f) M.easeTo({center:[f.lon,f.lat],duration:1000,easing:t=>t}); else CITY.follow=null; }
+  if(CITY.spin){ M.rotateTo((M.getBearing()+12)%360,{duration:1000,easing:t=>t}); }
 }
 function renderCityHud(){
   let h=$('#cityHud'); if(!h){ h=document.createElement('div'); h.id='cityHud'; $('#main').appendChild(h); }
@@ -178,6 +210,7 @@ function renderCityHud(){
   h.innerHTML=`<button class="gh" data-act="closeCity">✖ Carte</button>
     <button class="gh${CITY&&CITY.sat?' on':''}" data-act="citySat">🛰️ Satellite</button>
     <button class="gh${CITY&&CITY.spin?' on':''}" data-act="citySpin">🔄 Tour</button>
+    <button class="gh${CITY&&CITY.follow?' on':''}" data-act="cityPlane" title="Aller voir un de vos avions en vol">✈️ Voir un avion</button>
     <button class="gh" data-act="cityMonument">★ Monument suivant</button>
     <select class="gh" id="citySel" data-act="cityGo"><option value="">🌆 Aller à…</option>${CITY_SPOTS.map((c,i)=>`<option value="${i}">${c[0]}</option>`).join('')}</select>
     <span class="gh-tip">Clic droit / 2 doigts pour incliner et tourner · ★ = monument</span>`;
@@ -192,6 +225,12 @@ function registerCityActions(){
     citySpin:()=>{ if(!CITY) return; CITY.spin=!CITY.spin; renderCityHud(); },
     cityMonument:()=>{ if(!CITY) return; _lmI=(_lmI+1)%LANDMARKS.length; const L=LANDMARKS[_lmI]; const top=Math.max(...L[4].map(p=>p[3]));
       CITY.map.flyTo({center:[L[3],L[2]], zoom:top>300?15.3:16.2, pitch:65, bearing:(_lmI*47)%360, duration:4000}); toast(`★ ${L[0]} — ${L[1]}`,'info'); },
+    cityPlane:()=>{ if(!CITY) return; const mine=(CITY.list||[]).filter(x=>x.mine), any=mine.length?mine:(CITY.list||[]);
+      if(!any.length){ // aucun avion en vol : on va à l'aéroport de départ du prochain vol
+        const ac=S.fleet.find(a=>a.status==='flight'&&a.flight); const st=ac&&flightState(ac,typeof simNow==='function'?simNow():S.time);
+        if(st){ CITY.map.flyTo({center:[st.lon,st.lat],zoom:14.5,pitch:62,duration:3000}); CITY.follow=ac.id; renderCityHud(); } else toast('Aucun avion en vol pour le moment : utilisez « Prochain décollage » en vue 3D.','warn'); return; }
+      const i=Math.max(0,any.findIndex(x=>x.id===CITY.follow)); const f=any[(CITY.follow?i+1:i)%any.length]; CITY.follow=f.id;
+      CITY.map.flyTo({center:[f.lon,f.lat],zoom:15.6,pitch:66,duration:2500}); toast('✈️ '+f.label,'info'); renderCityHud(); },
     cityGo:()=>{},
   });
 }
