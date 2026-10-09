@@ -66,7 +66,7 @@ function sellStake(code, pct){
 }
 // Rachat : la compagnie est intégrée (hub, lignes, avions, équipages)
 function absorbRival(R){
-  const hub=R.hub;
+  const hub=R.hub; (S.absorbed=S.absorbed||[]).push(R.code);
   if(!S.hubs.includes(hub)) S.hubs.push(hub);
   S.cash+=R.cash>0? R.cash*0.5 : R.cash;
   const lines=[];

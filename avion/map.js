@@ -436,14 +436,18 @@ function updateRival(){
   if(!MAPOPT.rival || !S.rivals){ if(rivalPool.size) clearRivals(); return; }
   const bounds=map.getBounds().pad(0.3), z=zoomScale(), sz=Math.round(19*z), t=simNow(), c0=map.getCenter().lng, want=new Set();
   let n=0;
-  outer: for(const R of S.rivals) for(const r of R.routes){
+  // vos concurrents suivis + toutes les compagnies réelles qui desservent les aéroports à l'écran
+  const list=[]; for(const R of S.rivals) for(const r of R.routes) list.push({R,r});
+  if(map.getZoom()>=4 && typeof visibleRealRoutes==='function') list.push(...visibleRealRoutes(map.getBounds().pad(0.1), c0, map.getZoom()>=7?20:45));
+  const cap=map.getZoom()>=6?160:120;
+  outer: for(const {R,r} of list){
     const cnt=Math.min(r.freq,3);
     for(let i=0;i<cnt;i++){
       const q=rivalPos(r,i,t); if(!q) continue;
       const lon=unwrapLon(q.p.lon,c0);
       if(!bounds.contains([q.p.lat,lon])) continue;
-      if(n++>120) break outer;
-      const key=R.name+'|'+r.a+'|'+r.b+'|'+i; want.add(key);
+      if(n++>cap) break outer;
+      const key=R.code+'|'+r.a+'|'+r.b+'|'+i; if(want.has(key)) continue; want.add(key);
       let e=rivalPool.get(key);
       if(!e){
         const cat=q.d<1200?'prop':q.d<5000?'nb':'wb';
@@ -451,7 +455,7 @@ function updateRival(){
           .bindTooltip('',{direction:'right'});
         mk.addTo(L_rival); e={mk,R,r,i}; rivalPool.set(key,e);
       } else e.mk.setLatLng([q.p.lat,lon]);
-      if(e.dir!==q.from.code){ e.dir=q.from.code; e.mk.setTooltipContent(`<b>${R.name}</b><br>${q.from.city} → ${q.to.city}`); }
+      if(e.dir!==q.from.code){ e.dir=q.from.code; const mn=typeof realMinutes==='function'?realMinutes(r.a,r.b):0; e.mk.setTooltipContent(`<b>${R.name}</b> <span class="mut">${R.code}</span><br>${q.from.city} (${q.from.code}) → ${q.to.city} (${q.to.code})<br><span class="mut">${num(q.d)} km${mn?` · vol réel ≈ ${fmtDur(mn*MIN)}`:''}</span>`); }
       const el=e.mk.getElement(), rot=e.rot||(e.rot=el&&el.querySelector('.rot')); if(rot) setRot(rot,q.hdg);
     }
   }
