@@ -144,7 +144,7 @@ body.globe-on #flightcard{z-index:1070}
 .phases span{font-size:10px;padding:1px 5px;border-radius:4px;background:#14233b;color:var(--mut)}
 .phases span.done{color:#a7f3d0} .phases span.cur{background:var(--gold);color:#111;font-weight:700}
 .plane-icon{background:none;border:0}
-.plane-icon .rot{transition:transform .2s linear;filter:drop-shadow(var(--sh,3px) var(--sh,3px) var(--blur,1.5px) rgba(0,0,0,.5));transform-origin:50% 50%}
+.plane-icon .rot{filter:drop-shadow(var(--sh,3px) var(--sh,3px) var(--blur,1.5px) rgba(0,0,0,.5));transform-origin:50% 50%}
 .ac-svg .b{fill:var(--c);stroke:#0b1220;stroke-width:1.1;stroke-linejoin:round}
 .ac-svg .fu{fill:#f5f6f8;stroke:#1f2937;stroke-width:.8}
 .photo{position:relative;border-radius:10px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#2a4f86,#0d1a30 75%);display:grid;place-items:center;aspect-ratio:16/9}
@@ -187,6 +187,8 @@ body.google-map .leaflet-control-attribution::before{content:"Google ";font-weig
 .faf span{display:block;background:#22d3ee;color:#04202a;font:800 10px system-ui;border-radius:4px;text-align:center;padding:1px 0}
 .rwy-label.big span{font-size:14px;color:#ffe066}
 .rwy-label span{display:block;color:#fff;font:700 11px ui-monospace,monospace;text-align:center;text-shadow:0 0 3px #000,0 0 2px #000}
+.rwy-label.paint span{color:rgba(255,255,255,.88);font-family:'Arial Narrow',Arial,sans-serif;font-weight:700;letter-spacing:.06em;text-shadow:none}
+.rwlit{filter:drop-shadow(0 0 3px rgba(255,207,102,.9))}
 .plane-icon.real .rot{filter:drop-shadow(calc(var(--sh,3px)*2) calc(var(--sh,3px)*2) 3px rgba(0,0,0,.55))}
 .tech .techleg{border-top:1px solid #1d2d48;padding:6px 0}
 .tech .kl{margin-bottom:4px}
@@ -382,17 +384,17 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 <div id="modal" hidden></div>
 <div id="toasts"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="airports-db.js?v=20261007"></script>
-<script src="runways-db.js?v=20261007"></script>
-<script src="data.js?v=20261007"></script>
-<script src="sim.js?v=20261007"></script>
-<script src="realism.js?v=20261007"></script>
-<script src="business.js?v=20261007"></script>
-<script src="map.js?v=20261007"></script>
-<script src="ui.js?v=20261007"></script>
-<script src="pilot.js?v=20261007"></script>
-<script src="actions.js?v=20261007"></script>
-<script src="globe.js?v=20261007"></script>
-<script src="ui-biz.js?v=20261007"></script>
+<script src="airports-db.js?v=20261009"></script>
+<script src="runways-db.js?v=20261009"></script>
+<script src="data.js?v=20261009"></script>
+<script src="sim.js?v=20261009"></script>
+<script src="realism.js?v=20261009"></script>
+<script src="business.js?v=20261009"></script>
+<script src="map.js?v=20261009"></script>
+<script src="ui.js?v=20261009"></script>
+<script src="pilot.js?v=20261009"></script>
+<script src="actions.js?v=20261009"></script>
+<script src="globe.js?v=20261009"></script>
+<script src="ui-biz.js?v=20261009"></script>
 </body>
 </html>

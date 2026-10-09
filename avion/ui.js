@@ -123,6 +123,7 @@ function liveRefresh(){
   const a=document.activeElement;
   if(a && ($('#panel').contains(a)||$('#modal').contains(a)) && /INPUT|SELECT|TEXTAREA/.test(a.tagName)) return;
   if(['admin','company','shop'].includes(UI.tab)) return;
+  if(performance.now()-(UI.touchAt||0)<4000) return; // ne pas redessiner sous le doigt / la souris du joueur
   renderPanel();
 }
 
@@ -285,7 +286,7 @@ function lineTechHtml(r){
     return `<div><b>${c}</b> ${esc(a.city)} · ${num(a.runway)} m${best?` (piste ${best.id}/${rws.find(x=>x.thr===best.end)?.id||''})`:''} · ${a.surface} · alt. ${num(a.elev||0)} ft${rws.length>2?` · ${rws.length/2} pistes`:''}</div>`; };
   return `<div class="card tech"><div class="kl">📐 Fiche technique</div>
     ${legs.map(l=>{ const back=windKmh(l.to,l.from);
-      const bt=m=>`${fmtDur(legProfile(l.dist,m,l.wind).total)} aller · ${fmtDur(legProfile(l.dist,m,back).total)} retour`;
+      const bt=m=>`${fmtDur(legProfile(l.dist,m,l.wind,l.from,l.to).total)} aller · ${fmtDur(legProfile(l.dist,m,back,l.to,l.from).total)} retour`;
       return `<div class="techleg"><b>${l.from} → ${l.to}</b> · ${num(l.dist)} km · ${num(l.dist/1.852)} NM · vent moyen ${l.wind>0?'+':''}${l.wind} km/h à l’aller, ${back>0?'+':''}${back} km/h au retour
         ${(acs.length?acs.map(a=>modelOf(a)):[]).filter((m,i,arr)=>arr.findIndex(x=>x.id===m.id)===i).map(m=>{ const pf=payloadFactor(m,l.dist);
           return `<div class="small">✈ ${m.name} : ${bt(m)}${pf<1?` · <span class="warnt">charge limitée à ${Math.round(pf*100)} % (proche de l’autonomie max)</span>`:''}</div>`; }).join('')||'<div class="small mut">Programmez un avion pour voir les temps de vol.</div>'}</div>`; }).join('')}
@@ -677,7 +678,7 @@ function boardHtml(code){
     if(!ac.flight) continue; const m=modelOf(ac);
     ac.flight.legs.forEach((l,i)=>{
       if(i<ac.flight.li) return;
-      const prof=legProfile(l.dist,m,l.wind), tOff=l.dep+prof.segs[1].t0, tOn=l.dep+prof.segs[8].t0;
+      const prof=legProfile(l.dist,m,l.wind,l.from,l.to), tOff=l.dep+prof.segs[1].t0, tOn=l.dep+prof.segs[8].t0;
       const st=i===ac.flight.li? flightState(ac):null;
       const fn=S.company.code+flightNumber(ac);
       if(l.from===code) dep.push({t:tOff, fn, other:l.to, ac, status: st? (st.phase<=1?(st.phase===0?'Embarquement':'Roulage'):'Parti') : 'Prévu'});

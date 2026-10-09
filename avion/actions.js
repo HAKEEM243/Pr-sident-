@@ -290,7 +290,7 @@ let booted=false;
 function boot(){
   if(booted) return; booted=true;
   initMap();
-  if(localStorage.getItem('se-news')!=='v3'){ try{ localStorage.setItem('se-news','v3'); }catch(e){} setTimeout(()=>toast('Nouveau : vraies pistes de 3 200 aéroports, avions à taille réelle, vents en altitude. Bouton « 🛬 Mon aéroport » pour zoomer.','ok'),1500); }
+  if(localStorage.getItem('se-news')!=='v4'){ try{ localStorage.setItem('se-news','v4'); }catch(e){} setTimeout(()=>toast('Nouveau : animation fluide, roulage réel vers la piste, balisage lumineux la nuit, durées de vol réalistes. Bouton « 🛬 Mon aéroport » pour zoomer.','ok'),1500); }
   renderTop(); setTab(window.innerWidth<820?'map':'dash');
   updatePlanes(); updateRival();
   let last=performance.now(), acc1=0, acc2=0, acc30=0, acc10=0;
@@ -306,6 +306,7 @@ function boot(){
     if(acc30>=20000){ acc30=0; drawNight(); drawAirports(); }
     if(acc10>=10000){ acc10=0; save(); }
   },200);
+  const pn=document.getElementById('panel'); if(pn) for(const ev of ['pointerdown','wheel','touchstart','scroll','keydown']) pn.addEventListener(ev,()=>{ UI.touchAt=performance.now(); },{capture:true,passive:true});
   window.addEventListener('beforeunload',save);
   document.addEventListener('visibilitychange',()=>{ if(document.hidden) save(); });
 }
