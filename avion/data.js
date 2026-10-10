@@ -327,6 +327,18 @@ const MODELS = [
   ['IL96','Ilyushin Il-96-300','Ilyushin','RUCN',300,0,11500,850,9500,90,4,11000],
   ['B742','Boeing 747-200 (occasion)','Boeing','B747',366,0,12700,900,11500,70,4,10700],
   ['MD11','McDonnell Douglas MD-11F','McDonnell Douglas','MD',0,91,6700,880,9500,45,4,11300],
+  ['L410','Let L-410 UVP-E20','Let','TURBO',19,0,1500,300,220,6,1,4200],
+  ['C408','Cessna 408 SkyCourier','Cessna','TURBO',19,0,1700,390,280,7,1,6000],
+  ['D328','Dornier 328-100 (occasion)','Dornier','TURBO',32,0,1300,620,600,6,1,7600],
+  ['MA60','Xian MA60','AVIC','TURBO',60,0,1600,500,750,15,2,7600],
+  ['J328','Dornier 328JET (occasion)','Dornier','EMB',32,0,1650,750,1000,7,2,10600],
+  ['RJ85','Avro RJ85 (occasion)','BAe','EMB',95,0,2800,760,2600,10,3,10000],
+  ['AN48','Antonov An-148-100','Antonov','RUCN',80,0,3500,820,2000,30,3,11000],
+  ['B722','Boeing 727-200 (occasion)','Boeing','B737',150,0,4000,890,4800,12,3,10000],
+  ['TU54','Tupolev Tu-154M (occasion)','Tupolev','RUCN',164,0,5200,900,5300,8,3,10600],
+  ['A21F','Airbus A321P2F','Airbus','A320',0,27,3600,830,2700,40,3,11000],
+  ['A30F','Airbus A300-600F','Airbus','A330',0,48,4800,830,6500,35,4,11000],
+  ['B4BF','Boeing 747-400F','Boeing','B747',0,113,8200,900,10500,90,5,10700],
 ].map(([id,name,maker,fam,seats,cargo,range,speed,burn,price,cls,alt])=>({id,name,maker,fam,seats,cargo,range,speed,burn,price,cls,alt}));
 
 const MAINT = {

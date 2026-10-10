@@ -235,8 +235,8 @@ function baseFare(a,b){
 }
 function ancillaryPenalty(){ const a=S.ancillary; return 1-(a.seat?0.02:0)-(a.bags?0.03:0)-(a.wifi?0.005:0)-(a.meals?(S.service>=4?0.04:0.01):0); }
 function playerQuality(){ return (0.55+S.reputation/100)*SERVICE_ATTR[S.service-1]*ancillaryPenalty()*(S.loyalty?1.06:1); }
-function rivalFreq(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.freq,0); }
-function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.sqrt(x.freq)*(typeof isPartner==='function'&&isPartner(x.R)?0.3:1)*(typeof warFactor==='function'?warFactor(x.R.code,a,b):1),0); }
+function rivalFreq(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.freq+(typeof duelFq==='function'?duelFq(x.R.code,a,b):0),0); }
+function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.sqrt(x.freq)*(typeof isPartner==='function'&&isPartner(x.R)?0.3:1)*(typeof warFactor==='function'?warFactor(x.R.code,a,b):1)*(typeof duelFactor==='function'?duelFactor(x.R.code,a,b,x.freq):1),0); }
 function routeCycleHours(route, ac){
   const m=modelOf(ac); let h=0;
   for(let i=0;i<route.stops.length-1;i++){ const a=route.stops[i], b=route.stops[i+1], d=dist(a,b);

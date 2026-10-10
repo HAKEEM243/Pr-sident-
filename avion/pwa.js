@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261077';
+const GAME_VER='20261078';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,12 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛠️ 3D plus stable','Sur téléphone, la 3D démarre en <b>Éco</b> (plus fluide, moins de mémoire). Si elle se ferme toute seule, le jeu repasse en Éco automatiquement. ⚙️ en 3D pour changer.'],
+  ['📰 À la une','En haut de la carte : les grandes nouvelles (présidents, accidents, attaques des rivaux). Touchez pour lire. Actus → <b>🏛️ Présidents</b> et <b>💥 Accidents</b>.'],
+  ['🎬 Voir décoller / atterrir','Sur la carte 2D et dans 🛫 Mes vols : un bouton ouvre la 3D au moment du prochain décollage ou atterrissage.'],
+  ['🧠 Duel sur vos lignes','Les compagnies présentes sur vos lignes réagissent chaque semaine : elles s’alignent sur vos prix, ajoutent des vols, ou remontent leurs tarifs. Détail d’une ligne → « Ce que font vos concurrents ».'],
+  ['✈️ Concevoir mon avion','Plus → <b>✈️ Concevoir mon avion</b> ; et 13 nouveaux modèles (L-410, MA60, 727, Tu-154, A300F, 747-400F…).'],
+  ['🧳 Passagers','Nouvelles rubriques : son séjour (programme, hôtel, budget) et ce vol en chiffres (distance, CO₂, miles, avis).'],
   ['🎮 Tour de contrôle en direct','Accueil : suivi des vols actifs, étape, progression et nombre de passagers, avec accès direct au suivi et au manifeste.'],
   ['🛂 Contrôle des passagers plus poussé','Arrivées en cours par pays, estimations d’assistance et de vérifications, recherche de fiches et filtres par profil dans les manifestes. Les voyageurs et contrôles sont simulés.'],
   ['🏆 Classements plus détaillés','Nouveau tri par croissance patrimoniale sur environ quatre semaines ; le classement des aéroports distingue désormais trafic de base, flotte et lignes du joueur et des IA.'],

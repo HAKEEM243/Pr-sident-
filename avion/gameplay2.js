@@ -134,4 +134,9 @@ function govTabHtml(){
     <div class="tblwrap"><table class="tbl"><tr><th>Pays</th><th>Président</th><th>Politique</th></tr>${rows}</table></div>
     <h3>Dernières décisions</h3><div class="log">${log.map(l=>`<div class="lg"><span class="mut">${fmtDate(l.t)}</span> ${l.txt}</div>`).join('')||'<div class="mut small">Rien pour l’instant.</div>'}</div>`;
 }
-function registerGameplayActions(){ Object.assign(ACTIONS,{ accLevel:d=>{ S.accMult=+d.k; toast('⚠️ Accidents : '+(ACC_LEVELS.find(x=>x[1]===S.accMult)||['—'])[0],'info'); if(typeof renderPanel==='function') renderPanel(); } }); }
+function registerGameplayActions(){ Object.assign(ACTIONS,{
+  uneClose:()=>{ const el=$('#une'); if(el) el.hidden=true; if(UI.une) UI.une.list=[]; },
+  uneOpen:()=>{ const n=UI.une&&UI.une.list[0]; UI.newsTab=n&&/président|gouvernement|ministre|état |ciel ouvert|taxe|🏛️/i.test(n.text)?'pays':n&&/accident|crash|victimes|💥|🔥/i.test(n.text)?'crash':'actu'; setTab('news'); if(typeof renderPanel==='function') renderPanel(); },
+  // voir un décollage / atterrissage depuis la carte 2D ou la liste des vols : ouvre la 3D puis saute au moment
+  watchGo:async d=>{ if(typeof fxAudioUnlock==='function') fxAudioUnlock(); if($('#globe').hidden){ const ok=await open3D(); if(!ok) return; } UI.fl=false; if(typeof renderFlightList==='function') renderFlightList(); setTimeout(()=>ACTIONS.watchEvent({k:d.k}),250); },
+  accLevel:d=>{ S.accMult=+d.k; toast('⚠️ Accidents : '+(ACC_LEVELS.find(x=>x[1]===S.accMult)||['—'])[0],'info'); if(typeof renderPanel==='function') renderPanel(); } }); }

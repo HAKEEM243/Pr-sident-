@@ -29,11 +29,18 @@ async function open3D(){
   if(UI.mobile) setTab('map');
   document.body.classList.add('globe-on'); $('#globe').hidden=false; $('#globeHud').hidden=false;
   if(!G) initGlobe(); else G.viewer.resize();
+  live3D(true);
+  if(GQ.crashed){ GQ.crashed=false; toast('⚙️ La vue 3D s’était fermée : qualité Éco activée (⚙️ pour changer)','info'); }
   globeSync(true);
   renderGlobeHud();
   return true;
 }
+// marqueur « vue 3D ouverte » : s'il reste posé au prochain lancement, la page a planté pendant la 3D
+function live3D(on){ try{ if(on&&!$('#globe').hidden&&!document.hidden) localStorage.setItem('se-3d-live','1'); else localStorage.removeItem('se-3d-live'); }catch(e){} }
+document.addEventListener('visibilitychange',()=>live3D(!document.hidden));
+window.addEventListener('pagehide',()=>live3D(false));
 function close3D(){
+  live3D(false);
   globeFollow(null);
   document.body.classList.remove('globe-on'); $('#globe').hidden=true; $('#globeHud').hidden=true;
   const h=$('#rfsHud'); if(h) h.hidden=true;
@@ -51,13 +58,17 @@ function patchCesium(C){
   }
 }
 // qualité graphique : « Éco » par défaut sur téléphone (fluide), « Haute » sur ordinateur
-const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); const mode=(v==='e'||v==='h'||v==='a')?v:(mob?'e':'a'); return {mode, hq:mode==='h', mob}; })();   // e = éco, h = haute, a = équilibrée avec allègement doux si la vue rame
-function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.mode==='h';
+const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); let crashed=false; try{ crashed=localStorage.getItem('se-3d-live')==='1'; localStorage.removeItem('se-3d-live'); }catch(e){}
+  // la page s'est fermée brutalement pendant la vue 3D (mémoire du téléphone saturée) : on repasse en Éco
+  if(crashed&&v!=='e'){ v='e'; try{ localStorage.setItem('se-q','e'); }catch(e){} }
+  const mode=(v==='e'||v==='h'||v==='a')?v:(mob?'e':'a'); return {mode, hq:mode!=='e', mob, crashed}; })();   // e = éco, h = haute, a (défaut) = haute avec allègement doux si la vue rame ; téléphone : FXAA au lieu du MSAA
+function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.mode!=='e';
   try{ sc.msaaSamples=(GQ.hq&&!GQ.mob)?4:1; sc.postProcessStages.fxaa.enabled=true; }catch(e){}
-  // Le mode éco réduit réellement le tampon de rendu, au lieu de conserver inutilement les pixels rétina.
-  // Plafond à 2× pour préserver la netteté en haute qualité sur les écrans très denses.
-  try{ const dpr=window.devicePixelRatio||1; V.useBrowserRecommendedResolution=false; G.resBase=Math.min(dpr,2)/dpr; V.resolutionScale=G.resBase*(GQ.hq?1:0.72); }catch(e){}
-  try{ sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4; sc.globe.showWaterEffect=true; sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=true; sc.fog.enabled=true; }catch(e){}
+  // Cesium dessine à (rapport de pixels de l'écran × resolutionScale) quand useBrowserRecommendedResolution est faux, et à 1 pixel CSS sinon (flou sur un écran rétina)
+  try{ const dpr=window.devicePixelRatio||1; V.useBrowserRecommendedResolution=false; G.resBase=Math.min(dpr,GQ.mob?1.6:2)/dpr; V.resolutionScale=GQ.hq?G.resBase:Math.min(dpr,GQ.mob?1.15:1)/dpr; }catch(e){}
+  // téléphone : moins de tuiles gardées en mémoire (les plantages de la vue 3D sur iPhone viennent surtout de la mémoire)
+  try{ sc.globe.tileCacheSize=GQ.mob?(GQ.hq?120:70):300; sc.globe.preloadSiblings=!GQ.mob; sc.globe.loadingDescendantLimit=GQ.mob?10:20; }catch(e){}
+  try{ sc.globe.maximumScreenSpaceError=GQ.hq?(GQ.mob?2:1.6):(GQ.mob?3:2.4); sc.globe.showWaterEffect=!(GQ.mob&&!GQ.hq); sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=!(GQ.mob&&!GQ.hq); sc.fog.enabled=true; }catch(e){}
   G.rivalCap=undefined; G.rivAt=0; G.perf=null; }
 // fonds de carte de la vue 3D (mêmes sources libres que la carte 2D)
 const ESRI3='https://server.arcgisonline.com/ArcGIS/rest/services/';
@@ -99,11 +110,13 @@ function initGlobe(){
   try{ sc.globe.showGroundAtmosphere=true; sc.globe.atmosphereLightIntensity=12; sc.skyAtmosphere.atmosphereLightIntensity=40; }catch(e){}
   // filet de sécurité : si le rendu plante, on retire les décors optionnels et on redémarre
   viewer.showRenderLoopErrors=false;
+  sc.canvas.addEventListener('webglcontextlost',ev=>{ ev.preventDefault(); try{ localStorage.setItem('se-q','e'); }catch(e){} GQ.mode='e'; live3D(false);
+    toast('⚠️ La carte graphique a lâché : relancez la vue 3D (qualité Éco activée)','bad'); try{ close3D(); }catch(e){} const g=G; G=null; setTimeout(()=>{ try{ clearInterval(g.loop); g.viewer.destroy(); }catch(e){} },0); },false);
   sc.renderError.addEventListener((scene,err)=>{
-    console.warn('rendu 3D',err); G.safe=(G.safe||0)+1;
+    console.warn('rendu 3D',err); G.safe=(G.safe||0)+1; if(GQ.mode!=='e'){ GQ.mode='e'; try{ localStorage.setItem('se-q','e'); }catch(e){} try{ applyQuality(); }catch(e){} }
     try{ if(G.clouds){ sc.primitives.remove(G.clouds); G.clouds=null; } }catch(e){}
     if(G.safe===1){
-      try{ V.useBrowserRecommendedResolution=false; V.resolutionScale=Math.min(V.resolutionScale||1,0.68); sc.msaaSamples=1; sc.globe.maximumScreenSpaceError=4; sc.globe.showWaterEffect=false; G.rivalCap=8; G.rivAt=0; }
+      try{ viewer.useBrowserRecommendedResolution=false; viewer.resolutionScale=Math.min(viewer.resolutionScale||1,0.68); sc.msaaSamples=1; sc.globe.maximumScreenSpaceError=4; sc.globe.showWaterEffect=false; G.rivalCap=8; G.rivAt=0; }
       catch(e){}
       toast('⚙️ Le rendu 3D a détecté une surcharge : qualité réduite automatiquement pour stabiliser l’image.','warn');
     }
@@ -279,7 +292,7 @@ function perfGov(){
   const now=performance.now(), P=G.perf||(G.perf={t0:now,n:0,lvl:0}); P.n++;
   const el=now-P.t0; if(el<6000) return; const fps=P.n/(el/1000); P.t0=now; P.n=0;
   if(el>12000||document.hidden||P.lvl>=2) return;
-  if(fps<14){ P.lvl++; const V=G.viewer, sc=V.scene;      // allègement doux : on garde l'image belle, on réduit seulement la charge
+  if(fps<(GQ.mob?20:14)){ P.lvl++; const V=G.viewer, sc=V.scene;      // allègement doux : on garde l'image belle, on réduit seulement la charge
     try{ sc.globe.maximumScreenSpaceError=Math.max(sc.globe.maximumScreenSpaceError,2+P.lvl*0.6); V.resolutionScale=Math.max(0.85*(G.resBase||1),(V.resolutionScale||1)*0.9); G.rivalCap=P.lvl===1?16:8; G.rivAt=0; if(P.lvl>=2) sc.msaaSamples=1; }catch(e){}
     toast(`⚙️ Allègement automatique (${Math.round(fps)} images/s)`,'info'); }
 }

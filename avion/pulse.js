@@ -126,13 +126,31 @@ function aiReact(){
 
 /* ---------- bandeau d'actualités (interface) ---------- */
 let _tkAt=0;
-function tickerPush(text,kind){
-  if(typeof UI==='undefined'||UI.silent||typeof document==='undefined') return;
+// les grandes nouvelles (présidents, accidents, attaques des rivaux) passent toujours et restent « À la une »
+const UNE_RX=/président|gouvernement|ministre|état |ciel ouvert|taxe|accident|crash|victimes|détruit|sortie de piste|tragédie|💥|🔥|🏛️|attaque|guerre des prix|rachète|commande record|alliance|faillite/i;
+function tickerPush(text,kind,important){
+  if(typeof UI==='undefined'||typeof document==='undefined') return;
+  const big=important||kind==='bad'||kind==='rival'||UNE_RX.test(text);
+  if(big) unePush(text,kind);
+  if(UI.silent||big) return;                                          // les grandes nouvelles vont dans « À la une », pas en double ici
   const box=document.getElementById('ticker'); if(!box) return;
-  const now=performance.now(); if(now-_tkAt<2500 && kind==='news') return; _tkAt=now;   // pas de clignotement en vitesse rapide
+  const now=performance.now(); if(now-_tkAt<2500 && kind==='news' && !big) return; _tkAt=now;   // pas de clignotement en vitesse rapide
   const d=document.createElement('div'); d.className='tk '+(kind||'news'); d.textContent=text; d.onclick=()=>setTab('news');
   box.prepend(d); while(box.children.length>3) box.lastChild.remove();
   setTimeout(()=>d.classList.add('old'),9000); setTimeout(()=>{ d.remove(); },24000);
+}
+
+// bandeau « À la une » en haut de la carte : la dernière grande nouvelle reste affichée, même en vitesse rapide
+function unePush(text,kind){
+  const U=UI.une||(UI.une={list:[]}); U.list.unshift({text,kind,t:S.time}); if(U.list.length>6) U.list.length=6; U.at=performance.now(); U.dirty=true;
+  if(!UI._uneT&&typeof document.getElementById==='function') UI._uneT=setTimeout(()=>{ UI._uneT=null; uneRender(); },UI.silent?600:0);
+}
+function uneRender(){
+  const el=document.getElementById('une'), U=UI.une; if(!el||!U||!U.list.length){ if(el) el.hidden=true; return; }
+  const n=U.list[0], more=U.list.length-1;
+  el.className='une '+(n.kind||'news'); el.hidden=false;
+  el.innerHTML=`<b data-act="uneOpen">À LA UNE</b><span data-act="uneOpen">${esc(n.text)}</span>${more>0?`<i data-act="uneOpen">+${more}</i>`:''}<button data-act="uneClose" aria-label="Fermer">✕</button>`;
+  clearTimeout(UI._uneHide); UI._uneHide=setTimeout(()=>{ el.hidden=true; },60000);
 }
 
 /* ============================================================
