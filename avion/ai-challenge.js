@@ -47,6 +47,28 @@ function aiChallenge(){
     if(Math.random()<0.12*D*heat){ const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&R.routes.length){ const rt=pick(R.routes); if((rt.freq||1)<9){ rt.freq=(rt.freq||1)+1; ai.ver++; } } }
   }
 }
+// outsiders : même les petites et moyennes compagnies tentent leur chance contre le leader
+function aiOutsiders(){
+  const ai=S.ai, D=drive(); if(!ai||D<2) return; const {lead,chals,me}=aiChallengers(), skip=new Set(chals.map(c=>c.code));
+  const pool=aiAlive().filter(e=>e.fleet>=3&&e.fleet<=90&&e.status!=='dead'&&!skip.has(e.code)&&e.real!==undefined);
+  const n=Math.min(pool.length,D===2?3:6), myName=S.company.name, tag=lead.me?`dépasser ${myName}`:`défier ${lead.name}`;
+  for(let k=0;k<n;k++){ const e=pool[Math.floor(Math.random()*pool.length)]; e.ambition=Math.min(5,(e.ambition||0)+1);
+    // croissance par paliers : location d'avions, petits financements
+    if(Math.random()<0.35){ const add=Math.max(1,Math.round(e.fleet*rnd(0.04,0.1))); e.fleet+=add; e.cash-=add*rnd(1e6,3e6); e.cash+=add*rnd(2e6,5e6)*0.5; const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet;
+      if(add>=3) aiNews(`🐜 ${e.name} (petite compagnie) s’agrandit : ${add} avions de plus, ${e.fleet} au total. Objectif : ${tag}.`,'rival'); }
+    if(Math.random()<0.25){ const k2=Math.max(2e7,e.fleet*rnd(2e6,6e6)); e.cash+=k2; if(e.fleet>=10) aiNews(`💸 ${e.name} lève ${Md(k2)} auprès d’investisseurs locaux pour grandir vite.`,'rival'); }
+    if(Math.random()<0.30) aiRoute(e,'open');
+    e.rep=clamp(e.rep+0.3*D,20,85);
+    // attaque d'un petit sur votre hub
+    if(Math.random()<0.10*(D-1)&&S.hubs.length){ const mine=pick(S.hubs), cand=AIRPORT_CODES.filter(c=>c!==mine&&AP(c).cls>=2&&dist(e.hub,c)<(e.fleet>=20?5000:2500)&&dist(c,mine)>300&&dist(c,mine)<(e.fleet>=20?5000:2500)&&!carriersOn(c,mine).includes(e.code));
+      if(cand.length){ const c=pick(cand), key=pairKey(c,mine); (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
+        const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&!R.routes.some(x=>pairKey(x.a,x.b)===key)) R.routes.push({a:c,b:mine,freq:2});
+        aiNews(`🐜 David contre Goliath : ${e.name} ouvre ${keyCity(c)} → ${keyCity(mine)} et s’attaque à votre hub.`,'rival',true); } }
+    // petite guerre des prix
+    if(Math.random()<0.05*(D-1)&&S.routes.length){ const rt=pick(S.routes), a=rt.stops[0], b=rt.stops[rt.stops.length-1], key=pairKey(a,b); ai.wars=ai.wars||{};
+      if(!ai.wars[e.code+key]&&!(typeof isAlly==='function'&&isAlly(e.code))){ ai.wars[e.code+key]={code:e.code,a,b,until:S.time+rndi(10,25)*DAY,kind:'prix'}; aiNews(`⚔️ ${e.name} casse ses prix sur ${keyCity(a)}–${keyCity(b)} pour vous prendre des clients.`,'rival',true); } }
+  }
+}
 // rachats : les plus grosses avalent de petites compagnies pour grossir d'un coup
 function aiChallengeMonthly(){
   const ai=S.ai; if(!ai||!drive()) return; const D=drive(), {chals}=aiChallengers();
@@ -57,7 +79,7 @@ function aiChallengeMonthly(){
     const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet;
     aiNews(`🏴‍☠️ ${e.name} rachète ${w.name} pour ${Md(price)} : flotte portée à ${e.fleet} avions.`,'rival',true); }
 }
-{ const _aw=aiWeekly; aiWeekly=function(){ _aw(); try{ aiChallenge(); }catch(e){ console.warn(e); } }; }
+{ const _aw=aiWeekly; aiWeekly=function(){ _aw(); try{ aiChallenge(); aiOutsiders(); }catch(e){ console.warn(e); } }; }
 { const _am=aiMonthly; aiMonthly=function(){ _am(); try{ aiChallengeMonthly(); }catch(e){ console.warn(e); } }; }
 
 /* ---------- carte « Rivalité » dans le classement ---------- */
@@ -67,6 +89,8 @@ function challengerCard(){
   return `<div class="card"><h3 style="margin-top:0">⚔️ Rivalité · ${RIVAL_DRIVES.find(x=>x[1]===D)[0]}</h3>
     ${lead.me?`<div class="small">👑 Vous êtes <b>premier</b> (${Md(me.value)}). Les challengers se mobilisent pour vous détrôner :</div>`:`<div class="small">Vous êtes <b>${me.rank}ᵉ</b>. Le leader : <b>${esc(lead.name)}</b> (${Md(lead.value)}).</div>`}
     ${chals.map(bar).join('')||'<div class="mut small">Aucun challenger actif.</div>'}
-    <div class="small mut">Barre = valeur de la compagnie par rapport à la vôtre. Réglage : Plus → Options → Rivalité.</div></div>`;
+    <div class="small mut" style="margin-top:6px">Niveau de rivalité (touchez pour changer) :</div>
+    <div class="btns">${RIVAL_DRIVES.map(([l,v])=>`<button class="btn sm ${D===v?'gold':''}" data-act="rivalDrive" data-k="${v}">${l}</button>`).join('')}</div>
+    <div class="small mut">${D>=2?'Même les petites compagnies tentent de vous dépasser. ':''}Barre = valeur de la compagnie par rapport à la vôtre.</div></div>`;
 }
 function registerChallengeActions(){ Object.assign(ACTIONS,{ rivalDrive:d=>{ S.rivalDrive=+d.k; toast('⚔️ Rivalité : '+RIVAL_DRIVES.find(x=>x[1]===S.rivalDrive)[0],'info'); if(typeof renderPanel==='function') renderPanel(); } }); }
