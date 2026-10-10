@@ -110,6 +110,8 @@ function pMore(){
   <div class="morelist"><button data-act="calendar">🗓️ <b>Calendrier des vols</b><small>Chaque départ, par jour et par semaine</small></button><button data-act="daily">🎁 <b>Défis du jour</b><small>Récompense quotidienne, coffre</small></button><button data-act="charters">🛫 <b>Charters</b><small>Équipes, pèlerins, concerts…</small></button><button data-act="livery">🎨 <b>Livrée</b><small>Peindre vos avions</small></button><button data-act="open3D">📸 <b>Vue 3D & photo</b><small>Suivre un vol, mode photo</small></button><button data-act="radar">📡 <b>Radar & tour</b><small>Pistes, attentes, séquence</small></button></div>
   <div class="small mut" style="margin:8px 0 2px">⚔️ <b>Rivalité des autres compagnies</b> (elles cherchent à vous dépasser)</div>
   <div class="btns">${(typeof RIVAL_DRIVES!=='undefined'?RIVAL_DRIVES:[]).map(([l,v])=>`<button class="btn sm ${(S.rivalDrive===undefined?2:S.rivalDrive)===v?'gold':''}" data-act="rivalDrive" data-k="${v}">${l}</button>`).join('')}</div>
+  <div class="small mut" style="margin:8px 0 2px">⚠️ <b>Accidents de votre flotte</b> (l’entretien compte : un avion mal entretenu en a plus)</div>
+  <div class="btns">${(typeof ACC_LEVELS!=='undefined'?ACC_LEVELS:[]).map(([l,v])=>`<button class="btn sm ${(S.accMult===undefined?1:S.accMult)===v?'gold':''}" data-act="accLevel" data-k="${v}">${l}</button>`).join('')}</div>
   <div class="btns"><button class="btn" data-act="whatsNew">🆕 Nouveautés · version ${typeof GAME_VER!=='undefined'?GAME_VER:''}</button><button class="btn gold" data-act="install">📲 Application${typeof isStandalone==='function'&&isStandalone()?' (installée)':' : installer sur mon téléphone'}</button></div>
   <div class="btns"><button class="btn gold" data-act="saves">💾 Sauvegardes : sauvegarder, charger, exporter, importer</button></div>
   <div class="btns"><button class="btn" data-act="guideReset">🎓 Revoir le tutoriel</button><button class="btn" data-act="mapStyle">🗺️ Fond de carte</button></div>
@@ -151,6 +153,7 @@ if(typeof registerNewsActions==='function') registerNewsActions();
 if(typeof registerPaxActions==='function') registerPaxActions();
 if(typeof registerAirlineActions==='function') registerAirlineActions();
 if(typeof registerChallengeActions==='function') registerChallengeActions();
+if(typeof registerGameplayActions==='function') registerGameplayActions();
 if(typeof registerCityActions==='function') registerCityActions();
 if(typeof registerInboxActions==='function') registerInboxActions();
 if(typeof registerPwaActions==='function') registerPwaActions();

@@ -206,13 +206,15 @@ const feedRows=(list,n)=>list.slice(0,n).map(l=>`<div class="lg ${l.kind}"><span
 function pNews(){
   const ai=S.ai; if(!ai) return '<div class="mut">Les actualités arrivent bientôt.</div>';
   const t=UI.newsTab||'actu';
-  const chips=[['actu','📰 Actualités'],['rank','🏆 Classement'],['secu','🛡️ Sécurité'],['new','🆕 Nouvelles / faillites'],['avis','⭐ Avis passagers'],['apt','🏢 Aéroports']].map(([k,l])=>`<button class="chip ${t===k?'on':''}" data-act="newsTab" data-k="${k}">${l}</button>`).join('');
+  const chips=[['actu','📰 Actualités'],['rank','🏆 Classement'],['secu','🛡️ Sécurité'],['new','🆕 Nouvelles / faillites'],['avis','⭐ Avis passagers'],['apt','🏢 Aéroports'],['pays','🏛️ Pays']].map(([k,l])=>`<button class="chip ${t===k?'on':''}" data-act="newsTab" data-k="${k}">${l}</button>`).join('');
   let body='';
   if(t==='actu'){
     body=`<div class="simplehelp">Les compagnies du monde vivent leur vie : elles commandent des avions, ouvrent ou ferment des lignes, ont des accidents, font faillite… Parfois sur <b>votre</b> marché.</div><div class="log big">${feedRows(ai.news,60)}</div>`;
   } else if(t==='rank'){
     const rows=aiRows();
     body=`${typeof challengerCard==='function'?challengerCard():''}<div class="tblwrap"><table class="tbl rank"><tr><th>#</th><th>Compagnie</th><th>Flotte</th><th>Lignes</th><th>Valeur</th><th>Tendance</th></tr>${rows.slice(0,40).map((c,i)=>`<tr class="${c.me?'me':'click'}" ${c.me?'':`data-act="airlineCard" data-c="${c.code}"`}><td>${['🥇','🥈','🥉'][i]||i+1} ${trendArrow(c.delta)}</td><td><span class="dot" style="background:${c.color}"></span><b>${esc(c.name)}</b>${c.startup?' <span class="badge">🆕</span>':''}${c.crashes?` <span class="mut" title="accidents graves">💥${c.crashes}</span>`:''}<br><span class="small mut">${flag(c.hub)} ${esc(AP(c.hub).city)}</span></td><td>${num(c.fleet)}</td><td>${num(c.routes)}</td><td>${fmtMoney(c.value)}</td><td>${c.e?sparkline(c.e.hist):''}</td></tr>`).join('')}</table></div><div class="small mut">Valeur = flotte + trésorerie. Mise à jour chaque semaine.</div>`;
+  } else if(t==='pays'){
+    body=typeof govTabHtml==='function'?govTabHtml():'';
   } else if(t==='apt'){
     body=airportsTabHtml();
   } else if(t==='avis'){
