@@ -66,9 +66,9 @@ function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.m
   try{ sc.msaaSamples=(GQ.hq&&!GQ.mob)?4:1; sc.postProcessStages.fxaa.enabled=true; }catch(e){}
   // Cesium dessine à (rapport de pixels de l'écran × resolutionScale) quand useBrowserRecommendedResolution est faux, et à 1 pixel CSS sinon (flou sur un écran rétina)
   try{ const dpr=window.devicePixelRatio||1; V.useBrowserRecommendedResolution=false; G.resBase=Math.min(dpr,GQ.mob?1.6:2)/dpr; V.resolutionScale=GQ.hq?G.resBase:Math.min(dpr,GQ.mob?1.15:1)/dpr; }catch(e){}
-  // téléphone : moins de tuiles gardées en mémoire (les plantages de la vue 3D sur iPhone viennent surtout de la mémoire)
-  try{ sc.globe.tileCacheSize=GQ.mob?(GQ.hq?120:70):300; sc.globe.preloadSiblings=!GQ.mob; sc.globe.loadingDescendantLimit=GQ.mob?10:20; }catch(e){}
-  try{ sc.globe.maximumScreenSpaceError=GQ.hq?(GQ.mob?2:1.6):(GQ.mob?3:2.4); sc.globe.showWaterEffect=!(GQ.mob&&!GQ.hq); sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=!(GQ.mob&&!GQ.hq); sc.fog.enabled=true; }catch(e){}
+  // relief : réglages d'origine (un sol plus grossier faisait traverser la piste à l'avion au décollage et à l'atterrissage)
+  try{ sc.globe.tileCacheSize=GQ.mob?100:300; }catch(e){}
+  try{ sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4; sc.globe.showWaterEffect=!(GQ.mob&&!GQ.hq); sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=!(GQ.mob&&!GQ.hq); sc.fog.enabled=true; }catch(e){}
   // téléphone : 30 images/s max en Éco (moins de chauffe, donc moins de ralentissements au bout de quelques minutes)
   try{ V.targetFrameRate=(GQ.mob&&!GQ.hq)?30:undefined; }catch(e){}
   G.rivalCap=undefined; G.rivAt=0; G.perf=null; }
@@ -118,11 +118,13 @@ function initGlobe(){
     console.warn('rendu 3D',err); G.safe=(G.safe||0)+1; if(GQ.mode!=='e'){ GQ.mode='e'; try{ localStorage.setItem('se-q','e'); }catch(e){} try{ applyQuality(); }catch(e){} }
     try{ if(G.clouds){ sc.primitives.remove(G.clouds); G.clouds=null; } }catch(e){}
     if(G.safe===1){
-      try{ viewer.useBrowserRecommendedResolution=false; viewer.resolutionScale=Math.min(viewer.resolutionScale||1,0.68); sc.msaaSamples=1; sc.globe.maximumScreenSpaceError=4; sc.globe.showWaterEffect=false; G.rivalCap=8; G.rivAt=0; }
+      try{ viewer.useBrowserRecommendedResolution=false; viewer.resolutionScale=Math.min(viewer.resolutionScale||1,0.68); sc.msaaSamples=1; sc.globe.showWaterEffect=false; G.rivalCap=8; G.rivAt=0; }
       catch(e){}
       toast('⚙️ Le rendu 3D a détecté une surcharge : qualité réduite automatiquement pour stabiliser l’image.','warn');
     }
-    if(G.safe>=2){ try{ worldClear(); sc.globe.showWaterEffect=false; }catch(e){} G.noWorld=true; }
+    // 2e erreur : aéroport allégé (pistes, terminal, tour, passerelles) au lieu de tout supprimer ; 4e : plus de décor
+    if(G.safe>=2&&!G.lite){ G.lite=true; try{ worldClear(); sc.globe.showWaterEffect=false; }catch(e){} toast('⚙️ Aéroport 3D allégé pour cet appareil (décollages et atterrissages toujours visibles)','info'); }
+    if(G.safe>=4){ try{ worldClear(); }catch(e){} G.noWorld=true; }
     if(G.safe<=4) setTimeout(()=>{ try{ viewer.useDefaultRenderLoop=true; }catch(e){} },300);
     else toast('⛔ La vue 3D rencontre un problème sur cet appareil','bad');
   });
@@ -436,7 +438,7 @@ Object.assign(ACTIONS,{
   globeBase:()=>{ const ks=Object.keys(BASE3D), k=ks[(ks.indexOf(G.baseKey)+1)%ks.length]; setBase3D(k); toast('🗺️ Fond : '+BASE3D[k].label,'info'); },
   watchEvent:d=>{ const e=nextEvent(d.k); if(!e){ toast(d.k==='dep'?'Aucun décollage prévu : programmez des avions sur une ligne.':'Aucun avion en vol.','warn'); return; }
     if(typeof fxAudioUnlock==='function') fxAudioUnlock();
-    const tgt=e.at-(d.k==='dep'?6:4)*MIN, jump=tgt-S.time;
+    const tgt=e.at-(d.k==='dep'?3:2)*MIN, jump=tgt-S.time;
     if(jump>0){ UI.silent=true; advance(jump); UI.silent=false; globeNoteSim(); if(jump>HOUR) toast(`⏩ ${fmtDur?fmtDur(jump):Math.round(jump/HOUR)+' h'} de jeu écoulées jusqu’au ${d.k==='dep'?'décollage':'atterrissage'}`,'info'); }
     const ac=S.fleet.find(a=>a.id===e.id&&a.status==='flight'); if(!ac){ toast('L’avion n’est pas encore parti, réessayez.','warn'); return; }
     selectPlane(ac.id); globeSync(false); globeFollow(ac.id); G.tm&&(G.tm.auto=true); },
