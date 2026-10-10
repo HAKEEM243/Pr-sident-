@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261068';
+const GAME_VER='20261069';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -96,4 +96,4 @@ const WHATS_NEW=[
 MODALS.whatsnew=()=>showModal('🆕 Nouveautés (version '+GAME_VER+')', `<ul class="inst">${WHATS_NEW.map(([a,b])=>`<li><b>${a}</b><br><span class="small">${b}</span></li>`).join('')}</ul><div class="btns"><button class="btn gold" data-act="checkUpdate">🔄 Vérifier la mise à jour</button></div><p class="small mut">Si une nouveauté n’apparaît pas, touchez « Vérifier la mise à jour » : le jeu vide son cache et se recharge (votre partie est gardée).</p>`);
 document.addEventListener('DOMContentLoaded',()=>{ setTimeout(()=>{ try{ Object.assign(ACTIONS,{ checkUpdate:()=>checkUpdate(true), whatsNew:()=>openM('whatsnew') });
   checkUpdate(false);
-  if(typeof S!=='undefined'&&S&&localStorage.getItem('se-seen-ver')!==GAME_VER){ localStorage.setItem('se-seen-ver',GAME_VER); setTimeout(()=>{ if(!UI.modal) openM('whatsnew'); },2500); } }catch(e){} },2500); });
+  if(typeof S!=='undefined'&&S&&localStorage.getItem('se-seen-ver')!==GAME_VER){ localStorage.setItem('se-seen-ver',GAME_VER); setTimeout(()=>{ const g=document.getElementById('globe'); if(!UI.modal&&!(g&&!g.hidden)) openM('whatsnew'); },2500); } }catch(e){} },2500); });
