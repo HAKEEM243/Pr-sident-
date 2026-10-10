@@ -1173,7 +1173,8 @@ function catchUp(){
   const realDt=Date.now()-lr;
   S.lastReal=Date.now();
   if(S.paused || realDt<5000) return null;
-  const gameDt=Math.min(realDt, 30*DAY);   // absent : le temps passe en temps réel (1 h absent = 1 h de jeu), vos vols continuent sans tout terminer d'un coup
+  const offlineSpeed=Math.min(60,Math.max(1,(SPEEDS[S.speed]||SPEEDS.realiste).mult));
+  const gameDt=Math.min(realDt*offlineSpeed,30*DAY);   // suit la vitesse choisie, plafonnée à ×60 et 30 jours pour éviter une progression incontrôlée
   S.awayFrom=S.time; const before={cash:S.cash, flights:S.stats.flights, pax:S.stats.pax, rev:ledSum(S.led.total,1), cost:ledSum(S.led.total,-1), time:S.time};
   advance(gameDt);
   return { real:realDt, game:S.time-before.time, flights:S.stats.flights-before.flights, pax:S.stats.pax-before.pax,

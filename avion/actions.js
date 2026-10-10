@@ -28,6 +28,8 @@ const ACTIONS = {
   closeModal, closeCard:()=>selectPlane(null),
   followCam:()=>{ followPlane=!followPlane; updateFlightCard(); },
   zoomPlane:()=>zoomPlane(), zoomRoute:()=>zoomRoute(),
+  openNews:()=>{ UI.newsTab='actu'; setTab('news'); },
+  openPresidents:()=>{ UI.newsTab='pays'; setTab('news'); },
   mapStyle:()=>openM('mapstyle'),
   setStyle:async d=>{ const id=await setMapStyle(d.id); if(id===d.id) toast('🗺️ '+MAP_STYLES[id].label,'ok'); refreshModal(); },
   saveGKey:async()=>{ const k=$('#gkey').value.trim(); if(!k){ localStorage.removeItem(GKEY); toast('Clé supprimée','ok'); return; }

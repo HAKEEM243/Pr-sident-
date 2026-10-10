@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta name="se-ver" content="20261071">
+<meta name="se-ver" content="20261073">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Sky Empire</title>
@@ -233,6 +233,8 @@ textarea.savebox{width:100%;height:160px;background:#0b1220;color:var(--txt);bor
 #tb-mail{position:relative;background:#14233b;border:1px solid var(--line);border-radius:9px;padding:4px 9px;font-size:16px;cursor:pointer;color:var(--txt)}
 #tb-mail.has{border-color:var(--gold);animation:mailp 2s infinite}
 #tb-mail i{position:absolute;top:-6px;right:-7px;background:#dc2626;color:#fff;font:700 10.5px system-ui;font-style:normal;border-radius:9px;padding:1px 5px}
+.tb-news{background:#14233b;border:1px solid var(--line);border-radius:9px;padding:5px 9px;font-size:12px;font-weight:700;cursor:pointer;color:var(--txt);white-space:nowrap}
+.tb-news:hover{border-color:var(--gold);color:var(--gold)}
 @keyframes mailp{50%{box-shadow:0 0 0 4px rgba(250,204,21,.25)}}
 .mail{border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin:0 0 9px;background:#0f1b2e}
 .mail.new{border-color:#b45309;background:#1a1d2b}
@@ -456,6 +458,7 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
   #tb-oil,#tb-time .mut{display:none}
   .tb-sp{margin-left:0;width:100%;justify-content:flex-end}
   .tb-sp button{padding:3px 7px}
+  .tb-news{padding:4px 6px;font-size:11px}
   #panel{width:100%;border-left:0;backdrop-filter:none;transition:none}
   #panel.hide{background:transparent;pointer-events:none}
   #panel.hide #tabs{pointer-events:auto}
@@ -568,6 +571,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
     <div id="tb-oil" class="mut"></div>
     <button id="tb-daily" class="tbb" data-act="daily" title="Récompenses et défis du jour">🎁</button>
     <button id="tb-mail" data-act="inbox" title="Messagerie : les PDG des autres compagnies">📬</button>
+    <button class="tb-news" data-act="openNews" title="Actualités du secteur aérien">📰 Actualités</button>
+    <button class="tb-news" data-act="openPresidents" title="Décisions des présidents et gouvernements">🏛️ Présidents</button>
     <div class="tb-sp">
       <button data-speed="realiste" title="Temps réel">Réaliste</button>
       <button data-speed="standard" title="1 s = 1 min">Standard</button>
@@ -617,14 +622,14 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="airports-db.js?v=20261019"></script>
 <script src="runways-db.js?v=20261019"></script>
 <script src="data.js?v=20261057"></script>
-<script src="sim.js?v=20261055"></script>
+<script src="sim.js?v=20261073"></script>
 <script src="realism.js?v=20261057"></script>
 <script src="atc.js?v=20261062"></script>
 <script src="saves.js?v=20261026"></script>
 <script src="airlines-db.js?v=20261019"></script>
 <script src="airlines.js?v=20261062"></script>
-<script src="world-ai.js?v=20261067"></script>
-<script src="ai-brain.js?v=20261057"></script>
+<script src="world-ai.js?v=20261073"></script>
+<script src="ai-brain.js?v=20261073"></script>
 <script src="ai-challenge.js?v=20261066"></script>
 <script src="gameplay2.js?v=20261070"></script>
 <script src="passengers.js?v=20261068"></script>
@@ -633,9 +638,9 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="map.js?v=20261062"></script>
 <script src="ui.js?v=20261060"></script>
 <script src="pilot.js?v=20261019"></script>
-<script src="actions.js?v=20261063"></script>
+<script src="actions.js?v=20261072"></script>
 <script src="aircraft3d.js?v=20261057"></script>
-<script src="globe.js?v=20261071"></script>
+<script src="globe.js?v=20261073"></script>
 <script src="terrain.js?v=20261053"></script>
 <script src="airport3d.js?v=20261051"></script>
 <script src="runway3d.js?v=20261046"></script>
@@ -647,7 +652,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="calendar.js?v=20261061"></script>
 <script src="paxcases.js?v=20261030"></script>
 <script src="inbox.js?v=20261067"></script>
-<script src="pwa.js?v=20261058"></script>
+<script src="pwa.js?v=20261073"></script>
 <script src="simple.js?v=20261067"></script>
 </body>
 </html>

@@ -54,8 +54,9 @@ function patchCesium(C){
 const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); const mode=(v==='e'||v==='h'||v==='a')?v:'a'; return {mode, hq:mode!=='e', mob}; })();   // e = éco, h = haute, a (défaut) = haute avec allègement doux si la vue rame ; téléphone : FXAA au lieu du MSAA
 function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.mode!=='e';
   try{ sc.msaaSamples=(GQ.hq&&!GQ.mob)?4:1; sc.postProcessStages.fxaa.enabled=true; }catch(e){}
-  // Cesium dessine à (rapport de pixels de l'écran × resolutionScale) quand useBrowserRecommendedResolution est faux, et à 1 pixel CSS sinon (flou sur un écran rétina)
-  try{ const dpr=window.devicePixelRatio||1; V.useBrowserRecommendedResolution=!GQ.hq; G.resBase=Math.min(dpr,2)/dpr; V.resolutionScale=GQ.hq?G.resBase:1; }catch(e){}
+  // Le mode éco réduit réellement le tampon de rendu, au lieu de conserver inutilement les pixels rétina.
+  // Plafond à 2× pour préserver la netteté en haute qualité sur les écrans très denses.
+  try{ const dpr=window.devicePixelRatio||1; V.useBrowserRecommendedResolution=false; G.resBase=Math.min(dpr,2)/dpr; V.resolutionScale=G.resBase*(GQ.hq?1:0.72); }catch(e){}
   try{ sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4; sc.globe.showWaterEffect=true; sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=true; sc.fog.enabled=true; }catch(e){}
   G.rivalCap=undefined; G.rivAt=0; G.perf=null; }
 // fonds de carte de la vue 3D (mêmes sources libres que la carte 2D)
@@ -101,7 +102,12 @@ function initGlobe(){
   sc.renderError.addEventListener((scene,err)=>{
     console.warn('rendu 3D',err); G.safe=(G.safe||0)+1;
     try{ if(G.clouds){ sc.primitives.remove(G.clouds); G.clouds=null; } }catch(e){}
-    if(G.safe>=2){ try{ worldClear(); }catch(e){} G.noWorld=true; }
+    if(G.safe===1){
+      try{ V.useBrowserRecommendedResolution=false; V.resolutionScale=Math.min(V.resolutionScale||1,0.68); sc.msaaSamples=1; sc.globe.maximumScreenSpaceError=4; sc.globe.showWaterEffect=false; G.rivalCap=8; G.rivAt=0; }
+      catch(e){}
+      toast('⚙️ Le rendu 3D a détecté une surcharge : qualité réduite automatiquement pour stabiliser l’image.','warn');
+    }
+    if(G.safe>=2){ try{ worldClear(); sc.globe.showWaterEffect=false; }catch(e){} G.noWorld=true; }
     if(G.safe<=4) setTimeout(()=>{ try{ viewer.useDefaultRenderLoop=true; }catch(e){} },300);
     else toast('⛔ La vue 3D rencontre un problème sur cet appareil','bad');
   });
