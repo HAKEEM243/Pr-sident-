@@ -255,6 +255,19 @@ function extraDetails(rnd,o){
   const allergy=rnd()<0.1?pick2(rnd,['arachides','fruits de mer','gluten','lactose']):'';
   const drink=pick2(rnd,['eau','jus d’orange','café','thé','soda','verre de vin','bière locale','rien']);
   const wifi=o.wealth==='rich'?rnd()<0.7:rnd()<0.3, insur=o.wealth==='poor'?rnd()<0.2:rnd()<0.65;
+  // vie du passager : études, revenus, goûts, famille
+  const study=o.age<20?'lycée':pick2(rnd,['baccalauréat','licence','master','école d’ingénieurs','école de commerce','doctorat','formation professionnelle','autodidacte']);
+  const income=Math.round((o.wealth==='rich'?90+rnd()*400:o.wealth==='mid'?18+rnd()*60:3+rnd()*14)*1000/100)*100;
+  const hobbies=[pick2(rnd,['football','lecture','cuisine','photographie','musique','randonnée','jeux vidéo','jardinage','cinéma','danse','pêche','voyages','basket','peinture'])];
+  if(rnd()<0.6) hobbies.push(pick2(rnd,['séries','podcasts','bricolage','course à pied','échecs','couture','théâtre','cuisine du monde']));
+  const food=pick2(rnd,['poulet braisé','pizza','pondu et manioc','couscous','sushis','burger','pâtes','riz sauté','poisson grillé','salade composée','curry','brochettes']);
+  const music=pick2(rnd,['rumba congolaise','afrobeats','rap','variété française','jazz','classique','pop internationale','gospel','soul','électro','reggae','amapiano']);
+  const kids=o.age<24?0:Math.min(5,Math.floor(rnd()*(o.age>35?4:3)));
+  const pet=rnd()<0.2?pick2(rnd,['un chien','un chat','des poissons','un perroquet']):'';
+  const social=((o.first||'x')[0]+(o.last||'y')).toLowerCase().replace(/[^a-z]/g,'')+Math.floor(10+rnd()*90);
+  const firstFlight=o.trips<0.8&&rnd()<0.18;
+  const souvenir=pick2(rnd,['des photos du marché','un tableau local','du café','des épices','un maillot de foot','une sculpture','des tissus','des livres','du chocolat','rien de particulier']);
+  const next=pick2(rnd,['rejoindre sa famille','une réunion à 14 h','l’hôtel puis une promenade','un mariage','un rendez-vous médical','un entretien d’embauche','des vacances de deux semaines','un salon professionnel','retrouver des amis','un retour chez soi']);
   // carte d'embarquement, bagages détaillés, contact, santé, paiement
   const gate=pick2(rnd,['A','B','C','D','E'])+(1+Math.floor(rnd()*28)), boardMin=(o.k==='f'||o.k==='j')?50:40, seq=1+Math.floor(rnd()*220);
   const bagItems=['vêtements','chaussures','cadeaux','produits de beauté','médicaments','livres','nourriture locale','matériel professionnel','jouets','équipement de sport','souvenirs','produits d’artisanat'];
@@ -267,7 +280,7 @@ function extraDetails(rnd,o){
   const jetlag=Math.abs(((o.A.lon||0)-(o.B.lon||0))/15);
   const pay=o.wealth==='rich'?pick2(rnd,['carte premium','carte entreprise','virement']):pick2(rnd,['carte bancaire','paiement mobile','espèces à l’agence','carte bancaire']);
   const fare=({f:'P',j:'J',w:'W',y:pick2(rnd,['Y','M','L','Q','T','K'])})[o.k]||'Y', fareCond=o.k==='y'&&'QTKL'.includes(fare)?'non remboursable':o.k==='y'?'modifiable avec frais':'flexible';
-  return {gate,boardMin,seq,bagList,phone,mail,emerg,health,jetlag:Math.round(jetlag*10)/10,pay,fare,fareCond,place,lodging,items,fear,ent,allergy,drink,wifi,insur,dob:`${bd} ${PX_MONTHS[bm]} ${byr}`, born, passNo, checkin:pick2(rnd,CHECKIN[o.wealth]), ciMin:minsBefore, group, with_, conn, declare:pick2(rnd,DECLARE[o.purp]||['rien à déclarer']), cash, spend, sat, hist, opinion:pick2(rnd,opinions),
+  return {study,income,hobbies,food,music,kids,pet,social,firstFlight,souvenir,next,gate,boardMin,seq,bagList,phone,mail,emerg,health,jetlag:Math.round(jetlag*10)/10,pay,fare,fareCond,place,lodging,items,fear,ent,allergy,drink,wifi,insur,dob:`${bd} ${PX_MONTHS[bm]} ${byr}`, born, passNo, checkin:pick2(rnd,CHECKIN[o.wealth]), ciMin:minsBefore, group, with_, conn, declare:pick2(rnd,DECLARE[o.purp]||['rien à déclarer']), cash, spend, sat, hist, opinion:pick2(rnd,opinions),
     control:rnd()<(o.wealth==='poor'?0.06:0.02)?'Contrôle approfondi (vérification du visa)':'Contrôle normal ✅'};
 }
 
@@ -377,6 +390,8 @@ function passengerCardHtml(ac,i){
     <h4>📊 Avis sur ce vol</h4><div class="pc-sat"><div><span>Confort</span>${st(sat.confort||3)}</div><div><span>Repas</span>${st(sat.repas||3)}</div><div><span>Équipage</span>${st(sat.equipage||3)}</div><div><span>Ponctualité</span>${st(sat.ponctualite||3)}</div></div>
       <div class="pc-op">${esc(r.opinion||'')} <span class="mut small">· note moyenne ${avgS.toFixed(1).replace('.',',')}/5 · humeur : ${gx(r.mood,r.F)}${r.moodWhy?' ('+esc(r.moodWhy)+')':''}</span></div>
       ${row('Achats à bord',fmtMoney(r.spend||0))}
+    <h4>🪪 Sa vie</h4>${row('Études',esc(r.study||'—'))}${row('Revenu annuel',fmtMoney(r.income||0))}${row('Enfants',r.kids?String(r.kids):'aucun')}${r.pet?row('Animal',esc(r.pet)+' à la maison'):''}${row('Loisirs',esc((r.hobbies||[]).join(', ')||'—'))}${row('Plat préféré',esc(r.food||'—'))}${row('Musique',esc(r.music||'—'))}${row('Réseaux',`@${esc(r.social||'—')}`)}${r.firstFlight?row('Premier vol','✨ oui, première fois en avion'):''}${row('Après l’atterrissage',esc(r.next||'—'))}${row('Rapportera',esc(r.souvenir||'—'))}
+    <h4>⏱️ En ce moment</h4>${(()=>{ const ph=(ac.flight&&flightState(ac,simNow()))?flightState(ac,simNow()).phase:0, L=[['cherche sa place et range son bagage en cabine','écoute les consignes de sécurité, bouclé(e)','serre l’accoudoir pendant la poussée','regarde par le hublot, le sol rapetisse','se détend, '+(r.ent||'regarde le plafond'),'ramasse ses affaires, descente en cours','boucle sa ceinture et redresse le dossier','applaudit ou soupire de soulagement à l’atterrissage','attend la porte et rallume son téléphone']]; const idx=[0,1,2,3,4,4,5,6,7,8].length; const i=Math.min(8,[0,1,2,3,4,4,5,6,7,8][Math.max(0,Math.min(9,ph))]); return `<div class="pc-story">${esc(r.first)} ${esc(L[0][i])}.${r.fear&&ph>=2&&ph<=7?` <small>(${esc(r.fear)})</small>`:''}</div>`; })()}
     <h4>🎟️ Carte d’embarquement</h4><div class="pc-bp"><div class="bp-l"><small>VOL</small><b>${esc(S.company.code)}${flightNumber(ac)}</b><small>DE → À</small><b>${esc(m.from.code||m.from.city)} → ${esc(m.to.code||m.to.city)}</b></div><div class="bp-m"><small>PORTE</small><b>${esc(r.gate||'—')}</b><small>EMBARQUEMENT</small><b>${t(depT-(r.boardMin||40)*MIN)}</b></div><div class="bp-r"><small>SIÈGE</small><b>${r.seat}</b><small>SÉQ.</small><b>${r.seq||'—'}</b></div></div><div class="pc-barcode">${Array.from({length:46},(_,i)=>`<i style="width:${1+((i*7+(r.seq||3))%3)}px"></i>`).join('')}</div>
     ${row('Tarif',`classe ${esc(r.fare||'Y')} · ${esc(r.fareCond||'—')}`)}${row('Paiement',esc(r.pay||'—'))}
     <h4>🧳 Bagages (${(r.bagList||[]).length})</h4>${(r.bagList||[]).map((b,i)=>row(`Valise ${i+1}`,`${esc(b.color)} · ${b.kg} kg · étiquette ${esc(b.tag)}<br><span class="small mut">${esc(b.what)}</span>`)).join('')||row('Soute','aucun bagage en soute')}
