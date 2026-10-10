@@ -51,7 +51,13 @@ function patchCesium(C){
   }
 }
 // qualité graphique : « Éco » par défaut sur téléphone (fluide), « Haute » sur ordinateur
-const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); return {hq: v? v==='h' : !mob, mob}; })();
+const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); const mode=(v==='e'||v==='h'||v==='a')?v:'a'; return {mode, hq:mode!=='e', mob}; })();   // e = éco, h = haute, a (défaut) = haute avec allègement doux si la vue rame ; téléphone : FXAA au lieu du MSAA
+function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.mode!=='e';
+  try{ sc.msaaSamples=(GQ.hq&&!GQ.mob)?4:1; sc.postProcessStages.fxaa.enabled=true; }catch(e){}
+  // Cesium dessine à (rapport de pixels de l'écran × resolutionScale) quand useBrowserRecommendedResolution est faux, et à 1 pixel CSS sinon (flou sur un écran rétina)
+  try{ const dpr=window.devicePixelRatio||1; V.useBrowserRecommendedResolution=!GQ.hq; G.resBase=Math.min(dpr,2)/dpr; V.resolutionScale=GQ.hq?G.resBase:1; }catch(e){}
+  try{ sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4; sc.globe.showWaterEffect=true; sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=true; sc.fog.enabled=true; }catch(e){}
+  G.rivalCap=undefined; G.rivAt=0; G.perf=null; }
 // fonds de carte de la vue 3D (mêmes sources libres que la carte 2D)
 const ESRI3='https://server.arcgisonline.com/ArcGIS/rest/services/';
 const BASE3D={
@@ -103,6 +109,7 @@ function initGlobe(){
   sc.globe.depthTestAgainstTerrain=false; sc.highDynamicRange=false; sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4;
   viewer.clock.shouldAnimate=false;
   G={viewer, baseKey:(BASE3D[(()=>{ try{ return localStorage.getItem('se-3dstyle'); }catch(e){ return null; } })()]?localStorage.getItem('se-3dstyle'):'hybrid'), planes:new Map(), rivals:[], routes:[], airports:[], follow:null, cam:{mode:'chase',h:0,p:-9,range:120}, lighting:true, tiles:null, simAt:performance.now(), simTime:S.time, att:new Map(), trail:[], hudAt:0, forceDay:(()=>{ try{ return localStorage.getItem('se-day')==='1'; }catch(e){ return false; } })()};
+  applyQuality();
   // clic sur un avion
   const h=new C.ScreenSpaceEventHandler(sc.canvas);
   h.setInputAction(e=>{ if(G.follow) return; const p=sc.pick(e.position); const id=p&&p.id&&p.id._acId; if(id){ selectPlane(id); renderGlobeHud(); } }, C.ScreenSpaceEventType.LEFT_CLICK);
@@ -262,19 +269,13 @@ function setCam(mode){
 }
 // régulateur de fluidité : si la vue 3D tourne sous ~22 images/s, le jeu s'allège par paliers (résolution, effets, avions lointains)
 function perfGov(){
-  if(!G||navigator.webdriver||window.SE_NO_PERF) return;
+  if(!G||navigator.webdriver||window.SE_NO_PERF||GQ.mode!=='a') return;
   const now=performance.now(), P=G.perf||(G.perf={t0:now,n:0,lvl:0}); P.n++;
-  const el=now-P.t0; if(el<4000) return; const fps=P.n/(el/1000); P.t0=now; P.n=0;
-  if(el>9000||document.hidden||fps>=22||P.lvl>=3) return;       // onglet resté en arrière-plan, ou assez fluide
-  P.lvl++; const V=G.viewer, sc=V.scene;
-  try{
-    sc.globe.maximumScreenSpaceError=Math.max(sc.globe.maximumScreenSpaceError,2.4+P.lvl*0.8);
-    V.resolutionScale=[1,0.85,0.7,0.55][P.lvl];
-    if(P.lvl>=1){ GQ.hq=false; sc.globe.showWaterEffect=false; G.rivalCap=10; G.rivAt=0; }
-    if(P.lvl>=2){ sc.postProcessStages.fxaa.enabled=false; if(G.clouds) G.clouds.show=false; G.rivalCap=4; G.rivAt=0; }
-    if(P.lvl>=3){ sc.fog.enabled=false; G.rivalCap=0; G.rivAt=0; }
-  }catch(e){}
-  toast(`⚙️ Jeu allégé (niveau ${P.lvl}/3) : ${Math.round(fps)} images/s détectées`,'info');
+  const el=now-P.t0; if(el<6000) return; const fps=P.n/(el/1000); P.t0=now; P.n=0;
+  if(el>12000||document.hidden||P.lvl>=2) return;
+  if(fps<14){ P.lvl++; const V=G.viewer, sc=V.scene;      // allègement doux : on garde l'image belle, on réduit seulement la charge
+    try{ sc.globe.maximumScreenSpaceError=Math.max(sc.globe.maximumScreenSpaceError,2+P.lvl*0.6); V.resolutionScale=Math.max(0.85*(G.resBase||1),(V.resolutionScale||1)*0.9); G.rivalCap=P.lvl===1?16:8; G.rivAt=0; if(P.lvl>=2) sc.msaaSamples=1; }catch(e){}
+    toast(`⚙️ Allègement automatique (${Math.round(fps)} images/s)`,'info'); }
 }
 function globeFollowTick(){
   perfGov();
@@ -378,7 +379,7 @@ function renderGlobeHud(){
       <button class="gh ${typeof FX!=='undefined'&&FX.soundOn?'on':''}" data-act="globeSound">🔊 Son</button>
       <button class="gh ${G.forceDay?'on':''}" data-act="globeDay" title="Toujours en plein jour">☀️ Jour</button>
       <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief" title="Relief réel (montagnes, vallées)">⛰️ Relief</button>
-      <button class="gh" data-act="globeQ" title="Qualité graphique">⚙️ ${GQ.hq?'Haute':'Éco'}</button>
+      <button class="gh" data-act="globeQ" title="Qualité graphique">⚙️ ${GQ.mode==='a'?'Auto':GQ.hq?'Haute':'Éco'}</button>
       <button class="gh" data-act="globeBase" title="Changer le fond : satellite, plan, relief, sombre…">🗺️ Fond</button>
       <button class="gh" data-act="photo">📸 Photo</button>
       <button class="gh" data-act="radar">📡 Radar</button>
@@ -423,7 +424,7 @@ Object.assign(ACTIONS,{
   globeFollow:()=>{ if(G.follow) return globeFollow(null); if(typeof fxAudioUnlock==='function') fxAudioUnlock(); const sel=selectedPlane&&S.fleet.find(a=>a.id===selectedPlane&&a.status==='flight'); const ac=sel||pick(S.fleet.filter(a=>a.status==='flight')); if(ac){ selectPlane(ac.id); globeFollow(ac.id); } },
   globeNext:()=>{ const fl=S.fleet.filter(a=>a.status==='flight'); if(!fl.length) return; const i=fl.findIndex(a=>a.id===G.follow); const ac=fl[(i+1)%fl.length]; selectPlane(ac.id); globeFollow(ac.id); },
   globeCam:d=>{ G.lastMode=d.k; setCam(d.k); },
-  globeQ:()=>{ GQ.hq=!GQ.hq; try{ localStorage.setItem('se-q',GQ.hq?'h':'e'); }catch(e){} toast(GQ.hq?'⚙️ Qualité haute : ombres, plus de détails (plus lourd)':'⚙️ Mode éco : plus fluide sur téléphone','info'); if(G){ G.viewer.scene.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4; G.rivAt=0; } renderGlobeHud(); },
+  globeQ:()=>{ GQ.mode=GQ.mode==='e'?'h':GQ.mode==='h'?'a':'e'; try{ localStorage.setItem('se-q',GQ.mode); }catch(e){} toast(GQ.mode==='e'?'⚙️ Éco : plus fluide sur téléphone':GQ.mode==='h'?'⚙️ Haute qualité : image nette, anticrénelage, ombres':'⚙️ Auto : haute qualité, allègement doux si la vue rame','info'); applyQuality(); renderGlobeHud(); },
   globeRelief:()=>{ TERRAIN.on=!TERRAIN.on; try{ localStorage.setItem('se-relief',TERRAIN.on?'1':'0'); }catch(e){} terrainApply(); toast(TERRAIN.on?'⛰️ Relief réel activé : montagnes, vallées et volcans':'Relief désactivé (terre plate, plus léger)','info'); renderGlobeHud(); },
   globeSound:()=>fxToggleSound(),
   globeRain:()=>{ FX.forceRain=!FX.forceRain; fxAudioUnlock(); renderGlobeHud(); },
