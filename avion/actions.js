@@ -332,12 +332,14 @@ function boot(){
     if(!S.paused){ advance(dt*SPEEDS[S.speed].mult); }
     if(typeof globeNoteSim==='function') globeNoteSim();
     pilotBackground(dt);
-    updatePlanes();
+    // vue 3D ouverte : la carte 2D (cachée) n'est rafraîchie que toutes les 2 s, pour laisser le téléphone dessiner la 3D
+    const g3=document.body.classList.contains('globe-on'); UI.g3n=(UI.g3n||0)+1;
+    if(!g3||UI.g3n%10===0) updatePlanes();
     acc1+=dt; acc2+=dt; acc30+=dt; acc10+=dt;
-    if(acc1>=1000){ acc1=0; checkMissions(); if(typeof progressTick==='function') progressTick(); renderTop(); updateRival(); drawWeather(); if(typeof maybeShowDecision==='function') maybeShowDecision(); }
+    if(acc1>=1000){ acc1=0; checkMissions(); if(typeof progressTick==='function') progressTick(); renderTop(); if(!g3){ updateRival(); drawWeather(); } if(typeof maybeShowDecision==='function') maybeShowDecision(); }
     if(acc2>=2000){ acc2=0; if(!P||P.hidden) liveRefresh(); }
-    if(acc30>=20000){ acc30=0; drawNight(); drawAirports(); }
-    if(acc10>=10000){ acc10=0; save(); }
+    if(acc30>=20000){ acc30=0; if(!g3){ drawNight(); drawAirports(); } }
+    if(acc10>=(g3?30000:10000)){ acc10=0; save(); }   // en 3D : sauvegarde toutes les 30 s (évite les à-coups)
   },200);
   const pn=document.getElementById('panel'); if(pn) for(const ev of ['pointerdown','wheel','touchstart','scroll','keydown']) pn.addEventListener(ev,()=>{ UI.touchAt=performance.now(); },{capture:true,passive:true});
   window.addEventListener('beforeunload',save);

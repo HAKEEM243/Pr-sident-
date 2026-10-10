@@ -69,6 +69,8 @@ function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.m
   // téléphone : moins de tuiles gardées en mémoire (les plantages de la vue 3D sur iPhone viennent surtout de la mémoire)
   try{ sc.globe.tileCacheSize=GQ.mob?(GQ.hq?120:70):300; sc.globe.preloadSiblings=!GQ.mob; sc.globe.loadingDescendantLimit=GQ.mob?10:20; }catch(e){}
   try{ sc.globe.maximumScreenSpaceError=GQ.hq?(GQ.mob?2:1.6):(GQ.mob?3:2.4); sc.globe.showWaterEffect=!(GQ.mob&&!GQ.hq); sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=!(GQ.mob&&!GQ.hq); sc.fog.enabled=true; }catch(e){}
+  // téléphone : 30 images/s max en Éco (moins de chauffe, donc moins de ralentissements au bout de quelques minutes)
+  try{ V.targetFrameRate=(GQ.mob&&!GQ.hq)?30:undefined; }catch(e){}
   G.rivalCap=undefined; G.rivAt=0; G.perf=null; }
 // fonds de carte de la vue 3D (mêmes sources libres que la carte 2D)
 const ESRI3='https://server.arcgisonline.com/ArcGIS/rest/services/';
@@ -143,7 +145,7 @@ function initGlobe(){
   const hub=AP(S.company.hub);
   viewer.camera.setView({destination:C.Cartesian3.fromDegrees(hub.lon, hub.lat-18, 7.5e6), orientation:{heading:0, pitch:C.Math.toRadians(-70), roll:0}});
   const key=localStorage.getItem(GKEY);
-  if(key && localStorage.getItem('cst-3dtiles')==='1') toggleGoogle3D(true);
+  if(key && localStorage.getItem('cst-3dtiles')==='1'){ if(GQ.crashed&&GQ.mob){ try{ localStorage.setItem('cst-3dtiles','0'); }catch(e){} toast('🏙️ Villes 3D Google coupées (trop lourdes pour ce téléphone) : réactivez-les si vous voulez','info'); } else toggleGoogle3D(true); }
   G.loop=setInterval(()=>{ if(!$('#globe').hidden) globeSync(false); },1000);
   sc.preRender.addEventListener(globeFollowTick);
   try{ G.clouds=sc.primitives.add(new C.CloudCollection({noiseDetail:16})); }catch(e){ G.clouds=null; }
@@ -258,7 +260,7 @@ function drawGlobeRivals(){
   const cands=[]; for(const it of list.slice(0,600)){ const sc=typeof rivalSched==='function'?rivalSched(it.r):null; const nP=Math.min(3,sc?sc.nP:1); for(let i=0;i<nP;i++){ const q=typeof rivalPos==='function'? rivalPos(it.r,i,t) : null; if(q) cands.push({...it,i,q,dd:fst?gcDist(q.p,fst):0}); } }
   if(fst) cands.sort((x,y)=>x.dd-y.dd);
   for(const {R,r,i:pi,q:q0} of cands){
-    if(n>=(G.rivalCap!==undefined?G.rivalCap:(GQ.hq?60:22))) return;
+    if(n>=(G.rivalCap!==undefined?G.rivalCap:(GQ.hq?60:GQ.mob?12:22))) return;
     const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color);
     let q=q0, qAt=-1; const an={}, nt={};
     const Q=()=>{ const now=performance.now(); if(now!==qAt){ qAt=now; q=rivalPos(r,pi||0,gSimNow())||q; } return q; };
@@ -377,7 +379,8 @@ async function toggleGoogle3D(on){
   if(on && !key){ toast('🔑 Ajoutez d’abord une clé Google dans « 🗺️ Fond de carte »','warn'); return; }
   if(on){
     try{
-      G.tiles=await C.Cesium3DTileset.fromUrl(`https://tile.googleapis.com/v1/3dtiles/root.json?key=${encodeURIComponent(key)}`,{showCreditsOnScreen:true, maximumScreenSpaceError:12});
+      // téléphone : bâtiments Google moins détaillés et cache limité (ils saturaient la mémoire de l'iPhone)
+      G.tiles=await C.Cesium3DTileset.fromUrl(`https://tile.googleapis.com/v1/3dtiles/root.json?key=${encodeURIComponent(key)}`,GQ.mob?{showCreditsOnScreen:true, maximumScreenSpaceError:GQ.hq?20:28, cacheBytes:96*1024*1024, maximumCacheOverflowBytes:32*1024*1024, skipLevelOfDetail:true, foveatedScreenSpaceError:true, dynamicScreenSpaceError:true}:{showCreditsOnScreen:true, maximumScreenSpaceError:12});
       G.viewer.scene.primitives.add(G.tiles); G.viewer.scene.globe.show=false;
       localStorage.setItem('cst-3dtiles','1'); toast('🏙️ Villes 3D Google activées','ok');
     }catch(e){ G.tiles=null; toast('⛔ Villes 3D Google : clé refusée (activez « Map Tiles API »)','bad'); }
@@ -528,7 +531,7 @@ function airportsTick(p){
   const near=[]; for(const c of AIRPORT_CODES){ const a=AP(c); if(Math.abs(a.lat-here.lat)>3.5) continue; const d=gcDist(a,here); if(d<320) near.push([d,c,a]); }
   near.sort((x,y)=>x[0]-y[0]);
   if(typeof terrFlatten==='function'){ let fresh=false; for(const [d,c] of near) if(d<300&&terrFlatten(c)&&d<60) fresh=true; if(fresh) terrReload(); }
-  for(const [d,c,a] of near.filter(([d,c,a])=>d<90||a.cls>=3||S.hubs.includes(c)).slice(0,16)){
+  for(const [d,c,a] of near.filter(([d,c,a])=>d<90||a.cls>=3||S.hubs.includes(c)).slice(0,GQ.mob&&!GQ.hq?8:16)){
     const big=a.cls>=3, mine=S.hubs.includes(c);
     const EL=(typeof gElev==='function'?gElev(c):0);
     N.ents.push(V.entities.add({position:C.Cartesian3.fromDegrees(a.lon,a.lat,40+EL),

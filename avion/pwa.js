@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261078';
+const GAME_VER='20261079';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['📱 3D allégée sur téléphone','Mémoire réduite d’environ un tiers : 30 images/s en Éco, moins d’avions et de décor au loin, carte 2D en pause pendant la 3D, sauvegarde moins fréquente, villes Google 3D allégées (et coupées si la 3D a planté).'],
   ['🛠️ 3D plus stable','Sur téléphone, la 3D démarre en <b>Éco</b> (plus fluide, moins de mémoire). Si elle se ferme toute seule, le jeu repasse en Éco automatiquement. ⚙️ en 3D pour changer.'],
   ['📰 À la une','En haut de la carte : les grandes nouvelles (présidents, accidents, attaques des rivaux). Touchez pour lire. Actus → <b>🏛️ Présidents</b> et <b>💥 Accidents</b>.'],
   ['🎬 Voir décoller / atterrir','Sur la carte 2D et dans 🛫 Mes vols : un bouton ouvre la 3D au moment du prochain décollage ou atterrissage.'],
