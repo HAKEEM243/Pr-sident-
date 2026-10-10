@@ -255,8 +255,8 @@ function lineDemandRows(r, compact){
 function pNetwork(){
   const byHub={}; for(const r of S.routes) (byHub[r.stops[0]]=byHub[r.stops[0]]||[]).push(r);
   return `<div class="btns">${isSimple()?'':'<button class="btn gold big" data-act="openLine">➕ Ouvrir une ligne</button>'}<button class="btn ${isSimple()?'sm':'big'}" data-act="calendar">🗓️ Calendrier</button><button class="btn ${isSimple()?'sm':'big'}" data-act="buyHubModal">🏢 Acheter un hub</button></div>
-  <div class="hubs">${S.hubs.map(h=>{ const a=AP(h), n=(byHub[h]||[]).length, f=S.fleet.filter(x=>x.hub===h).length; return `<div class="hubcard" data-act="openAp" data-c="${h}">
-    <div class="hc-top">${flag(h)} <b>${a.city}</b> <span class="mut">${h}</span></div><div class="small">${n} ligne(s) · ${f} avion(s)</div><div class="small mut">${a.name} · piste cl.${a.cls}</div><div class="small">🏆 ${typeof airportRank==='function'?'n° '+airportRank(h)+' mondial':''}</div></div>`; }).join('')}</div>
+  <div class="hubs">${S.hubs.map(h=>{ const a=AP(h), n=(byHub[h]||[]).length, f=S.fleet.filter(x=>x.hub===h).length, traffic=a.traffic>=1?`${a.traffic.toFixed(1)} M`:`${Math.round(a.traffic*1000)} k`; return `<div class="hubcard" data-act="openAp" data-c="${h}">
+    <div class="hc-top">${flag(h)} <b>${a.city}</b> <span class="mut">${h}</span></div><div class="small">${n} ligne(s) · ${f} avion(s)</div><div class="small mut">${a.name} · piste cl.${a.cls}</div><div class="small">🌍 Influence aéroportuaire : <b>n° ${typeof airportRank==='function'?airportRank(h):'—'}</b></div><div class="small mut">Trafic de base : ${traffic} passagers/an</div></div>`; }).join('')}</div>
   ${S.hubs.map(h=>`<h3>Lignes depuis ${AP(h).city}</h3>${(byHub[h]||[]).map(lineCard).join('')||'<div class="mut small">Aucune ligne depuis ce hub.</div>'}`).join('')}`;
 }
 function lineCard(r){

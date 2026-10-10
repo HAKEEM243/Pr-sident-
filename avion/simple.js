@@ -261,7 +261,7 @@ let _adv={k:'',v:[]};
 function advisorSuggestions(){
   const key=Math.floor(S.time/DAY)+'|'+S.routes.length+'|'+S.fleet.length+'|'+S.hubs.join(); if(_adv.k===key) return _adv.v;
   const out=[], fleet=S.fleet; if(!S.hubs.length) return out;
-  const pool=typeof airportRanking==='function'? airportRanking().slice(0,220) : AIRPORT_CODES;
+  const pool=typeof airportRanking==='function'? airportRanking().slice(0,220).map(x=>typeof x==='string'?x:x.code) : AIRPORT_CODES;
   const have=new Set(S.routes.map(r=>r.stops.join('>')));
   const maxRange=fleet.length? Math.max(...fleet.map(a=>modelOf(a).range)) : 1500;
   for(const h of S.hubs.slice(0,3)){

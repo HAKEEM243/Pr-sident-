@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261073';
+const GAME_VER='20261075';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,9 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🌍 Classements plus vivants','Le classement mondial des compagnies se trie par patrimoine, flotte, réseau, passagers ou réputation. Le rang d’influence des aéroports tient maintenant compte des avions et lignes présents, en plus du bonus de scénario de Kinshasa.'],
+  ['🛂 Passagers plus pertinents','Les raccourcis de pays suivent désormais les principales provenances de la destination choisie, au lieu d’afficher une liste figée.'],
+  ['⚙️ Vue 3D plus sûre','La qualité Auto est équilibrée dès le lancement ; le mode Éco est choisi par défaut sur mobile pour limiter les plantages.'],
   ['📰 Actualités et présidents','Les boutons toujours visibles en haut ouvrent directement le fil des actualités ou les décisions des présidents.'],
   ['⚙️ Vue 3D plus fluide','Le réglage « Éco » réduit maintenant vraiment le nombre de pixels rendus pour soulager les appareils mobiles.'],
   ['⏩ Progression hors ligne','La partie avance maintenant à la vitesse choisie en votre absence (plafond ×60 et 30 jours), sauf si vous l’avez mise en pause.'],

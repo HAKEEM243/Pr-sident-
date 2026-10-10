@@ -302,7 +302,8 @@ function airlineBars(al,max=8){ return al.slice(0,max).map(a=>`<div class="pbar-
 function pPax(){
   const cc=UI.paxCountry||homeCC(), C=COUNTRIES[cc], im=countryImmigration(cc);
   const countries=Object.keys(COUNTRIES).filter(k=>cAirports(k).length).sort((x,y)=>COUNTRIES[x][0].localeCompare(COUNTRIES[y][0]));
-  const quick=[...new Set([homeCC(),...S.hubs.map(h=>AP(h).cc),'CD','FR','US','CN','AE','NG','ZA','KP'])].filter(k=>COUNTRIES[k]&&cAirports(k).length);
+  const origins=im&&im.orig?im.orig.slice(0,6).map(x=>x.cc):[];
+  const quick=[...new Set([cc,homeCC(),...S.hubs.map(h=>AP(h).cc),...origins])].filter(k=>COUNTRIES[k]&&cAirports(k).length).slice(0,9);
   const head=`<div class="simplehelp">🛂 <b>Contrôle des passagers</b> : qui arrive dans un pays, d’où il vient, ce qu’il paie, avec quelle compagnie. Les volumes suivent la demande du jeu ; la répartition (richesse, nationalité, motif) est une <b>estimation</b>, les personnes sont fictives.</div>
   <div class="row wrap"><select data-in="paxCountry">${countries.map(k=>`<option value="${k}" ${k===cc?'selected':''}>${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</option>`).join('')}</select></div>
   <div class="chips">${quick.map(k=>`<button class="chip ${k===cc?'on':''}" data-act="paxCountry" data-cc="${k}">${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</button>`).join('')}</div>`;

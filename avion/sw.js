@@ -1,6 +1,6 @@
 /* Sky Empire — service worker : le jeu s'ouvre comme une application et fonctionne même sans réseau
    (les fichiers du jeu sont gardés en cache ; les mises à jour sont récupérées dès qu'Internet est là). */
-const CACHE='sky-empire-v2';
+const CACHE='sky-empire-v4';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icons/icon-180.png','./icons/icon-192.png','./icons/icon-512.png'];
 self.addEventListener('install',e=>{ e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).catch(()=>{})); self.skipWaiting(); });
 // nouvelle version du service worker : anciens caches supprimés et pages ouvertes rechargées (partie gardée par le jeu)
