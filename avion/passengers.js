@@ -308,6 +308,8 @@ function pPax(){
   <div class="row wrap"><select data-in="paxCountry">${countries.map(k=>`<option value="${k}" ${k===cc?'selected':''}>${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</option>`).join('')}</select></div>
   <div class="chips">${quick.map(k=>`<button class="chip ${k===cc?'on':''}" data-act="paxCountry" data-cc="${k}">${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</button>`).join('')}</div>`;
   if(!im) return head+'<div class="mut">Aucun aéroport avec vols réguliers dans ce pays.</div>';
+  const arrivals=(S.fleet||[]).filter(ac=>ac.status==='flight').map(ac=>({ac,m:flightManifest(ac)})).filter(x=>x.m&&!x.m.cargo&&x.m.to.cc===cc);
+  const flightOps=arrivals.length?`<section class="pax-ops"><div class="pax-ops-head"><div><span class="ops-eyebrow">CONTRÔLE OPÉRATIONNEL</span><h3>Vos arrivées en cours</h3></div><span class="ops-count">${arrivals.length} vol${arrivals.length>1?'s':''}</span></div><div class="pax-arrivals">${arrivals.map(({ac,m})=>{const st=flightState(ac,simNow())||{phase:0,frac:0}, phase=['Embarquement','Décollage','Montée','Croisière','Croisière','Descente','Approche','Atterrissage','Arrivée','Roulage'][Math.max(0,Math.min(9,st.phase||0))], estimate=fn=>Math.round(m.total*m.rows.filter(fn).length/Math.max(1,m.rows.length)), checks=estimate(r=>String(r.control||'').includes('approfondi')), assist=estimate(r=>!!r.assist), connect=estimate(r=>!!r.conn); return `<article class="pax-arrival"><div class="pax-arrival-top"><b>${esc(S.company.code)}${flightNumber(ac)}</b><span class="ops-state">EN VOL · ${Math.round((st.frac||0)*100)} %</span></div><div class="pax-route">${esc(m.from.city)} <span>→</span> <b>${esc(m.to.city)}</b></div><div class="ops-progress"><i style="width:${clamp((st.frac||0)*100,0,100)}%"></i></div><div class="small mut">${phase} · ${num(m.total)} passagers · ${checks} contrôle(s) approfondi(s) estimé(s) · ${assist} assistance(s) · ${connect} correspondance(s)</div><div class="btns"><button class="btn sm" data-act="manifest" data-id="${ac.id}">📋 Ouvrir le manifeste</button><button class="btn sm" data-act="follow" data-id="${ac.id}">🎯 Suivre le vol</button></div></article>`;}).join('')}</div><div class="small mut">Les contrôles et profils sont simulés ; les indicateurs détaillés sont extrapolés à partir des fiches fictives générées pour chaque vol.</div></section>`:`<section class="pax-ops pax-ops-empty"><span class="ops-eyebrow">CONTRÔLE OPÉRATIONNEL</span><b>Aucune de vos arrivées vers ${esc(C[0])} n’est en vol.</b><span class="small mut">Les vols apparaîtront ici avec leur manifeste, leurs besoins d’assistance et les vérifications simulées.</span></section>`;
   const mood=typeof moodOf==='function'?moodOf(cc):null;
   const kp=(l,v,s)=>`<div class="kpi"><div class="kl">${l}</div><div class="kv">${v}</div>${s?`<div class="small mut">${s}</div>`:''}</div>`;
   const myShare=(im.airlines.find(a=>a.me)||{share:0}).share;
@@ -322,6 +324,7 @@ function pPax(){
     ${kp('Billet moyen',fmtMoney(im.fare.y),`affaires ${fmtMoney(im.fare.j)} · première ${fmtMoney(im.fare.f)}`)}
     ${mood?kp('Climat du pays',moodLabel(mood),mood.note||''):''}
   </div>
+  ${flightOps}
   <h3>Qui sont les voyageurs ?</h3>
   <div class="card"><div class="small mut">Richesse des passagers</div>${wealthBars(im.wealth)}</div>
   <div class="card"><div class="small mut">Pourquoi ils voyagent</div>${purposeBars(im.purpose)}</div>
@@ -335,8 +338,9 @@ function pPax(){
 }
 function paxProfileHtml(a,b){
   const pr=paxProfile(a,b), A=AP(a), B=AP(b);
+  const avgFare=pr.cls.y*pr.fare.y+pr.cls.j*pr.fare.j+pr.cls.f*pr.fare.f, revenue=pr.demand*avgFare;
   return `<div class="card paxprof"><b>🛂 Profil des passagers ${esc(A.city)} → ${esc(B.city)}</b>
-    <div class="small mut">${num(Math.round(pr.demand))} voyageurs/jour · ${num(Math.round(pr.perYear))} par an · ≈ ${num(Math.round(pr.uniqueYear))} personnes différentes (${pr.trips.toFixed(1).replace('.',',')} voyages/an chacune)</div>
+    <div class="kpis three"><div class="kpi"><div class="kl">Demande</div><div class="kv">${num(Math.round(pr.demand))} / jour</div><div class="small mut">${num(Math.round(pr.perYear))} / an</div></div><div class="kpi"><div class="kl">Voyageurs uniques estimés</div><div class="kv">${num(Math.round(pr.uniqueYear))} / an</div><div class="small mut">${pr.trips.toFixed(1).replace('.',',')} voyages/an chacun</div></div><div class="kpi"><div class="kl">Billet moyen · recette potentielle</div><div class="kv">${fmtMoney(avgFare)}</div><div class="small mut">≈ ${fmtMoney(revenue)} / jour, marché total</div></div></div>
     <div class="small mut" style="margin-top:6px">Richesse</div>${wealthBars(pr.wealth)}
     <div class="small mut" style="margin-top:6px">Motif</div>${purposeBars(pr.purpose)}
     <div class="small mut" style="margin-top:6px">Nationalité</div>${natBars(pr.nat,5)}
@@ -355,11 +359,12 @@ function manifestHtml(ac){
     <div class="kpi"><div class="kl">Recette estimée</div><div class="kv">${fmtMoney(avg*m.total)}</div></div><div class="kpi"><div class="kl">Humeur</div><div class="kv">😄 ${happy} · 😠 ${angry}</div></div></div></div>`;
   const leg=`<div class="mf-leg"><span>🟣 Aisés <b>${wc.rich}</b></span><span>🔵 Classe moyenne <b>${wc.mid}</b></span><span>🟠 Modestes <b>${wc.poor}</b></span></div>
     <div class="mf-leg">${Object.entries(nc).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([c,n])=>`<span>${COUNTRIES[c]?COUNTRIES[c][2]:'🌍'} ${esc(COUNTRIES[c]?COUNTRIES[c][0]:c)} <b>${n}</b></span>`).join('')}</div>`;
-  const F=[['all','Tous'],['f',`👑 1ʳᵉ (${cc.f})`],['j',`💼 Affaires (${cc.j})`],['y',`💺 Éco (${cc.y+cc.w})`],['angry',`😠 Mécontents (${angry})`],['vip','⭐ Fidèles']].filter(([k])=>k==='all'||k==='angry'||k==='vip'||(k==='y'?cc.y+cc.w:cc[k]));
+  const advanced=[['family','👨‍👩‍👧 Familles',r=>r.purp==='family'||r.age<18||(r.kids||0)>0],['assist','♿ Assistance',r=>!!r.assist],['check','🛂 Vérification',r=>String(r.control||'').includes('approfondi')],['connect','🔁 Correspondance',r=>!!r.conn],['first','✨ Premier vol',r=>!!r.firstFlight],['bags','🧳 Bagage soute',r=>(r.bags||0)>0]].map(([k,l,test])=>[k,`${l} (${m.rows.filter(test).length})`,test]).filter(x=>m.rows.some(x[2]));
+  const F=[['all','Tous'],['f',`👑 1ʳᵉ (${cc.f})`],['j',`💼 Affaires (${cc.j})`],['y',`💺 Éco (${cc.y+cc.w})`],['angry',`😠 Mécontents (${angry})`],['vip','⭐ Fidèles'],...advanced.map(([k,l])=>[k,l])].filter(([k])=>k==='all'||k==='angry'||k==='vip'||advanced.some(x=>x[0]===k)||(k==='y'?cc.y+cc.w:cc[k]));
   const filt=`<div class="chips">${F.map(([k,l])=>`<button class="chip ${f===k?'on':''}" data-act="manF" data-id="${ac.id}" data-k="${k}">${l}</button>`).join('')}</div>`;
-  const rows=m.rows.filter(r=>f==='all'||(f==='angry'?r.mood==='énervé(e)':f==='vip'?r.tier!=='Aucun':f==='y'?(r.cls==='y'||r.cls==='w'):r.cls===f));
+  const rows=m.rows.filter(r=>f==='all'||(f==='angry'?r.mood==='énervé(e)':f==='vip'?r.tier!=='Aucun':f==='y'?(r.cls==='y'||r.cls==='w'):advanced.find(x=>x[0]===f)?advanced.find(x=>x[0]===f)[2](r):r.cls===f));
   const clsL={f:'👑 1ʳᵉ',j:'💼 Affaires',w:'💺 Premium',y:'💺 Éco'}, moodI=r=>r.mood==='énervé(e)'?'😠':r.mood==='ravi(e)'?'😄':r.mood==='impatient(e)'?'😬':'🙂';
-  return hdr+leg+filt+`<div class="manifest">${rows.map(r=>`<div class="mrow" data-act="paxCard" data-id="${ac.id}" data-i="${r.i}">
+  return hdr+leg+`<div class="man-search"><input type="search" data-in="manQ" value="${esc(UI.manQ||'')}" placeholder="Rechercher nom, nationalité, siège…"><span id="manCount" class="small mut">${rows.length} fiche${rows.length>1?'s':''}</span></div>`+filt+`<div class="manifest">${rows.map(r=>`<div class="mrow" data-act="paxCard" data-id="${ac.id}" data-i="${r.i}">
     <div class="mr-av">${r.avatar}</div>
     <div class="mr-body"><div class="mh"><b>${esc(r.first)} ${esc(r.last)}</b> <span class="mut">${r.age} ans</span></div>
       <div class="small">${COUNTRIES[r.nat]?COUNTRIES[r.nat][2]:'🌍'} ${esc(r.job)} · <span class="w-${r.wealth}">${WEALTH_LABEL[r.wealth]}</span></div>
@@ -410,11 +415,11 @@ function passengerCardHtml(ac,i){
 function registerPaxActions(){ Object.assign(ACTIONS,{
   paxCountry:d=>{ UI.paxCountry=d.cc; renderPanel(); },
   paxUnit:d=>{ UI.paxUnit=d.k; renderPanel(); },
-  manifest:d=>{ if(UI.manFor!==d.id){ UI.manF='all'; UI.manFor=d.id; } const ac=findAc(d.id); if(ac) showModal(`📋 Manifeste ${ac.reg}`, manifestHtml(ac), true); },
+  manifest:d=>{ if(UI.manFor!==d.id){ UI.manF='all'; UI.manQ=''; UI.manFor=d.id; } const ac=findAc(d.id); if(ac) showModal(`📋 Manifeste ${ac.reg}`, manifestHtml(ac), true); },
   paxCard:d=>{ const ac=findAc(d.id); if(ac) showModal(`🪪 Fiche passager`, passengerCardHtml(ac,+d.i)+`<div class="btns"><button class="btn" data-act="manifest" data-id="${ac.id}">← Retour au manifeste</button></div>`, true); },
   manF:d=>{ UI.manF=d.k; const ac=findAc(d.id); if(ac) showModal(`📋 Manifeste ${ac.reg}`, manifestHtml(ac), true); },
   paxLine:d=>{ showModal('🛂 Profil des passagers', paxProfileHtml(d.a,d.b), true); },
-}); Object.assign(INPUTS,{ paxCountry:el=>{ UI.paxCountry=el.value; renderPanel(); } }); }
+}); Object.assign(INPUTS,{ paxCountry:el=>{ UI.paxCountry=el.value; renderPanel(); }, manQ:el=>{ UI.manQ=el.value; const q=el.value.trim().toLocaleLowerCase('fr'), rows=[...document.querySelectorAll('#modal .mrow')]; let shown=0; for(const row of rows){ const match=!q||row.textContent.toLocaleLowerCase('fr').includes(q); row.style.display=match?'':'none'; if(match) shown++; } const out=document.getElementById('manCount'); if(out) out.textContent=`${shown} fiche${shown>1?'s':''}${q?' trouvée'+(shown>1?'s':''):''}`; } }); }
 
 /* ---------- avis des passagers (après chaque vol, quelques-uns laissent une note) ---------- */
 const REV_GOOD=['Équipage adorable, vol à l’heure.','Le repas était excellent, bravo !','Siège confortable, je referai ce trajet.','Embarquement rapide et bagages arrivés tout de suite.','Très bon rapport qualité-prix.','Pilote sympathique, atterrissage tout en douceur.','Personnel au sol aux petits soins.'];
