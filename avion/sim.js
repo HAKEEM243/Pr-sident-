@@ -1169,7 +1169,8 @@ function repayLoan(id){
 
 /* ---------- hors-ligne ---------- */
 function catchUp(){
-  const realDt=Date.now()-(S.lastReal||Date.now());
+  let lr=S.lastReal||Date.now(); try{ const b=+localStorage.getItem('se-lr'); if(b&&b>lr&&b<=Date.now()) lr=b; }catch(e){}   // la dernière heure vue, même si la dernière sauvegarde a échoué
+  const realDt=Date.now()-lr;
   S.lastReal=Date.now();
   if(S.paused || realDt<5000) return null;
   const gameDt=Math.min(realDt, 30*DAY);   // absent : le temps passe en temps réel (1 h absent = 1 h de jeu), vos vols continuent sans tout terminer d'un coup
