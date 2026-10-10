@@ -284,6 +284,7 @@ Object.assign(INPUTS,{
   ngColor:el=>{ UI.ng.color=el.value; }, ngLogo:el=>{ UI.ng.logo=el.value||'✈️'; },
 });
 function offlineReport(r){
+  if(r&&r.game>=MIN&&r.game<HOUR){ toast(`⏱️ Absent ${fmtDur(r.real)} : le jeu a avancé de ${fmtDur(r.game)}`,'info'); return; }
   if(!r || r.game<HOUR) return;
   // briefing du réveil : ce qui s'est passé dans le monde pendant l'absence
   const since=S.awayFrom||(S.time-r.game), news=(S.ai&&S.ai.news||[]).filter(n=>n.t>=since);
@@ -324,7 +325,7 @@ function boot(){
   setInterval(()=>{
     // l'horloge de jeu suit l'heure réelle (Date.now) : un iPhone qui fige l'appli en arrière-plan ne fige plus le temps
     const now=performance.now(), wall=Date.now(), gap=wall-(UI.lastWall||wall); UI.lastWall=wall;
-    if(gap>60000&&!S.paused){ last=now; S.lastReal=wall-gap; UI.silent=true; const rep=catchUp(); UI.silent=false; if(rep){ try{ offlineReport(rep); }catch(e){} } renderTop(); return; }
+    if(gap>15000&&!S.paused){ last=now; S.lastReal=wall-gap; UI.silent=true; const rep=catchUp(); UI.silent=false; if(rep){ try{ offlineReport(rep); }catch(e){} } renderTop(); return; }
     const dt=Math.min(now-last, 3600000); last=now; S.lastReal=wall;
     if(!S.paused){ advance(dt*SPEEDS[S.speed].mult); }
     if(typeof globeNoteSim==='function') globeNoteSim();
@@ -338,7 +339,10 @@ function boot(){
   },200);
   const pn=document.getElementById('panel'); if(pn) for(const ev of ['pointerdown','wheel','touchstart','scroll','keydown']) pn.addEventListener(ev,()=>{ UI.touchAt=performance.now(); },{capture:true,passive:true});
   window.addEventListener('beforeunload',save);
-  document.addEventListener('visibilitychange',()=>{ if(document.hidden) save(); else UI.lastWall=UI.lastWall; });
+  document.addEventListener('visibilitychange',()=>{ if(document.hidden){ save(); try{ localStorage.setItem('se-lr',String(Date.now())); }catch(e){} } else wakeUp(); });
+  window.addEventListener('pageshow',()=>wakeUp()); window.addEventListener('focus',()=>wakeUp());
+  function wakeUp(){ if(!S||S.paused) return; const wall=Date.now(), gap=wall-(UI.lastWall||wall); if(gap<=15000) return; UI.lastWall=wall; S.lastReal=wall-gap; UI.silent=true; const rep=catchUp(); UI.silent=false; if(rep){ try{ offlineReport(rep); }catch(e){} } renderTop(); }
+  setInterval(()=>{ try{ localStorage.setItem('se-lr',String(Date.now())); }catch(e){} },5000);
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
