@@ -220,7 +220,8 @@ function demandMult(a,b){
 function marketDemand(a,b){
   const d=dist(a,b), A=AP(a), B=AP(b);
   const df = d<120?0.25 : d<300?0.8 : 1/(1+d/4500);
-  let base = 230*Math.sqrt(A.traffic*B.traffic)*df;
+  const ta=a==='FIH'&&A.influence?A.influence:A.traffic, tb=b==='FIH'&&B.influence?B.influence:B.traffic;
+  let base = 230*Math.sqrt(ta*tb)*df;
   if(A.drc&&B.drc) base*=5; // routes quasi inexistantes : l'avion est vital en RDC
   else if(A.drc||B.drc) base*=1.3;
   if(A.terminal) base*=1.3; if(B.terminal) base*=1.3;

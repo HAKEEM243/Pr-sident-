@@ -51,8 +51,8 @@ function patchCesium(C){
   }
 }
 // qualité graphique : « Éco » par défaut sur téléphone (fluide), « Haute » sur ordinateur
-const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); const mode=(v==='e'||v==='h'||v==='a')?v:'a'; return {mode, hq:mode!=='e', mob}; })();   // e = éco, h = haute, a (défaut) = haute avec allègement doux si la vue rame ; téléphone : FXAA au lieu du MSAA
-function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.mode!=='e';
+const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); const mode=(v==='e'||v==='h'||v==='a')?v:(mob?'e':'a'); return {mode, hq:mode==='h', mob}; })();   // e = éco, h = haute, a = équilibrée avec allègement doux si la vue rame
+function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.mode==='h';
   try{ sc.msaaSamples=(GQ.hq&&!GQ.mob)?4:1; sc.postProcessStages.fxaa.enabled=true; }catch(e){}
   // Le mode éco réduit réellement le tampon de rendu, au lieu de conserver inutilement les pixels rétina.
   // Plafond à 2× pour préserver la netteté en haute qualité sur les écrans très denses.
@@ -430,7 +430,7 @@ Object.assign(ACTIONS,{
   globeFollow:()=>{ if(G.follow) return globeFollow(null); if(typeof fxAudioUnlock==='function') fxAudioUnlock(); const sel=selectedPlane&&S.fleet.find(a=>a.id===selectedPlane&&a.status==='flight'); const ac=sel||pick(S.fleet.filter(a=>a.status==='flight')); if(ac){ selectPlane(ac.id); globeFollow(ac.id); } },
   globeNext:()=>{ const fl=S.fleet.filter(a=>a.status==='flight'); if(!fl.length) return; const i=fl.findIndex(a=>a.id===G.follow); const ac=fl[(i+1)%fl.length]; selectPlane(ac.id); globeFollow(ac.id); },
   globeCam:d=>{ G.lastMode=d.k; setCam(d.k); },
-  globeQ:()=>{ GQ.mode=GQ.mode==='e'?'h':GQ.mode==='h'?'a':'e'; try{ localStorage.setItem('se-q',GQ.mode); }catch(e){} toast(GQ.mode==='e'?'⚙️ Éco : plus fluide sur téléphone':GQ.mode==='h'?'⚙️ Haute qualité : image nette, anticrénelage, ombres':'⚙️ Auto : haute qualité, allègement doux si la vue rame','info'); applyQuality(); renderGlobeHud(); },
+  globeQ:()=>{ GQ.mode=GQ.mode==='e'?'h':GQ.mode==='h'?'a':'e'; try{ localStorage.setItem('se-q',GQ.mode); }catch(e){} toast(GQ.mode==='e'?'⚙️ Éco : plus fluide sur téléphone':GQ.mode==='h'?'⚙️ Haute qualité : image nette, anticrénelage, ombres':'⚙️ Auto : qualité équilibrée, allègement supplémentaire si la vue rame','info'); applyQuality(); renderGlobeHud(); },
   globeRelief:()=>{ TERRAIN.on=!TERRAIN.on; try{ localStorage.setItem('se-relief',TERRAIN.on?'1':'0'); }catch(e){} terrainApply(); toast(TERRAIN.on?'⛰️ Relief réel activé : montagnes, vallées et volcans':'Relief désactivé (terre plate, plus léger)','info'); renderGlobeHud(); },
   globeSound:()=>fxToggleSound(),
   globeRain:()=>{ FX.forceRain=!FX.forceRain; fxAudioUnlock(); renderGlobeHud(); },

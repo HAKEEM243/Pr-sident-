@@ -213,8 +213,8 @@ if(typeof RUNWAY_DB!=='undefined') for(const [code,a] of Object.entries(AIRPORTS
   a.surface= hard.length? 'Asphalte' : 'Latérite / herbe';
   a.cls = best<1200?1: best<1700?2: best<2400?3: best<3100?4: 5;
 }
-// Scénario du jeu : Kinshasa est l'aéroport le plus demandé du monde en passagers
-if(AIRPORTS.FIH){ let mx=0; for(const [c,a] of Object.entries(AIRPORTS)) if(c!=='FIH'&&a.traffic>mx) mx=a.traffic; AIRPORTS.FIH.traffic=Math.round(mx*1.06); AIRPORTS.FIH.large=true; }
+// Scénario du jeu : Kinshasa reçoit un bonus d'influence distinct du trafic réel publié.
+if(AIRPORTS.FIH){ let mx=0; for(const [c,a] of Object.entries(AIRPORTS)) if(c!=='FIH'&&a.traffic>mx) mx=a.traffic; AIRPORTS.FIH.influence=Math.round(mx*1.06); AIRPORTS.FIH.large=true; }
 const AIRPORT_CODES = Object.keys(AIRPORTS);
 const DRC_PROVINCES = ['Kinshasa','Kongo-Central','Kwango','Kwilu','Maï-Ndombe','Équateur','Sud-Ubangi','Nord-Ubangi','Mongala','Tshuapa','Tshopo','Bas-Uele','Haut-Uele','Ituri','Nord-Kivu','Sud-Kivu','Maniema','Haut-Katanga','Lualaba','Haut-Lomami','Tanganyika','Lomami','Sankuru','Kasaï','Kasaï-Central','Kasaï-Oriental'];
 
