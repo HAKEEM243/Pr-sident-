@@ -232,7 +232,7 @@ function drawGlobeRivals(){
   const cands=[]; for(const it of list.slice(0,600)){ const sc=typeof rivalSched==='function'?rivalSched(it.r):null; const nP=Math.min(3,sc?sc.nP:1); for(let i=0;i<nP;i++){ const q=typeof rivalPos==='function'? rivalPos(it.r,i,t) : null; if(q) cands.push({...it,i,q,dd:fst?gcDist(q.p,fst):0}); } }
   if(fst) cands.sort((x,y)=>x.dd-y.dd);
   for(const {R,r,i:pi,q:q0} of cands){
-    if(n>=(GQ.hq?60:22)) return;
+    if(n>=(G.rivalCap!==undefined?G.rivalCap:(GQ.hq?60:22))) return;
     const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color);
     let q=q0, qAt=-1; const an={}, nt={};
     const Q=()=>{ const now=performance.now(); if(now!==qAt){ qAt=now; q=rivalPos(r,pi||0,gSimNow())||q; } return q; };
@@ -260,7 +260,24 @@ function setCam(mode){
   if(mode==='cabin') toast('👥 Vue cabine : glissez pour regarder autour de vous, touchez un passager dans la liste','info');
   renderGlobeHud();
 }
+// régulateur de fluidité : si la vue 3D tourne sous ~22 images/s, le jeu s'allège par paliers (résolution, effets, avions lointains)
+function perfGov(){
+  if(!G||navigator.webdriver||window.SE_NO_PERF) return;
+  const now=performance.now(), P=G.perf||(G.perf={t0:now,n:0,lvl:0}); P.n++;
+  const el=now-P.t0; if(el<4000) return; const fps=P.n/(el/1000); P.t0=now; P.n=0;
+  if(el>9000||document.hidden||fps>=22||P.lvl>=3) return;       // onglet resté en arrière-plan, ou assez fluide
+  P.lvl++; const V=G.viewer, sc=V.scene;
+  try{
+    sc.globe.maximumScreenSpaceError=Math.max(sc.globe.maximumScreenSpaceError,2.4+P.lvl*0.8);
+    V.resolutionScale=[1,0.85,0.7,0.55][P.lvl];
+    if(P.lvl>=1){ GQ.hq=false; sc.globe.showWaterEffect=false; G.rivalCap=10; G.rivAt=0; }
+    if(P.lvl>=2){ sc.postProcessStages.fxaa.enabled=false; if(G.clouds) G.clouds.show=false; G.rivalCap=4; G.rivAt=0; }
+    if(P.lvl>=3){ sc.fog.enabled=false; G.rivalCap=0; G.rivAt=0; }
+  }catch(e){}
+  toast(`⚙️ Jeu allégé (niveau ${P.lvl}/3) : ${Math.round(fps)} images/s détectées`,'info');
+}
 function globeFollowTick(){
+  perfGov();
   // caméra libre (aucun avion suivi) : les aéroports en 3D apparaissent quand on s'en approche
   if(G&&!G.follow&&!G.noWorld&&!$('#globe').hidden){ const now=performance.now(); if(!G.freeAt||now-G.freeAt>1500){ G.freeAt=now;
     try{ const cp=G.viewer.camera.positionCartographic, h=cp&&cp.height;
