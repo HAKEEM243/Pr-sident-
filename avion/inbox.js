@@ -116,6 +116,7 @@ function threatOutcome(m,how){
 }
 function mailAnswer(id,k){
   const m=(S.inbox||[]).find(x=>x.id===id); if(!m||m.st!=='new') return;
+  if(m.kind&&m.kind.startsWith('gov')&&typeof govAnswer==='function'){ const res=govAnswer(m,k); m.st='done'; m.res=res||'Traité.'; if(res) logMsg(res,'ok'); renderMailBadge(); if(UI.modal==='inbox') openM('inbox'); if(typeof renderTop==='function') renderTop(); return; }
   if(m.kind&&m.kind.startsWith('pax')&&typeof paxAnswer==='function'){ const res=paxAnswer(m,k); m.st='done'; m.res=res||'Traité.'; if(res) logMsg(res,'ok'); renderMailBadge(); if(UI.modal==='inbox') openM('inbox'); if(typeof renderTop==='function') renderTop(); return; }
   const e=aiBy(m.code)||{name:m.from,code:m.code}, r=m.rid&&(S.routes||[]).find(x=>x.id===m.rid);
   let res='';

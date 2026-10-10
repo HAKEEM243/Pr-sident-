@@ -164,7 +164,7 @@ const LED_CATS = {
   billets:['Billets passagers',1], annexes:['Revenus annexes',1], cargo:['Fret & contrats cargo',1], ventes:['Ventes d’avions',1],
   carburant:['Carburant',-1], taxes:['Taxes aéroportuaires',-1], service:['Service à bord',-1], salaires:['Salaires',-1],
   leasing:['Leasing',-1], maintenance:['Maintenance',-1], interets:['Intérêts bancaires',-1], marketing:['Marketing',-1],
-  alliance:['Cotisations alliance',-1], formation:['Formation',-1], incidents:['Incidents',-1], co2:['Quotas CO₂',-1], investissements:['Investissements aéroports',-1], licences:['Hubs & licences de lignes',-1], recrutement:['Recrutement',-1], admin:['Primes & bac à sable',1],
+  alliance:['Cotisations alliance',-1], formation:['Formation',-1], incidents:['Incidents',-1], co2:['Quotas CO₂',-1], investissements:['Investissements aéroports',-1], licences:['Hubs & licences de lignes',-1], recrutement:['Recrutement',-1], admin:['Primes & bac à sable',1], assurance:['Indemnités d’assurance',1], subventions:['Subventions d’État',1],
 };
 function book(cat, amount){ // montant signé : + revenu, - coût
   S.cash += amount;
