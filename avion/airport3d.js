@@ -132,6 +132,8 @@ function airportProps(code,N){
   // passerelles aux portes (positions de stationnement réelles du jeu)
   AP3D.bridges=AP3D.bridges||{}; AP3D.bridges[code]={};
   for(let k=0;k<n;k++){ const sp=slotPt(code,k); const q=destPt(sp.lat,sp.lon,hdgOut,0.062); mk(q,hdgOut+180,apModel('bridge',M_BRIDGE)); AP3D.bridges[code][k]=N.ents[N.ents.length-1]; }
+  // aéroport allégé (après des erreurs de rendu) : seulement pistes, terminal, passerelles et tour
+  if(G.lite){ mk(rwPt(r,a0+span/2+120,gx+s*110),r.hdg,apModel('tower',M_TOWER),8); return; }
   // aire de stationnement : béton, lignes jaunes de guidage et barres d'arrêt
   try{ apronGround(code,N,EL); }catch(e){ console.warn(e); }
   // nom de l'aéroport sur le toit, face aux pistes
