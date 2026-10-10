@@ -51,9 +51,9 @@ function patchCesium(C){
   }
 }
 // qualité graphique : « Éco » par défaut sur téléphone (fluide), « Haute » sur ordinateur
-const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); const mode=(v==='e'||v==='h'||v==='a')?v:(mob?'e':'h'); return {mode, hq:mode!=='e', mob}; })();   // e = éco, h = haute, a = haute avec allègement automatique si la vue rame
+const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); const mode=(v==='e'||v==='h'||v==='a')?v:'a'; return {mode, hq:mode!=='e', mob}; })();   // e = éco, h = haute, a (défaut) = haute avec allègement doux si la vue rame ; téléphone : FXAA au lieu du MSAA
 function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.mode!=='e';
-  try{ sc.msaaSamples=GQ.hq?4:1; }catch(e){}
+  try{ sc.msaaSamples=(GQ.hq&&!GQ.mob)?4:1; sc.postProcessStages.fxaa.enabled=true; }catch(e){}
   // Cesium dessine à (rapport de pixels de l'écran × resolutionScale) quand useBrowserRecommendedResolution est faux, et à 1 pixel CSS sinon (flou sur un écran rétina)
   try{ const dpr=window.devicePixelRatio||1; V.useBrowserRecommendedResolution=!GQ.hq; G.resBase=Math.min(dpr,2)/dpr; V.resolutionScale=GQ.hq?G.resBase:1; }catch(e){}
   try{ sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4; sc.globe.showWaterEffect=true; sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=true; sc.fog.enabled=true; }catch(e){}

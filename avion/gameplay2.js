@@ -88,7 +88,7 @@ function govAction(cc){
   else if(r<0.78&&st!=='liberal'){ // visas
     const m=S.ai.mood[cc]||(S.ai.mood[cc]={tension:0,boom:0,note:''}); m.tension=clamp(m.tension+0.25,0,1); m.note='visas plus stricts';
     govNote(cc,`🛂 ${C} : ${who} durcit les conditions de visa — moins de voyageurs pendant quelques semaines.`,false); }
-  else if(r<0.84&&(st==='autoritaire'||st==='populiste')&&lv<=2){ // fermeture de l'espace aérien
+  else if(r<0.84&&(st==='autoritaire'||st==='populiste')&&lv<=2&&!mineCountry(cc)){   // jamais sur un pays où vous avez un hub ou une ligne // fermeture de l'espace aérien
     const hub=mainAirport(cc); shutAirport(hub,rndi(7,21)); const names=suspendFlights(cc,rndi(1,3));
     govNote(cc,`🚫 ${C} : ${who} ferme l’espace aérien ${st==='autoritaire'?'sur fond de tensions':'après une querelle diplomatique'}. L’aéroport de ${keyCity(hub)} est fermé${names.length?`, ${names.join(', ')} suspendent leurs vols`:''}.`,true); }
   else if(r<0.90){ // grand projet : nouvel aéroport / extension
