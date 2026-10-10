@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261071';
+const GAME_VER='20261072';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,12 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛠️ 3D plus stable','Sur téléphone, la 3D démarre en <b>Éco</b> (plus fluide, moins de mémoire). Si elle se ferme toute seule, le jeu repasse en Éco automatiquement. ⚙️ en 3D pour changer.'],
+  ['📰 À la une','En haut de la carte : les grandes nouvelles (présidents, accidents, attaques des rivaux). Touchez pour lire. Actus → <b>🏛️ Présidents</b> et <b>💥 Accidents</b>.'],
+  ['🎬 Voir décoller / atterrir','Sur la carte 2D et dans 🛫 Mes vols : un bouton ouvre la 3D au moment du prochain décollage ou atterrissage.'],
+  ['🧠 Duel sur vos lignes','Les compagnies présentes sur vos lignes réagissent chaque semaine : elles s’alignent sur vos prix, ajoutent des vols, ou remontent leurs tarifs. Détail d’une ligne → « Ce que font vos concurrents ».'],
+  ['✈️ Concevoir mon avion','Plus → <b>✈️ Concevoir mon avion</b> ; et 13 nouveaux modèles (L-410, MA60, 727, Tu-154, A300F, 747-400F…).'],
+  ['🧳 Passagers','Nouvelles rubriques : son séjour (programme, hôtel, budget) et ce vol en chiffres (distance, CO₂, miles, avis).'],
   ['🗺️ Fond de carte 3D','En vue 3D : bouton <b>🗺️ Fond</b> (satellite, Sentinel-2, plan, relief, sombre…).'],
   ['🛫 Décollage / 🛬 atterrissage','En vue 3D sans avion suivi : <b>Prochain décollage</b> et <b>Prochain atterrissage</b>.'],
   ['🗓️ Calendrier des vols','Bouton <b>🗓️ Calendrier</b> (onglet Lignes, ou la liste des vols) : la semaine quadrillée, un bloc par rotation.'],

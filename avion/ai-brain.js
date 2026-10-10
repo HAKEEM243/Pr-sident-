@@ -26,7 +26,7 @@ function aiBrainInit(){
   }
 }
 // probabilité d'accident par semaine : plus haute pour les compagnies peu sûres et à flotte vieillissante
-function aiRisk(e){ return Math.min(0.05,0.004*Math.sqrt(Math.max(1,e.fleet)/100)*Math.pow(1/Math.max(0.25,e.safety||1),1.5)*(e.startup?1.4:1)*(1+Math.max(0,(e.age||8)-12)*0.05)); }
+function aiRisk(e){ return Math.min(0.05,0.006*Math.sqrt(Math.max(1,e.fleet)/100)*Math.pow(1/Math.max(0.25,e.safety||1),1.5)*(e.startup?1.4:1)*(1+Math.max(0,(e.age||8)-12)*0.05)); }
 
 /* ---------- décisions des compagnies ---------- */
 const PLAN_TXT={grow:'accélère son expansion',retrench:'se serre la ceinture',renew:'prépare le renouvellement de sa flotte',steady:'garde le cap'};

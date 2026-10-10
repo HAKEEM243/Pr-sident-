@@ -32,7 +32,7 @@ function aiNews(text, kind='news', important=false){
   const ai=S.ai; ai.news.unshift({t:S.time,text,kind});
   if(ai.news.length>300) ai.news.length=300;
   if(important) logMsg(text, kind==='news'?'info':kind);
-  if(typeof tickerPush==='function') tickerPush(text,kind);
+  if(typeof tickerPush==='function') tickerPush(text,kind,important);
 }
 const touchesMe=(a,b)=>S.hubs.includes(a)||S.hubs.includes(b)||S.routes.some(r=>r.stops.includes(a)&&r.stops.includes(b));
 const modelFor=e=>{ const big=e.fleet>=60, pool=MODELS.filter(m=>!isCargo(m)&&m.fam!=='CONC'&&(big? m.seats>=120 : e.fleet>=12? m.seats>=70&&m.seats<=300 : m.seats<=120)); return pick(pool.length?pool:MODELS.filter(m=>!isCargo(m))); };
@@ -44,7 +44,7 @@ function aiWeekly(){
   const mk=monthKey(S.time); if(S.ai.lastMonth!==mk){ const first=S.ai.lastMonth===-1; S.ai.lastMonth=mk; if(!first) aiMonthly(); }
   const oilF=clamp(1.15-(S.oil-82)/160,0.6,1.3);
   for(const e of S.ai.list.slice()) if(e.status!=='dead') aiStep(e,oilF);
-  moodWeekly(); storiesWeekly(); storiesRandom(); if(typeof aiReact==='function') aiReact(); if(typeof inboxWeekly==='function') inboxWeekly();
+  moodWeekly(); storiesWeekly(); storiesRandom(); if(typeof aiReact==='function') aiReact(); if(typeof duelWeekly==='function') duelWeekly(); if(typeof inboxWeekly==='function') inboxWeekly();
   aiRanking();
 }
 function aiStep(e,oilF){
@@ -206,10 +206,16 @@ const feedRows=(list,n)=>list.slice(0,n).map(l=>`<div class="lg ${l.kind}"><span
 function pNews(){
   const ai=S.ai; if(!ai) return '<div class="mut">Les actualités arrivent bientôt.</div>';
   const t=UI.newsTab||'actu';
-  const chips=[['actu','📰 Actualités'],['rank','🏆 Classement'],['secu','🛡️ Sécurité'],['new','🆕 Nouvelles / faillites'],['avis','⭐ Avis passagers'],['apt','🏢 Aéroports'],['pays','🏛️ Pays']].map(([k,l])=>`<button class="chip ${t===k?'on':''}" data-act="newsTab" data-k="${k}">${l}</button>`).join('');
+  const chips=[['actu','📰 Actualités'],['pays','🏛️ Présidents'],['crash','💥 Accidents'],['rank','🏆 Classement'],['secu','🛡️ Sécurité'],['new','🆕 Nouvelles / faillites'],['avis','⭐ Avis passagers'],['apt','🏢 Aéroports']].map(([k,l])=>`<button class="chip ${t===k?'on':''}" data-act="newsTab" data-k="${k}">${l}</button>`).join('');
   let body='';
-  if(t==='actu'){
-    body=`<div class="simplehelp">Les compagnies du monde vivent leur vie : elles commandent des avions, ouvrent ou ferment des lignes, ont des accidents, font faillite… Parfois sur <b>votre</b> marché.</div><div class="log big">${feedRows(ai.news,60)}</div>`;
+  if(t==='crash'){
+    const cr=ai.news.filter(n=>/accident|crash|victimes|sortie de piste|atterrissage d.urgence|évacu|💥|🔥/i.test(n.text));
+    body=`<div class="simplehelp">Tous les accidents et incidents du monde (les vôtres et ceux des autres). Les épaves apparaissent sur la carte 2D et en 3D (icône 💥). Données fictives.</div><div class="log big">${feedRows(cr,60)}</div>`;
+  } else if(t==='actu'){
+    const cut=S.time-30*DAY, top=ai.news.filter(n=>n.t>=cut&&(n.kind==='bad'||n.kind==='rival'||(typeof UNE_RX!=='undefined'&&UNE_RX.test(n.text))));
+    const grp=[['🏛️ Présidents & États',/président|gouvernement|ministre|état |ciel ouvert|taxe|🏛️/i],['💥 Accidents',/accident|crash|victimes|💥|🔥|évacu/i],['⚔️ Concurrence',/attaque|guerre des prix|rachète|commande record|lève|alliance|David|offensive|🎯|⚔️|🛒/i]];
+    const une=grp.map(([h,rx])=>{ const l=top.filter(n=>rx.test(n.text)).slice(0,4); return l.length?`<div class="une-card"><b>${h}</b>${l.map(n=>`<div class="lg ${n.kind}"><span class="mut">${fmtDate(n.t)}</span> ${n.text}</div>`).join('')}</div>`:''; }).join('');
+    body=`${une?`<div class="une-grid">${une}</div>`:''}<div class="simplehelp">Les compagnies du monde vivent leur vie : elles commandent des avions, ouvrent ou ferment des lignes, ont des accidents, font faillite… Parfois sur <b>votre</b> marché.</div><div class="log big">${feedRows(ai.news,60)}</div>`;
   } else if(t==='rank'){
     const rows=aiRows();
     body=`${typeof challengerCard==='function'?challengerCard():''}<div class="tblwrap"><table class="tbl rank"><tr><th>#</th><th>Compagnie</th><th>Flotte</th><th>Lignes</th><th>Valeur</th><th>Tendance</th></tr>${rows.slice(0,40).map((c,i)=>`<tr class="${c.me?'me':'click'}" ${c.me?'':`data-act="airlineCard" data-c="${c.code}"`}><td>${['🥇','🥈','🥉'][i]||i+1} ${trendArrow(c.delta)}</td><td><span class="dot" style="background:${c.color}"></span><b>${esc(c.name)}</b>${c.startup?' <span class="badge">🆕</span>':''}${c.crashes?` <span class="mut" title="accidents graves">💥${c.crashes}</span>`:''}<br><span class="small mut">${flag(c.hub)} ${esc(AP(c.hub).city)}</span></td><td>${num(c.fleet)}</td><td>${num(c.routes)}</td><td>${fmtMoney(c.value)}</td><td>${c.e?sparkline(c.e.hist):''}</td></tr>`).join('')}</table></div><div class="small mut">Valeur = flotte + trésorerie. Mise à jour chaque semaine.</div>`;
