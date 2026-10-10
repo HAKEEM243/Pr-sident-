@@ -49,14 +49,15 @@ function aiWeekly(){
 }
 function aiStep(e,oilF){
   const R=(S.rivals||[]).find(x=>x.code===e.code);
-  const margin=(e.startup? rnd(-0.8,0.95) : rnd(-0.55,0.75)) + (e.rep-55)/120 + (e.skill||0);
-  e.cash+=e.fleet*margin*oilF*0.5e6;
+  const startupLift=e.startup?(e.fleet<10?0.2:e.fleet<30?0.1:0):0;
+  const margin=(e.startup? rnd(-0.8,0.95) : rnd(-0.55,0.75)) + (e.rep-55)/120 + (e.skill||0) + startupLift;
+  e.cash+=e.fleet*margin*oilF*(e.startup?0.85e6:0.5e6);
   if(e.cash>e.fleet*60e6) e.cash*=0.97;                      // dividendes
   if(Math.random()<0.008){ const l=e.fleet*rnd(1.5e6,6e6); e.cash-=l; if(e.fleet>=60&&l>e.fleet*5e6) aiNews(`✊ ${e.name} : grève et pertes record (${fmtMoney(l)}).`,'news'); } // choc
   e.rep=clamp(e.rep+rnd(-1.1,1.2)+(margin>0.2?0.25:-0.25)+(e.rep>72?-0.2:0.1),20,95);
   e.pax=Math.round(e.fleet*520*(0.6+e.rep/150));
   // expansion : commandes d'avions
-  if(e.cash>e.fleet*(e.startup?12e6:30e6) && Math.random()<0.18){
+  if(e.cash>e.fleet*(e.startup?12e6:30e6) && Math.random()<(e.startup?0.28:0.18)){
     const n=Math.max(1,Math.round(e.fleet*rnd(0.01,0.05))), m=modelFor(e);
     e.fleet+=n; e.cash-=n*9e6;
     if(n>=6) aiNews(`🛒 ${e.name} commande ${n} ${m.name} — flotte portée à ${e.fleet} avions.`,'news',e.fleet>=100&&n>=10);
@@ -147,9 +148,10 @@ function aiMonthly(){
   const ai=S.ai, alive=aiAlive();
   if(Math.random()<0.5 && alive.filter(e=>e.startup&&e.fleet<=15).length<8) aiStartup();
   // une compagnie en forme absorbe parfois une compagnie en difficulté
-  const weak=alive.filter(e=>e.debt>=3&&e.fleet<40), strong=alive.filter(e=>e.cash>e.fleet*35e6&&e.fleet>=60);
-  if(weak.length&&strong.length&&Math.random()<0.3){ const w=pick(weak), s=pick(strong);
+  const weak=alive.filter(e=>(e.debt>=2||(e.cash<e.fleet*4e6&&e.rep<42))&&e.fleet<60), strong=alive.filter(e=>e.cash>e.fleet*24e6&&e.fleet>=30);
+  if(weak.length&&strong.length&&Math.random()<0.45){ const w=pick(weak), s=pick(strong);
     s.fleet+=Math.round(w.fleet*0.7); s.routes+=Math.round(w.routes*0.5); s.cash-=w.fleet*6e6; w.status='dead'; w.deadAt=S.time; ai.ver++;
+    const survivor=(S.rivals||[]).find(R=>R.code===s.code); if(survivor){ survivor.fleet=s.fleet; survivor.network=s.routes; }
     if(S.rivals) S.rivals=S.rivals.filter(R=>R.code!==w.code);
     aiNews(`🤝 ${s.name} rachète ${w.name} en difficulté : flotte portée à ${s.fleet} avions.`,'news',true); }
   // bilan du trimestre

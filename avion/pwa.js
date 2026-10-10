@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261071';
+const GAME_VER='20261073';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,10 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['📰 Actualités et présidents','Les boutons toujours visibles en haut ouvrent directement le fil des actualités ou les décisions des présidents.'],
+  ['⚙️ Vue 3D plus fluide','Le réglage « Éco » réduit maintenant vraiment le nombre de pixels rendus pour soulager les appareils mobiles.'],
+  ['⏩ Progression hors ligne','La partie avance maintenant à la vitesse choisie en votre absence (plafond ×60 et 30 jours), sauf si vous l’avez mise en pause.'],
+  ['🤝 Concurrents plus vivants','Les jeunes compagnies ont davantage de chances de grandir ; les compagnies en difficulté peuvent être rachetées plus tôt par un concurrent solide.'],
   ['🗺️ Fond de carte 3D','En vue 3D : bouton <b>🗺️ Fond</b> (satellite, Sentinel-2, plan, relief, sombre…).'],
   ['🛫 Décollage / 🛬 atterrissage','En vue 3D sans avion suivi : <b>Prochain décollage</b> et <b>Prochain atterrissage</b>.'],
   ['🗓️ Calendrier des vols','Bouton <b>🗓️ Calendrier</b> (onglet Lignes, ou la liste des vols) : la semaine quadrillée, un bloc par rotation.'],
