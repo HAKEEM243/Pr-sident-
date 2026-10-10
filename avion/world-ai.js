@@ -49,14 +49,15 @@ function aiWeekly(){
 }
 function aiStep(e,oilF){
   const R=(S.rivals||[]).find(x=>x.code===e.code);
-  const margin=(e.startup? rnd(-0.8,0.95) : rnd(-0.55,0.75)) + (e.rep-55)/120 + (e.skill||0);
-  e.cash+=e.fleet*margin*oilF*0.5e6;
+  const startupLift=e.startup?(e.fleet<10?0.2:e.fleet<30?0.1:0):0;
+  const margin=(e.startup? rnd(-0.8,0.95) : rnd(-0.55,0.75)) + (e.rep-55)/120 + (e.skill||0) + startupLift;
+  e.cash+=e.fleet*margin*oilF*(e.startup?0.85e6:0.5e6);
   if(e.cash>e.fleet*60e6) e.cash*=0.97;                      // dividendes
   if(Math.random()<0.008){ const l=e.fleet*rnd(1.5e6,6e6); e.cash-=l; if(e.fleet>=60&&l>e.fleet*5e6) aiNews(`✊ ${e.name} : grève et pertes record (${fmtMoney(l)}).`,'news'); } // choc
   e.rep=clamp(e.rep+rnd(-1.1,1.2)+(margin>0.2?0.25:-0.25)+(e.rep>72?-0.2:0.1),20,95);
   e.pax=Math.round(e.fleet*520*(0.6+e.rep/150));
   // expansion : commandes d'avions
-  if(e.cash>e.fleet*(e.startup?12e6:30e6) && Math.random()<0.18){
+  if(e.cash>e.fleet*(e.startup?12e6:30e6) && Math.random()<(e.startup?0.28:0.18)){
     const n=Math.max(1,Math.round(e.fleet*rnd(0.01,0.05))), m=modelFor(e);
     e.fleet+=n; e.cash-=n*9e6;
     if(n>=6) aiNews(`🛒 ${e.name} commande ${n} ${m.name} — flotte portée à ${e.fleet} avions.`,'news',e.fleet>=100&&n>=10);
@@ -147,9 +148,10 @@ function aiMonthly(){
   const ai=S.ai, alive=aiAlive();
   if(Math.random()<0.5 && alive.filter(e=>e.startup&&e.fleet<=15).length<8) aiStartup();
   // une compagnie en forme absorbe parfois une compagnie en difficulté
-  const weak=alive.filter(e=>e.debt>=3&&e.fleet<40), strong=alive.filter(e=>e.cash>e.fleet*35e6&&e.fleet>=60);
-  if(weak.length&&strong.length&&Math.random()<0.3){ const w=pick(weak), s=pick(strong);
+  const weak=alive.filter(e=>(e.debt>=2||(e.cash<e.fleet*4e6&&e.rep<42))&&e.fleet<60), strong=alive.filter(e=>e.cash>e.fleet*24e6&&e.fleet>=30);
+  if(weak.length&&strong.length&&Math.random()<0.45){ const w=pick(weak), s=pick(strong);
     s.fleet+=Math.round(w.fleet*0.7); s.routes+=Math.round(w.routes*0.5); s.cash-=w.fleet*6e6; w.status='dead'; w.deadAt=S.time; ai.ver++;
+    const survivor=(S.rivals||[]).find(R=>R.code===s.code); if(survivor){ survivor.fleet=s.fleet; survivor.network=s.routes; }
     if(S.rivals) S.rivals=S.rivals.filter(R=>R.code!==w.code);
     aiNews(`🤝 ${s.name} rachète ${w.name} en difficulté : flotte portée à ${s.fleet} avions.`,'news',true); }
   // bilan du trimestre
@@ -173,8 +175,9 @@ function aiStartup(){
 
 /* ---------- classement ---------- */
 function aiRows(){
-  const me={name:S.company.name, code:S.company.code, value:fleetValue()+Math.max(0,S.cash), fleet:S.fleet.length, me:true, color:S.company.color, hub:S.company.hub, routes:S.routes.length, pax:typeof marketStatsCache==='function'? marketStatsCache().playerDaily : 0, rep:S.reputation, crashes:S.stats.crashes||0};
-  const others=aiAlive().map(e=>({name:e.name, code:e.code, value:e.fleet*40e6+Math.max(0,e.cash), fleet:e.fleet, color:e.color, hub:e.hub, routes:e.routes, pax:e.pax||Math.round(e.fleet*520*(0.6+e.rep/150)), rep:e.rep, crashes:e.crashes, incidents:e.incidents, startup:e.startup, e, R:(S.rivals||[]).find(x=>x.code===e.code)}));
+  const me={name:S.company.name, code:S.company.code, value:typeof netWorth==='function'?netWorth():fleetValue()+S.cash, fleet:S.fleet.length, me:true, color:S.company.color, hub:S.company.hub, routes:S.routes.length, pax:typeof marketStatsCache==='function'? marketStatsCache().playerDaily : 0, rep:S.reputation, crashes:S.stats.crashes||0};
+  me.growth=rankGrowth(me.value,null);
+  const others=aiAlive().map(e=>{const r={name:e.name, code:e.code, value:e.fleet*40e6+Math.max(0,e.cash), fleet:e.fleet, color:e.color, hub:e.hub, routes:e.routes, pax:e.pax||Math.round(e.fleet*520*(0.6+e.rep/150)), rep:e.rep, crashes:e.crashes, incidents:e.incidents, startup:e.startup, e, R:(S.rivals||[]).find(x=>x.code===e.code)}; r.growth=rankGrowth(r.value,e); return r;});
   const rows=[me,...others].sort((a,b)=>b.value-a.value);
   rows.forEach((r,i)=>{ r.rank=i+1; const p=S.ai&&S.ai.rank[r.code]; r.delta=p? p-(i+1) : 0; });
   return rows;
@@ -195,6 +198,21 @@ function aiRanking(){
 
 /* ---------- écran « Actualités » ---------- */
 const trendArrow=d=>d>0?`<span class="pos">▲${d}</span>`:d<0?`<span class="neg">▼${-d}</span>`:'<span class="mut">•</span>';
+function rankGrowth(value,e){
+  let prior=null;
+  if(e&&Array.isArray(e.hist)&&e.hist.length>1) prior=e.hist[Math.max(0,e.hist.length-5)]*1e6;
+  else { const hist=Array.isArray(S.history)?S.history:[], cutoff=S.time-28*DAY; prior=hist[0]&&hist[0].net; for(const h of hist){ if(h.t<=cutoff) prior=h.net; else break; } }
+  if(!Number.isFinite(prior)) return 0;
+  return value-prior;
+}
+const RANK_MODES=[
+  ['value','💰 Patrimoine estimé',r=>r.value,r=>fmtMoney(r.value)],
+  ['fleet','✈️ Flotte',r=>r.fleet,r=>`${num(r.fleet)} avions`],
+  ['routes','🌍 Réseau',r=>r.routes,r=>`${num(r.routes)} lignes`],
+  ['pax','👥 Passagers/j',r=>r.pax,r=>`${num(Math.round(r.pax||0))} / jour`],
+  ['rep','⭐ Réputation',r=>r.rep,r=>`${Math.round(r.rep||0)} / 100`],
+  ['growth','📈 Croissance (~4 sem.)',r=>r.growth,r=>`${r.growth>=0?'+':''}${fmtMoney(r.growth)}`],
+];
 function sparkline(h,w=70,hh=20){
   if(!h||h.length<3) return '';
   const mn=Math.min(...h), mx=Math.max(...h), r=(mx-mn)||1;
@@ -217,8 +235,11 @@ function pNews(){
     const une=grp.map(([h,rx])=>{ const l=top.filter(n=>rx.test(n.text)).slice(0,4); return l.length?`<div class="une-card"><b>${h}</b>${l.map(n=>`<div class="lg ${n.kind}"><span class="mut">${fmtDate(n.t)}</span> ${n.text}</div>`).join('')}</div>`:''; }).join('');
     body=`${une?`<div class="une-grid">${une}</div>`:''}<div class="simplehelp">Les compagnies du monde vivent leur vie : elles commandent des avions, ouvrent ou ferment des lignes, ont des accidents, font faillite… Parfois sur <b>votre</b> marché.</div><div class="log big">${feedRows(ai.news,60)}</div>`;
   } else if(t==='rank'){
-    const rows=aiRows();
-    body=`${typeof challengerCard==='function'?challengerCard():''}<div class="tblwrap"><table class="tbl rank"><tr><th>#</th><th>Compagnie</th><th>Flotte</th><th>Lignes</th><th>Valeur</th><th>Tendance</th></tr>${rows.slice(0,40).map((c,i)=>`<tr class="${c.me?'me':'click'}" ${c.me?'':`data-act="airlineCard" data-c="${c.code}"`}><td>${['🥇','🥈','🥉'][i]||i+1} ${trendArrow(c.delta)}</td><td><span class="dot" style="background:${c.color}"></span><b>${esc(c.name)}</b>${c.startup?' <span class="badge">🆕</span>':''}${c.crashes?` <span class="mut" title="accidents graves">💥${c.crashes}</span>`:''}<br><span class="small mut">${flag(c.hub)} ${esc(AP(c.hub).city)}</span></td><td>${num(c.fleet)}</td><td>${num(c.routes)}</td><td>${fmtMoney(c.value)}</td><td>${c.e?sparkline(c.e.hist):''}</td></tr>`).join('')}</table></div><div class="small mut">Valeur = flotte + trésorerie. Mise à jour chaque semaine.</div>`;
+    const metric=UI.rankMetric||'value', mode=RANK_MODES.find(x=>x[0]===metric)||RANK_MODES[0];
+    const rows=aiRows().slice().sort((a,b)=>(Number(mode[2](b))||0)-(Number(mode[2](a))||0)||(b.value-a.value));
+    const shown=rows.slice(0,40), me=rows.find(r=>r.me); if(me&&!shown.includes(me)) shown.push(me);
+    const metricRank=rows.findIndex(r=>r.me)+1, metricChips=`<div class="rank-overview"><div><span>Votre rang · ${mode[1]}</span><b>#${metricRank} <small>/ ${rows.length}</small></b><i>${metric==='value'?trendArrow(me&&me.delta||0):(me?mode[3](me):'—')}</i></div><div><span>Patrimoine mondial</span><b>#${me?me.rank:'—'} <small>/ ${rows.length}</small></b><i>${me?fmtMoney(me.value):'—'}</i></div><div><span>Évolution du patrimoine</span><b class="${me&&me.growth>=0?'pos':'neg'}">${me?`${me.growth>=0?'+':''}${fmtMoney(me.growth)}`:'—'}</b><i>sur environ 4 semaines</i></div></div><div class="chips">${RANK_MODES.map(([k,label])=>`<button class="chip ${metric===k?'on':''}" data-act="rankMetric" data-k="${k}">${label}</button>`).join('')}</div>`;
+    body=`${typeof challengerCard==='function'?challengerCard():''}${metricChips}<div class="tblwrap"><table class="tbl rank"><tr><th>#</th><th>Compagnie</th><th>${mode[1]}</th><th>Flotte</th><th>Lignes</th><th>Image</th></tr>${shown.map(c=>{const i=rows.indexOf(c); return `<tr class="${c.me?'me':'click'}" ${c.me?'':`data-act="airlineCard" data-c="${c.code}"`}><td>${['🥇','🥈','🥉'][i]||i+1} ${metric==='value'?trendArrow(c.delta):''}</td><td><span class="dot" style="background:${c.color}"></span><b>${esc(c.name)}</b>${c.startup?' <span class="badge">🆕</span>':''}${c.crashes?` <span class="mut" title="accidents graves">💥${c.crashes}</span>`:''}<br><span class="small mut">${flag(c.hub)} ${esc(AP(c.hub).city)}</span></td><td>${mode[3](c)}</td><td>${num(c.fleet)}</td><td>${num(c.routes)}</td><td>${stars(c.rep)}</td></tr>`;}).join('')}</table></div><div class="small mut">Classement recalculé chaque semaine. Le patrimoine des IA est estimé à 40 M$ par avion + trésorerie ; votre patrimoine net utilise les valeurs comptables de votre compagnie. Le rang d’aéroport est distinct et évolue avec le trafic, la flotte et le réseau présents sur place.</div>`;
   } else if(t==='pays'){
     body=typeof govTabHtml==='function'?govTabHtml():'';
   } else if(t==='apt'){
@@ -240,7 +261,7 @@ function pNews(){
   }
   return `<div class="chips">${chips}</div>${body}`;
 }
-function registerNewsActions(){ Object.assign(ACTIONS,{ newsTab:d=>{ UI.newsTab=d.k; renderPanel(); } }); }
+function registerNewsActions(){ Object.assign(ACTIONS,{ newsTab:d=>{ UI.newsTab=d.k; renderPanel(); }, rankMetric:d=>{ UI.rankMetric=d.k; renderPanel(); } }); }
 
 /* ============================================================
    CLIMAT DES PAYS : colère sociale, crises, booms touristiques
@@ -371,13 +392,26 @@ function airlineCardHtml(code){
   <h3>Dernières nouvelles</h3><div class="log">${news.map(n=>`<div class="lg ${n.kind}"><span class="mut">${fmtDate(n.t)}</span> ${n.text}</div>`).join('')||'<div class="mut small">Rien de récent.</div>'}</div>
   ${(S.rivals||[]).some(r=>r.code===code)?`<div class="btns"><button class="btn gold" data-tab="bourse">📈 Acheter des actions</button></div>`:''}`;
 }
-let _apRank=null;
-function airportRanking(){ return _apRank||(_apRank=AIRPORT_CODES.slice().sort((a,b)=>AP(b).traffic-AP(a).traffic)); }
-const airportRank=code=>airportRanking().indexOf(code)+1;
+let _apRank=null,_apRankKey='';
+function airportRanking(){
+  const key=[Math.floor(S.time/DAY),S.fleet.map(a=>a.hub).join(','),S.routes.map(r=>r.stops.join('-')).join(';'),(S.ai&&S.ai.list||[]).map(e=>`${e.code}:${e.status}:${e.hub}:${e.fleet}:${e.routes}`).join(';')].join('|');
+  if(_apRank&&key===_apRankKey) return _apRank;
+  const activity=Object.create(null), add=(code,fleet=0,routes=0,player=false)=>{ if(!code||!AP(code)) return; const x=activity[code]||(activity[code]={fleet:0,routes:0,playerFleet:0,playerRoutes:0,aiFleet:0,aiRoutes:0}); x.fleet+=fleet; x.routes+=routes; if(player){x.playerFleet+=fleet;x.playerRoutes+=routes;}else{x.aiFleet+=fleet;x.aiRoutes+=routes;} };
+  for(const ac of S.fleet||[]) add(ac.hub,1,0,true);
+  for(const r of S.routes||[]) for(const c of new Set(r.stops)) add(c,0,1,true);
+  for(const e of aiAlive()) add(e.hub,e.fleet,e.routes,false);
+  _apRank=AIRPORT_CODES.map(code=>{ const a=AP(code), x=activity[code]||{fleet:0,routes:0,playerFleet:0,playerRoutes:0,aiFleet:0,aiRoutes:0}, base=a.influence||a.traffic; return {code,base,fleet:x.fleet,routes:x.routes,playerFleet:x.playerFleet,playerRoutes:x.playerRoutes,aiFleet:x.aiFleet,aiRoutes:x.aiRoutes,score:base+x.fleet*.04+x.routes*.08}; })
+    .sort((a,b)=>b.score-a.score||AP(a.code).city.localeCompare(AP(b.code).city));
+  _apRankKey=key; return _apRank;
+}
+const airportRank=code=>{ const i=airportRanking().findIndex(x=>x.code===code); return i<0?AIRPORT_CODES.length+1:i+1; };
+const airportInfluence=code=>{ const x=airportRanking().find(r=>r.code===code); return x?x.score:0; };
 function airportsTabHtml(){
   const top=airportRanking().slice(0,25), mine=S.hubs;
-  return `<div class="simplehelp">🏢 Les aéroports les plus fréquentés du monde (en passagers par an). Votre hub peut-il passer n°1 ?</div>
-  ${mine.map(h=>`<div class="card gold-b"><b>${flag(h)} ${esc(AP(h).city)}</b> <span class="mut">${h}</span> — <b>n° ${airportRank(h)}</b> mondial · ${AP(h).traffic>=1?AP(h).traffic+' M':Math.round(AP(h).traffic*1000)+' k'} passagers/an</div>`).join('')}
-  <table class="tbl"><tr><th>#</th><th>Aéroport</th><th>Passagers/an</th><th>Climat</th></tr>${top.map((c,i)=>`<tr class="${mine.includes(c)?'me':''}" data-act="openAp" data-c="${c}"><td>${i+1}</td><td>${flag(c)} <b>${esc(AP(c).city)}</b> <span class="mut">${c}</span></td><td>${AP(c).traffic} M</td><td>${moodLabel(moodOf(AP(c).cc))}</td></tr>`).join('')}</table>`;
+  const traffic=c=>AP(c).traffic>=1?`${AP(c).traffic.toFixed(1)} M`:`${Math.round(AP(c).traffic*1000)} k`;
+  return `<div class="simplehelp">🌍 <b>Influence des aéroports</b> : le rang combine le trafic de base, le bonus de scénario de Kinshasa et l’activité des compagnies (avions et lignes). Il peut changer quand les réseaux grandissent ou rétrécissent. Le trafic annuel affiché reste une estimation distincte.</div>
+  ${mine.map(h=>{const r=airportRanking().find(x=>x.code===h)||{}; return `<div class="card gold-b"><b>${flag(h)} ${esc(AP(h).city)}</b> <span class="mut">${h}</span> — <b>n° ${airportRank(h)}</b> d’influence · indice ${airportInfluence(h).toFixed(1)}<div class="small mut">Base ${Number(r.base||0).toFixed(1)} · ${r.playerFleet||0} avion(s) à vous + ${r.aiFleet||0} IA · ${r.routes||0} ligne(s) liées · ${traffic(h)} passagers/an (base)</div></div>`;}).join('')}
+  <div class="small mut">Lecture du score : indice de base + 0,04 par avion rattaché à un hub + 0,08 par ligne liée. Les sous-totaux séparent votre réseau de celui des IA ; ils ne remplacent pas le trafic annuel.</div>
+  <div class="tblwrap"><table class="tbl"><tr><th>#</th><th>Aéroport</th><th>Indice total / base</th><th>Avions (vous · IA)</th><th>Lignes (vous · IA)</th><th>Trafic/an</th><th>Climat</th></tr>${top.map((r,i)=>{const c=r.code; return `<tr class="${mine.includes(c)?'me':''}" data-act="openAp" data-c="${c}"><td>${i+1}</td><td>${flag(c)} <b>${esc(AP(c).city)}</b> <span class="mut">${c}</span></td><td><b>${r.score.toFixed(1)}</b><br><span class="small mut">base ${r.base.toFixed(1)}</span></td><td>${r.fleet} <span class="small mut">(${r.playerFleet} · ${r.aiFleet})</span></td><td>${r.routes} <span class="small mut">(${r.playerRoutes} · ${r.aiRoutes})</span></td><td>${traffic(c)}</td><td>${moodLabel(moodOf(AP(c).cc))}</td></tr>`;}).join('')}</table></div>`;
 }
 function registerAirlineActions(){ Object.assign(ACTIONS,{ airlineCard:d=>{ showModal('🏢 Compagnie', airlineCardHtml(d.c), true); } }); }

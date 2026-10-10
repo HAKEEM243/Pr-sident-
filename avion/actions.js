@@ -28,6 +28,8 @@ const ACTIONS = {
   closeModal, closeCard:()=>selectPlane(null),
   followCam:()=>{ followPlane=!followPlane; updateFlightCard(); },
   zoomPlane:()=>zoomPlane(), zoomRoute:()=>zoomRoute(),
+  openNews:()=>{ UI.newsTab='actu'; setTab('news'); },
+  openPresidents:()=>{ UI.newsTab='pays'; setTab('news'); },
   mapStyle:()=>openM('mapstyle'),
   setStyle:async d=>{ const id=await setMapStyle(d.id); if(id===d.id) toast('🗺️ '+MAP_STYLES[id].label,'ok'); refreshModal(); },
   saveGKey:async()=>{ const k=$('#gkey').value.trim(); if(!k){ localStorage.removeItem(GKEY); toast('Clé supprimée','ok'); return; }
@@ -195,7 +197,7 @@ const LIVE_INPUTS=/^(sal|fuelBelow|cfg|adOil|adRep)$/;
 function onInput(e){
   const el=e.target.closest('[data-in]'); if(!el) return;
   const fn=INPUTS[el.dataset.in]; if(!fn) return;
-  if(e.type==='input' && !(el.type==='range'||el.dataset.in.startsWith('ed.')||el.dataset.in.startsWith('lv.')||['olq','hq','ngq'].includes(el.dataset.in))) return;
+  if(e.type==='input' && !(el.type==='range'||el.dataset.in.startsWith('ed.')||el.dataset.in.startsWith('lv.')||['olq','hq','ngq','manQ'].includes(el.dataset.in))) return;
   if(e.type==='change' && ['olq','hq','ngq'].includes(el.dataset.in)) return;
   fn(el);
   if(UI.modal==='editor' && $('#edEst')) $('#edEst').innerHTML=editorEst(customSpecs(UI.edit),UI.edit);

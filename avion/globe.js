@@ -115,7 +115,12 @@ function initGlobe(){
   sc.renderError.addEventListener((scene,err)=>{
     console.warn('rendu 3D',err); G.safe=(G.safe||0)+1; if(GQ.mode!=='e'){ GQ.mode='e'; try{ localStorage.setItem('se-q','e'); }catch(e){} try{ applyQuality(); }catch(e){} }
     try{ if(G.clouds){ sc.primitives.remove(G.clouds); G.clouds=null; } }catch(e){}
-    if(G.safe>=2){ try{ worldClear(); }catch(e){} G.noWorld=true; }
+    if(G.safe===1){
+      try{ viewer.useBrowserRecommendedResolution=false; viewer.resolutionScale=Math.min(viewer.resolutionScale||1,0.68); sc.msaaSamples=1; sc.globe.maximumScreenSpaceError=4; sc.globe.showWaterEffect=false; G.rivalCap=8; G.rivAt=0; }
+      catch(e){}
+      toast('⚙️ Le rendu 3D a détecté une surcharge : qualité réduite automatiquement pour stabiliser l’image.','warn');
+    }
+    if(G.safe>=2){ try{ worldClear(); sc.globe.showWaterEffect=false; }catch(e){} G.noWorld=true; }
     if(G.safe<=4) setTimeout(()=>{ try{ viewer.useDefaultRenderLoop=true; }catch(e){} },300);
     else toast('⛔ La vue 3D rencontre un problème sur cet appareil','bad');
   });
@@ -438,7 +443,7 @@ Object.assign(ACTIONS,{
   globeFollow:()=>{ if(G.follow) return globeFollow(null); if(typeof fxAudioUnlock==='function') fxAudioUnlock(); const sel=selectedPlane&&S.fleet.find(a=>a.id===selectedPlane&&a.status==='flight'); const ac=sel||pick(S.fleet.filter(a=>a.status==='flight')); if(ac){ selectPlane(ac.id); globeFollow(ac.id); } },
   globeNext:()=>{ const fl=S.fleet.filter(a=>a.status==='flight'); if(!fl.length) return; const i=fl.findIndex(a=>a.id===G.follow); const ac=fl[(i+1)%fl.length]; selectPlane(ac.id); globeFollow(ac.id); },
   globeCam:d=>{ G.lastMode=d.k; setCam(d.k); },
-  globeQ:()=>{ GQ.mode=GQ.mode==='e'?'h':GQ.mode==='h'?'a':'e'; try{ localStorage.setItem('se-q',GQ.mode); }catch(e){} toast(GQ.mode==='e'?'⚙️ Éco : plus fluide sur téléphone':GQ.mode==='h'?'⚙️ Haute qualité : image nette, anticrénelage, ombres':'⚙️ Auto : haute qualité, allègement doux si la vue rame','info'); applyQuality(); renderGlobeHud(); },
+  globeQ:()=>{ GQ.mode=GQ.mode==='e'?'h':GQ.mode==='h'?'a':'e'; try{ localStorage.setItem('se-q',GQ.mode); }catch(e){} toast(GQ.mode==='e'?'⚙️ Éco : plus fluide sur téléphone':GQ.mode==='h'?'⚙️ Haute qualité : image nette, anticrénelage, ombres':'⚙️ Auto : qualité équilibrée, allègement supplémentaire si la vue rame','info'); applyQuality(); renderGlobeHud(); },
   globeRelief:()=>{ TERRAIN.on=!TERRAIN.on; try{ localStorage.setItem('se-relief',TERRAIN.on?'1':'0'); }catch(e){} terrainApply(); toast(TERRAIN.on?'⛰️ Relief réel activé : montagnes, vallées et volcans':'Relief désactivé (terre plate, plus léger)','info'); renderGlobeHud(); },
   globeSound:()=>fxToggleSound(),
   globeRain:()=>{ FX.forceRain=!FX.forceRain; fxAudioUnlock(); renderGlobeHud(); },

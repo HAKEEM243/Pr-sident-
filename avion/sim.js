@@ -220,7 +220,8 @@ function demandMult(a,b){
 function marketDemand(a,b){
   const d=dist(a,b), A=AP(a), B=AP(b);
   const df = d<120?0.25 : d<300?0.8 : 1/(1+d/4500);
-  let base = 230*Math.sqrt(A.traffic*B.traffic)*df;
+  const ta=a==='FIH'&&A.marketTraffic?A.marketTraffic:A.traffic, tb=b==='FIH'&&B.marketTraffic?B.marketTraffic:B.traffic;
+  let base = 230*Math.sqrt(ta*tb)*df;
   if(A.drc&&B.drc) base*=5; // routes quasi inexistantes : l'avion est vital en RDC
   else if(A.drc||B.drc) base*=1.3;
   if(A.terminal) base*=1.3; if(B.terminal) base*=1.3;
@@ -1173,7 +1174,8 @@ function catchUp(){
   const realDt=Date.now()-lr;
   S.lastReal=Date.now();
   if(S.paused || realDt<5000) return null;
-  const gameDt=Math.min(realDt, 30*DAY);   // absent : le temps passe en temps réel (1 h absent = 1 h de jeu), vos vols continuent sans tout terminer d'un coup
+  const offlineSpeed=Math.min(60,Math.max(1,(SPEEDS[S.speed]||SPEEDS.realiste).mult));
+  const gameDt=Math.min(realDt*offlineSpeed,30*DAY);   // suit la vitesse choisie, plafonnée à ×60 et 30 jours pour éviter une progression incontrôlée
   S.awayFrom=S.time; const before={cash:S.cash, flights:S.stats.flights, pax:S.stats.pax, rev:ledSum(S.led.total,1), cost:ledSum(S.led.total,-1), time:S.time};
   advance(gameDt);
   return { real:realDt, game:S.time-before.time, flights:S.stats.flights-before.flights, pax:S.stats.pax-before.pax,

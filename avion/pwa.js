@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261072';
+const GAME_VER='20261078';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -87,6 +87,16 @@ const WHATS_NEW=[
   ['🧠 Duel sur vos lignes','Les compagnies présentes sur vos lignes réagissent chaque semaine : elles s’alignent sur vos prix, ajoutent des vols, ou remontent leurs tarifs. Détail d’une ligne → « Ce que font vos concurrents ».'],
   ['✈️ Concevoir mon avion','Plus → <b>✈️ Concevoir mon avion</b> ; et 13 nouveaux modèles (L-410, MA60, 727, Tu-154, A300F, 747-400F…).'],
   ['🧳 Passagers','Nouvelles rubriques : son séjour (programme, hôtel, budget) et ce vol en chiffres (distance, CO₂, miles, avis).'],
+  ['🎮 Tour de contrôle en direct','Accueil : suivi des vols actifs, étape, progression et nombre de passagers, avec accès direct au suivi et au manifeste.'],
+  ['🛂 Contrôle des passagers plus poussé','Arrivées en cours par pays, estimations d’assistance et de vérifications, recherche de fiches et filtres par profil dans les manifestes. Les voyageurs et contrôles sont simulés.'],
+  ['🏆 Classements plus détaillés','Nouveau tri par croissance patrimoniale sur environ quatre semaines ; le classement des aéroports distingue désormais trafic de base, flotte et lignes du joueur et des IA.'],
+  ['🌍 Classements plus vivants','Le classement mondial des compagnies se trie par patrimoine, flotte, réseau, passagers ou réputation. Le rang d’influence des aéroports tient maintenant compte des avions et lignes présents, en plus du bonus de scénario de Kinshasa.'],
+  ['🛂 Passagers plus pertinents','Les raccourcis de pays suivent désormais les principales provenances de la destination choisie, au lieu d’afficher une liste figée.'],
+  ['⚙️ Vue 3D plus sûre','La qualité Auto est équilibrée dès le lancement ; le mode Éco est choisi par défaut sur mobile pour limiter les plantages.'],
+  ['📰 Actualités et présidents','Les boutons toujours visibles en haut ouvrent directement le fil des actualités ou les décisions des présidents.'],
+  ['⚙️ Vue 3D plus fluide','Le réglage « Éco » réduit maintenant vraiment le nombre de pixels rendus pour soulager les appareils mobiles.'],
+  ['⏩ Progression hors ligne','La partie avance maintenant à la vitesse choisie en votre absence (plafond ×60 et 30 jours), sauf si vous l’avez mise en pause.'],
+  ['🤝 Concurrents plus vivants','Les jeunes compagnies ont davantage de chances de grandir ; les compagnies en difficulté peuvent être rachetées plus tôt par un concurrent solide.'],
   ['🗺️ Fond de carte 3D','En vue 3D : bouton <b>🗺️ Fond</b> (satellite, Sentinel-2, plan, relief, sombre…).'],
   ['🛫 Décollage / 🛬 atterrissage','En vue 3D sans avion suivi : <b>Prochain décollage</b> et <b>Prochain atterrissage</b>.'],
   ['🗓️ Calendrier des vols','Bouton <b>🗓️ Calendrier</b> (onglet Lignes, ou la liste des vols) : la semaine quadrillée, un bloc par rotation.'],
