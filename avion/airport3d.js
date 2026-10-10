@@ -140,7 +140,7 @@ function airportProps(code,N){
   mk(rwPt(r,a0+span/2+120,gx+s*110),r.hdg,apModel('tower',M_TOWER),8);
   // avions d'autres compagnies garés aux premières portes
   if(typeof AC3D!=='undefined'){ const al=(typeof airlinesAt==='function'?airlinesAt(code):[]).slice(0,6).map(([c])=>c);
-    for(let k=0;k<Math.min(6,n);k++){ if(!al.length) break; const c=al[k%al.length], sp=slotPt(code,k), m=getModel(k%3===0&&big?'B789':k%2?'A20N':'B738')||getModel('A20N');
+    for(let k=0;k<Math.min(GQ.mob&&!GQ.hq?3:6,n);k++){ if(!al.length) break; const c=al[k%al.length], sp=slotPt(code,k), m=getModel(k%3===0&&big?'B789':k%2?'A20N':'B738')||getModel('A20N');
       const mi=AC3D.uri(m,typeof airlineColor==='function'?airlineColor(c):'#64748b'), pos=C.Cartesian3.fromDegrees(sp.lon,sp.lat,mi.R+mi.gH+0.4+EL);
       N.ents.push(apLit(V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(hdgOut-90),0,0)), model:{uri:mi.uri, shadows:C.ShadowMode.CAST_ONLY, distanceDisplayCondition:new C.DistanceDisplayCondition(0,25000)}}))); } }
   // mâts d'éclairage le long de l'aire ; la nuit : halo des projecteurs et flaques de lumière sur le béton
