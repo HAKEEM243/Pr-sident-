@@ -155,6 +155,13 @@ function marketStats(){
 }
 let _msc={t:-1,v:null};
 function marketStatsCache(){ if(_msc.t!==S.time){ _msc={t:S.time,v:marketStats()}; } return _msc.v; }
+function liveFlightDeck(){
+  const all=(S.fleet||[]).filter(a=>a.status==='flight'&&a.flight&&a.flight.legs&&a.flight.legs[a.flight.li]), active=all.slice(0,6), total=all.length;
+  const head=`<div class="ops-head"><div><span class="ops-eyebrow">SKY OPS · TEMPS RÉEL</span><h3>Tour de contrôle</h3></div><span class="ops-count">${total} vol${total>1?'s':''} actif${total>1?'s':''}</span></div>`;
+  if(!active.length) return `<section class="ops-panel">${head}<div class="ops-empty">Aucun vol en cours — programmez un avion sur une ligne pour voir son suivi ici.</div></section>`;
+  const phases=['Embarquement','Décollage','Montée','Croisière','Croisière','Descente','Approche','Atterrissage','Arrivée','Roulage'];
+  return `<section class="ops-panel">${head}<div class="ops-grid">${active.map(ac=>{const st=flightState(ac,simNow())||{phase:0,frac:0}, leg=ac.flight.legs[ac.flight.li], pax=leg&&leg.pax?leg.pax.f+leg.pax.j+leg.pax.w+leg.pax.y:0, progress=clamp((st.frac||0)*100,0,100), phase=phases[Math.max(0,Math.min(9,st.phase||0))]; return `<article class="ops-flight"><div class="ops-flight-top"><b>${esc(S.company.code)}${flightNumber(ac)}</b><span class="ops-state">EN VOL · ${Math.round(progress)} %</span></div><div class="ops-route"><span>${esc(AP(leg.from).city)}</span><i>→</i><b>${esc(AP(leg.to).city)}</b></div><div class="ops-progress"><i style="width:${progress}%"></i></div><div class="ops-meta"><span>${esc(modelOf(ac).name)}</span><span>${phase}</span><span>${num(pax)} pax</span></div><div class="btns"><button class="btn sm" data-act="follow" data-id="${ac.id}">🎯 Suivre</button>${pax?`<button class="btn sm" data-act="manifest" data-id="${ac.id}">📋 Passagers</button>`:''}</div></article>`;}).join('')}</div>${total>active.length?`<div class="small mut" style="margin-top:8px">${total-active.length} autre(s) vol(s) actif(s) — suivez-les depuis la carte.</div>`:''}</section>`;
+}
 function loadFactor(){ let p=0,s=0; for(const r of S.routes){ p+=r.stats.pax; s+=r.stats.seats; } return s? p/s : 0; }
 function competitors(){
   if(S.ai&&typeof aiRows==='function') return aiRows();
@@ -209,6 +216,7 @@ function pDash(){
       ${S.alliance?`<span class="chip gold">${ALLIANCES.find(a=>a.id===S.alliance).name}</span>`:''}
     </div>
   </div>
+  ${liveFlightDeck()}
   <div class="weekcards">
     <div class="wcard"><div class="kl">Cette semaine</div><div class="kv ${wr-wc<0?'neg':'pos'}">${fmtMoney(wr-wc)}</div><div class="small mut">CA ${fmtMoney(wr)} · charges ${fmtMoney(wc)}</div></div>
     <div class="wcard"><div class="kl">Semaine dernière</div>${lw?`<div class="kv ${lw.profit<0?'neg':'pos'}">${fmtMoney(lw.profit)}</div><div class="small mut">${num(lw.pax)} pax · ${lw.flights} vols</div>`:'<div class="kv mut">—</div><div class="small mut">premier bilan dimanche soir</div>'}</div>

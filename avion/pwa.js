@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261075';
+const GAME_VER='20261077';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,9 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🎮 Tour de contrôle en direct','Accueil : suivi des vols actifs, étape, progression et nombre de passagers, avec accès direct au suivi et au manifeste.'],
+  ['🛂 Contrôle des passagers plus poussé','Arrivées en cours par pays, estimations d’assistance et de vérifications, recherche de fiches et filtres par profil dans les manifestes. Les voyageurs et contrôles sont simulés.'],
+  ['🏆 Classements plus détaillés','Nouveau tri par croissance patrimoniale sur environ quatre semaines ; le classement des aéroports distingue désormais trafic de base, flotte et lignes du joueur et des IA.'],
   ['🌍 Classements plus vivants','Le classement mondial des compagnies se trie par patrimoine, flotte, réseau, passagers ou réputation. Le rang d’influence des aéroports tient maintenant compte des avions et lignes présents, en plus du bonus de scénario de Kinshasa.'],
   ['🛂 Passagers plus pertinents','Les raccourcis de pays suivent désormais les principales provenances de la destination choisie, au lieu d’afficher une liste figée.'],
   ['⚙️ Vue 3D plus sûre','La qualité Auto est équilibrée dès le lancement ; le mode Éco est choisi par défaut sur mobile pour limiter les plantages.'],

@@ -1,9 +1,10 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta name="se-ver" content="20261075">
+<meta name="se-ver" content="20261077">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Sky Empire</title>
 <title>Sky Empire</title>
 <meta name="description" content="Sky Empire : créez votre compagnie aérienne n’importe où dans le monde. 3 200 aéroports, 68 avions réels, concurrents IA, carte satellite et mode pilote.">
 <meta name="theme-color" content="#0b1220">
@@ -556,6 +557,17 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .lg.bad{border-left:3px solid var(--bad);padding-left:6px} .lg.warn{border-left:3px solid var(--warn);padding-left:6px} .lg.ok{border-left:3px solid var(--ok);padding-left:6px} .lg.rival{border-left:3px solid var(--rival);padding-left:6px}
 .log.big{max-height:none}
 @media (max-width:820px){ .btn{min-height:40px} #tabs button{min-width:56px} #tabs button small{font-size:10px} .bigcta .btn{padding:16px} }
+.ops-panel,.pax-ops{margin:10px 0 14px;padding:12px;border:1px solid #2b4774;border-radius:16px;background:radial-gradient(ellipse at 8% 0%,rgba(37,99,235,.2),transparent 52%),linear-gradient(145deg,#111f37,#0a1425);box-shadow:0 8px 24px rgba(0,0,0,.28)}
+.ops-head,.pax-ops-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.ops-head h3,.pax-ops-head h3{margin:2px 0 0;font-size:17px}
+.ops-eyebrow{font:800 9px ui-monospace,Menlo,monospace;letter-spacing:.16em;color:#7dd3fc}.ops-count{border:1px solid #4c6e9f;background:#1c3152;color:#dbeafe;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;white-space:nowrap}
+.ops-grid,.pax-arrivals{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}.ops-flight,.pax-arrival{min-width:0;padding:10px;border:1px solid #31466a;border-radius:12px;background:linear-gradient(145deg,rgba(25,43,72,.95),rgba(13,24,42,.98))}
+.ops-flight-top,.pax-arrival-top{display:flex;justify-content:space-between;align-items:center;gap:8px}.ops-state{font:700 9px ui-monospace,Menlo,monospace;letter-spacing:.06em;color:#6ee7b7;background:rgba(5,80,62,.35);border:1px solid rgba(52,211,153,.35);border-radius:6px;padding:3px 5px;white-space:nowrap}
+.ops-route,.pax-route{display:flex;align-items:center;gap:8px;margin:8px 0 6px;font-size:13px}.ops-route i,.pax-route span{font-style:normal;color:#fbbf24;font-weight:900}.ops-route b,.pax-route b{color:#fff}
+.ops-progress{height:6px;background:#091222;border-radius:99px;overflow:hidden}.ops-progress i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#38bdf8,#34d399);box-shadow:0 0 10px rgba(52,211,153,.4)}
+.ops-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:5px;margin:6px 0;color:#a9b9d1;font-size:10.5px}.ops-flight .btns,.pax-arrival .btns{margin-top:8px}.ops-empty{padding:12px;border:1px dashed #3b5277;border-radius:11px;color:#cbd5e1;font-size:12.5px}
+.pax-ops-head{margin-bottom:8px}.pax-ops-empty{display:grid;gap:5px}.man-search{display:flex;align-items:center;gap:10px;margin:8px 0}.man-search input{flex:1;min-width:140px;background:#0b1324;border:1px solid #31466a;border-radius:9px;color:var(--txt);padding:9px 10px}.man-search input:focus{outline:2px solid rgba(56,189,248,.45);border-color:#38bdf8}
+.rank-overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0}.rank-overview>div{display:flex;flex-direction:column;gap:4px;padding:10px;border:1px solid #31507e;border-radius:12px;background:linear-gradient(145deg,#172b4b,#0d192c)}.rank-overview span{font-size:10px;color:#a9b9d1}.rank-overview b{font-size:19px}.rank-overview b small{font-size:11px;color:#94a3b8}.rank-overview i{font-size:11px;color:#cbd5e1;font-style:normal}
+@media(max-width:600px){.ops-grid,.pax-arrivals{grid-template-columns:1fr}.ops-panel,.pax-ops{padding:10px}.rank-overview{grid-template-columns:1fr 1fr}.rank-overview>div:first-child{grid-column:span 2}}
 .crash-ic{font-size:26px;line-height:34px;text-align:center;filter:drop-shadow(0 0 4px #000)}.crash-ic.fatal span{display:inline-block;animation:crashPulse 1.2s ease-in-out infinite}.crash-ic.incident{font-size:20px}@keyframes crashPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.35)}}
 .pc-bp{display:flex;gap:8px;background:linear-gradient(135deg,#1e3a5f,#0f2744);border:1px dashed var(--gold,#ffd60a);border-radius:10px;padding:10px;margin:6px 0}.pc-bp>div{flex:1}.pc-bp small{display:block;font-size:10px;opacity:.7;margin-top:4px}.pc-bp b{display:block;font-size:14px}.pc-barcode{display:flex;gap:1px;height:34px;align-items:stretch;background:#fff;padding:4px 6px;border-radius:6px;margin-bottom:6px}.pc-barcode i{display:block;background:#111;flex:none}
 .cal-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}.cal-hours{display:flex;justify-content:space-between;margin-left:64px;font-size:10px;opacity:.6}.cal-row{display:flex;align-items:stretch;gap:6px;margin:3px 0}.cal-day{width:58px;flex:none;font-size:12px;line-height:1.1;padding-top:4px}.cal-day small{display:block;opacity:.65;font-size:10px}.cal-row.today .cal-day{color:var(--gold,#ffd60a)}.cal-track{position:relative;flex:1;height:34px;background:rgba(255,255,255,.05);border-radius:6px;overflow:hidden}.cal-row.today .cal-track{outline:1px solid var(--gold,#ffd60a)}.cal-grid{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.12)}.cal-blk{position:absolute;border-radius:4px;font-size:10px;line-height:15px;color:#fff;padding:2px 3px;overflow:hidden;white-space:nowrap;text-shadow:0 1px 1px #0008;opacity:.92}
@@ -628,17 +640,17 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="saves.js?v=20261026"></script>
 <script src="airlines-db.js?v=20261019"></script>
 <script src="airlines.js?v=20261062"></script>
-<script src="world-ai.js?v=20261075"></script>
+<script src="world-ai.js?v=20261077"></script>
 <script src="ai-brain.js?v=20261073"></script>
 <script src="ai-challenge.js?v=20261066"></script>
 <script src="gameplay2.js?v=20261070"></script>
-<script src="passengers.js?v=20261075"></script>
+<script src="passengers.js?v=20261077"></script>
 <script src="pulse.js?v=20261035"></script>
 <script src="business.js?v=20261019"></script>
 <script src="map.js?v=20261062"></script>
-<script src="ui.js?v=20261075"></script>
+<script src="ui.js?v=20261077"></script>
 <script src="pilot.js?v=20261019"></script>
-<script src="actions.js?v=20261075"></script>
+<script src="actions.js?v=20261077"></script>
 <script src="aircraft3d.js?v=20261057"></script>
 <script src="globe.js?v=20261075"></script>
 <script src="terrain.js?v=20261053"></script>
@@ -652,7 +664,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="calendar.js?v=20261061"></script>
 <script src="paxcases.js?v=20261030"></script>
 <script src="inbox.js?v=20261067"></script>
-<script src="pwa.js?v=20261075"></script>
+<script src="pwa.js?v=20261077"></script>
 <script src="simple.js?v=20261075"></script>
 </body>
 </html>
