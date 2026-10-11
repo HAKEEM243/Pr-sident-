@@ -13,6 +13,9 @@ const _cAP={}; const cAirports=cc=>_cAP[cc]||(_cAP[cc]=AIRPORT_CODES.filter(c=>A
 const AI_PLAYER_BUILD_GRACE=60*DAY;
 function aiAirportMarketOpen(code){ const built=S.playerAirportBuilds&&S.playerAirportBuilds[code]; return built==null||!Number.isFinite(+built)||S.time-(+built)>=AI_PLAYER_BUILD_GRACE; }
 function aiAirlineMarketOpen(code){ const a=AIRLINE_DB[code]; return !!a&&aiAirportMarketOpen(a[2])&&!airlinePairs(code).some(([x,y])=>!aiAirportMarketOpen(x)||!aiAirportMarketOpen(y)); }
+const AI_POOR_COUNTRY_EXTRA=new Set(['CD','CG','PA','PS','SD']);
+function aiPoorCountryEligible(cc){ const lvl=typeof INCOME_LVL==='undefined'?undefined:INCOME_LVL[cc]; return !!COUNTRIES[cc]&&cAirports(cc).length>0&&(AI_POOR_COUNTRY_EXTRA.has(cc)||(lvl!==undefined&&lvl<=1)); }
+function aiPoorStartupCountries(){ return Object.keys(COUNTRIES).filter(aiPoorCountryEligible); }
 
 /* ---------- état ---------- */
 function makeAI(code){
@@ -210,8 +213,21 @@ function aiBankrupt(e){
   const fleet=e.fleet, startup=e.startup; retireAICorp(e);
   aiNews(`💥 Faillite : ${e.name} cesse ses activités${fleet>20?` (${fleet} avions saisis)`:''}${startup?' — la jeune compagnie n’aura pas survécu à ses premières années':''}.`,'bad',fleet>=15||!startup);
 }
+function aiPoorCountryStartupWave(){
+  const ai=S.ai; if(!ai||(ai.poorStartupWaveNumber||0)>=4) return;
+  const mk=monthKey(S.time); if(ai.poorStartupWaveMonth===mk) return; ai.poorStartupWaveMonth=mk;
+  const wave=ai.poorStartupWaveNumber=(ai.poorStartupWaveNumber||0)+1, done=ai.poorStartupWavesByCountry||(ai.poorStartupWavesByCountry={}), created=[];
+  for(const cc of aiPoorStartupCountries()){
+    const n=done[cc]||0; if(n>=4) continue;
+    const e=aiStartup(cc,n); if(e){ done[cc]=n+1; created.push(e); }
+  }
+  if(created.length){ const examples=created.slice(0,4).map(e=>`${e.name} · ${ccName(e.cc)}`).join(', ');
+    aiNews(`🌍 Vague ${wave}/4 : ${created.length} nouvelles compagnies dans les pays à revenu faible ou moyen inférieur (Panama inclus à ta demande). Exemples : ${examples}.`,'news',true); }
+}
 function aiMonthly(){
-  const ai=S.ai, alive=aiAlive();
+  const ai=S.ai;
+  aiPoorCountryStartupWave();
+  const alive=aiAlive();
   const D=typeof drive==='function'?drive():2, young=alive.filter(e=>e.startup).length;
   if(young<12&&Math.random()<(D>=3?0.55:D===2?0.4:D===1?0.28:0.18)) aiStartup();
   // une compagnie en forme absorbe parfois une compagnie en difficulté
@@ -224,23 +240,30 @@ function aiMonthly(){
   // bilan du trimestre
   if(S.ai.lastMonth%3===0){ const top=aiRows().slice(0,3); aiNews(`🏆 Podium mondial : ${top.map((c,i)=>`${['🥇','🥈','🥉'][i]} ${c.name}`).join(' · ')}.`,'news'); }
 }
-function aiStartup(){
+function aiStartup(forcedCC=null,waveNo=0){
   const ai=S.ai, mine=S.company.code;
-  const hubCandidates=cc=>cAirports(cc).filter(c=>AP(c).cls>=2&&AP(c).traffic>=0.15&&aiAirportMarketOpen(c));
-  const ccs=Object.keys(COUNTRIES).filter(cc=>hubCandidates(cc).length);
-  const w=ccs.map(cc=>{ const nat=Object.values(AIRLINE_DB).filter(a=>a[1]===cc&&AP(a[2])&&AP(a[2]).cc===cc&&a[3]>=3).length+aiAlive().filter(e=>e.startup&&e.cc===cc).length*2;
-    const climate=typeof moodDemand==='function'?clamp(moodDemand(cc),0.45,1.6):1;
-    return 1/(1+nat*1.6)*Math.sqrt(cAirports(cc).length)*Math.sqrt(climate); });
-  if(!ccs.length) return;
-  let r=Math.random()*w.reduce((s,x)=>s+x,0), cc=ccs[0]; for(let i=0;i<ccs.length;i++){ r-=w[i]; if(r<=0){ cc=ccs[i]; break; } }
-  const hubs=hubCandidates(cc); if(!hubs.length) return; const hub=pick(hubs);
-  let code=null; for(let i=0;i<300&&!code;i++){ const c=String.fromCharCode(65+rndi(0,25))+String.fromCharCode(65+rndi(0,25)); if(!AIRLINE_DB[c]&&c!==mine&&!aiBy(c)) code=c; }
-  if(!code) return;
+  const hubCandidates=cc=>{ const open=cAirports(cc).filter(c=>AP(c).cls>=1&&aiAirportMarketOpen(c)), strong=open.filter(c=>AP(c).cls>=2&&AP(c).traffic>=0.15); return strong.length?strong:(forcedCC?open:[]); };
+  let cc=forcedCC;
+  if(forcedCC){ if(!COUNTRIES[forcedCC]||!aiPoorCountryEligible(forcedCC)) return false; }
+  else {
+    const blockPoor=(ai.poorStartupWaveNumber||0)<4||ai.poorStartupWaveMonth===monthKey(S.time);
+    const ccs=Object.keys(COUNTRIES).filter(c=>hubCandidates(c).length&&(!blockPoor||!aiPoorCountryEligible(c)));
+    const w=ccs.map(c=>{ const nat=Object.values(AIRLINE_DB).filter(a=>a[1]===c&&AP(a[2])&&AP(a[2]).cc===c&&a[3]>=3).length+aiAlive().filter(e=>e.startup&&e.cc===c).length*2;
+      const climate=typeof moodDemand==='function'?clamp(moodDemand(c),0.45,1.6):1;
+      return 1/(1+nat*1.6)*Math.sqrt(cAirports(c).length)*Math.sqrt(climate); });
+    if(!ccs.length) return false;
+    let r=Math.random()*w.reduce((s,x)=>s+x,0); cc=ccs[0]; for(let i=0;i<ccs.length;i++){ r-=w[i]; if(r<=0){ cc=ccs[i]; break; } }
+  }
+  const hubs=hubCandidates(cc); if(!hubs.length) return false; const hub=forcedCC?hubs[waveNo%hubs.length]:pick(hubs);
+  let code=null; const codeStart=rndi(0,675); for(let i=0;i<676&&!code;i++){ const n=(codeStart+i)%676, c=String.fromCharCode(65+Math.floor(n/26))+String.fromCharCode(65+n%26); if(!AIRLINE_DB[c]&&c!==mine&&!aiBy(c)) code=c; }
+  if(!code){ const start3=rndi(0,17575); for(let i=0;i<17576&&!code;i++){ const n=(start3+i)%17576, c=String.fromCharCode(65+Math.floor(n/676))+String.fromCharCode(65+Math.floor(n/26)%26)+String.fromCharCode(65+n%26); if(!AIRLINE_DB[c]&&c!==mine&&!aiBy(c)) code=c; } }
+  if(!code) return false;
   const name=`${pick(AI_PREFIX)} ${pick(AI_SUFFIX)}`, fleet=rndi(3,6);
   const e={ code, name, color:airlineColor(code), hub, cc, real:false, startup:true, founded:S.time, fleet, cash:fleet*rnd(12e6,20e6), rep:52, safety:+rnd(0.6,1.1).toFixed(2), routes:0, crashes:0, incidents:0, status:'ok', debt:0, pax:0, hist:[] };
   ai.list.push(e); ai.ver++;
-  for(let i=0,n=rndi(2,4);i<n;i++) aiRoute(e,'open');
-  aiNews(`🆕 Nouvelle compagnie : ${name} (${code}) démarre à ${keyCity(hub)} (${COUNTRIES[cc][0]}) avec ${fleet} avion${fleet>1?'s':''} et ${e.routes} ligne${e.routes>1?'s':''}.`,'news',true);
+  for(let i=0,n=forcedCC?rndi(1,2):rndi(2,4);i<n;i++) aiRoute(e,'open');
+  aiNews(`🆕 Nouvelle compagnie : ${name} (${code}) démarre à ${keyCity(hub)} (${COUNTRIES[cc][0]}) avec ${fleet} avion${fleet>1?'s':''} et ${e.routes} ligne${e.routes>1?'s':''}.`,'news',!forcedCC);
+  return e;
 }
 
 /* ---------- classement ---------- */
