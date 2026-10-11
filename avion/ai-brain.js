@@ -48,14 +48,14 @@ function aiBrain(e,oilF,margin){
   // 1. cap stratégique, revu toutes les 6 à 14 semaines
   if(S.time>plan.until){
     const old=plan.mode;
-    const mode=(e.cash<0||e.mavg<-0.15||(oilF<0.8&&poor))?'retrench':(rich&&e.mavg>0.15)?'grow':(e.age>13&&!poor)?'renew':'steady';
+    const mode=(e.debt>=2||e.cash<0||e.mavg<-0.15||(oilF<0.8&&poor))?'retrench':(rich&&e.mavg>0.15)?'grow':(e.age>13&&!poor)?'renew':'steady';
     e.plan={mode,until:S.time+rndi(6,14)*7*DAY};
     if(mode!==old&&e.fleet>=60&&mode!=='steady'&&Math.random()<0.5) aiNews(`🧠 ${e.name} ${PLAN_TXT[mode]}.`,'news');
   }
   const m=e.plan.mode;
   // 2. actions selon le cap
   if(m==='retrench'){
-    if(Math.random()<0.22) aiSell(e,Math.max(1,Math.ceil(e.fleet*rnd(0.02,0.06))),poor?'crise de trésorerie':oilF<0.8?'carburant trop cher':'rationalisation');
+    if(!(e.debt>0)&&Math.random()<0.22) aiSell(e,Math.max(1,Math.ceil(e.fleet*rnd(0.02,0.06))),poor?'crise de trésorerie':oilF<0.8?'carburant trop cher':'rationalisation');
     if(Math.random()<0.1) e.safety=Math.max(0.3,(e.safety||1)-0.02);                 // économies sur la maintenance : le risque monte
   } else if(m==='grow'){
     if(Math.random()<0.2){ const n=Math.max(1,Math.round(e.fleet*rnd(0.02,0.06))); e.fleet+=n; e.cash-=n*rnd(2e6,5e6); e.age=Math.max(2,e.age-n/e.fleet*e.age*0.6);
