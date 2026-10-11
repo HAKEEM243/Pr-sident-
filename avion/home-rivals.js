@@ -42,7 +42,9 @@ function hrAirKivuRouteTick(){
   const e=aiBy('KVA'); if(!e||e.status==='dead') return;
   const now=S.time; if(now-(e.lastStartupRouteAttempt??e.founded??now)<3*DAY) return;
   e.lastStartupRouteAttempt=now;
-  if((e.lastMargin||0)<=0.025||e.cash<=e.fleet*14e6) return;
+  // Sans route, Air Kivu ne peut pas gagner d'argent ni bâtir de marge :
+  // financer une première liaison viable avant d'appliquer le filtre de rentabilité.
+  if((aiOpenRoutes(e)>0&&(e.lastMargin||0)<=0.025)||e.cash<=e.fleet*14e6) return;
   const cap=Math.max(2,Math.floor(e.fleet*0.8)); if(aiOpenRoutes(e)>=cap) return;
   aiRoute(e,'open');
 }

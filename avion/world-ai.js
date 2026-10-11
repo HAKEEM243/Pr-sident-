@@ -37,7 +37,15 @@ const aiAlive=()=>S.ai.list.filter(e=>e.status!=='dead');
 const aiBy=code=>S.ai&&S.ai.list.find(e=>e.code===code);
 function ensureBukavuAirline(){
   if(!S.ai||!S.ai.list||!AP('BKY')) return null;
-  let e=aiBy('KVA'); if(e) return e;
+  let e=aiBy('KVA');
+  if(e){
+    if(e.status==='dead') return e;
+    S.ai.extra=S.ai.extra||{}; S.ai.extra.KVA=S.ai.extra.KVA||[];
+    // Les anciennes sauvegardes pouvaient créer Air Kivu mais conserver zéro route.
+    // Réessayer une seule liaison si son réseau est encore vide.
+    if(aiOpenRoutes(e)===0&&S.time-(e.founded??S.time)>=3*DAY) aiRoute(e,'open');
+    return e;
+  }
   e={code:'KVA',name:'Air Kivu',color:airlineColor('KVA'),hub:'BKY',cc:'CD',real:false,startup:true,founded:S.time,
     fleet:5,fleet0:5,cash:2.5e9,rep:62,safety:0.96,routes:0,crashes:0,incidents:0,status:'ok',debt:0,pax:0,hist:[],lastMargin:0.08,lastStartupRouteAttempt:S.time,plan:{mode:'grow'}};
   S.ai.list.push(e); S.ai.extra.KVA=[]; S.ai.ver++;
@@ -133,7 +141,11 @@ function aiRoute(e, mode, target){
     const nodes=new Map(); for(const [a,b] of airlinePairs(code)){ nodes.set(a,(nodes.get(a)||0)+1); nodes.set(b,(nodes.get(b)||0)+1); }
     let origin=e.hub, central=-1; for(const [c,n] of nodes){ const score=n*1000+AP(c).traffic+(c===e.hub?500:0); if(score>central){ central=score; origin=c; } }
     const suspended=ai.suspend||{}, shut=ai.shut||{}, originCC=AP(origin).cc;
-    if(!aiAirportMarketOpen(origin)||shut[origin]>S.time) return false;
+    // Air Kivu est basée à BKY : les améliorations du joueur ne doivent pas
+    // immobiliser son hub indéfiniment. Elle attend 3 jours, puis seule BKY
+    // bénéficie de cette exception; les autres marchés gardent la grâce normale.
+    const bukavuStartupHub=code==='KVA'&&origin==='BKY'&&S.time-(e.founded??S.time)>=3*DAY;
+    if((!aiAirportMarketOpen(origin)&&!bukavuStartupHub)||shut[origin]>S.time) return false;
     let best=null;
     for(const c of AIRPORT_CODES){
       const A=AP(c); if((target&&c!==target)||!aiAirportMarketOpen(c,!!target)||c===origin||A.cls<2||A.traffic<minT||shut[c]>S.time||[originCC,A.cc].some(cc=>suspended[cc]>S.time&&e.cc!==cc)) continue;

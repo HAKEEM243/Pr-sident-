@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261112';
+const GAME_VER='20261113';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🇨🇩 Air Kivu ouvre enfin son réseau','Correction pour les sauvegardes existantes : Air Kivu finance sa première ligne viable même avant ses premiers bénéfices. Après 3 jours, une amélioration récente de Bukavu ne bloque plus son hub; les autres marchés restent soumis aux règles normales. Ensuite, l’expansion dépend de ses résultats.'],
   ['🌙 Nuit et neige en vue 3D','Le bouton du soleil fait défiler Auto (heure du jeu), Jour et Nuit. Un bouton Neige active une chute de flocons légère, sans modèle ni ressource distante, désactivée par défaut. Les deux préférences sont mémorisées.'],
   ['✈️ Voyageurs en RDC : grandes villes revalorisées','Les portes des grandes villes ont un minimum de 20 M de voyageurs par an : Kinshasa 48 M, Goma 35 M, Lubumbashi 20 M, ainsi que les autres villes de plus d’un million d’habitants. Les villes moyennes et petites ont des planchers gradués selon leur population (5 M, 2 M ou 100 000 à 300 000). Ces valeurs alimentent aussi le marché aérien; elles restent adaptables à la hausse selon le trafic existant.'],
   ['🇨🇩 Air Kivu part de Bukavu','Air Kivu arrive comme petite compagnie congolaise avec 5 avions et 2,5 Md$ de fonds de départ. Quand sa marge est positive et sa trésorerie suffisante, elle ouvre une autre ligne au plus tous les 3 jours ; ses résultats hebdomadaires font varier ses fonds. Son hub à Bukavu dispose d’une piste revêtue de 4 200 m, classe 5. Les chiffres Passagers intègrent aussi l’évolution démographique et économique.'],
