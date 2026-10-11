@@ -58,13 +58,14 @@ function applySave(txt, how){
   // Depuis l’écran « Nouvelle partie », reprendre sans dépendre d’un rechargement
   // Safari/PWA, qui peut rester bloqué après le tap sur un gros fichier de secours.
   if((!S||!S.company) && typeof boot==='function'){
-    try{
-      o.lastReal=Date.now(); S=o; migrate(); save();
-      UI.modal=null; closeModal(); boot();
-      const pl=catchUpPlan(); if(pl) runCatchUp(pl);
-      toast(`✅ Partie de ${S.company.name} reprise — ${S.fleet.length} avions.`,'ok');
-      return true;
-    }catch(e){ console.warn('Reprise directe impossible, rechargement de secours',e); }
+    o.lastReal=Date.now(); S=o; migrate();
+    try{ save(); }catch(e){ console.warn(e); }
+    UI.modal=null; try{ closeModal(); }catch(e){}
+    // une erreur d'affichage ne doit pas renvoyer à l'accueil : la partie reste ouverte et l'erreur s'affiche
+    try{ boot(); }catch(e){ console.warn('boot',e); setTimeout(()=>{ throw e; },0); }
+    try{ const pl=catchUpPlan(); if(pl) runCatchUp(pl); }catch(e){ console.warn(e); }
+    toast(`✅ Partie de ${S.company.name} reprise — ${S.fleet.length} avions.`,'ok');
+    return true;
   }
   const go=()=>{ o.lastReal=Date.now(); const t=JSON.stringify(o); try{ localStorage.setItem(SAVE_KEY,t); }catch(e){}
     const done=()=>{ window._svNoUnloadSave=true; location.reload(); };
@@ -119,7 +120,8 @@ function registerSaveActions(){
     svSlot:async()=>{ save(); const label=prompt('Nom de cet emplacement :', `${S.company.name} — ${fmtDate(S.time)}`); if(label===null) return;
       try{ await svPut('slot:'+Date.now(),{txt:JSON.stringify(S),meta:svMeta(S),label:label.slice(0,60)}); toast('🗂️ Emplacement enregistré','ok'); }catch(e){ toast('⛔ Impossible d’enregistrer (mémoire pleine ?) : utilisez Exporter','bad'); }
       openSaves(); },
-    svLoad:async d=>{ const r=await svGet(d.k).catch(()=>null); if(!r||!r.txt) return toast('⛔ Sauvegarde introuvable','bad'); applySave(r.txt, d.k.startsWith('bk:')?'Restaurer':'Charger'); },
+    ngUpdate:async()=>{ toast('🔄 Mise à jour…','info'); try{ if(navigator.serviceWorker){ const rg=await navigator.serviceWorker.getRegistrations(); for(const x of rg) await x.unregister(); } if(window.caches){ for(const k of await caches.keys()) await caches.delete(k); } }catch(e){} location.replace(location.pathname+'?u='+Date.now()); },
+    svLoad:async d=>{ toast('⏳ Ouverture de la partie…','info'); const r=await svGet(d.k).catch(()=>null); if(!r||!r.txt) return toast('⛔ Sauvegarde introuvable','bad'); applySave(r.txt, d.k.startsWith('bk:')?'Restaurer':'Charger'); },
     svDelete:async d=>{ if(!confirm('Supprimer cet emplacement ?')) return; await svDel(d.k); openSaves(); },
     svExport:()=>svExport(),
     svImport:()=>svImport(),
@@ -133,6 +135,7 @@ async function ngRestoreHtml(){
   bks.sort((a,b)=>b.m.real-a.m.real);
   return `<div class="ngrestore"><b>📂 Vous avez déjà une partie ?</b>
     <div class="btns"><button class="btn gold" data-act="svImport">📥 Importer un fichier</button><button class="btn" data-act="pwaPaste">📋 Coller une partie</button></div>
+    <div class="small mut">Version du jeu : <b>${typeof GAME_VER!=='undefined'?GAME_VER:'?'}</b> · <button class="btn sm" data-act="ngUpdate">🔄 Mettre à jour le jeu (partie gardée)</button></div>
     ${bks.slice(0,3).map(s=>`<div class="svrow"><div>${svLine(s.m)}</div><div class="svb"><button class="btn sm gold" data-act="svLoad" data-k="${s.k}">Reprendre</button></div></div>`).join('')}
     ${typeof isStandalone==='function'&&isStandalone()?`<small class="mut">Votre partie était dans Chrome ou Safari ? Ouvrez le jeu dans ce navigateur → Plus → 💾 Sauvegardes → <b>Exporter</b> → « Enregistrer dans Fichiers », puis ici : <b>Importer un fichier</b>.</small>`:''}</div>`;
 }

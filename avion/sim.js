@@ -977,8 +977,8 @@ const UPGRADES = {
 };
 function applyUpgrades(){
   for(const code of Object.keys(S.upgrades||{})){
-    const a=AIRPORTS[code]; Object.assign(a, JSON.parse(JSON.stringify(AP_BASE[code])));
-    for(const t of S.upgrades[code]) UPGRADES[t].apply(a);
+    const a=AIRPORTS[code]; if(!a||!AP_BASE[code]) continue; Object.assign(a, JSON.parse(JSON.stringify(AP_BASE[code])));
+    for(const t of S.upgrades[code]){ if(!UPGRADES[t]) continue; try{ UPGRADES[t].apply(a); }catch(e){ console.warn('upgrade',code,t,e); } }
   }
 }
 function startProject(code,type){
@@ -1195,7 +1195,10 @@ function catchUp(){
 }
 
 function save(){ if(!S||(typeof window!=='undefined'&&window._svNoUnloadSave)) return; S.lastReal=Date.now(); const txt=JSON.stringify(S); if(typeof saveAll==='function') return saveAll(txt); try{ localStorage.setItem(SAVE_KEY, txt); }catch(e){} }
-function migrate(){
+// une étape de conversion qui échoue ne doit jamais empêcher d'ouvrir la partie : l'erreur s'affiche, le jeu continue
+function migrate(){ try{ migrateCore(); }catch(e){ console.warn('migrate',e); setTimeout(()=>{ throw e; },0);
+  try{ S.projects=S.projects||[]; S.upgrades=S.upgrades||{}; S.missions=S.missions||[]; S.weather=S.weather||[]; S.hubs=S.hubs||[S.company.hub]; }catch(_){} } }
+function migrateCore(){
   if(typeof ensureBiz==='function') ensureBiz();
   if(S.simple===undefined) S.simple=true;
   if(S.rivalDrive===undefined) S.rivalDrive=3;
