@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta name="se-ver" content="20261083">
+<meta name="se-ver" content="20261084">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Sky Empire</title>
@@ -486,6 +486,13 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 #ticker .tk.old{opacity:.4}
 #une{position:absolute;left:50%;transform:translateX(-50%);top:10px;z-index:790;width:min(560px,calc(100% - 24px));display:flex;align-items:center;gap:8px;background:rgba(11,18,32,.96);border:1px solid #27406a;border-left:4px solid var(--gold);border-radius:10px;padding:7px 10px;font-size:12.5px;line-height:1.35;box-shadow:0 4px 16px rgba(0,0,0,.5);cursor:pointer;animation:tkin .35s ease-out}
 #une[hidden]{display:none}
+#detect{position:absolute;left:0;top:0;z-index:5;pointer-events:none;display:none}
+#contacts{position:fixed;right:8px;bottom:calc(230px + env(safe-area-inset-bottom));z-index:1065;width:min(240px,52vw);max-height:38vh;overflow:auto;opacity:.92;background:rgba(5,12,8,.82);border:1px solid #2f5d3a;border-radius:8px;padding:6px 8px;font:11px ui-monospace,Menlo,monospace;color:#c8ffd0}
+#contacts[hidden]{display:none}
+#contacts .ct-h{font-weight:700;margin-bottom:4px;color:#7dff8a}
+#contacts .ct{padding:3px 0;border-top:1px solid rgba(125,255,138,.15)}
+#contacts .ct b{color:#ff8a8a} #contacts .ct.own b{color:#ffd60a} #contacts .ct.own{cursor:pointer}
+#contacts .ct span{opacity:.8} #contacts .ct i{display:block;font-style:normal;opacity:.7}
 #une b{flex:none;font-size:10px;letter-spacing:.06em;background:var(--gold);color:#111;border-radius:5px;padding:2px 5px}
 #une span{flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 #une i{flex:none;font-style:normal;font-size:11px;color:var(--mut,#94a3b8)}
@@ -669,7 +676,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="pilot.js?v=20261078"></script>
 <script src="actions.js?v=20261079"></script>
 <script src="aircraft3d.js?v=20261078"></script>
-<script src="globe.js?v=20261081"></script>
+<script src="globe.js?v=20261084"></script>
+<script src="vision3d.js?v=20261084"></script>
 <script src="terrain.js?v=20261078"></script>
 <script src="airport3d.js?v=20261080"></script>
 <script src="runway3d.js?v=20261078"></script>
@@ -681,7 +689,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="calendar.js?v=20261078"></script>
 <script src="paxcases.js?v=20261083"></script>
 <script src="inbox.js?v=20261078"></script>
-<script src="pwa.js?v=20261083"></script>
+<script src="pwa.js?v=20261084"></script>
 <script src="simple.js?v=20261082"></script>
 </body>
 </html>

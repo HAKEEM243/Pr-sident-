@@ -284,7 +284,7 @@ function drawGlobeRivals(){
       label:{show:new C.CallbackProperty(()=>rivalVisible(posOf()),false), text:new C.CallbackProperty(()=>{ const v=Q(); return R.name+(v.ph===2?' · 🛫':v.ph===7?' · 🛬':''); },false), font:'600 11px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new C.Cartesian2(0,-24), distanceDisplayCondition:new C.DistanceDisplayCondition(0,60000), scale:0.85}});
     const lo=acLight(an); re.model.lightColor=new C.CallbackProperty(()=>acLight(an,lo).c,false); re.model.imageBasedLightingFactor=new C.CallbackProperty(()=>lo.f,false);
     re.model.nodeTransformations=new C.CallbackProperty(()=>{ const v=Q(); acAnimate(an,mi,v.ph,v.alt||0,!!v.gnd,undefined,v.holding==='in',false,v.p.lat,v.p.lon); return AC3D.pose(mi,an,nt); },false);
-    G.rivals.push(re); n++;
+    re._riv={name:R.name,code:R.code,Q,mi}; G.rivals.push(re); n++;
   }
 }
 
@@ -412,6 +412,7 @@ function renderGlobeHud(){
       <button class="gh" data-act="globeZoom" data-d="0.7">🔍＋</button><button class="gh" data-act="globeZoom" data-d="1.4">🔍－</button>
       <button class="gh" data-act="globeNext">⏭ Avion suivant</button>
       <button class="gh ${typeof FX!=='undefined'&&FX.soundOn?'on':''}" data-act="globeSound">🔊 Son</button>
+      ${typeof visionButtons==='function'?visionButtons():''}
       <button class="gh ${G.forceDay?'on':''}" data-act="globeDay" title="Toujours en plein jour">☀️ Jour</button>
       <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief" title="Relief réel (montagnes, vallées)">⛰️ Relief</button>
       <button class="gh" data-act="globeQ" title="Qualité graphique">⚙️ ${GQ.mode==='a'?'Auto':GQ.mode==='h'?'Haute':GQ.mode==='l'?'Minimal':'Éco'}</button>
@@ -430,6 +431,7 @@ function renderGlobeHud(){
     <button class="gh" data-act="globeFollow" ${flying.length?'':'disabled'}>🎥 Suivre un avion${!sel&&flying.length?' (au hasard)':''}</button>
     <button class="gh" data-act="globeHome">🏠 Mon hub</button>
     <button class="gh ${G.lighting?'on':''}" data-act="globeLight">🌗 Soleil</button>
+    ${typeof visionButtons==='function'?visionButtons():''}
     <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief">⛰️ Relief</button>
     <button class="gh ${G.tiles?'on':''}" data-act="google3D">🏙️ Villes 3D Google</button>
     <button class="gh" data-act="globeBase" title="Changer le fond : satellite, plan, relief, sombre…">🗺️ Fond</button>

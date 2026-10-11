@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261083';
+const GAME_VER='20261084';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['👁️ Vision « œil de Dieu »','En vue 3D : bouton <b>👁️</b> pour la caméra thermique FLIR (noir et blanc ou couleur), la vision nocturne, l’écran CRT ou le noir ; <b>🎯 Détection</b> encadre chaque avion avec son identifiant, son altitude et sa vitesse ; <b>📡 Contacts</b> liste les avions autour (touchez un des vôtres pour le suivre). Effets adaptés du projet libre God’s Eye View (licence MIT).'],
   ['✈️ Missions réelles','Guerre ou catastrophe : le président vous demande un avion (📬). Choisissez-le : il quitte vraiment ses lignes, décolle, se pose dans le pays en crise et ramène les évacués (visible sur la carte, en 3D, liste de passagers). Payé à chaque retour. Valise perdue : elle voyage sur votre prochain vol. Surréservation : les passagers prennent des sièges sur votre vol suivant.'],
   ['🎬 Directeur du monde','Une IA fait vivre la planète : population et richesse des pays, essor et récessions, guerres qui ferment l’espace aérien (réfugiés vers les voisins), séismes, cyclones, éruptions, épidémies… et des missions d’évacuation payées (📬). Elle dose le rythme selon votre partie. Actus → <b>🌍 Monde</b>.'],
   ['🪶 3D qui ne se coupe plus','Si le téléphone manque de mémoire graphique, la 3D se relance toute seule en mode <b>Minimal</b> au lieu de se fermer. Plus → Options → 🌍 Vue 3D : mode Minimal et 🩺 Diagnostic 3D.'],
