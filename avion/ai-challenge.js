@@ -36,7 +36,7 @@ function aiChallenge(){
     // coup d'éclat 2 : levée de fonds
     if(Math.random()<0.03*D*heat){ const k=Math.max(2e8,r.value*rnd(0.02,0.06)); e.cash+=k; aiNews(`💰 ${e.name} lève ${Md(k)} auprès d’investisseurs pour ${tag}.`,'rival',true); }
     // coup d'éclat 3 : nouvelle ligne jusque sur votre hub
-    if(Math.random()<0.08*D*heat){ const mine=S.hubs.slice().sort((a,b)=>AP(b).traffic-AP(a).traffic)[0]||S.company.hub, cand=AIRPORT_CODES.filter(c=>c!==mine&&AP(c).cls>=2&&dist(e.hub,c)>400&&dist(c,mine)>400&&dist(c,mine)<(e.fleet>=100?9000:4000)&&!carriersOn(c,mine).includes(e.code));
+    if(S.noCopy===false&&Math.random()<0.08*D*heat){ const mine=S.hubs.slice().sort((a,b)=>AP(b).traffic-AP(a).traffic)[0]||S.company.hub, cand=AIRPORT_CODES.filter(c=>c!==mine&&AP(c).cls>=2&&dist(e.hub,c)>400&&dist(c,mine)>400&&dist(c,mine)<(e.fleet>=100?9000:4000)&&!carriersOn(c,mine).includes(e.code));
       const setup=e.fleet<30?1.5e6:3.5e6;
       if(cand.length&&e.cash>=setup){ const c=cand.sort((x,y)=>marketDemand(e.hub,y)-marketDemand(e.hub,x))[0], key=pairKey(c,mine); e.cash-=setup; (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
         const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&!R.routes.some(x=>pairKey(x.a,x.b)===key)) R.routes.push({a:c,b:mine,freq:3});
@@ -65,7 +65,7 @@ function aiOutsiders(){
     if(Math.random()<0.30) aiRoute(e,'open');
     e.rep=clamp(e.rep+0.06*D,20,85);
     // attaque d'un petit sur votre hub
-    if(Math.random()<0.10*(D-1)&&S.hubs.length){ const mine=S.hubs.slice().sort((a,b)=>AP(b).traffic-AP(a).traffic)[0], cand=AIRPORT_CODES.filter(c=>c!==mine&&AP(c).cls>=2&&dist(e.hub,c)<(e.fleet>=20?5000:2500)&&dist(c,mine)>300&&dist(c,mine)<(e.fleet>=20?5000:2500)&&!carriersOn(c,mine).includes(e.code));
+    if(S.noCopy===false&&Math.random()<0.10*(D-1)&&S.hubs.length){ const mine=S.hubs.slice().sort((a,b)=>AP(b).traffic-AP(a).traffic)[0], cand=AIRPORT_CODES.filter(c=>c!==mine&&AP(c).cls>=2&&dist(e.hub,c)<(e.fleet>=20?5000:2500)&&dist(c,mine)>300&&dist(c,mine)<(e.fleet>=20?5000:2500)&&!carriersOn(c,mine).includes(e.code));
       const setup=e.fleet<30?1.5e6:3.5e6;
       if(cand.length&&e.cash>=setup){ const c=cand.sort((x,y)=>marketDemand(e.hub,y)-marketDemand(e.hub,x))[0], key=pairKey(c,mine); e.cash-=setup; (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
         const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&!R.routes.some(x=>pairKey(x.a,x.b)===key)) R.routes.push({a:c,b:mine,freq:2});

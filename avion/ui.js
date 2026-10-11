@@ -340,7 +340,7 @@ function openLineHtml(){
   <div class="row"><input id="olq" placeholder="🔍 Ville, code ou pays…" value="${esc(ol.q||'')}" data-in="olq"></div>
   <div class="chips">${[['all','Tous'],['home',COUNTRIES[AP(hub).cc][2]+' '+COUNTRIES[AP(hub).cc][0]],['cont',CONTINENTS[COUNTRIES[AP(hub).cc][1]]],['world','Autres continents'],['big','Grands hubs mondiaux']].map(([k,l])=>`<button class="chip ${ol.f===k?'on':''}" data-act="olFilter" data-f="${k}">${l}</button>`).join('')}</div>
   <table class="tbl destlist"><tr><th>Destination</th><th>km</th><th>Demande/j</th><th>Piste</th><th>Licence</th></tr>
-  ${rows.map(x=>`<tr class="click" data-act="olPick" data-c="${x.c}"><td>${flag(x.c)} <b>${AP(x.c).city}</b> <span class="mut">${x.c}</span></td><td>${num(x.d)}</td><td>${num(x.dem)}</td><td>cl.${AP(x.c).cls}</td><td>${fmtMoney(lineCost([last,x.c]))}</td></tr>`).join('')}</table>`;
+  ${rows.map(x=>`<tr class="click" data-act="olPick" data-c="${x.c}"><td>${flag(x.c)} <b>${AP(x.c).city}</b> <span class="mut">${x.c}</span>${typeof cityPopTxt==='function'&&cityPopTxt(x.c)?`<br><small class="mut">👥 ${cityPopTxt(x.c)}</small>`:''}</td><td>${num(x.d)}</td><td>${num(x.dem)}</td><td>cl.${AP(x.c).cls}</td><td>${fmtMoney(lineCost([last,x.c]))}</td></tr>`).join('')}</table>`;
 }
 function buyHubHtml(){
   const q=(UI.hq||'').toLowerCase();
