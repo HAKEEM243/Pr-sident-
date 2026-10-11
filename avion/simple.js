@@ -112,6 +112,7 @@ function pMore(){
   <div class="btns">${(typeof RIVAL_DRIVES!=='undefined'?RIVAL_DRIVES:[]).map(([l,v])=>`<button class="btn sm ${(S.rivalDrive===undefined?2:S.rivalDrive)===v?'gold':''}" data-act="rivalDrive" data-k="${v}">${l}</button>`).join('')}</div>
   <div class="small mut" style="margin:8px 0 2px">⚠️ <b>Accidents de votre flotte</b> (l’entretien compte : un avion mal entretenu en a plus)</div>
   <div class="btns">${(typeof ACC_LEVELS!=='undefined'?ACC_LEVELS:[]).map(([l,v])=>`<button class="btn sm ${(S.accMult===undefined?1:S.accMult)===v?'gold':''}" data-act="accLevel" data-k="${v}">${l}</button>`).join('')}</div>
+  <h3>🌍 Vue 3D</h3><div class="small mut">Si la 3D se ferme ou rame sur votre téléphone : mode Minimal, ou diagnostic à envoyer.</div><div class="btns"><button class="btn sm" data-act="q3Mini">🪶 Mode Minimal</button><button class="btn sm" data-act="diag3D">🩺 Diagnostic 3D</button></div>
   <div class="btns"><button class="btn" data-act="whatsNew">🆕 Nouveautés · version ${typeof GAME_VER!=='undefined'?GAME_VER:''}</button><button class="btn gold" data-act="install">📲 Application${typeof isStandalone==='function'&&isStandalone()?' (installée)':' : installer sur mon téléphone'}</button></div>
   <div class="btns"><button class="btn gold" data-act="saves">💾 Sauvegardes : sauvegarder, charger, exporter, importer</button></div>
   <div class="btns"><button class="btn" data-act="guideReset">🎓 Revoir le tutoriel</button><button class="btn" data-act="mapStyle">🗺️ Fond de carte</button></div>

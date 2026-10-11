@@ -28,7 +28,9 @@ async function open3D(){
   try{ await loadCesium(); }catch(e){ toast('⛔ Impossible de charger le moteur 3D (connexion Internet ?)','bad'); return false; }
   if(UI.mobile) setTab('map');
   document.body.classList.add('globe-on'); $('#globe').hidden=false; $('#globeHud').hidden=false;
-  if(!G) initGlobe(); else G.viewer.resize();
+  if(!G){ try{ log3D('ouverture',GQ.mode); initGlobe(); }catch(e){ log3D('erreur au démarrage',String(e&&e.message||e)); try{ if(G&&G.viewer) G.viewer.destroy(); }catch(_){} G=null; close3D();
+      toast('⛔ La 3D n’a pas pu démarrer sur cet appareil : '+String(e&&e.message||e).slice(0,90)+' (Plus → Options → Diagnostic 3D)','bad'); return false; } }
+  else G.viewer.resize();
   live3D(true);
   if(GQ.crashed){ GQ.crashed=false; toast('⚙️ La vue 3D s’était fermée : qualité Éco activée (⚙️ pour changer)','info'); }
   globeSync(true);
@@ -36,6 +38,8 @@ async function open3D(){
   return true;
 }
 // marqueur « vue 3D ouverte » : s'il reste posé au prochain lancement, la page a planté pendant la 3D
+// journal de la 3D (gardé sur l'appareil) : aide à comprendre une fermeture qu'on ne peut pas reproduire ici
+function log3D(ev,msg){ try{ const L=JSON.parse(localStorage.getItem('se-3d-log')||'[]'); L.unshift({t:Date.now(),ev,msg:String(msg||'').slice(0,160)}); localStorage.setItem('se-3d-log',JSON.stringify(L.slice(0,12))); }catch(e){} }
 function live3D(on){ try{ if(on&&!$('#globe').hidden&&!document.hidden) localStorage.setItem('se-3d-live','1'); else localStorage.removeItem('se-3d-live'); }catch(e){} }
 document.addEventListener('visibilitychange',()=>live3D(!document.hidden));
 window.addEventListener('pagehide',()=>live3D(false));
@@ -60,18 +64,18 @@ function patchCesium(C){
 // qualité graphique : « Éco » par défaut sur téléphone (fluide), « Haute » sur ordinateur
 const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); let crashed=false; try{ crashed=localStorage.getItem('se-3d-live')==='1'; localStorage.removeItem('se-3d-live'); }catch(e){}
   // la page s'est fermée brutalement pendant la vue 3D (mémoire du téléphone saturée) : on repasse en Éco
-  if(crashed&&v!=='e'){ v='e'; try{ localStorage.setItem('se-q','e'); }catch(e){} }
-  const mode=(v==='e'||v==='h'||v==='a')?v:(mob?'e':'a'); return {mode, hq:mode!=='e', mob, crashed}; })();   // e = éco, h = haute, a (défaut) = haute avec allègement doux si la vue rame ; téléphone : FXAA au lieu du MSAA
-function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.mode!=='e';
+  if(crashed&&v!=='l'){ v=mob?'l':'e'; try{ localStorage.setItem('se-q',v); }catch(e){} }
+  const mode=(v==='l'||v==='e'||v==='h'||v==='a')?v:(mob?'e':'a'); return {mode, hq:mode==='h'||mode==='a', mini:mode==='l', mob, crashed}; })();   // e = éco, h = haute, a (défaut) = haute avec allègement doux si la vue rame ; téléphone : FXAA au lieu du MSAA
+function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.mode==='h'||GQ.mode==='a'; GQ.mini=GQ.mode==='l'; if(GQ.mini) G.lite=true;
   try{ sc.msaaSamples=(GQ.hq&&!GQ.mob)?4:1; sc.postProcessStages.fxaa.enabled=true; }catch(e){}
   // Cesium dessine à (rapport de pixels de l'écran × resolutionScale) quand useBrowserRecommendedResolution est faux, et à 1 pixel CSS sinon (flou sur un écran rétina)
-  try{ const dpr=window.devicePixelRatio||1; V.useBrowserRecommendedResolution=false; G.resBase=Math.min(dpr,GQ.mob?1.6:2)/dpr; V.resolutionScale=GQ.hq?G.resBase:Math.min(dpr,GQ.mob?1.15:1)/dpr; }catch(e){}
+  try{ const dpr=window.devicePixelRatio||1; V.useBrowserRecommendedResolution=false; G.resBase=Math.min(dpr,GQ.mob?1.6:2)/dpr; V.resolutionScale=GQ.hq?G.resBase:GQ.mini?1/dpr:Math.min(dpr,GQ.mob?1.15:1)/dpr; }catch(e){}
   // relief : réglages d'origine (un sol plus grossier faisait traverser la piste à l'avion au décollage et à l'atterrissage)
   try{ sc.globe.tileCacheSize=GQ.mob?100:300; }catch(e){}
-  try{ sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4; sc.globe.showWaterEffect=!(GQ.mob&&!GQ.hq); sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=!(GQ.mob&&!GQ.hq); sc.fog.enabled=true; }catch(e){}
+  try{ sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4; sc.globe.showWaterEffect=!(GQ.mob&&!GQ.hq); sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=!(GQ.mob&&!GQ.hq)&&!GQ.mini; sc.fog.enabled=!GQ.mini; if(GQ.mini){ sc.globe.showWaterEffect=false; sc.globe.showGroundAtmosphere=false; sc.globe.tileCacheSize=60; } if(G3night) G3night.show=!GQ.mini; }catch(e){}
   // téléphone : 30 images/s max en Éco (moins de chauffe, donc moins de ralentissements au bout de quelques minutes)
   try{ V.targetFrameRate=(GQ.mob&&!GQ.hq)?30:undefined; }catch(e){}
-  G.rivalCap=undefined; G.rivAt=0; G.perf=null; }
+  G.rivalCap=GQ.mini?6:undefined; G.rivAt=0; G.perf=null; }
 // fonds de carte de la vue 3D (mêmes sources libres que la carte 2D)
 const ESRI3='https://server.arcgisonline.com/ArcGIS/rest/services/';
 const BASE3D={
@@ -94,13 +98,13 @@ function setBase3D(key){
   G.baseKey=key; try{ localStorage.setItem('se-3dstyle',key); }catch(e){}
 }
 function initGlobe(){
-  const C=Cesium; C.Ion.defaultAccessToken=''; patchCesium(C);
+  const C=Cesium; C.Ion.defaultAccessToken=''; patchCesium(C); G3night=null;
   const base0=BASE3D[(()=>{ try{ return localStorage.getItem('se-3dstyle'); }catch(e){ return null; } })()]||BASE3D.hybrid;
   const viewer=new C.Viewer('globe',{ baseLayer:new C.ImageryLayer(base0.make(C)[0]), baseLayerPicker:false, geocoder:false, homeButton:false, sceneModePicker:false,
     navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, msaaSamples:GQ.hq?4:1, orderIndependentTranslucency:!window.SE_NO_OIT });
   { const extra=base0.make(C).slice(1); G3labels=extra.map(pv=>viewer.imageryLayers.addImageryProvider(pv)); }
   // la nuit, les villes s'allument : images « Black Marble » de la NASA (GIBS, libres d'accès), affichées seulement du côté nuit du globe
-  try{ const nl=viewer.imageryLayers.addImageryProvider(new C.UrlTemplateImageryProvider({url:'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', maximumLevel:8, credit:'Lumières nocturnes : NASA Black Marble (GIBS)'}),1);
+  if(!GQ.mini) try{ const nl=viewer.imageryLayers.addImageryProvider(new C.UrlTemplateImageryProvider({url:'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', maximumLevel:8, credit:'Lumières nocturnes : NASA Black Marble (GIBS)'}),1);
     nl.dayAlpha=0; nl.nightAlpha=1; nl.brightness=3.2; nl.contrast=1.15; G3night=nl; }catch(e){}
   // nuit réaliste même près du sol (par défaut Cesium éclaire tout quand on est proche) ; relief ombré par le soleil le jour
   try{ const gl=viewer.scene.globe; gl.lightingFadeOutDistance=1; gl.lightingFadeInDistance=2; }catch(e){}
@@ -108,14 +112,21 @@ function initGlobe(){
   const sc=viewer.scene;
   try{ if(base0.sat){ const base=viewer.imageryLayers.get(0); base.saturation=1.32; base.contrast=1.12; base.brightness=1.04; base.gamma=1.04; } }catch(e){}
   try{ sc.postProcessStages.fxaa.enabled=true; }catch(e){}
-  try{ if(typeof TERRAIN!=='undefined'&&TERRAIN.on){ terrFlattenNetwork(); sc.globe.terrainProvider=terrainProvider(); sc.globe.depthTestAgainstTerrain=true; } }catch(e){ console.warn(e); }
+  try{ if(typeof TERRAIN!=='undefined'&&TERRAIN.on&&!GQ.mini){ terrFlattenNetwork(); sc.globe.terrainProvider=terrainProvider(); sc.globe.depthTestAgainstTerrain=true; } }catch(e){ console.warn(e); }
   try{ sc.globe.showGroundAtmosphere=true; sc.globe.atmosphereLightIntensity=12; sc.skyAtmosphere.atmosphereLightIntensity=40; }catch(e){}
   // filet de sécurité : si le rendu plante, on retire les décors optionnels et on redémarre
   viewer.showRenderLoopErrors=false;
-  sc.canvas.addEventListener('webglcontextlost',ev=>{ ev.preventDefault(); try{ localStorage.setItem('se-q','e'); }catch(e){} GQ.mode='e'; live3D(false);
-    toast('⚠️ La carte graphique a lâché : relancez la vue 3D (qualité Éco activée)','bad'); try{ close3D(); }catch(e){} const g=G; G=null; setTimeout(()=>{ try{ clearInterval(g.loop); g.viewer.destroy(); }catch(e){} },0); },false);
+  sc.canvas.addEventListener('webglcontextlost',ev=>{ ev.preventDefault(); log3D('contexte graphique perdu',GQ.mode);
+    const again=Date.now()-(window._se3dLost||0)<30000; window._se3dLost=Date.now();
+    GQ.mode='l'; GQ.mini=true; GQ.hq=false; try{ localStorage.setItem('se-q','l'); }catch(e){}
+    const g=G, fol=g&&g.follow; G=null; setTimeout(()=>{ try{ clearInterval(g.loop); g.viewer.destroy(); }catch(e){} },0);
+    if(again){ live3D(false); try{ close3D(); }catch(e){} toast('⚠️ Le téléphone a coupé la 3D deux fois de suite. Fermez d’autres onglets ou applis puis réessayez (mode Minimal activé).','bad'); return; }
+    // première coupure : on relance tout seul la 3D en mode Minimal, sans quitter l'écran
+    toast('⚙️ Le téléphone a manqué de mémoire graphique : relance de la 3D en mode Minimal…','warn');
+    setTimeout(()=>{ if($('#globe').hidden) return; try{ initGlobe(); globeSync(true); if(fol&&S.fleet.some(a=>a.id===fol)) globeFollow(fol); renderGlobeHud(); log3D('relance minimale','ok'); }
+      catch(e){ log3D('relance impossible',String(e&&e.message||e)); try{ close3D(); }catch(_){} toast('⛔ La 3D ne peut pas redémarrer sur cet appareil','bad'); } },700); },false);
   sc.renderError.addEventListener((scene,err)=>{
-    console.warn('rendu 3D',err); G.safe=(G.safe||0)+1; if(GQ.mode!=='e'){ GQ.mode='e'; try{ localStorage.setItem('se-q','e'); }catch(e){} try{ applyQuality(); }catch(e){} }
+    console.warn('rendu 3D',err); log3D('erreur de rendu',String(err&&err.message||err)); G.safe=(G.safe||0)+1; if(GQ.mode!=='e'&&GQ.mode!=='l'){ GQ.mode='e'; try{ localStorage.setItem('se-q','e'); }catch(e){} try{ applyQuality(); }catch(e){} }
     try{ if(G.clouds){ sc.primitives.remove(G.clouds); G.clouds=null; } }catch(e){}
     if(G.safe===1){
       try{ viewer.useBrowserRecommendedResolution=false; viewer.resolutionScale=Math.min(viewer.resolutionScale||1,0.68); sc.msaaSamples=1; sc.globe.showWaterEffect=false; G.rivalCap=8; G.rivAt=0; }
@@ -150,7 +161,7 @@ function initGlobe(){
   if(key && localStorage.getItem('cst-3dtiles')==='1'){ if(GQ.crashed&&GQ.mob){ try{ localStorage.setItem('cst-3dtiles','0'); }catch(e){} toast('🏙️ Villes 3D Google coupées (trop lourdes pour ce téléphone) : réactivez-les si vous voulez','info'); } else toggleGoogle3D(true); }
   G.loop=setInterval(()=>{ if(!$('#globe').hidden) globeSync(false); },1000);
   sc.preRender.addEventListener(globeFollowTick);
-  try{ G.clouds=sc.primitives.add(new C.CloudCollection({noiseDetail:16})); }catch(e){ G.clouds=null; }
+  if(!GQ.mini) try{ G.clouds=sc.primitives.add(new C.CloudCollection({noiseDetail:16})); }catch(e){ G.clouds=null; }
 }
 
 /* ---------- temps et attitude ---------- */
@@ -403,7 +414,7 @@ function renderGlobeHud(){
       <button class="gh ${typeof FX!=='undefined'&&FX.soundOn?'on':''}" data-act="globeSound">🔊 Son</button>
       <button class="gh ${G.forceDay?'on':''}" data-act="globeDay" title="Toujours en plein jour">☀️ Jour</button>
       <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief" title="Relief réel (montagnes, vallées)">⛰️ Relief</button>
-      <button class="gh" data-act="globeQ" title="Qualité graphique">⚙️ ${GQ.mode==='a'?'Auto':GQ.hq?'Haute':'Éco'}</button>
+      <button class="gh" data-act="globeQ" title="Qualité graphique">⚙️ ${GQ.mode==='a'?'Auto':GQ.mode==='h'?'Haute':GQ.mode==='l'?'Minimal':'Éco'}</button>
       <button class="gh" data-act="globeBase" title="Changer le fond : satellite, plan, relief, sombre…">🗺️ Fond</button>
       <button class="gh" data-act="photo">📸 Photo</button>
       <button class="gh" data-act="radar">📡 Radar</button>
@@ -448,7 +459,10 @@ Object.assign(ACTIONS,{
   globeFollow:()=>{ if(G.follow) return globeFollow(null); if(typeof fxAudioUnlock==='function') fxAudioUnlock(); const sel=selectedPlane&&S.fleet.find(a=>a.id===selectedPlane&&a.status==='flight'); const ac=sel||pick(S.fleet.filter(a=>a.status==='flight')); if(ac){ selectPlane(ac.id); globeFollow(ac.id); } },
   globeNext:()=>{ const fl=S.fleet.filter(a=>a.status==='flight'); if(!fl.length) return; const i=fl.findIndex(a=>a.id===G.follow); const ac=fl[(i+1)%fl.length]; selectPlane(ac.id); globeFollow(ac.id); },
   globeCam:d=>{ G.lastMode=d.k; setCam(d.k); },
-  globeQ:()=>{ GQ.mode=GQ.mode==='e'?'h':GQ.mode==='h'?'a':'e'; try{ localStorage.setItem('se-q',GQ.mode); }catch(e){} toast(GQ.mode==='e'?'⚙️ Éco : plus fluide sur téléphone':GQ.mode==='h'?'⚙️ Haute qualité : image nette, anticrénelage, ombres':'⚙️ Auto : qualité équilibrée, allègement supplémentaire si la vue rame','info'); applyQuality(); renderGlobeHud(); },
+  globeQ:()=>{ GQ.mode=GQ.mode==='l'?'e':GQ.mode==='e'?'h':GQ.mode==='h'?'a':'l'; try{ localStorage.setItem('se-q',GQ.mode); }catch(e){} toast(GQ.mode==='l'?'⚙️ Minimal : pour les téléphones qui coupent la 3D (sans relief ni nuages ; relancez la 3D pour tout alléger)':GQ.mode==='e'?'⚙️ Éco : plus fluide sur téléphone':GQ.mode==='h'?'⚙️ Haute qualité : image nette, anticrénelage, ombres':'⚙️ Auto : haute qualité, allègement doux si la vue rame','info'); applyQuality(); renderGlobeHud(); },
+  diag3D:()=>{ let L=[]; try{ L=JSON.parse(localStorage.getItem('se-3d-log')||'[]'); }catch(e){} let gl='?'; try{ const c=document.createElement('canvas'), x=c.getContext('webgl2')||c.getContext('webgl'); gl=x?(x instanceof (window.WebGL2RenderingContext||Object)?'WebGL2':'WebGL1')+' · max texture '+x.getParameter(x.MAX_TEXTURE_SIZE):'WebGL indisponible'; }catch(e){ gl='erreur '+e.message; }
+    showModal('🩺 Diagnostic 3D',`<div class="small">Mode : <b>${GQ.mode==='l'?'Minimal':GQ.mode==='e'?'Éco':GQ.mode==='h'?'Haute':'Auto'}</b> · écran ×${window.devicePixelRatio||1} · ${esc(gl)}<br><span class="mut">${esc(navigator.userAgent)}</span></div><h3>Derniers événements</h3>${L.length?L.map(x=>`<div class="small">${new Date(x.t).toLocaleString('fr-FR')} — <b>${esc(x.ev)}</b> ${esc(x.msg)}</div>`).join(''):'<div class="mut small">Rien d’enregistré.</div>'}<p class="small mut">Faites une capture de cet écran pour signaler un problème.</p><div class="btns"><button class="btn" data-act="q3Mini">🪶 Passer en mode Minimal</button><button class="btn" data-act="closeModal">Fermer</button></div>`); },
+  q3Mini:()=>{ GQ.mode='l'; try{ localStorage.setItem('se-q','l'); }catch(e){} if(G){ try{ applyQuality(); }catch(e){} } toast('🪶 Mode Minimal activé pour la 3D','ok'); closeModal(); },
   globeRelief:()=>{ TERRAIN.on=!TERRAIN.on; try{ localStorage.setItem('se-relief',TERRAIN.on?'1':'0'); }catch(e){} terrainApply(); toast(TERRAIN.on?'⛰️ Relief réel activé : montagnes, vallées et volcans':'Relief désactivé (terre plate, plus léger)','info'); renderGlobeHud(); },
   globeSound:()=>fxToggleSound(),
   globeRain:()=>{ FX.forceRain=!FX.forceRain; fxAudioUnlock(); renderGlobeHud(); },
