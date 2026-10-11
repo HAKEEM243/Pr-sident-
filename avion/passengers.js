@@ -305,6 +305,7 @@ const UNITS={day:['jour',1],week:['semaine',7],month:['mois',30.4],year:['an',36
 const bars=(items,fmt)=>items.map(([label,share,color])=>`<div class="pbar-row"><span class="pl">${label}</span><span class="pb"><i style="width:${Math.max(1,Math.round(share*100))}%;background:${color||'var(--gold)'}"></i></span><b>${fmt?fmt(share):Math.round(share*100)+' %'}</b></div>`).join('');
 function volLine(perDay){ const u=UI.paxUnit||'week', [lab,mul]=UNITS[u]; return `<b>${num(Math.round(perDay*mul))}</b> / ${lab}`; }
 function unitChips(){ return `<div class="chips">${Object.entries(UNITS).map(([k,[l]])=>`<button class="chip ${(UI.paxUnit||'week')===k?'on':''}" data-act="paxUnit" data-k="${k}">par ${l}</button>`).join('')}</div>`; }
+function paxPolicyHtml(){ const selected=S.paxPolicy||'standard'; return `<div class="card"><div class="row"><b class="grow">🧳 Politique d’accueil des passagers</b><span class="small mut">effets réels</span></div><div class="chips">${Object.entries(PAX_POLICIES).map(([k,p])=>`<button class="chip ${selected===k?'on':''}" data-act="paxPolicy" data-k="${k}">${p.label}</button>`).join('')}</div><div class="small mut">${currentPaxPolicy().desc}<br>L’attractivité agit sur la demande ; les coûts et les avis s’appliquent aux prochains vols. Les profils d’immigration restent des estimations fictives.</div></div>`; }
 const wealthBars=w=>bars([['🟣 '+WEALTH_LABEL.rich,w.rich,'#a78bfa'],['🔵 '+WEALTH_LABEL.mid,w.mid,'#60a5fa'],['🟠 '+WEALTH_LABEL.poor,w.poor,'#fb923c']]);
 const purposeBars=p=>bars(PURPOSES.filter(([k])=>p[k]>0.004).sort((x,y)=>p[y[0]]-p[x[0]]).slice(0,6).map(([k,l])=>[l,p[k]]));
 const clsBars=c=>bars([['💺 Économique',c.y],['💼 Affaires',c.j],['👑 Première',c.f]].filter(x=>x[1]>0.002));
@@ -319,13 +320,14 @@ function pPax(){
   const head=`<div class="simplehelp">🛂 <b>Contrôle des passagers</b> : qui arrive dans un pays, d’où il vient, ce qu’il paie, avec quelle compagnie. Les volumes suivent la demande du jeu ; la répartition (richesse, nationalité, motif) est une <b>estimation</b>, les personnes sont fictives.</div>
   <div class="row wrap"><select data-in="paxCountry">${countries.map(k=>`<option value="${k}" ${k===cc?'selected':''}>${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</option>`).join('')}</select></div>
   <div class="chips">${quick.map(k=>`<button class="chip ${k===cc?'on':''}" data-act="paxCountry" data-cc="${k}">${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</button>`).join('')}</div>`;
-  if(!im) return head+'<div class="mut">Aucun aéroport avec vols réguliers dans ce pays.</div>';
+  const policyBox=paxPolicyHtml();
+  if(!im) return head+policyBox+'<div class="mut">Aucun aéroport avec vols réguliers dans ce pays.</div>';
   const arrivals=(S.fleet||[]).filter(ac=>ac.status==='flight').map(ac=>({ac,m:flightManifest(ac)})).filter(x=>x.m&&!x.m.cargo&&x.m.to.cc===cc);
   const flightOps=arrivals.length?`<section class="pax-ops"><div class="pax-ops-head"><div><span class="ops-eyebrow">CONTRÔLE OPÉRATIONNEL</span><h3>Vos arrivées en cours</h3></div><span class="ops-count">${arrivals.length} vol${arrivals.length>1?'s':''}</span></div><div class="pax-arrivals">${arrivals.map(({ac,m})=>{const st=flightState(ac,simNow())||{phase:0,frac:0}, phase=['Embarquement','Décollage','Montée','Croisière','Croisière','Descente','Approche','Atterrissage','Arrivée','Roulage'][Math.max(0,Math.min(9,st.phase||0))], estimate=fn=>Math.round(m.total*m.rows.filter(fn).length/Math.max(1,m.rows.length)), checks=estimate(r=>String(r.control||'').includes('approfondi')), assist=estimate(r=>!!r.assist), connect=estimate(r=>!!r.conn); return `<article class="pax-arrival"><div class="pax-arrival-top"><b>${esc(S.company.code)}${flightNumber(ac)}</b><span class="ops-state">EN VOL · ${Math.round((st.frac||0)*100)} %</span></div><div class="pax-route">${esc(m.from.city)} <span>→</span> <b>${esc(m.to.city)}</b></div><div class="ops-progress"><i style="width:${clamp((st.frac||0)*100,0,100)}%"></i></div><div class="small mut">${phase} · ${num(m.total)} passagers · ${checks} contrôle(s) approfondi(s) estimé(s) · ${assist} assistance(s) · ${connect} correspondance(s)</div><div class="btns"><button class="btn sm" data-act="manifest" data-id="${ac.id}">📋 Ouvrir le manifeste</button><button class="btn sm" data-act="follow" data-id="${ac.id}">🎯 Suivre le vol</button></div></article>`;}).join('')}</div><div class="small mut">Les contrôles et profils sont simulés ; les indicateurs détaillés sont extrapolés à partir des fiches fictives générées pour chaque vol.</div></section>`:`<section class="pax-ops pax-ops-empty"><span class="ops-eyebrow">CONTRÔLE OPÉRATIONNEL</span><b>Aucune de vos arrivées vers ${esc(C[0])} n’est en vol.</b><span class="small mut">Les vols apparaîtront ici avec leur manifeste, leurs besoins d’assistance et les vérifications simulées.</span></section>`;
   const mood=typeof moodOf==='function'?moodOf(cc):null;
   const kp=(l,v,s)=>`<div class="kpi"><div class="kl">${l}</div><div class="kv">${v}</div>${s?`<div class="small mut">${s}</div>`:''}</div>`;
   const myShare=(im.airlines.find(a=>a.me)||{share:0}).share;
-  return `${head}
+  return `${head}${policyBox}
   <h2>${C[2]} ${C[0]} <span class="mut small">· ${INCOME_LABEL[im.income]}</span></h2>
   ${unitChips()}
   <div class="kpis">
@@ -429,6 +431,7 @@ function passengerCardHtml(ac,i){
 function registerPaxActions(){ Object.assign(ACTIONS,{
   paxCountry:d=>{ UI.paxCountry=d.cc; renderPanel(); },
   paxUnit:d=>{ UI.paxUnit=d.k; renderPanel(); },
+  paxPolicy:d=>{ if(!PAX_POLICIES[d.k]) return; S.paxPolicy=d.k; save(); logMsg(`Politique passagers : ${PAX_POLICIES[d.k].label}.`,'info'); toast('🧳 Politique modifiée : les vols suivants en tiendront compte.','ok'); renderPanel(); },
   manifest:d=>{ if(UI.manFor!==d.id){ UI.manF='all'; UI.manQ=''; UI.manFor=d.id; } const ac=findAc(d.id); if(ac) showModal(`📋 Manifeste ${ac.reg}`, manifestHtml(ac), true); },
   paxCard:d=>{ const ac=findAc(d.id); if(ac) showModal(`🪪 Fiche passager`, passengerCardHtml(ac,+d.i)+`<div class="btns"><button class="btn" data-act="manifest" data-id="${ac.id}">← Retour au manifeste</button></div>`, true); },
   manF:d=>{ UI.manF=d.k; const ac=findAc(d.id); if(ac) showModal(`📋 Manifeste ${ac.reg}`, manifestHtml(ac), true); },
@@ -444,7 +447,7 @@ function onFlightDone(ac,leg,info){
     if(!leg.pax||!info||info.paxCount<=0||Math.random()>0.25) return;
     const m=flightManifest(ac); if(!m||!m.rows||!m.rows.length) return;
     const r=pick(m.rows), route=info.route, ratio=route&&route.pm?(route.pm[r.cls==='w'?'y':r.cls]??1):1;
-    let sc=3.5+(S.service-3)*0.4+(ac.condition-80)/60-Math.min(2,info.delay/40)-(ratio-1)*1.3+(r.cls==='f'||r.cls==='j'?0.25:0)+(r.mood==='énervé(e)'?-0.8:r.mood==='ravi(e)'?0.7:0)+rnd(-0.6,0.6);
+    let sc=3.5+(S.service-3)*0.4+(ac.condition-80)/60-Math.min(2,info.delay/40)-(ratio-1)*1.3+currentPaxPolicy().review+(r.cls==='f'||r.cls==='j'?0.25:0)+(r.mood==='énervé(e)'?-0.8:r.mood==='ravi(e)'?0.7:0)+rnd(-0.6,0.6);
     const stars=clamp(Math.round(sc),1,5), d=Math.round(info.delay);
     const text=stars>=4?pick(REV_GOOD):stars===3?pick(REV_MID):pick(REV_BAD).replace('{d}',Math.max(10,d||rndi(20,90)));
     (S.reviews=S.reviews||[]).unshift({t:S.time,stars,name:r.first+' '+r.last.charAt(0)+'.',nat:r.nat,route:leg.from+'→'+leg.to,cls:r.cls,text,job:r.job});
