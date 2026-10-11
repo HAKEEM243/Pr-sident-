@@ -50,11 +50,13 @@ function aiWeekly(){
 function aiStep(e,oilF){
   const R=(S.rivals||[]).find(x=>x.code===e.code);
   const startupLift=e.startup?(e.fleet<10?0.2:e.fleet<30?0.1:0):0;
-  const margin=(e.startup? rnd(-0.8,0.95) : rnd(-0.55,0.75)) + (e.rep-55)/120 + (e.skill||0) + startupLift;
+  const countryMood=typeof moodDemand==='function'?clamp(moodDemand(e.cc)-1,-0.65,0.6):0;
+  const margin=(e.startup? rnd(-0.8,0.95) : rnd(-0.55,0.75)) + (e.rep-55)/120 + (e.skill||0) + startupLift + countryMood*0.42;
   e.cash+=e.fleet*margin*oilF*(e.startup?0.85e6:0.5e6);
   if(e.cash>e.fleet*60e6) e.cash*=0.97;                      // dividendes
   if(Math.random()<0.008){ const l=e.fleet*rnd(1.5e6,6e6); e.cash-=l; if(e.fleet>=60&&l>e.fleet*5e6) aiNews(`✊ ${e.name} : grève et pertes record (${fmtMoney(l)}).`,'news'); } // choc
   e.rep=clamp(e.rep+rnd(-1.1,1.2)+(margin>0.2?0.25:-0.25)+(e.rep>72?-0.2:0.1),20,95);
+  if(e.startup&&(e.fleet>=25||(S.time-(e.founded||S.time)>=365*DAY&&e.cash>e.fleet*5e6))){ e.startup=false; aiNews(`🎉 ${e.name} sort de la phase de lancement : ${e.fleet} avions, ${e.routes} lignes. Les aides de jeune compagnie cessent.`,'news',true); }
   e.pax=Math.round(e.fleet*520*(0.6+e.rep/150));
   // expansion : commandes d'avions
   if(e.cash>e.fleet*(e.startup?12e6:30e6) && Math.random()<(e.startup?0.28:0.18)){
@@ -73,7 +75,12 @@ function aiStep(e,oilF){
     if(e.debt===1) aiNews(`⚠️ ${e.name} en grande difficulté financière : plan de restructuration.`,'news',e.fleet>=40);
     const n=Math.max(1,Math.ceil(e.fleet*0.06)); e.fleet=Math.max(1,e.fleet-n); e.cash+=n*10e6; e.rep=clamp(e.rep-1.5,15,95);
     if(Math.random()<0.5) aiRoute(e,'close');
-    if(e.debt>=(e.startup?4:6)){ if(e.fleet>=150){ e.cash=e.fleet*4e6; e.debt=0; e.rep=clamp(e.rep-4,15,95); aiNews(`🏛️ ${e.name} sauvée de la faillite par un plan de l’État (${e.fleet} avions, emplois préservés).`,'news',true); } else aiBankrupt(e); }
+    if(e.debt>=(e.startup?4:6)){
+      const D=typeof drive==='function'?drive():2, systemic=e.fleet>=150&&e.routes>=45&&!e.bailouts&&e.rep>=28;
+      const rescueChance=D>=3?0.25:D===2?0.45:D===1?0.65:0.8;
+      if(systemic&&Math.random()<rescueChance){ const before=e.fleet; e.fleet=Math.max(50,Math.floor(e.fleet*0.85)); e.routes=Math.max(8,Math.floor(e.routes*0.8)); e.cash=e.fleet*8e6; e.bailouts=1; e.debt=0; e.rep=clamp(e.rep-7,15,95); aiNews(`🏛️ ${e.name} évite la faillite grâce à une aide publique unique : flotte réduite de ${before-e.fleet} avions, lignes rationalisées et réputation en baisse.`,'warn',true); }
+      else aiBankrupt(e);
+    }
   } else e.debt=0;
   if(typeof aiBrain==='function') aiBrain(e,oilF,margin);
   e.hist.push(Math.round((e.fleet*40e6+Math.max(0,e.cash))/1e6)); if(e.hist.length>40) e.hist.shift();
@@ -146,10 +153,11 @@ function aiBankrupt(e){
 }
 function aiMonthly(){
   const ai=S.ai, alive=aiAlive();
-  if(Math.random()<0.5 && alive.filter(e=>e.startup&&e.fleet<=15).length<8) aiStartup();
+  const D=typeof drive==='function'?drive():2, young=alive.filter(e=>e.startup).length;
+  if(young<12&&Math.random()<(D>=3?0.82:D===2?0.68:0.5)) aiStartup();
   // une compagnie en forme absorbe parfois une compagnie en difficulté
-  const weak=alive.filter(e=>(e.debt>=2||(e.cash<e.fleet*4e6&&e.rep<42))&&e.fleet<60), strong=alive.filter(e=>e.cash>e.fleet*24e6&&e.fleet>=30);
-  if(weak.length&&strong.length&&Math.random()<0.45){ const w=pick(weak), s=pick(strong);
+  const weak=alive.filter(e=>(e.debt>=2||(e.cash<e.fleet*4e6&&e.rep<42))&&e.fleet<80), strong=alive.filter(e=>e.cash>e.fleet*18e6&&e.fleet>=25);
+  if(weak.length&&strong.length&&Math.random()<0.6){ const w=pick(weak), s=pick(strong);
     s.fleet+=Math.round(w.fleet*0.7); s.routes+=Math.round(w.routes*0.5); s.cash-=w.fleet*6e6; w.status='dead'; w.deadAt=S.time; ai.ver++;
     const survivor=(S.rivals||[]).find(R=>R.code===s.code); if(survivor){ survivor.fleet=s.fleet; survivor.network=s.routes; }
     if(S.rivals) S.rivals=S.rivals.filter(R=>R.code!==w.code);
@@ -166,8 +174,8 @@ function aiStartup(){
   const hub=cAirports(cc).find(c=>AP(c).cls>=2); if(!hub) return;
   let code=null; for(let i=0;i<300&&!code;i++){ const c=String.fromCharCode(65+rndi(0,25))+String.fromCharCode(65+rndi(0,25)); if(!AIRLINE_DB[c]&&c!==mine&&!aiBy(c)) code=c; }
   if(!code) return;
-  const name=`${pick(AI_PREFIX)} ${pick(AI_SUFFIX)}`, fleet=rndi(1,4);
-  const e={ code, name, color:airlineColor(code), hub, cc, real:false, startup:true, founded:S.time, fleet, cash:rnd(12e6,45e6), rep:48, safety:+rnd(0.6,1.1).toFixed(2), routes:0, crashes:0, incidents:0, status:'ok', debt:0, pax:0, hist:[] };
+  const name=`${pick(AI_PREFIX)} ${pick(AI_SUFFIX)}`, fleet=rndi(3,6);
+  const e={ code, name, color:airlineColor(code), hub, cc, real:false, startup:true, founded:S.time, fleet, cash:fleet*rnd(15e6,25e6), rep:52, safety:+rnd(0.6,1.1).toFixed(2), routes:0, crashes:0, incidents:0, status:'ok', debt:0, pax:0, hist:[] };
   ai.list.push(e); ai.ver++;
   for(let i=0,n=rndi(2,4);i<n;i++) aiRoute(e,'open');
   aiNews(`🆕 Nouvelle compagnie : ${name} (${code}) démarre à ${keyCity(hub)} (${COUNTRIES[cc][0]}) avec ${fleet} avion${fleet>1?'s':''} et ${e.routes} ligne${e.routes>1?'s':''}.`,'news',true);

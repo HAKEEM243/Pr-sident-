@@ -7,7 +7,7 @@
    ========================================================= */
 'use strict';
 const RIVAL_DRIVES=[['Calme',0],['Normale',1],['Féroce',2],['Impitoyable',3]];
-const drive=()=>S.rivalDrive===undefined?2:S.rivalDrive;
+const drive=()=>S.rivalDrive===undefined?3:S.rivalDrive;
 const Md=v=>fmtMoney(v);
 const newModelFor=e=>{ for(let i=0;i<12;i++){ const m=modelFor(e); if(!/occasion/.test(m.name)&&m.price>=40) return m; } return modelFor(e); };
 function aiChallengers(){
@@ -26,7 +26,7 @@ function aiChallenge(){
     if(gap<=0) continue;                                                // déjà au niveau : plus d'offensive
     const heat=Math.min(1,gap/(0.12*target));                           // l'ardeur retombe quand l'écart se resserre
     // investissements pour combler l'écart : une part du retard chaque semaine (plafonnée pour rester crédible)
-    const invest=Math.min(gap*0.003*D, r.value*0.012*D);
+    const invest=Math.min(gap*0.006*D, r.value*0.02*D);
     if(invest>0){ e.cash+=invest*0.4; e.fAcc=(e.fAcc||0)+invest*0.6/40e6; const n=Math.floor(e.fAcc); if(n>0){ e.fAcc-=n; e.fleet+=n; const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet; } }
     e.rep=clamp(e.rep+0.25*D,20,90); e.skill=clamp((e.skill||0)+0.004*D,-0.6,0.6);
     // coup d'éclat 1 : commande record
@@ -45,6 +45,7 @@ function aiChallenge(){
         aiNews(`⚔️ ${e.name} brade ses billets sur ${keyCity(a)}–${keyCity(b)} : guerre des prix contre vous.`,'rival',true); } }
     // coup d'éclat 5 : plus de vols sur ses lignes existantes
     if(Math.random()<0.12*D*heat){ const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&R.routes.length){ const rt=pick(R.routes); if((rt.freq||1)<9){ rt.freq=(rt.freq||1)+1; ai.ver++; } } }
+    const rival=(S.rivals||[]).find(x=>x.code===e.code); if(rival){ rival.fleet=e.fleet; rival.cash=e.cash; rival.rep=e.rep; rival.network=e.routes; }
   }
 }
 // outsiders : même les petites et moyennes compagnies tentent leur chance contre le leader
@@ -52,7 +53,7 @@ function aiOutsiders(){
   const ai=S.ai, D=drive(); if(!ai||D<2) return; const {lead,chals,me}=aiChallengers(), skip=new Set(chals.map(c=>c.code));
   const pool=aiAlive().filter(e=>e.fleet>=3&&e.fleet<=90&&e.status!=='dead'&&!skip.has(e.code)&&e.real!==undefined);
   const n=Math.min(pool.length,D===2?3:6), myName=S.company.name, tag=lead.me?`dépasser ${myName}`:`défier ${lead.name}`;
-  for(let k=0;k<n;k++){ const e=pool[Math.floor(Math.random()*pool.length)]; e.ambition=Math.min(5,(e.ambition||0)+1);
+  for(let k=0;k<n;k++){ const e=pool.splice(Math.floor(Math.random()*pool.length),1)[0]; e.ambition=Math.min(5,(e.ambition||0)+1);
     // croissance par paliers : location d'avions, petits financements
     if(Math.random()<0.35){ const add=Math.max(1,Math.round(e.fleet*rnd(0.04,0.1))); e.fleet+=add; e.cash-=add*rnd(1e6,3e6); e.cash+=add*rnd(2e6,5e6)*0.5; const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet;
       if(add>=3) aiNews(`🐜 ${e.name} (petite compagnie) s’agrandit : ${add} avions de plus, ${e.fleet} au total. Objectif : ${tag}.`,'rival'); }
@@ -67,6 +68,7 @@ function aiOutsiders(){
     // petite guerre des prix
     if(Math.random()<0.05*(D-1)&&S.routes.length){ const rt=pick(S.routes), a=rt.stops[0], b=rt.stops[rt.stops.length-1], key=pairKey(a,b); ai.wars=ai.wars||{};
       if(!ai.wars[e.code+key]&&!(typeof isAlly==='function'&&isAlly(e.code))){ ai.wars[e.code+key]={code:e.code,a,b,until:S.time+rndi(10,25)*DAY,kind:'prix'}; aiNews(`⚔️ ${e.name} casse ses prix sur ${keyCity(a)}–${keyCity(b)} pour vous prendre des clients.`,'rival',true); } }
+    const rival=(S.rivals||[]).find(x=>x.code===e.code); if(rival){ rival.fleet=e.fleet; rival.cash=e.cash; rival.rep=e.rep; rival.network=e.routes; }
   }
 }
 // rachats : les plus grosses avalent de petites compagnies pour grossir d'un coup
