@@ -132,3 +132,40 @@ function cityPopTxt(code){ const p=cityPop(code); if(!p) return ''; return (p>=1
   const real=out.filter(r=>!r.xp); if(!real.length) return out; const main=real.reduce((x,y)=>y.len>x.len?y:x,real[0]), ext=a.runway-main.len;
   if(ext>50){ const twin=real.find(r=>r.thr===main.end), np=fromRw(main,main.len+ext,0); main.end.lat=np.lat; main.end.lon=np.lon; main.len+=ext; if(twin) twin.len+=ext; }
   return out; }; }
+
+/* =========================================================
+   Le gouvernement de votre pays bâtit des aéroports (IA),
+   saisons de la diaspora, villes qui grandissent.
+   ========================================================= */
+// chaque semaine, l'État de votre hub peut bitumer ou allonger la piste d'une ville, puis vous proposer de la desservir
+function homeGovBuilds(){
+  const cc=homeCcOf(); if(!cc||!S.ai||typeof govOf!=='function'||Math.random()>0.3) return;
+  const g=govOf(cc), cand=AIRPORT_CODES.filter(c=>AP(c).cc===cc&&!S.hubs.includes(c)).map(c=>({c,a:AP(c),p:cityPop(c)||AP(c).traffic*10}))
+    .filter(x=>x.a.surface!=='Asphalte'||x.a.cls<3).sort((x,y)=>y.p-x.p).slice(0,15);
+  if(!cand.length) return; const {c,a}=pick(cand);
+  const type=a.surface!=='Asphalte'?'pave':(UPGRADES.extend&&UPGRADES.extend.can(a)?'extend':null); if(!type||!UPGRADES[type]) return;
+  (S.upgrades[c]=S.upgrades[c]||[]).push(type); applyUpgrades(); if(typeof xpRefresh==='function') xpRefresh(c);
+  const what=type==='pave'?'bitume la piste':'allonge la piste';
+  govNote(cc,`🏛️ ${ccWith(cc)} : le gouvernement du président ${g.leader} ${what} de ${a.city}${cityPopTxt(c)?` (${cityPopTxt(c)})`:''} — les avions de ligne peuvent désormais s’y poser.`,true);
+  // contrat pour être la première compagnie à relier la ville (déjà géré par les contrats d'État existants)
+  if(!(S.inbox||[]).some(m=>m.st==='new'&&m.code==='GOV'+cc)&&S.fleet.length){ const reward=Math.round((2e6+(cityPop(c)||0.05)*4e6)/1e5)*1e5;
+    mailPush({code:'GOV'+cc,name:`Gouvernement — ${ccName(cc)}`,color:'#16a34a',ceo:`Président ${g.leader}`},'gov-open',`Nouvel aéroport : ${a.city}`,
+      `Cher président-directeur général,<br>nous venons de moderniser l’aéroport de <b>${a.city}</b>${cityPopTxt(c)?` (${cityPopTxt(c)})`:''}. Si vous ouvrez une ligne vers ${a.city} et la faites voler au moins <b>4 fois</b> dans les 60 jours, l’État vous versera <b>${fmtMoney(reward)}</b>. Votre rival national est aussi sur les rangs.<br>— Président ${esc(g.leader)}`,
+      [{k:'ok',l:'🤝 J’accepte'},{k:'no',l:'Refuser'}],{cc,hub:c,reward});
+  }
+  // le rival national s'y installe s'il est en forme
+  const nr=natRival(); if(nr&&Math.random()<0.5&&!carriersOn(nr.hub,c).includes(nr.code)){ (S.ai.extra[nr.code]=S.ai.extra[nr.code]||[]).push(pairKey(nr.hub,c)); nr.routes++; S.ai.ver++;
+    aiNews(`🆕 ${nr.name} annonce des vols vers ${a.city}, le nouvel aéroport.`,'rival',true); }
+}
+// saisons de la diaspora : à Noël et l'été, les familles rentrent au pays
+const DIASPORA={CD:['FR','BE','ZA','US','CA','GB','DE','CH','AO','CG'],CG:['FR','BE','CD'],SN:['FR','IT','ES','US'],CI:['FR','BE','US'],CM:['FR','BE','DE','US'],NG:['GB','US'],MA:['FR','ES','BE','NL','IT'],DZ:['FR'],TN:['FR']};
+const diasporaSeason=t=>{ const m=new Date(t).getUTCMonth(); return m===11||m===6||m===7; };
+{ const _dm=demandMult; demandMult=function(a,b){ let k=_dm(a,b); const A=AP(a), B=AP(b); if(!A||!B) return k;
+  if(diasporaSeason(S.time)){ const d1=DIASPORA[A.cc], d2=DIASPORA[B.cc]; if((d1&&d1.includes(B.cc))||(d2&&d2.includes(A.cc))) k*=1.35; }
+  // les grandes villes qui grandissent attirent un peu plus de voyageurs que le seul pays
+  for(const X of [A,B]) if(X.popK){ const p=cityPop(X.code); if(p) k*=Math.pow(Math.max(0.5,p/(X.popK/1000)),0.3); }
+  return k; }; }
+function diasporaNews(){ const cc=homeCcOf(); if(!cc||!DIASPORA[cc]) return; const m=new Date(S.time).getUTCMonth(), key=new Date(S.time).getUTCFullYear()+'-'+(m===11?'d':'s');
+  if(!diasporaSeason(S.time)||(S.diaNews||'')===key) return; S.diaNews=key;
+  aiNews(`✈️ ${m===11?'Fêtes de fin d’année':'Vacances d’été'} : la diaspora de ${ccName(cc)} rentre au pays (${DIASPORA[cc].slice(0,4).map(ccName).join(', ')}…). Demande +35 % sur ces lignes : avions pleins et billets plus chers possibles.`,'news',true); }
+{ const _aw2=aiWeekly; aiWeekly=function(){ _aw2(); if(window.SE_SAFE) return; try{ homeGovBuilds(); diasporaNews(); }catch(e){ console.warn(e); } }; }

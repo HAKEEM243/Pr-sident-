@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261103';
+const GAME_VER='20261104';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏛️ L’État construit, la diaspora voyage','Le gouvernement de votre pays goudronne et allonge les pistes des villes et vous propose des contrats pour ouvrir la ligne (courrier). Saisons de la diaspora (Noël, juillet-août) : demande +35 % vers l’Europe et l’Amérique. Les villes qui grandissent attirent plus de voyageurs.'],
   ['🇨🇩 Congo plus grand, IA qui s’améliore','108 aéroports en RDC (65 nouvelles villes) avec leur population qui grandit. Pistes allongées jusqu’à la classe 5 et piste géante de 4 000 m pour l’A380 (immédiat). Plus de 120 compagnies IA dans le monde. Les rivaux ne copient plus vos lignes : ils s’améliorent (nouvelles destinations à eux, flotte moderne, service, fidélité, travaux dans leur hub).'],
   ['⚔️ Un vrai concurrent chez vous','Votre <b>rival national</b> grandit avec vous, copie vos meilleures lignes et casse ses prix (carte sur l’Accueil). Les chantiers d’aéroport (piste, terminal, agrandissement) sont <b>immédiats</b>. Quand vous agrandissez un aéroport, des compagnies viennent s’y battre ; ailleurs, États et rivales agrandissent aussi leurs aéroports. Population du pays et de la région sur la fiche aéroport.'],
   ['📈 Classements vivants + vitesse Lent','Fiche d’un aéroport : la demande du pays (essor, récession, saison, guerre) fait monter ou baisser le trafic, et les parts des compagnies bougent chaque semaine selon leurs décisions (IA) — flèches ▲▼ sur une semaine. Nouvelle vitesse <b>Lent</b> : une heure de jeu toutes les 2 minutes.'],
