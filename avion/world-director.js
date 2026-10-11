@@ -90,6 +90,7 @@ function wdWarTick(){
         const names=w.ccs.map(ccWith).join(' et ');
         wdNote(w.ccs.length>1?`⚔️ GUERRE : ${names} entrent en conflit. Espace aérien fermé${w.ccs.some(c=>hubs.has(c))?' (sauf votre hub, sous protection)':''} ; des réfugiés fuient vers ${nb.map(ccName).join(', ')||'les pays voisins'}.`
           :`⚔️ GUERRE CIVILE en ${names} : l’espace aérien est fermé, les habitants fuient vers ${nb.map(ccName).join(', ')||'les pays voisins'}.`,'bad',true);
+        if(Math.random()<0.7) wdMission(w.ccs[0],'war',`La guerre a éclaté en ${ccName(w.ccs[0])} ; des milliers de civils et d’étrangers sont bloqués à ${keyCity(mainAirport(w.ccs[0]))}`);
         const hit=S.routes.filter(r=>r.stops.some(c=>w.ccs.includes(AP(c).cc))&&!r.stops.some(c=>hubs.has(AP(c).cc)));
         if(hit.length) logMsg(`⚔️ ${hit.length} de vos lignes sont suspendues par la guerre (${hit.slice(0,3).map(r=>r.stops.join('⇄')).join(', ')}). Les vols vers les pays voisins sont pleins de réfugiés.`,'bad');
       } else { W.wars=W.wars.filter(v=>v!==w); for(const c of w.ccs){ const y=wdC(c); if(y) y.tense=0; }
@@ -140,24 +141,55 @@ function wdDisTick(){
   if(t.evac[1]) x.evac=S.time+(t.shut[0]||0)*DAY+rndi(t.evac[0],t.evac[1])*7*DAY;
   wdNote(`${t.ico} ${t.name.toUpperCase()} — ${ccWith(cc)} : ${t.txt(cc,city)}.${t.shut[1]?` L’aéroport de ${city} est fermé quelques jours.`:''}${t.evac[1]?' Ensuite, beaucoup d’habitants devront partir : les vols au départ seront pleins.':' Les voyages s’effondrent.'}`,'bad',true);
   W.quiet=0; W.lastType='dis'; W.lastDis=t.k;
-  if(t.evac[1]&&S.fleet.length&&!hubCc().has(cc)) wdEvacOffer(cc,t);
+  if(S.fleet.length&&!hubCc().has(cc)) wdMission(cc,t.evac[1]?'evac':'aid',`${t.name} à ${keyCity(hub)} : ${t.txt(cc,city)}`);
 }
-// contrat d'évacuation proposé par le gouvernement touché
-function wdEvacOffer(cc,t){
-  const hub=mainAirport(cc), g=typeof govOf==='function'?govOf(cc):{leader:'—'}, sender={code:'GOV'+cc,name:`Gouvernement — ${ccName(cc)}`,color:'#dc2626',ceo:`Président ${g.leader}`};
-  if((S.inbox||[]).some(m=>m.st==='new'&&m.code===sender.code)) return;
-  const n=rndi(3,6), reward=Math.round(rnd(0.8e6,2.5e6)*n*(S.wd.mood==='aide'?1.6:1)/1e5)*1e5;
-  mailPush(sender,'gov-evac',`Appel à l’aide : évacuation de ${keyCity(hub)}`,`Monsieur le président-directeur général,<br>après ${t.name.toLowerCase()==='séisme'?'le séisme':'la catastrophe'} qui frappe ${ccName(cc)}, des milliers de personnes doivent quitter la région de <b>${keyCity(hub)}</b>.<br>Si vos avions effectuent <b>${n} vols</b> au départ ou à l’arrivée de ${keyCity(hub)} dans les <b>30 jours</b> (dès la réouverture de l’aéroport), l’État vous versera <b>${fmtMoney(reward)}</b>. Les avions seront pleins.<br>— Président ${esc(g.leader)}`,
-    [{k:'ok',l:'🚑 J’accepte la mission'},{k:'no',l:'Refuser'}],{cc,hub,reward,n,exp:S.time+6*DAY});
+/* ---------- missions RÉELLES : vos avions partent vraiment ----------
+   Accepter une mission envoie un de vos avions : il décolle de sa base, vole jusqu'au pays
+   en crise (couloir humanitaire, même si l'espace aérien est fermé), embarque les évacués et
+   revient. On le voit sur la carte et en 3D, avec sa liste de passagers. Payé à l'atterrissage. */
+const MISSION_KIND={
+  evac:{ic:'🚑',name:'Évacuation',out:[4,12],back:1,mult:1.3,txt:'évacuer les habitants sinistrés'},
+  war:{ic:'🛡️',name:'Pont aérien',out:[2,8],back:1,mult:1.9,txt:'rapatrier civils et ressortissants (zone de guerre)'},
+  aid:{ic:'📦',name:'Aide humanitaire',out:0.35,back:0.12,mult:1.1,txt:'acheminer médecins et secouristes, ramener des blessés'},
+};
+let _wdCorr=null;    // pays où un couloir humanitaire est ouvert pendant le départ d'une mission
+{ const _ac2=airportClosed; airportClosed=function(code){ if(_wdCorr&&AP(code)&&AP(code).cc===_wdCorr){ const sh=S.ai&&S.ai.shut&&S.ai.shut[code]; if(!(sh>S.time)) return false; } return _ac2(code); }; }
+const withCorr=(cc,f)=>{ _wdCorr=cc; try{ return f(); } finally{ _wdCorr=null; } };
+function missionFits(a,M){ const m=modelOf(a); if(isCargo(m)||!(m.seats>=20)||a.charterQ||(a.flight&&a.flight.kind==='charter')) return false;
+  return !withCorr(M.cc,()=>checkLegs(a,legsFor([a.hub,M.to,a.hub]))); }
+function missionEligible(M){ return S.fleet.filter(a=>missionFits(a,M)).sort((x,y)=>((y.status==='idle'&&y.loc===y.hub)-(x.status==='idle'&&x.loc===x.hub))||(modelOf(y).seats-modelOf(x).seats)).slice(0,4); }
+function wdMission(cc,kind,why){
+  const W=S.wd; W.missions=W.missions||[]; if(W.missions.some(x=>x.cc===cc&&!x.closed)) return;
+  const to=mainAirport(cc), K=MISSION_KIND[kind]; if(!to||!S.fleet.length) return;
+  const M={id:uid(),cc,to,kind,why,rot:kind==='aid'?rndi(1,2):rndi(2,4),done:0,exp:S.time+4*DAY,acc:false,closed:false};
+  const el=missionEligible(M); if(!el.length) return;
+  W.missions.push(M);
+  const g=typeof govOf==='function'?govOf(cc):{leader:'—'}, sender={code:'GOV'+cc,name:`Gouvernement — ${ccName(cc)}`,color:'#dc2626',ceo:`Président ${g.leader}`};
+  const ex=el[0], d=dist(ex.hub,to), per=Math.round((Math.min(modelOf(ex).seats,300)*d*0.16*K.mult*2+(kind==='war'?400000:150000))*(W.mood==='aide'?1.4:1)/1e3)*1e3;
+  M.per=per;
+  mailPush(sender,'gov-mission',`${K.ic} ${K.name} : ${keyCity(to)} (${ccName(cc)})`,
+    `Monsieur le président-directeur général,<br>${esc(why)}. Nous vous demandons d’envoyer un avion pour <b>${K.txt}</b> à <b>${keyCity(to)}</b> : <b>${M.rot} rotation${M.rot>1?'s':''}</b> aller-retour depuis la base de l’avion choisi.<br>`+
+    `Votre avion part <b>vraiment</b> : il quitte ses lignes, décolle, se pose à ${keyCity(to)} et revient avec ${kind==='aid'?'des blessés':'les évacués à bord'}. Vous le suivez sur la carte et en 3D. L’État paie environ <b>${fmtMoney(per)}</b> à chaque retour.`+
+    (kind==='war'?'<br>⚠️ Zone de guerre : l’avion peut être endommagé au sol.':'')+`<br>— Président ${esc(g.leader)}`,
+    [...el.map(a=>({k:'ac:'+a.id,l:`✈️ Envoyer ${a.reg} · ${modelOf(a).name.replace(/^(Airbus|Boeing|Embraer|Bombardier|ATR|De Havilland) /,'')} (${modelOf(a).seats} pl.) · ${a.status==='idle'&&a.loc===a.hub?'prêt':'dès son retour'}`})),{k:'no',l:'Refuser'}],
+    {cc,mid:M.id,exp:M.exp});
 }
-{ const _ga=govAnswer; govAnswer=function(m,k){ if(m.kind!=='gov-evac') return _ga(m,k); if(k!=='ok') return 'Vous déclinez la mission d’évacuation.';
-  S.wd.deals.push({cc:m.cc,hub:m.hub,reward:m.reward,need:m.n,got:0,until:S.time+30*DAY}); S.reputation=clamp(S.reputation+0.5,0,100);
-  return `🚑 Mission acceptée : ${m.n} vols vers ou depuis ${keyCity(m.hub)} d’ici 30 jours pour ${fmtMoney(m.reward)}. Créez une ligne vers ${keyCity(m.hub)} si besoin.`; }; }
-{ const _cl=completeLeg; completeLeg=function(ac){ const fl=ac.flight, leg=fl&&fl.legs[fl.li]; _cl(ac);
-  if(!leg||!S.wd||!S.wd.deals.length) return;
-  for(const d of S.wd.deals){ if(d.done||d.until<S.time||(leg.from!==d.hub&&leg.to!==d.hub)) continue; d.got++;
-    if(d.got>=d.need){ d.done=true; book('subventions',d.reward); S.reputation=clamp(S.reputation+3,0,100);
-      wdNote(`🚑 ${S.company.name} a évacué des milliers de personnes de ${keyCity(d.hub)} : ${ccName(d.cc)} verse ${fmtMoney(d.reward)} et salue votre compagnie.`,'ok',true); } } }; }
+function missionLaunch(M,ac){
+  const C=S.charters=S.charters||{offers:[],active:[],done:0}, K=MISSION_KIND[M.kind];
+  const o={id:uid(),kind:'mission',mid:M.id,ic:K.ic,who:`${K.name} ${keyCity(M.to)}`,why:M.why,from:ac.hub,to:M.to,pax:modelOf(ac).seats,reward:M.per,rep:2,deadline:S.time+20*DAY,acId:ac.id};
+  C.active.push(o); M.acId=ac.id;
+  if(ac.status==='idle'&&ac.loc===o.from&&(ac.readyAt||0)<=S.time+5*MIN&&!canFly(ac)){ const e=charterStart(ac,o,S.time); if(e){ C.active=C.active.filter(x=>x!==o); return e; } }
+  else ac.charterQ=o.id;
+  return null;
+}
+{ const _gm=govAnswer; govAnswer=function(m,k){ if(m.kind!=='gov-mission') return _gm(m,k);
+  const M=(S.wd.missions||[]).find(x=>x.id===m.mid); if(!M||M.closed) return 'La mission n’est plus d’actualité.';
+  if(!k.startsWith('ac:')){ M.closed=true; return 'Vous déclinez la mission.'; }
+  const ac=S.fleet.find(a=>a.id===k.slice(3)); if(!ac||!missionFits(ac,M)) return '⛔ Cet avion ne peut plus partir (autonomie, piste, équipage ou déjà réservé).';
+  M.acc=true; const e=missionLaunch(M,ac); if(e){ M.acc=false; return '⛔ '+e; }
+  logMsg(`${MISSION_KIND[M.kind].ic} Mission ${MISSION_KIND[M.kind].name.toLowerCase()} : ${ac.reg} ${ac.status==='flight'&&ac.flight.kind==='charter'?'décolle':'partira dès qu’il sera libre à sa base'} vers ${keyCity(M.to)}.`,'ok');
+  return `${MISSION_KIND[M.kind].ic} ${ac.reg} part en mission vers ${keyCity(M.to)} (${M.rot} rotation${M.rot>1?'s':''}). Suivez-le sur la carte !`; }; }
+function wdMissionsTick(){ const W=S.wd; W.missions=(W.missions||[]).filter(M=>!(M.closed&&S.time-M.exp>30*DAY)); for(const M of W.missions) if(!M.acc&&!M.closed&&M.exp<S.time) M.closed=true; }
 
 /* ---------- occasions quand vous êtes en difficulté ---------- */
 function wdHelp(){
@@ -175,7 +207,7 @@ function wdWeekly(){
   wdPace(); wdEconomy(); wdWarTick(); wdDisTick(); wdHelp();
   W.quiet++;
   if(W.quiet>=4){ W.quiet=0; if(Math.random()<0.5) { W.heat*=3; wdDisTick(); W.heat/=3; } }   // jamais plus d'un mois sans grand événement
-  W.deals=W.deals.filter(d=>!d.done&&d.until>S.time);
+  wdMissionsTick();
   for(const cc of Object.keys(W.c)) W.c[cc].f=wdCompute(cc);
   if(S.ai) S.ai.ver++;
 }
@@ -203,7 +235,7 @@ function wdTabHtml(){
   const line=r=>`<div class="small">${COUNTRIES[r.cc][2]} <b>${esc(ccName(r.cc))}</b>${mine.has(r.cc)?' ✈️':''} — demande <b>${pct(r.f)}</b> · ${popTxt(r.cc,r.x)} · richesse ${pct(r.x.rich)}${r.x.reg!=='normal'?` · <i>${r.x.reg==='boom'?'essor':r.x.reg==='recession'?'récession':'reconstruction'}</i>`:''}</div>`;
   const wars=W.wars.map(w=>`<div class="al ${w.stage==='war'?'bad':'warn'}">${w.stage==='war'?'⚔️ Guerre':'🪖 Tensions'} : ${w.ccs.map(ccWith).join(' — ')}${w.stage==='war'?' · espace aérien fermé'+(w.nb&&w.nb.length?` · réfugiés vers ${w.nb.map(ccName).join(', ')}`:''):''}</div>`).join('');
   const dis=W.dis.map(d=>`<div class="al warn">${d.ico} ${esc(d.name)} — ${ccWith(d.cc)} jusqu’au ${fmtDate(d.until)}${wdC(d.cc).evac>S.time?' · évacuations en cours (vols pleins au départ)':''}</div>`).join('');
-  const deals=W.deals.map(d=>`<div class="al ok">🚑 Mission d’évacuation ${keyCity(d.hub)} : ${d.got}/${d.need} vols · ${fmtMoney(d.reward)} · jusqu’au ${fmtDate(d.until)}</div>`).join('');
+  const deals=(W.missions||[]).filter(M=>M.acc&&!M.closed).map(M=>{ const a=S.fleet.find(x=>x.id===M.acId), st=a&&a.flight&&a.flight.mission===M.id?flightState(a,simNow()):null; return `<div class="al ok">${MISSION_KIND[M.kind].ic} ${MISSION_KIND[M.kind].name} ${keyCity(M.to)} : rotation ${Math.min(M.done+1,M.rot)}/${M.rot} · ${a?esc(a.reg):''} ${st?`en vol ${st.origin} → ${st.dest} (${Math.round(st.progress*100)} %)`:'attend à sa base'} · ${M.saved||0} personnes ramenées${a?` <button class="btn sm" data-act="flSel" data-id="${a.id}">📍 Voir</button>`:''}</div>`; }).join('');
   const moodTxt=W.mood==='aide'?'🤝 Votre compagnie souffre : le monde vous laisse respirer et des occasions arrivent.':W.mood==='défi'?'🔥 Tout vous réussit : le monde devient plus agité pour vous mettre au défi.':'⚖️ Le monde suit son cours.';
   return `<div class="simplehelp">🎬 <b>Directeur du monde</b> — une IA fait vivre la planète : population et richesse de chaque pays, économie (essor, récession), guerres qui ferment l’espace aérien, catastrophes et évacuations. Elle dose le rythme selon votre partie. Événements fictifs.<br>${moodTxt}</div>
     <div class="btns">${WD_LVL.map(([l],i)=>`<button class="btn sm ${(S.wdLevel===undefined?1:S.wdLevel)===i?'gold':''}" data-act="wdLevel" data-k="${i}">${l}</button>`).join('')}</div>
@@ -212,4 +244,33 @@ function wdTabHtml(){
     <h3>📉 Où la demande baisse</h3>${down.map(line).join('')}
     <h3>🗞️ Journal du monde</h3><div class="log">${W.log.slice(0,15).map(l=>`<div class="lg"><span class="mut">${fmtDate(l.t)}</span> ${l.txt}</div>`).join('')||'<div class="mut small">Laissez passer quelques semaines…</div>'}</div>`;
 }
-function registerWorldActions(){ Object.assign(ACTIONS,{ wdLevel:d=>{ S.wdLevel=+d.k; toast('🎬 Monde : '+WD_LVL[S.wdLevel][0],'info'); if(typeof renderPanel==='function') renderPanel(); } }); }
+// branché après le chargement du module des charters (progress.js)
+function wdHookCharters(){ if(wdHookCharters.done||typeof charterStart!=='function') return; wdHookCharters.done=true;
+// départ d'une rotation : couloir humanitaire ouvert, passagers adaptés
+  { const _cs2=charterStart; charterStart=function(ac,o,t){ if(o.kind!=='mission') return _cs2(ac,o,t);
+  const M=(S.wd.missions||[]).find(x=>x.id===o.mid), K=MISSION_KIND[M?M.kind:'evac'], seats=modelOf(ac).seats;
+  const e=withCorr(M&&M.cc,()=>_cs2(ac,o,t)); if(e) return e;
+  const L=ac.flight.legs, out=typeof K.out==='number'?Math.round(seats*K.out):rndi(K.out[0],K.out[1]);
+  L[0].pax={f:0,j:0,w:0,y:Math.min(seats,out)}; L[0].cargo=+(seats*0.04).toFixed(1);                 // aller : secouristes, médecins, matériel
+  L[1].pax={f:0,j:0,w:0,y:Math.min(seats,Math.round(seats*K.back*rnd(0.92,1)))};                       // retour : évacués
+  ac.flight.mission=o.mid; return null; }; }
+// chaque fin de tronçon de mission : arrivée en zone de crise, puis retour payé
+  { const _cld=charterLegDone; charterLegDone=function(ac,fl,leg,arr){
+  if(!fl.mission) return _cld(ac,fl,leg,arr);
+  const W=S.wd, M=(W.missions||[]).find(x=>x.id===fl.mission), C=S.charters, o=C.active.find(x=>x.id===fl.contractId), K=MISSION_KIND[M?M.kind:'evac'];
+  if(fl.li===0){   // posé dans le pays en crise
+    if(M&&M.kind==='war'&&Math.random()<0.06){ ac.condition=Math.max(10,ac.condition-rndi(20,35)); S.reputation=clamp(S.reputation+1,0,100);
+      wdNote(`💥 À ${keyCity(M.to)}, l’avion ${ac.reg} de ${S.company.name} est touché par des éclats sur le tarmac. Personne n’est blessé, l’équipage redécolle avec les évacués ; réparations à prévoir.`,'warn',true); }
+    else logMsg(`${K.ic} ${ac.reg} s’est posé à ${keyCity(leg.to)} : embarquement de ${fl.legs[1].pax.y} ${M&&M.kind==='aid'?'blessés':'évacués'}.`,'info');
+    return 0; }
+  if(fl.li!==fl.legs.length-1||!o) return 0;
+  const pay=o.reward; book('subventions',pay); S.stats.pax+=fl.legs[1].pax.y; C.active=C.active.filter(x=>x!==o); C.done=(C.done||0)+1;
+  S.reputation=clamp(S.reputation+1.5,0,100);
+  if(!M) return pay; M.done++;
+  const saved=(M.saved=(M.saved||0)+fl.legs[1].pax.y);
+  if(M.done<M.rot&&!M.closed){ const o2={...o,id:uid(),deadline:S.time+15*DAY}; C.active.push(o2); ac.charterQ=o2.id;
+    logMsg(`${K.ic} Rotation ${M.done}/${M.rot} terminée : ${fl.legs[1].pax.y} personnes ramenées à ${keyCity(leg.to)} (+${fmtMoney(pay)}). ${ac.reg} repart.`,'ok'); }
+  else { M.closed=true; wdNote(`${K.ic} Mission accomplie : ${S.company.name} a ramené ${saved} personnes de ${keyCity(M.to)} en ${M.done} rotation${M.done>1?'s':''}. ${ccName(M.cc)} remercie la compagnie.`,'ok',true); }
+  return pay; }; }
+}
+function registerWorldActions(){ wdHookCharters(); Object.assign(ACTIONS,{ wdLevel:d=>{ S.wdLevel=+d.k; toast('🎬 Monde : '+WD_LVL[S.wdLevel][0],'info'); if(typeof renderPanel==='function') renderPanel(); } }); }
