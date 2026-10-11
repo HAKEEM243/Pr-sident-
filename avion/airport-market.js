@@ -6,6 +6,11 @@
    Les chiffres des autres compagnies sont des estimations du jeu.
    ========================================================= */
 'use strict';
+// force commerciale d'une compagnie, qui change chaque semaine avec ses décisions (IA) : expansion ou
+// économies, réputation, rentabilité, savoir-faire, croissance de la flotte depuis le début de la partie
+function aiStr(e){ if(!e) return 1; if(!e.fleet0) e.fleet0=e.fleet||1;
+  const m=e.plan&&e.plan.mode, mode=m==='grow'?1.2:m==='retrench'?0.8:m==='renew'?1.05:1;
+  return clamp(mode*(0.75+(e.rep||60)/200)*(1+clamp(e.mavg||0,-0.25,0.25))*(1+clamp(e.skill||0,-0.3,0.3))*Math.sqrt(Math.max(0.2,(e.fleet||1)/e.fleet0))*(e.status==='dead'?0:1),0.2,3); }
 const apSeats=d=>d<800?150:d<3000?180:d<7000?260:300;
 const _apmk=new Map();
 function apMarket(code){ const key=code+'|'+(S.ai?S.ai.ver:0)+'|'+Math.floor(S.time/(6*HOUR))+'|'+S.routes.length; const c=_apmk.get(code); if(c&&c.key===key) return c.v;
@@ -26,14 +31,23 @@ function apMarketCalc(code){
     for(const c of cs){ const f=closed||airportClosed(b)?0:realFreq(code,b,cs.length)*mood*(typeof duelFq==='function'?1+duelFq(c,code,b)/Math.max(1,realFreq(code,b,cs.length)):1);
       const e=aiBy(c), R=rows.get(c)||{code:c, name:airlineName(c), color:airlineColor(c), e, dests:new Set(), fl:0, pax:0, rev:0};
       const lf=clamp(0.72+((e&&e.rep)||60)/1000,0.6,0.9), px=(typeof duelOf==='function'&&duelOf(c,code,b))?duelOf(c,code,b).px:1;
-      const pax=f*2*apSeats(d)*lf; R.dests.add(b); R.fl+=f*2; R.pax+=pax; R.rev+=pax*baseFare(code,b)*px; rows.set(c,R); } }
+      const pax=f*2*apSeats(d)*lf*aiStr(e); R.dests.add(b); R.fl+=f*2; R.pax+=pax; R.rev+=pax*baseFare(code,b)*px; rows.set(c,R); } }
   // calage sur le trafic réel de l'aéroport (millions de passagers par an) : les estimations des autres compagnies sont ramenées à ce total
-  const others=[...rows.values()].filter(x=>!x.me), est=others.reduce((t,x)=>t+x.pax,0), real=(A.traffic||0)*1e6/365-(me.pax||0);
-  if(est>0&&real>0){ const k=Math.min(1.5,real/est); for(const x of others){ x.pax*=k; x.fl*=k; x.rev*=k; } }
+  const others=[...rows.values()].filter(x=>!x.me), est=others.reduce((t,x)=>t+x.pax,0);
+  // le total suit la vie du pays : demande du directeur du monde, saison, tensions ou essor ; aéroport fermé = zéro
+  const cf=(typeof wdF==='function'?wdF(A.cc):1)*(typeof seasonMult==='function'?seasonMult(S.time):1)*(typeof moodDemand==='function'?moodDemand(A.cc):1);
+  const real=closed?0:(A.traffic||0)*1e6/365*cf-(me.pax||0);
+  if(est>0&&real>=0){ const k=Math.min(1.5,real/est); for(const x of others){ x.pax*=k; x.fl*=k; x.rev*=k; } }
   const list=[...rows.values()], tot=list.reduce((s,x)=>s+x.pax,0)||1;
   for(const x of list) x.share=x.pax/tot;
   list.sort((x,y)=>y.pax-x.pax);
-  return {list, tot, closed};
+  // évolution d'une semaine sur l'autre (instantanés gardés dans la partie)
+  S.apSnap=S.apSnap||{}; let sn=S.apSnap[code]; const cur={}; for(const x of list) cur[x.me?'__me':x.code]=Math.round(x.pax);
+  if(!sn) sn=S.apSnap[code]={t:S.time,cur,tot:Math.round(tot),prev:null,ptot:0};
+  else if(S.time-sn.t>=7*DAY){ sn.prev=sn.cur; sn.ptot=sn.tot; sn.cur=cur; sn.tot=Math.round(tot); sn.t=S.time; }
+  const ks=Object.keys(S.apSnap); if(ks.length>60) delete S.apSnap[ks[0]];
+  for(const x of list){ const p=sn.prev&&sn.prev[x.me?'__me':x.code]; x.trend=p?(x.pax-p)/p:null; }
+  return {list, tot, closed, ttrend:sn.prev&&sn.ptot?(tot-sn.ptot)/sn.ptot:null, cf};
 }
 function acSeatsAvg(r){ const acs=routeAircraft(r); if(!acs.length) return 150; return acs.reduce((s,a)=>s+(modelOf(a).seats||0),0)/acs.length; }
 function apStatus(R){
@@ -52,8 +66,11 @@ function apMarketHtml(code){
   const n=UI.apAll===code?M.list.length:10, k=x=>x>=1e6?(x/1e6).toFixed(1).replace('.',',')+' M':x>=1e3?Math.round(x/1e3)+' k':Math.round(x);
   const meIdx=M.list.findIndex(x=>x.me);
   const row=(R,i)=>`<tr class="${R.me?'me':''}"><td>${i+1}</td><td><span class="dot" style="background:${R.color}"></span><b>${R.me?'⭐ '+esc(R.name):esc(R.name)}</b>${R.e&&R.e.fleet?`<br><small class="mut">${R.e.fleet} avions${R.e.alliance?' · '+esc(R.e.alliance):''}</small>`:''}</td>
-    <td>${R.dests.size}</td><td>${Math.round(R.fl)}</td><td>${k(R.pax)}</td><td><b>${Math.round(R.share*100)} %</b><div class="pbar"><i style="width:${Math.min(100,R.share*100).toFixed(0)}%;background:${R.color}"></i></div></td><td>${fmtMoney(R.rev)}</td><td class="small">${apStatus(R)}</td></tr>`;
+    <td>${R.dests.size}</td><td>${Math.round(R.fl)}</td><td>${k(R.pax)}${R.trend!=null&&Math.abs(R.trend)>=0.01?`<br><small class="${R.trend>0?'pos':'neg'}">${R.trend>0?'▲':'▼'} ${Math.abs(Math.round(R.trend*100))} %</small>`:''}</td><td><b>${Math.round(R.share*100)} %</b><div class="pbar"><i style="width:${Math.min(100,R.share*100).toFixed(0)}%;background:${R.color}"></i></div></td><td>${fmtMoney(R.rev)}</td><td class="small">${apStatus(R)}</td></tr>`;
+  const A=AP(code), wx=typeof wdC==='function'&&wdC(A.cc), reg=wx&&wx.reg&&wx.reg!=='normal'?(wx.reg==='boom'?'en plein essor':wx.reg==='recession'?'en récession':'en reconstruction'):'';
+  const dem=`<div class="mut">📊 Demande de voyages en ${esc(ccName(A.cc))} : <b class="${M.cf>=1?'pos':'neg'}">${M.cf>=1?'+':'−'}${Math.abs(Math.round((M.cf-1)*100))} %</b> par rapport à la normale${typeof seasonMult==='function'&&seasonMult(S.time)<0.97?' (basse saison)':typeof seasonMult==='function'&&seasonMult(S.time)>1.03?' (haute saison)':''}${reg?` (pays ${reg})`:''}${wx&&wx.war?' · ⚔️ guerre':''}${wx&&wx.dis?' · '+esc(wx.dis.name):''}${M.ttrend!=null?` · trafic de l’aéroport <b class="${M.ttrend>=0?'pos':'neg'}">${M.ttrend>=0?'▲':'▼'} ${Math.abs(Math.round(M.ttrend*100))} %</b> en une semaine`:''}. Le classement bouge chaque semaine selon les décisions des compagnies (IA).</div>`;
   return `<div class="card small apmk"><b>🛫 Qui vole ici en ce moment</b> · ${M.list.length} compagnie${M.list.length>1?'s':''} · ≈ ${k(M.tot)} passagers/jour${M.closed?' · <b class="neg">aéroport fermé</b>':''}
+    ${dem}
     ${meIdx>=0?`<div class="al ok">⭐ Vous êtes <b>${meIdx+1}ᵉ</b> sur ${M.list.length} ici : ${Math.round(M.list[meIdx].share*100)} % des passagers, ≈ ${fmtMoney(M.list[meIdx].rev)} de recettes par jour.</div>`:`<div class="al">Vous ne desservez pas encore cet aéroport.</div>`}
     <div style="overflow-x:auto"><table class="tbl"><tr><th>#</th><th>Compagnie</th><th>Dest.</th><th>Vols/j</th><th>Pax/j</th><th>Part</th><th>Recettes/j</th><th>Situation</th></tr>
     ${M.list.slice(0,n).map(row).join('')}${meIdx>=n?row(M.list[meIdx],meIdx):''}</table></div>

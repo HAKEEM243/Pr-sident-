@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261099';
+const GAME_VER='20261100';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['📈 Classements vivants + vitesse Lent','Fiche d’un aéroport : la demande du pays (essor, récession, saison, guerre) fait monter ou baisser le trafic, et les parts des compagnies bougent chaque semaine selon leurs décisions (IA) — flèches ▲▼ sur une semaine. Nouvelle vitesse <b>Lent</b> : une heure de jeu toutes les 2 minutes.'],
   ['🛫 Qui vole vraiment ici','Fiche d’un aéroport : classement en direct de toutes les compagnies présentes, <b>la vôtre comprise</b> (⭐) — destinations, vols et passagers par jour, part de marché, recettes par jour, situation (expansion, crise, guerre, faillite). Estimations calées sur le trafic réel de l’aéroport.'],
   ['⏱️ Notifications et vitesses','Le jeu s’ouvre en Réaliste s’il était resté en Turbo/Ultra. Sur téléphone, les notifications s’affichent en bas (elles ne cachent plus les boutons de vitesse) ; en Rapide, Turbo et Ultra, seules les importantes apparaissent.'],
   ['🐢 Ultra ne fige plus le jeu','Avec une grande flotte, le téléphone ne suivait pas la vitesse Ultra et le jeu s’emballait jusqu’à se figer. Maintenant le calcul a un budget : le jeu ralentit un peu (« 🐢 limité par l’appareil ») mais reste fluide.'],
