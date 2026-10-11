@@ -745,6 +745,7 @@ function airportHtml(code){
         <div class="btns"><button class="btn sm gold" data-act="apZoom" data-c="${code}">🔍 Voir l’aéroport et ses pistes</button></div></div>` : ''; })()}
     ${airportClosed(code)?'<div class="al bad">Aéroport actuellement fermé.</div>':''}
     ${isHub?'<div class="al ok">🏢 C’est l’un de vos hubs.</div>':a.cls>=2?`<div class="btns"><button class="btn gold" data-act="buyHub" data-c="${code}">🏢 Acheter ce hub · ${fmtMoney(hubCost(code))}</button></div>`:''}
+    ${a.groundOps?`<div class="al ok">🧑‍✈️ Équipe d’escale : rotation −15 %, retards de congestion −40 % · entretien ${fmtMoney(groundOpsMonthlyCost(a))}/mois.</div>`:''}
     <div class="btns">${S.hubs.filter(h=>h!==code).map(h=>`<button class="btn sm" data-act="draftPair" data-a="${h}" data-b="${code}">➕ Ligne ${h} → ${code} · ${num(dist(h,code))} km</button>`).join('')}</div>
     ${here.length?`<div class="small">Vos avions au sol ici : ${here.map(x=>`<button class="btn sm" data-act="pilot" data-id="${x.id}">🕹️ Piloter ${x.reg}</button>`).join(' ')}</div>`:''}
     ${(()=>{ const al=typeof airlinesAt==='function'?airlinesAt(code):[]; if(!al.length) return '<div class="small mut">Aucune ligne régulière connue au départ de cet aéroport.</div>';
