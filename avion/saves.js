@@ -52,6 +52,17 @@ function applySave(txt, how){
   let o; try{ o=JSON.parse(txt); }catch(e){ toast('⛔ Ce n’est pas une sauvegarde valide (texte illisible)','bad'); return false; }
   if(!svValid(o)){ toast('⛔ Ce fichier n’est pas une partie Sky Empire','bad'); return false; }
   if(S&&S.company&&!confirm(`${how||'Charger'} la partie « ${o.company.name} » (${fmtMoney(o.cash)}, ${(o.fleet||[]).length} avions) ?\nLa partie en cours sur cet appareil sera remplacée (une copie de secours est gardée).`)) return false;
+  // Depuis l’écran « Nouvelle partie », reprendre sans dépendre d’un rechargement
+  // Safari/PWA, qui peut rester bloqué après le tap sur un gros fichier de secours.
+  if((!S||!S.company) && typeof boot==='function'){
+    try{
+      o.lastReal=Date.now(); S=o; migrate(); save();
+      UI.modal=null; closeModal(); boot();
+      const pl=catchUpPlan(); if(pl) runCatchUp(pl);
+      toast(`✅ Partie de ${S.company.name} reprise — ${S.fleet.length} avions.`,'ok');
+      return true;
+    }catch(e){ console.warn('Reprise directe impossible, rechargement de secours',e); }
+  }
   const go=()=>{ o.lastReal=Date.now(); const t=JSON.stringify(o); try{ localStorage.setItem(SAVE_KEY,t); }catch(e){}
     const done=()=>{ window._svNoUnloadSave=true; location.reload(); };
     if(typeof indexedDB!=='undefined') svPut('main',{txt:t,meta:svMeta(o)}).then(done,done); else done(); };

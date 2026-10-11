@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261089';
+const GAME_VER='20261090';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['💾 Reprise de partie réparée','Le bouton « Reprendre » depuis l’écran d’accueil restaure maintenant votre sauvegarde directement, même pour une très grosse compagnie sur iPhone. Les copies de secours ne sont pas supprimées.'],
   ['🪶 3D stable sur iPhone','Sur téléphone, la 3D démarre en mode Minimal (sans relief ni nuages) pour ne plus couper ; ⚙️ dans la 3D pour essayer Éco ou Haute. Correction : en Minimal, avions et aéroports flottaient au-dessus du sol.'],
   ['📱 3D beaucoup plus légère sur téléphone','Mémoire graphique réduite (pas d’anticrénelage du tampon principal, transparence simplifiée, mode 3D seul). Si la 3D se ferme quand même, une fenêtre explique pourquoi et propose de voir les avions en 🏙️ Ville 3D, plus légère.'],
   ['🛠️ Démarrage réparé','Après une longue absence, le jeu s’affiche tout de suite et rattrape le temps passé en arrière-plan (barre de progression, bouton ⏭️ Passer) au lieu de rester bloqué sur un écran vide.'],
