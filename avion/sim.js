@@ -256,6 +256,54 @@ function routeFreq(route){ // vols par jour et par sens, d'après le planning he
   let f=0; for(const ac of S.fleet) for(const p of ac.plan||[]) if(p.routeId===route.id) f+=p.weekly/7;
   return f;
 }
+function routeDepartureHour(route){
+  if(!route||route.departureHour===null||route.departureHour===undefined||route.departureHour==='') return null;
+  const h=+route.departureHour; return Number.isFinite(h)&&h>=0&&h<24?h:null;
+}
+function departureProfile(route){
+  const hour=routeDepartureHour(route); if(hour===null) return {hour:null,demand:1,competition:1,peak:false};
+  const peak=(hour>=6.5&&hour<10)||(hour>=16&&hour<20), night=hour>=21||hour<5.5;
+  return {hour,demand:peak?1.12:night?0.84:1,competition:peak?1.12:night?0.9:1,peak};
+}
+const _scheduleFitCache=new Map(); let _scheduleFitOwner=null, _scheduleProfileStamp='', _scheduleProfiles=[];
+function invalidateScheduleCache(){ _scheduleFitCache.clear(); _scheduleProfileStamp=''; _scheduleProfiles=[]; }
+function scheduledRouteProfiles(){
+  if(_scheduleFitOwner!==S){ _scheduleFitOwner=S; invalidateScheduleCache(); }
+  const stamp=`${Math.floor(S.time/HOUR)}:${S.scheduleVersion||0}`;
+  if(stamp===_scheduleProfileStamp) return _scheduleProfiles;
+  _scheduleProfileStamp=stamp;
+  _scheduleProfiles=S.routes.map(route=>{
+    const hour=routeDepartureHour(route); if(hour===null) return null;
+    const assigned=routeAircraft(route), ac=assigned.find(x=>!isCargo(modelOf(x)))||assigned[0]; if(!ac) return null;
+    const m=modelOf(ac);
+    return {id:route.id,hub:route.stops[0],dest:route.stops[route.stops.length-1],hour,returnHours:Math.max(0,routeCycleHours(route,ac)-turnaround(m)/HOUR)};
+  }).filter(Boolean);
+  return _scheduleProfiles;
+}
+function connectionWaitScore(hours){
+  const w=((hours%24)+24)%24;
+  if(w>=0.75&&w<=4) return 1.25;
+  if((w>=0.5&&w<0.75)||(w>4&&w<=5.5)) return 1.05;
+  if(w>5.5&&w<=7.5) return 0.8;
+  return 0.6;
+}
+function scheduleTransferFactor(route){
+  const hour=routeDepartureHour(route); if(hour===null) return 1;
+  const key=`${Math.floor(S.time/HOUR)}:${S.scheduleVersion||0}:${route.id}:${hour}`;
+  if(_scheduleFitCache.has(key)) return _scheduleFitCache.get(key);
+  const profiles=scheduledRouteProfiles(), own=profiles.find(x=>x.id===route.id);
+  if(!own){ _scheduleFitCache.set(key,1); return 1; }
+  let weighted=0,total=0;
+  for(const peer of profiles){
+    if(peer.id===own.id||peer.hub!==own.hub) continue;
+    const w1=((peer.hour-(own.hour+own.returnHours))%24+24)%24, w2=((own.hour-(peer.hour+peer.returnHours))%24+24)%24;
+    const weight=Math.sqrt(Math.max(1,marketDemand(own.dest,peer.dest)));
+    weighted+=Math.max(connectionWaitScore(w1),connectionWaitScore(w2))*weight; total+=weight;
+  }
+  const fit=total?clamp(weighted/total,0.6,1.25):1;
+  if(_scheduleFitCache.size>Math.min(10000,Math.max(300,S.routes.length*2))) _scheduleFitCache.clear();
+  _scheduleFitCache.set(key,fit); return fit;
+}
 function planHours(ac, plan=ac.plan){ let h=0; for(const p of plan||[]){ const r=S.routes.find(x=>x.id===p.routeId); if(r) h+=p.weekly*routeCycleHours(r,ac); } return h; }
 function acSeats(ac){
   const m=modelOf(ac);
@@ -274,16 +322,16 @@ function priceFactor(r){ return r<=1? 1+(1-r)*0.9 : Math.pow(r,-3); }
 // Analyse d'un tronçon par classe : demande du marché, part captée, passagers par vol
 function legMarket(route, a, b, freqOverride){
   const fp=Math.max(0.05, freqOverride ?? routeFreq(route));
-  const base=marketDemand(a,b), split=classSplit(a,b), q=playerQuality(), rf=rivalFreq(a,b);
+  const base=marketDemand(a,b), split=classSplit(a,b), q=playerQuality(), rf=rivalFreq(a,b), time=departureProfile(route);
   // compagnies réelles présentes : elles remplacent une partie de la concurrence « anonyme »
-  const attrC=Math.sqrt(Math.max(0.4,base/160))*(rf>0?0.55:1) + rivalAttr(a,b)*0.6;
-  const transfer=connectingDemand(a,b);
-  const out={freq:fp, rivalFreq:rf, market:base, transfer};
+  const attrC=Math.sqrt(Math.max(0.4,base/160))*(rf>0?0.55:1) + rivalAttr(a,b)*0.6*time.competition;
+  const connectionFactor=scheduleTransferFactor(route), transfer=connectingDemand(a,b)*connectionFactor;
+  const out={freq:fp, rivalFreq:rf, market:base, transfer, departureFactor:time.demand, competitionFactor:time.competition, connectionFactor};
   let daily=0;
   for(const k of ['y','j','f','c']){
     const r=(route.pm&&route.pm[k])??route.price??1;
     const lounge=(k==='j'||k==='f')&&(AP(a).lounge||AP(b).lounge)?1.25:1;
-    const D = k==='c'? cargoDemand(a,b) : base*split[k]*lounge;
+    const D = (k==='c'? cargoDemand(a,b) : base*split[k]*lounge)*time.demand;
     const attrP=q*Math.sqrt(fp)*priceFactor(r)*(k==='j'||k==='f'?SERVICE_ATTR[S.service-1]:1);
     const share=attrP/(attrP+attrC);
     let cap=D*(r<1?1+(1-r)*0.4:1)*share;
@@ -648,9 +696,12 @@ const SLOT_HOURS=[6.5,7.25,8.5,9.75,11,12.5,14,15.5,17,18.25,19.5,21];
 const slotHash=str=>{ let h=17; for(const c of str) h=(h*33+c.charCodeAt(0))%100003; return h; };
 // créneaux de départ (heure locale du hub, en ms depuis lundi 00:00) : chaque avion a ses propres jours et heures
 function planSlots(ac,p){
-  const w=Math.max(1,p.weekly), h=slotHash(ac.id+'|'+p.routeId), out=[], base=SLOT_HOURS[h%SLOT_HOURS.length]+((h>>4)%3)*0.25;
+  const w=Math.max(1,p.weekly), h=slotHash(ac.id+'|'+p.routeId), out=[], r=S.routes.find(x=>x.id===p.routeId), preferred=routeDepartureHour(r);
+  const base=preferred===null?SLOT_HOURS[h%SLOT_HOURS.length]+((h>>4)%3)*0.25:clamp(preferred+(((h>>4)%5)-2)*0.25,5,22.5);
   if(w<=7){ const off=(h>>2)%7; for(let k=0;k<w;k++) out.push(((Math.floor(k*7/w)+off)%7)*DAY+base*HOUR); }
-  else { const n=Math.ceil(w/7), step=Math.max(3,Math.floor(15/n)); for(let k=0;k<w;k++){ const d=k%7, i=Math.floor(k/7); out.push(d*DAY+Math.min(23,base-4+i*step+((h>>3)%2)*0.5)*HOUR+(base%1)*HOUR); } }
+  else { const n=Math.ceil(w/7), step=Math.min(3,Math.max(1.5,9/Math.max(1,n-1))); for(let k=0;k<w;k++){ const d=k%7, i=Math.floor(k/7);
+      const hour=preferred===null?Math.min(23,base-4+i*Math.max(3,Math.floor(15/n))+((h>>3)%2)*0.5)+(base%1):clamp(base+(i-(n-1)/2)*step,5,22.5);
+      out.push(d*DAY+hour*HOUR); } }
   return out.sort((a,b)=>a-b);
 }
 // fuseau du hub (décalage UTC réel de l'aéroport) ; l'embarquement dure `boardMs` avant l'heure de départ affichée
@@ -1021,14 +1072,16 @@ function openLine(stops){
   for(let i=1;i<stops.length;i++) if(stops[i]===stops[i-1]) return 'Deux escales identiques consécutives';
   if(S.routes.some(r=>r.stops.join()===stops.join())) return 'Vous exploitez déjà cette ligne';
   const c=lineCost(stops); book('licences',-c);
-  const r={id:uid(), stops:[...stops], pm:{y:1,j:1,f:1,c:1}, audit:false, opened:S.time, stats:{flights:0,pax:0,seats:0,rev:0,cost:0,recent:[],shareSum:0,shareN:0}};
+  const r={id:uid(), stops:[...stops], departureHour:null, pm:{y:1,j:1,f:1,c:1}, audit:false, opened:S.time, stats:{flights:0,pax:0,seats:0,rev:0,cost:0,recent:[],shareSum:0,shareN:0}};
   S.routes.push(r);
+  invalidateScheduleCache();
   logMsg(`🧭 Ligne ouverte : ${stops.map(c=>AP(c).city).join(' → ')} (${fmtMoney(c)}).`,'ok');
   return r;
 }
 function closeLine(id){
   for(const ac of S.fleet){ ac.plan=(ac.plan||[]).filter(p=>p.routeId!==id); if(ac.pendingReturn===id) ac.pendingReturn=null; }
   S.routes=S.routes.filter(r=>r.id!==id);
+  invalidateScheduleCache();
 }
 function auditLine(route){ if(route.audit) return 'Audit déjà réalisé'; book('licences',-auditCost(route)); route.audit=true; return null; }
 function setPlan(ac, routeId, weekly){
@@ -1039,7 +1092,7 @@ function setPlan(ac, routeId, weekly){
   if(weekly>0) plan.push({routeId, weekly});
   const h=planHours(ac,plan);
   if(h>MAX_WEEK_HOURS+0.01) return `Planning plein : ${Math.round(h)} h / ${MAX_WEEK_HOURS} h par semaine`;
-  ac.plan=plan; return null;
+  ac.plan=plan; invalidateScheduleCache(); return null;
 }
 function maxWeekly(ac, route){ const other=(ac.plan||[]).filter(p=>p.routeId!==route.id); return Math.floor((MAX_WEEK_HOURS-planHours(ac,other))/routeCycleHours(route,ac)); }
 

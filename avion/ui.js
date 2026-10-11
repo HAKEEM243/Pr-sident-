@@ -370,7 +370,7 @@ function pFleet(){
 }
 function acCard(ac){
   const m=modelOf(ac), st=acSeats(ac), h=planHours(ac);
-  const lines=(ac.plan||[]).map(p=>{ const r=S.routes.find(x=>x.id===p.routeId); return r?`<span class="chip">${r.stops.join('⇄')} ×${p.weekly}</span>`:''; }).join('');
+  const lines=(ac.plan||[]).map(p=>{ const r=S.routes.find(x=>x.id===p.routeId); return r?`<span class="chip">${r.stops.join('⇄')} ×${p.weekly} · ${esc(planText(ac,p))}</span>`:''; }).join('');
   const mt=k=>{ const v=ac['since'+k], e=MAINT[k].every; return `<span class="mtc ${v>e?'over':v>e*0.9?'due':''}" title="${MAINT[k].label}">${k} ${Math.round(v/e*100)}%</span>`; };
   return `<div class="card ac">
     <div class="acrow">${photoHtml(m,'thumb')}
@@ -391,14 +391,24 @@ function acCard(ac){
   </div>`;
 }
 const planCat = m=>planeCat(m);
+function formatScheduleClock(hour){ const m=Math.round(+hour*60); return `${String(Math.floor(m/60)%24).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`; }
 function planModalHtml(ac){
   const m=modelOf(ac), lines=S.routes.filter(r=>r.stops[0]===ac.hub), h=planHours(ac);
   return `<div class="small">${m.name} · basé à <b>${apName(ac.hub)}</b>. Une rotation = aller + retour. Maximum ${MAX_WEEK_HOURS} h de rotations par semaine.</div>
   <div class="planbar big"><span>Utilisation</span>${bar(h/MAX_WEEK_HOURS)}<b>${Math.round(h)}/${MAX_WEEK_HOURS} h</b></div>
+  <div class="small mut">L’heure choisie vaut pour tous les avions de la ligne, en heure locale du hub ; leurs départs sont légèrement espacés. « Automatique » conserve l’ancien planning. Une piste saturée peut imposer un retard ATC.</div>
   ${lines.map(r=>{ const e=checkLegs(ac,legsFor(r.stops)), p=(ac.plan||[]).find(x=>x.routeId===r.id), w=p?p.weekly:0, mx=e?0:maxWeekly(ac,r);
-    const mk=legMarket(r,r.stops[0],r.stops[1]), seats=acSeats(ac).total||1;
+    const mk=legMarket(r,r.stops[0],r.stops[1]), seats=acSeats(ac).total||1, chosen=routeDepartureHour(r), profile=departureProfile(r), fit=scheduleTransferFactor(r);
+    const options=SLOT_HOURS.map(x=>{ const tag=(x>=6.5&&x<10)||(x>=16&&x<20)?' · pointe':x>=21?' · tard':' · journée'; return `<option value="${x}" ${chosen===x?'selected':''}>${formatScheduleClock(x)}${tag}</option>`; }).join('');
+    const demandPct=Math.round((profile.demand-1)*100), rivalPct=Math.round((profile.competition-1)*100);
+    const effect=chosen===null?'Demande standard · horaire automatique.':`Demande ${demandPct>0?'+':''}${demandPct}% · pression concurrentielle ${rivalPct>0?'+':''}${rivalPct}%.`;
+    const conn=chosen===null?'Les correspondances restent automatiques.':fit>1.08?`Correspondances favorables (×${fit.toFixed(2)}).`:fit<0.85?`Correspondances difficiles (×${fit.toFixed(2)}).`:'Correspondances neutres : réglez aussi les autres lignes du hub.';
     return `<div class="acl ${e?'dis':''}"><div class="grow"><b>${r.stops.join(' ⇄ ')}</b> <span class="mut small">${num(legsFor(r.stops).reduce((s,l)=>s+l.dist,0))} km · ${e?'✖ '+e:routeCycleHours(r,ac).toFixed(1)+' h/rotation'}</span>
-      ${!e&&!isCargo(m)?`<div class="small mut">≈ ${num(mk.perFlight)} pax/vol pour ${seats} sièges</div>`:''}</div>
+      ${!e&&!isCargo(m)?`<div class="small mut">≈ ${num(mk.perFlight)} pax/vol pour ${seats} sièges</div>`:''}
+      <div class="schedule-pref"><label class="small">🕓 Départ souhaité — heure locale de ${apName(ac.hub)}
+        <select data-in="routeDepartureHour" data-id="${r.id}"><option value="" ${chosen===null?'selected':''}>Automatique (répartition équilibrée)</option>${options}</select></label>
+        <div class="small mut">${effect} ${conn} · marge de correspondance idéale : 45 min à 4 h.</div>
+      </div></div>
       <div class="stepper"><button class="btn sm" data-act="plan" data-ac="${ac.id}" data-r="${r.id}" data-d="-1" ${w<=0?'disabled':''}>−</button><b>${w}</b><span class="mut small">/sem</span><button class="btn sm" data-act="plan" data-ac="${ac.id}" data-r="${r.id}" data-d="1" ${e||w>=mx?'disabled':''}>+</button><button class="btn sm" data-act="plan" data-ac="${ac.id}" data-r="${r.id}" data-max="1" ${e?'disabled':''}>Max</button></div></div>`; }).join('')||`<div class="mut">Aucune ligne depuis ${ac.hub}. <button class="btn sm gold" data-act="openLine">Ouvrir une ligne</button></div>`}
   <label class="tog"><input type="checkbox" data-in="hold" data-id="${ac.id}" ${ac.hold?'checked':''}> Suspendre les vols de cet avion</label>`;
 }
