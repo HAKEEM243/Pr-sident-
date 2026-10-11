@@ -33,6 +33,7 @@ async function open3D(){
   else G.viewer.resize();
   live3D(true);
   if(GQ.crashed){ GQ.crashed=false; toast('🪶 La 3D avait fait fermer la page : mode Minimal activé (⚙️ pour changer)','info'); }
+  if(GQ.mig){ GQ.mig=false; toast('🪶 3D en mode Minimal sur téléphone pour qu’elle ne coupe plus. Touchez ⚙️ Minimal pour essayer Éco ou Haute.','info'); }
   globeSync(true);
   renderGlobeHud();
   return true;
@@ -69,7 +70,9 @@ function patchCesium(C){
 const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); let crashed=false; try{ crashed=localStorage.getItem('se-3d-live')==='1'; localStorage.removeItem('se-3d-live'); }catch(e){}
   // la page s'est fermée brutalement pendant la vue 3D (mémoire du téléphone saturée) : on repasse en Éco
   if(crashed&&v!=='l'){ v=mob?'l':'e'; try{ localStorage.setItem('se-q',v); }catch(e){} }
-  const mode=(v==='l'||v==='e'||v==='h'||v==='a')?v:(mob?'e':'a'); return {mode, hq:mode==='h'||mode==='a', mini:mode==='l', mob, crashed}; })();   // e = éco, h = haute, a (défaut) = haute avec allègement doux si la vue rame ; téléphone : FXAA au lieu du MSAA
+  // une fois : les téléphones passent en Minimal (la 3D coupait sur iPhone) ; on peut remonter la qualité avec ⚙️
+  let mig=false; try{ if(mob&&localStorage.getItem('se-q-v2')!=='1'){ localStorage.setItem('se-q-v2','1'); if(v!=='l'){ v='l'; mig=true; localStorage.setItem('se-q','l'); } } }catch(e){}
+  const mode=(v==='l'||v==='e'||v==='h'||v==='a')?v:(mob?'l':'a'); return {mode, hq:mode==='h'||mode==='a', mini:mode==='l', mob, crashed, mig}; })();   // e = éco, h = haute, a (défaut) = haute avec allègement doux si la vue rame ; téléphone : FXAA au lieu du MSAA
 function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.mode==='h'||GQ.mode==='a'; GQ.mini=GQ.mode==='l'; if(GQ.mini) G.lite=true;
   try{ sc.msaaSamples=(GQ.hq&&!GQ.mob)?4:1; sc.postProcessStages.fxaa.enabled=true; }catch(e){}
   // Cesium dessine à (rapport de pixels de l'écran × resolutionScale) quand useBrowserRecommendedResolution est faux, et à 1 pixel CSS sinon (flou sur un écran rétina)
@@ -118,6 +121,8 @@ function initGlobe(){
   const sc=viewer.scene;
   try{ if(base0.sat){ const base=viewer.imageryLayers.get(0); base.saturation=1.32; base.contrast=1.12; base.brightness=1.04; base.gamma=1.04; } }catch(e){}
   try{ sc.postProcessStages.fxaa.enabled=true; }catch(e){}
+  // mode Minimal : pas de relief chargé, donc tout est posé au niveau du sol plat (sinon avions et aéroports flottaient à leur altitude réelle)
+  if(GQ.mini&&typeof TERRAIN!=='undefined'&&TERRAIN.on){ TERRAIN.on=false; TERRAIN.offMini=true; }
   try{ if(typeof TERRAIN!=='undefined'&&TERRAIN.on&&!GQ.mini){ terrFlattenNetwork(); sc.globe.terrainProvider=terrainProvider(); sc.globe.depthTestAgainstTerrain=true; } }catch(e){ console.warn(e); }
   try{ sc.globe.showGroundAtmosphere=true; sc.globe.atmosphereLightIntensity=12; sc.skyAtmosphere.atmosphereLightIntensity=40; }catch(e){}
   // filet de sécurité : si le rendu plante, on retire les décors optionnels et on redémarre
