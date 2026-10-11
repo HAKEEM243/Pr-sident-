@@ -43,8 +43,11 @@ function svWarn(){ if(_svWarned) return; _svWarned=true; if(typeof toast==='func
 async function loadAsync(){
   let best=null;
   try{ const raw=localStorage.getItem(SAVE_KEY); if(raw){ const o=JSON.parse(raw); if(svValid(o)) best={o,real:o.lastReal||0}; } }catch(e){}
-  try{ const r=await Promise.race([svGet('main'), new Promise(res=>setTimeout(()=>res(null),2500))]);
+  // une très grosse compagnie ne tient plus dans localStorage : sa sauvegarde est seulement dans IndexedDB, dont la lecture peut prendre plusieurs secondes sur iPhone
+  const wait=setTimeout(()=>{ try{ if(!document.getElementById('svloading')) document.body.insertAdjacentHTML('beforeend','<div id="svloading" style="position:fixed;inset:0;z-index:6000;display:flex;align-items:center;justify-content:center;background:rgba(8,12,22,.92);color:#fff;font:600 16px system-ui;text-align:center;padding:20px">💾 Chargement de votre partie…<br><small style="opacity:.7;font-weight:400">grosse compagnie : quelques secondes</small></div>'); }catch(e){} },700);
+  try{ const r=await Promise.race([svGet('main'), new Promise(res=>setTimeout(()=>res(null),30000))]);
     if(r&&r.txt){ const real=(r.meta&&r.meta.real)||0; if(!best||real>best.real){ const o=JSON.parse(r.txt); if(svValid(o)) best={o,real}; } } }catch(e){}
+  clearTimeout(wait); try{ const l=document.getElementById('svloading'); if(l) l.remove(); }catch(e){}
   if(!best) return false;
   S=best.o; migrate(); return true;
 }
