@@ -285,6 +285,23 @@ Object.assign(INPUTS,{
   ngName:el=>{ UI.ng.name=el.value.slice(0,40); UI.ng.edited=true; }, ngCode:el=>{ UI.ng.code=el.value.toUpperCase().slice(0,3); UI.ng.edited=true; },
   ngColor:el=>{ UI.ng.color=el.value; }, ngLogo:el=>{ UI.ng.logo=el.value||'✈️'; },
 });
+/* rattrapage d'une absence par petits morceaux : l'écran reste vivant (barre de progression, bouton Passer) */
+function runCatchUp(pl){
+  if(UI.catching) return; UI.catching=true;
+  const small=pl.total<=6*HOUR; let box=null;
+  if(!small){ box=document.createElement('div'); box.id='catchup'; box.innerHTML=`<b>⏩ Rattrapage de votre absence</b><div class="cu-bar"><i></i></div><small></small><button class="btn sm">⏭️ Passer</button>`; document.body.appendChild(box);
+    box.querySelector('button').onclick=()=>{ pl.left=0; }; }
+  const step=()=>{ const t0=performance.now();
+    try{ UI.silent=true; while(pl.left>0&&performance.now()-t0<60){ const d=Math.min(pl.left,2*HOUR); advance(d); pl.left-=d; } }
+    catch(e){ pl.left=0; UI.silent=false; setTimeout(()=>{ throw e; },0); }
+    finally{ UI.silent=false; }
+    if(box){ const f=1-pl.left/pl.total; box.querySelector('i').style.width=(f*100).toFixed(0)+'%'; box.querySelector('small').textContent=`${fmtDur(pl.total-pl.left)} de jeu sur ${fmtDur(pl.total)} · ${fmtDate(S.time)}`; }
+    if(pl.left>0){ setTimeout(step,0); return; }
+    UI.catching=false; if(box) box.remove(); S.lastReal=Date.now();
+    try{ renderTop(); if(typeof renderPanel==='function') renderPanel(); updatePlanes(); }catch(e){}
+    try{ offlineReport(catchUpReport(pl)); }catch(e){ console.warn(e); } };
+  setTimeout(step,small?0:200);
+}
 function offlineReport(r){
   if(r&&r.game>=MIN&&r.game<HOUR){ toast(`⏱️ Absent ${fmtDur(r.real)} : le jeu a avancé de ${fmtDur(r.game)}`,'info'); return; }
   if(!r || r.game<HOUR) return;
@@ -327,7 +344,8 @@ function boot(){
   setInterval(()=>{
     // l'horloge de jeu suit l'heure réelle (Date.now) : un iPhone qui fige l'appli en arrière-plan ne fige plus le temps
     const now=performance.now(), wall=Date.now(), gap=wall-(UI.lastWall||wall); UI.lastWall=wall;
-    if(gap>15000&&!S.paused){ last=now; S.lastReal=wall-gap; UI.silent=true; const rep=catchUp(); UI.silent=false; if(rep){ try{ offlineReport(rep); }catch(e){} } renderTop(); return; }
+    if(UI.catching){ last=now; UI.lastWall=wall; return; }   // rattrapage d'absence en cours, par morceaux
+    if(gap>15000&&!S.paused){ last=now; S.lastReal=wall-gap; let pl=null; try{ pl=catchUpPlan(); }catch(e){ console.warn(e); } if(pl) runCatchUp(pl); renderTop(); return; }
     const dt=Math.min(now-last, 3600000); last=now; S.lastReal=wall;
     if(!S.paused){ advance(dt*SPEEDS[S.speed].mult); }
     if(typeof globeNoteSim==='function') globeNoteSim();
@@ -364,7 +382,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   initSheet();
   if(typeof L==='undefined'){ document.body.insertAdjacentHTML('beforeend','<div class="fatal">Impossible de charger la carte (Leaflet). Vérifiez votre connexion Internet puis rechargez.</div>'); }
   (typeof loadAsync==='function'? loadAsync() : Promise.resolve(load())).catch(()=>load()).then(ok=>{
-    if(ok){ UI.silent=true; const rep=catchUp(); UI.silent=false; boot(); offlineReport(rep); }
+    if(ok){ let pl=null; try{ pl=catchUpPlan(); }catch(e){ console.warn(e); } boot(); if(pl) runCatchUp(pl); }
     else { UI.modal='newgame'; newGameModal(); }
   });
 });

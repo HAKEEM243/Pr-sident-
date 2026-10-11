@@ -1169,6 +1169,18 @@ function repayLoan(id){
 }
 
 /* ---------- hors-ligne ---------- */
+// rattrapage en deux temps : le plan (combien de temps de jeu simuler) puis l'avance, découpée en morceaux par l'interface
+function catchUpPlan(){
+  let lr=S.lastReal||Date.now(); try{ const b=+localStorage.getItem('se-lr'); if(b&&b>lr&&b<=Date.now()) lr=b; }catch(e){}
+  const realDt=Date.now()-lr; S.lastReal=Date.now();
+  if(S.paused || realDt<5000) return null;
+  const offlineSpeed=Math.min(60,Math.max(1,(SPEEDS[S.speed]||SPEEDS.realiste).mult));
+  const gameDt=Math.min(realDt*offlineSpeed,30*DAY);
+  S.awayFrom=S.time;
+  return {real:realDt, left:gameDt, total:gameDt, before:{cash:S.cash, flights:S.stats.flights, pax:S.stats.pax, rev:ledSum(S.led.total,1), cost:ledSum(S.led.total,-1), time:S.time}};
+}
+function catchUpReport(pl){ const b=pl.before; return { real:pl.real, game:S.time-b.time, flights:S.stats.flights-b.flights, pax:S.stats.pax-b.pax,
+    rev:ledSum(S.led.total,1)-b.rev, cost:ledSum(S.led.total,-1)-b.cost, cash:S.cash-b.cash }; }
 function catchUp(){
   let lr=S.lastReal||Date.now(); try{ const b=+localStorage.getItem('se-lr'); if(b&&b>lr&&b<=Date.now()) lr=b; }catch(e){}   // la dernière heure vue, même si la dernière sauvegarde a échoué
   const realDt=Date.now()-lr;

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta name="se-ver" content="20261086">
+<meta name="se-ver" content="20261087">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Sky Empire</title>
@@ -486,6 +486,9 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 #ticker .tk.old{opacity:.4}
 #une{position:absolute;left:50%;transform:translateX(-50%);top:10px;z-index:790;width:min(560px,calc(100% - 24px));display:flex;align-items:center;gap:8px;background:rgba(11,18,32,.96);border:1px solid #27406a;border-left:4px solid var(--gold);border-radius:10px;padding:7px 10px;font-size:12.5px;line-height:1.35;box-shadow:0 4px 16px rgba(0,0,0,.5);cursor:pointer;animation:tkin .35s ease-out}
 #une[hidden]{display:none}
+#catchup{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:5000;width:min(340px,calc(100% - 32px));background:rgba(11,18,32,.97);border:1px solid var(--gold);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 10px 40px rgba(0,0,0,.6);text-align:center}
+#catchup .cu-bar{height:8px;background:#1e293b;border-radius:6px;overflow:hidden}
+#catchup .cu-bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .2s}
 .cyc-ic{font-size:28px;line-height:34px;text-align:center;filter:drop-shadow(0 0 4px #000);animation:cycspin 4s linear infinite}
 @keyframes cycspin{to{transform:rotate(-360deg)}}
 #detect{position:absolute;left:0;top:0;z-index:5;pointer-events:none;display:none}
@@ -680,7 +683,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="airports-db.js?v=20261078"></script>
 <script src="runways-db.js?v=20261078"></script>
 <script src="data.js?v=20261078"></script>
-<script src="sim.js?v=20261078"></script>
+<script src="sim.js?v=20261087"></script>
 <script src="realism.js?v=20261078"></script>
 <script src="atc.js?v=20261078"></script>
 <script src="saves.js?v=20261078"></script>
@@ -698,7 +701,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="map.js?v=20261078"></script>
 <script src="ui.js?v=20261078"></script>
 <script src="pilot.js?v=20261078"></script>
-<script src="actions.js?v=20261079"></script>
+<script src="actions.js?v=20261087"></script>
 <script src="aircraft3d.js?v=20261078"></script>
 <script src="globe.js?v=20261085"></script>
 <script src="vision3d.js?v=20261086"></script>
@@ -714,7 +717,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="calendar.js?v=20261078"></script>
 <script src="paxcases.js?v=20261083"></script>
 <script src="inbox.js?v=20261078"></script>
-<script src="pwa.js?v=20261086"></script>
+<script src="pwa.js?v=20261087"></script>
 <script src="simple.js?v=20261086"></script>
 </body>
 </html>
