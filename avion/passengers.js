@@ -96,8 +96,9 @@ function lineAirlines(a,b){
   for(const r of S.routes){ if(r.stops.length===2&&((r.stops[0]===a&&r.stops[1]===b)||(r.stops[0]===b&&r.stops[1]===a))&&routeAircraft(r).length){ meRoute=r; break; } }
   const riv=rivalsOn(a,b);
   if(meRoute){ try{ const m=legMarket(meRoute,a,b); meShare=clamp(m.y.share,0.02,0.97); }catch(e){ meShare=0.2; } }
-  const wsum=riv.reduce((s,x)=>s+x.freq*(x.R.quality||1),0)||1;
-  for(const x of riv){ out.push({code:x.R.code, name:x.R.name, color:x.R.color, share:(1-meShare)*x.freq*(x.R.quality||1)/wsum, freq:x.freq, price:idealPrice(a,b,'y')*fareIndex(x.R.code)}); }
+  const strength=x=>{ const f=Math.max(0,x.freq+(typeof duelFq==='function'?duelFq(x.R.code,a,b):0)), partner=typeof isPartner==='function'&&isPartner(x.R)?0.3:1, war=typeof warFactor==='function'?warFactor(x.R.code,a,b):1, duel=typeof duelFactor==='function'?duelFactor(x.R.code,a,b,f):1; return f*(x.R.quality||1)*priceFactor(fareIndex(x.R.code))*partner*war*duel; };
+  const wsum=riv.reduce((s,x)=>s+strength(x),0)||1;
+  for(const x of riv){ const f=Math.max(0,x.freq+(typeof duelFq==='function'?duelFq(x.R.code,a,b):0)); out.push({code:x.R.code, name:x.R.name, color:x.R.color, share:(1-meShare)*strength(x)/wsum, freq:f, price:idealPrice(a,b,'y')*fareIndex(x.R.code)}); }
   if(meRoute){ const pm=meRoute.pm||{}; out.push({code:S.company.code, name:S.company.name, color:S.company.color, share:meShare, freq:routeFreq(meRoute), price:idealPrice(a,b,'y')*(pm.y??meRoute.price??1), me:true}); }
   if(!out.length) out.push({code:'—', name:'Via une escale (pas de vol direct)', color:'#6b7280', share:1, freq:0, price:idealPrice(a,b,'y')*1.25, none:true});
   return out.sort((x,y)=>y.share-x.share);
@@ -122,7 +123,9 @@ function paxProfile(a,b){
 /* ---------- immigration d'un pays : tous les vols qui y arrivent ---------- */
 const _ccCache={};
 function countryImmigration(cc){
-  const key=cc+'|'+Math.floor(S.time/DAY); if(_ccCache[key]) return _ccCache[key];
+  const routeSig=(S.routes||[]).map(r=>`${r.id}:${routeFreq(r)}:${(r.pm&&r.pm.y)??r.price??1}`).join(','), rivalSig=(S.rivals||[]).map(r=>`${r.code}:${(r.routes||[]).length}:${r.quality||1}:${r._v||0}`).join(',');
+  const policySig=`${S.reputation}|${S.service}|${S.paxPolicy||'standard'}|${S.loyalty?1:0}|${S.ancillary&&Object.values(S.ancillary).join(',')||''}`;
+  const key=cc+'|'+Math.floor(S.time/DAY)+'|'+(S.ai&&S.ai.ver||0)+'|'+routeSig+'|'+rivalSig+'|'+policySig; if(_ccCache[key]) return _ccCache[key];
   const here=cAirports(cc).slice(0,12);
   if(!here.length) return null;
   const world=AIRPORT_CODES.filter(c=>AP(c).cc!==cc).sort((x,y)=>AP(y).traffic-AP(x).traffic).slice(0,110);
@@ -130,7 +133,7 @@ function countryImmigration(cc){
   for(const y of here) for(const x of world){ const d=marketDemand(x,y); if(d>0.5){ pairs.push({x,y,d}); total+=d; } }
   pairs.sort((p,q)=>q.d-p.d);
   const sample=pairs.slice(0,70), sampTot=sample.reduce((s,p)=>s+p.d,0)||1;
-  const nat={}, wealth={rich:0,mid:0,poor:0}, purpose={}, cls={y:0,j:0,f:0}, air={}, fare={y:0,j:0,f:0}, orig={}; let trips=0, refusalW=0;
+  const nat={}, wealth={rich:0,mid:0,poor:0}, purpose={}, cls={y:0,j:0,f:0}, air={}, fare={y:0,j:0,f:0}, orig={}; let trips=0, refusalW=0, servedW=0, unservedW=0;
   for(const p of sample){
     const pr=paxProfile(p.x,p.y), w=p.d/sampTot;
     for(const n of pr.nat) nat[n.cc]=(nat[n.cc]||0)+n.share*w;
@@ -138,16 +141,20 @@ function countryImmigration(cc){
     for(const k in pr.purpose) purpose[k]=(purpose[k]||0)+pr.purpose[k]*w;
     for(const k in pr.cls) cls[k]+=pr.cls[k]*w;
     for(const k of ['y','j','f']) fare[k]+=pr.fare[k]*w;
-    for(const al of pr.airlines) { const o=air[al.code]||(air[al.code]={code:al.code,name:al.name,color:al.color,share:0,price:0,me:!!al.me}); o.share+=al.share*w; o.price+=al.price*al.share*w; }
+    const direct=pr.airlines.filter(al=>!al.none);
+    if(direct.length) servedW+=w; else unservedW+=w;
+    for(const al of direct) { const o=air[al.code]||(air[al.code]={code:al.code,name:al.name,color:al.color,share:0,price:0,freq:0,freqWeight:0,me:!!al.me}); o.share+=al.share*w; o.price+=al.price*al.share*w; o.freq+=(al.freq||0)*7*al.share*w; o.freqWeight+=al.share*w; }
     const oc=AP(p.x).cc; orig[oc]=(orig[oc]||0)+w; trips+=pr.trips*w;
     // refus d'entrée : plus fréquents quand un voyageur de pays pauvre arrive dans un pays riche
     const gap=Math.max(0,incomeOf(cc)-pr.lvlFrom); refusalW+=w*(0.004+gap*0.012);
   }
   const moodT=(typeof moodOf==='function'?moodOf(cc).tension:0);
-  const airlines=Object.values(air).map(o=>({...o, price:o.share? o.price/o.share : 0})).sort((a,b)=>b.share-a.share);
+  const airlines=Object.values(air).map(o=>({...o, price:o.share? o.price/o.share : 0, freq:o.freqWeight?o.freq/o.freqWeight:0})).sort((a,b)=>b.share-a.share);
   const perDay=total, res={cc, perDay, perWeek:perDay*7, perMonth:perDay*30.4, perYear:perDay*365, airports:here.length, nat:Object.entries(nat).map(([c,s])=>({cc:c,share:s})).sort((a,b)=>b.share-a.share),
     wealth, purpose, cls, fare, airlines, orig:Object.entries(orig).map(([c,s])=>({cc:c,share:s})).sort((a,b)=>b.share-a.share), trips, uniqueYear:perDay*365/Math.max(0.5,trips),
+    directCoverage:servedW, unservedDirect:unservedW, sampleCoverage:total>0?sampTot/total:0,
     refusal:clamp(refusalW*(1+moodT*2),0.002,0.08), income:incomeOf(cc), topPairs:pairs.slice(0,8)};
+  if(Object.keys(_ccCache).length>140) for(const old of Object.keys(_ccCache)) delete _ccCache[old];
   _ccCache[key]=res; return res;
 }
 
@@ -310,14 +317,14 @@ const wealthBars=w=>bars([['🟣 '+WEALTH_LABEL.rich,w.rich,'#a78bfa'],['🔵 '+
 const purposeBars=p=>bars(PURPOSES.filter(([k])=>p[k]>0.004).sort((x,y)=>p[y[0]]-p[x[0]]).slice(0,6).map(([k,l])=>[l,p[k]]));
 const clsBars=c=>bars([['💺 Économique',c.y],['💼 Affaires',c.j],['👑 Première',c.f]].filter(x=>x[1]>0.002));
 const natBars=(n,max=7)=>bars(n.slice(0,max).map(x=>[natName(x.cc),x.share]));
-function airlineBars(al,max=8){ return al.slice(0,max).map(a=>`<div class="pbar-row"><span class="pl"><span class="dot" style="background:${a.color}"></span>${esc(a.name)}${a.me?' ⭐':''}</span><span class="pb"><i style="width:${Math.max(1,Math.round(a.share*100))}%;background:${a.color}"></i></span><b>${Math.round(a.share*100)} %</b><span class="mut small pp">${a.price?fmtMoney(a.price):''}</span></div>`).join(''); }
+function airlineBars(al,max=8){ const direct=al.filter(a=>!a.none), rows=direct.slice(0,max).map(a=>`<div class="pbar-row"><span class="pl"><span class="dot" style="background:${a.color}"></span>${esc(a.name)}${a.me?' ⭐':''}</span><span class="pb"><i style="width:${Math.max(1,Math.round(a.share*100))}%;background:${a.color}"></i></span><b>${Math.round(a.share*100)} %</b><span class="mut small pp">${a.price?fmtMoney(a.price):''}${a.freq?` · ≈${Math.round(a.freq)} vols/sem`:''}</span></div>`).join(''); return rows+(al.some(a=>a.none)?'<div class="small mut">Aucune compagnie n’a de vol direct identifié sur cette liaison ; une correspondance éventuelle n’est pas attribuée ici.</div>':''); }
 
 function pPax(){
   const cc=UI.paxCountry||homeCC(), C=COUNTRIES[cc], im=countryImmigration(cc);
   const countries=Object.keys(COUNTRIES).filter(k=>cAirports(k).length).sort((x,y)=>COUNTRIES[x][0].localeCompare(COUNTRIES[y][0]));
   const origins=im&&im.orig?im.orig.slice(0,6).map(x=>x.cc):[];
   const quick=[...new Set([cc,homeCC(),...S.hubs.map(h=>AP(h).cc),...origins])].filter(k=>COUNTRIES[k]&&cAirports(k).length).slice(0,9);
-  const head=`<div class="simplehelp">🛂 <b>Contrôle des passagers</b> : qui arrive dans un pays, d’où il vient, ce qu’il paie, avec quelle compagnie. Les volumes suivent la demande du jeu ; la répartition (richesse, nationalité, motif) est une <b>estimation</b>, les personnes sont fictives.</div>
+const head=`<div class="simplehelp">🛂 <b>Contrôle des passagers</b> : qui arrive dans un pays, d’où il vient, ce qu’il paie, avec quelle compagnie. Les volumes suivent la demande du jeu ; la répartition (richesse, nationalité, motif) est une <b>estimation</b>, les personnes sont fictives. Les parts sont pondérées par la demande sur les 70 liaisons étudiées : les marchés sans liaison directe identifiée sont isolés et ne sont pas attribués à une compagnie.</div>
   <div class="row wrap"><select data-in="paxCountry">${countries.map(k=>`<option value="${k}" ${k===cc?'selected':''}>${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</option>`).join('')}</select></div>
   <div class="chips">${quick.map(k=>`<button class="chip ${k===cc?'on':''}" data-act="paxCountry" data-cc="${k}">${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</button>`).join('')}</div>`;
   const policyBox=paxPolicyHtml();
@@ -326,7 +333,7 @@ function pPax(){
   const flightOps=arrivals.length?`<section class="pax-ops"><div class="pax-ops-head"><div><span class="ops-eyebrow">CONTRÔLE OPÉRATIONNEL</span><h3>Vos arrivées en cours</h3></div><span class="ops-count">${arrivals.length} vol${arrivals.length>1?'s':''}</span></div><div class="pax-arrivals">${arrivals.map(({ac,m})=>{const st=flightState(ac,simNow())||{phase:0,frac:0}, phase=['Embarquement','Décollage','Montée','Croisière','Croisière','Descente','Approche','Atterrissage','Arrivée','Roulage'][Math.max(0,Math.min(9,st.phase||0))], estimate=fn=>Math.round(m.total*m.rows.filter(fn).length/Math.max(1,m.rows.length)), checks=estimate(r=>String(r.control||'').includes('approfondi')), assist=estimate(r=>!!r.assist), connect=estimate(r=>!!r.conn); return `<article class="pax-arrival"><div class="pax-arrival-top"><b>${esc(S.company.code)}${flightNumber(ac)}</b><span class="ops-state">EN VOL · ${Math.round((st.frac||0)*100)} %</span></div><div class="pax-route">${esc(m.from.city)} <span>→</span> <b>${esc(m.to.city)}</b></div><div class="ops-progress"><i style="width:${clamp((st.frac||0)*100,0,100)}%"></i></div><div class="small mut">${phase} · ${num(m.total)} passagers · ${checks} contrôle(s) approfondi(s) estimé(s) · ${assist} assistance(s) · ${connect} correspondance(s)</div><div class="btns"><button class="btn sm" data-act="manifest" data-id="${ac.id}">📋 Ouvrir le manifeste</button><button class="btn sm" data-act="follow" data-id="${ac.id}">🎯 Suivre le vol</button></div></article>`;}).join('')}</div><div class="small mut">Les contrôles et profils sont simulés ; les indicateurs détaillés sont extrapolés à partir des fiches fictives générées pour chaque vol.</div></section>`:`<section class="pax-ops pax-ops-empty"><span class="ops-eyebrow">CONTRÔLE OPÉRATIONNEL</span><b>Aucune de vos arrivées vers ${esc(C[0])} n’est en vol.</b><span class="small mut">Les vols apparaîtront ici avec leur manifeste, leurs besoins d’assistance et les vérifications simulées.</span></section>`;
   const mood=typeof moodOf==='function'?moodOf(cc):null;
   const kp=(l,v,s)=>`<div class="kpi"><div class="kl">${l}</div><div class="kv">${v}</div>${s?`<div class="small mut">${s}</div>`:''}</div>`;
-  const myShare=(im.airlines.find(a=>a.me)||{share:0}).share;
+  const myShare=(im.airlines.find(a=>a.me)||{share:0}).share, myServedShare=im.directCoverage?myShare/im.directCoverage:0;
   return `${head}${policyBox}
   <h2>${C[2]} ${C[0]} <span class="mut small">· ${INCOME_LABEL[im.income]}</span></h2>
   ${unitChips()}
@@ -334,7 +341,10 @@ function pPax(){
     ${kp('Passagers arrivant',volLine(im.perDay),`depuis ${im.orig.length} pays · ${im.airports} aéroport(s)`)}
     ${kp('Voyageurs différents',`≈ ${num(Math.round(im.uniqueYear))} / an`,`chacun voyage ${im.trips.toFixed(1).replace('.',',')} fois par an en moyenne`)}
     ${kp('Refus d’entrée',(im.refusal*100).toFixed(1).replace('.',',')+' %',`≈ ${num(Math.round(im.perDay*im.refusal*(UNITS[UI.paxUnit||'week'][1])))} refoulés / ${UNITS[UI.paxUnit||'week'][0]}`)}
-    ${kp('Votre part',(myShare*100).toFixed(1).replace('.',',')+' %','des passagers arrivants')}
+    ${kp('Votre part des 70 routes',(myShare*100).toFixed(1).replace('.',',')+' %','part du volume estimé sur les routes analysées ; correspondances exclues')}
+    ${kp('Votre part des routes desservies',(myServedShare*100).toFixed(1).replace('.',',')+' %','uniquement les routes de l’échantillon avec un vol direct')}
+    ${kp('Routes avec vol direct',(im.directCoverage*100).toFixed(1).replace('.',',')+' %',`sans compagnie directe identifiée : ${(im.unservedDirect*100).toFixed(1).replace('.',',')} %`)}
+    ${kp('Couverture des 70 routes',(im.sampleCoverage*100).toFixed(1).replace('.',',')+' %',`part de la demande estimée couverte parmi 110 origines et ${im.airports} destinations`)}
     ${kp('Billet moyen',fmtMoney(im.fare.y),`affaires ${fmtMoney(im.fare.j)} · première ${fmtMoney(im.fare.f)}`)}
     ${mood?kp('Climat du pays',moodLabel(mood),mood.note||''):''}
   </div>
@@ -345,7 +355,7 @@ function pPax(){
   <div class="card"><div class="small mut">Nationalité des passagers</div>${natBars(im.nat,9)}</div>
   <div class="card"><div class="small mut">Pays de départ des vols</div>${bars(im.orig.slice(0,8).map(x=>[natName(x.cc),x.share]))}</div>
   <h3>Quelle compagnie, à quel prix ?</h3>
-  <div class="card"><div class="small mut">Part de marché des compagnies · prix du billet économique moyen</div>${airlineBars(im.airlines,10)}</div>
+  <div class="card"><div class="small mut">Part pondérée du volume modélisé · prix éco moyen · fréquence hebdomadaire estimée. Le solde « sans liaison directe » n’est ni une compagnie ni une correspondance confirmée.</div>${airlineBars(im.airlines,10)}<div class="small mut">Estimation déterministe fondée sur les 70 routes les plus demandées parmi les principales origines et destinations, les fréquences, la qualité et le prix. Une liaison directe à Kinshasa ne capte pas automatiquement tout le trafic du pays ; les correspondances ne sont pas encore attribuées à chaque compagnie.</div></div>
   <div class="card"><div class="small mut">Classe de voyage</div>${clsBars(im.cls)}</div>
   <h3>Plus grandes liaisons vers ${esc(C[0])}</h3>
   <table class="tbl"><tr><th>Ligne</th><th>Voyageurs</th><th>Prix éco</th></tr>${im.topPairs.map(p=>`<tr><td>${flag(p.x)} ${esc(AP(p.x).city)} → ${esc(AP(p.y).city)}</td><td>${volLine(p.d)}</td><td>${fmtMoney(idealPrice(p.x,p.y,'y'))}</td></tr>`).join('')}</table>`;

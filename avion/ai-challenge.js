@@ -23,20 +23,22 @@ function aiChallenge(){
   const target=(lead.me?V:lead.value)*1.02;
   for(const r of chals){ const e=r.e, gap=Math.max(0,target-r.value), tag=lead.me?`détrôner ${myName}`:`rattraper ${lead.name}`;
     e.chal=true;
+    if(e.debt>=1||e.cash<0||(e.mavg||0)<-0.12||e.rep<25) continue;
     if(gap<=0) continue;                                                // déjà au niveau : plus d'offensive
     const heat=Math.min(1,gap/(0.12*target));                           // l'ardeur retombe quand l'écart se resserre
     // investissements pour combler l'écart : une part du retard chaque semaine (plafonnée pour rester crédible)
-    const invest=Math.min(gap*0.006*D, r.value*0.02*D);
+    const invest=Math.min(gap*0.0009*D, r.value*0.002*D);
     if(invest>0){ e.cash+=invest*0.4; e.fAcc=(e.fAcc||0)+invest*0.6/40e6; const n=Math.floor(e.fAcc); if(n>0){ e.fAcc-=n; e.fleet+=n; const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet; } }
-    e.rep=clamp(e.rep+0.25*D,20,90); e.skill=clamp((e.skill||0)+0.004*D,-0.6,0.6);
+    e.rep=clamp(e.rep+0.08*D,20,90); e.skill=clamp((e.skill||0)+0.0015*D,-0.6,0.6);
     // coup d'éclat 1 : commande record
     if(Math.random()<0.04*D*heat){ const n=Math.max(8,Math.round(e.fleet*rnd(0.03,0.08))), m=newModelFor(e); e.fleet+=n; e.cash-=n*rnd(3e6,6e6);
       aiNews(`🛒 Commande record : ${e.name} commande ${n} ${m.name.replace(/ \(occasion\)/,'')} pour ${tag}. Flotte : ${e.fleet} avions.`,'rival',true); }
     // coup d'éclat 2 : levée de fonds
     if(Math.random()<0.03*D*heat){ const k=Math.max(2e8,r.value*rnd(0.02,0.06)); e.cash+=k; aiNews(`💰 ${e.name} lève ${Md(k)} auprès d’investisseurs pour ${tag}.`,'rival',true); }
     // coup d'éclat 3 : nouvelle ligne jusque sur votre hub
-    if(Math.random()<0.08*D*heat){ const mine=S.hubs[0]||S.company.hub, cand=AIRPORT_CODES.filter(c=>c!==mine&&AP(c).cls>=2&&dist(e.hub,c)>400&&dist(c,mine)>400&&dist(c,mine)<(e.fleet>=100?9000:4000)&&!carriersOn(c,mine).includes(e.code));
-      if(cand.length){ const c=pick(cand), key=pairKey(c,mine); (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
+    if(Math.random()<0.08*D*heat){ const mine=S.hubs.slice().sort((a,b)=>AP(b).traffic-AP(a).traffic)[0]||S.company.hub, cand=AIRPORT_CODES.filter(c=>c!==mine&&AP(c).cls>=2&&dist(e.hub,c)>400&&dist(c,mine)>400&&dist(c,mine)<(e.fleet>=100?9000:4000)&&!carriersOn(c,mine).includes(e.code));
+      const setup=e.fleet<30?1.5e6:3.5e6;
+      if(cand.length&&e.cash>=setup){ const c=cand.sort((x,y)=>marketDemand(e.hub,y)-marketDemand(e.hub,x))[0], key=pairKey(c,mine); e.cash-=setup; (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
         const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&!R.routes.some(x=>pairKey(x.a,x.b)===key)) R.routes.push({a:c,b:mine,freq:3});
         aiNews(`🎯 ${e.name} attaque votre hub : nouvelle ligne ${keyCity(c)} → ${keyCity(mine)} (3 vols par jour).`,'rival',true); } }
     // coup d'éclat 4 : guerre des prix sur l'une de vos lignes
@@ -51,18 +53,21 @@ function aiChallenge(){
 // outsiders : même les petites et moyennes compagnies tentent leur chance contre le leader
 function aiOutsiders(){
   const ai=S.ai, D=drive(); if(!ai||D<2) return; const {lead,chals,me}=aiChallengers(), skip=new Set(chals.map(c=>c.code));
-  const pool=aiAlive().filter(e=>e.fleet>=3&&e.fleet<=90&&e.status!=='dead'&&!skip.has(e.code)&&e.real!==undefined);
-  const n=Math.min(pool.length,D===2?3:6), myName=S.company.name, tag=lead.me?`dépasser ${myName}`:`défier ${lead.name}`;
-  for(let k=0;k<n;k++){ const e=pool.splice(Math.floor(Math.random()*pool.length),1)[0]; e.ambition=Math.min(5,(e.ambition||0)+1);
+  const pool=aiAlive().filter(e=>e.fleet>=3&&e.fleet<=90&&e.status!=='dead'&&!skip.has(e.code)&&e.real!==undefined&&e.debt<2&&e.cash>e.fleet*2e6&&e.rep>=35&&(e.mavg===undefined||e.mavg>-0.12));
+  const strength=e=>e.cash/Math.max(1,e.fleet)/1e6+e.rep*0.2+Math.min(40,e.routes)*0.1-(e.debt||0)*20;
+  pool.sort((a,b)=>strength(b)-strength(a)||b.fleet-a.fleet||a.code.localeCompare(b.code));
+  const n=Math.min(pool.length,D===2?2:4), myName=S.company.name, tag=lead.me?`dépasser ${myName}`:`défier ${lead.name}`;
+  for(let k=0;k<n;k++){ const e=pool[k]; if(!e) break; e.ambition=Math.min(5,(e.ambition||0)+1);
     // croissance par paliers : location d'avions, petits financements
-    if(Math.random()<0.35){ const add=Math.max(1,Math.round(e.fleet*rnd(0.04,0.1))); e.fleet+=add; e.cash-=add*rnd(1e6,3e6); e.cash+=add*rnd(2e6,5e6)*0.5; const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet;
+    if(Math.random()<0.28){ const add=Math.max(1,Math.round(e.fleet*rnd(0.04,0.1))); e.fleet+=add; e.cash-=add*rnd(3e6,6e6); const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet;
       if(add>=3) aiNews(`🐜 ${e.name} (petite compagnie) s’agrandit : ${add} avions de plus, ${e.fleet} au total. Objectif : ${tag}.`,'rival'); }
-    if(Math.random()<0.25){ const k2=Math.max(2e7,e.fleet*rnd(2e6,6e6)); e.cash+=k2; if(e.fleet>=10) aiNews(`💸 ${e.name} lève ${Md(k2)} auprès d’investisseurs locaux pour grandir vite.`,'rival'); }
+    if(Math.random()<0.18){ const k2=Math.max(2e6,e.fleet*rnd(0.15e6,0.45e6)); e.cash+=k2; if(e.fleet>=10) aiNews(`💸 ${e.name} lève ${Md(k2)} auprès d’investisseurs locaux pour grandir vite.`,'rival'); }
     if(Math.random()<0.30) aiRoute(e,'open');
-    e.rep=clamp(e.rep+0.3*D,20,85);
+    e.rep=clamp(e.rep+0.06*D,20,85);
     // attaque d'un petit sur votre hub
-    if(Math.random()<0.10*(D-1)&&S.hubs.length){ const mine=pick(S.hubs), cand=AIRPORT_CODES.filter(c=>c!==mine&&AP(c).cls>=2&&dist(e.hub,c)<(e.fleet>=20?5000:2500)&&dist(c,mine)>300&&dist(c,mine)<(e.fleet>=20?5000:2500)&&!carriersOn(c,mine).includes(e.code));
-      if(cand.length){ const c=pick(cand), key=pairKey(c,mine); (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
+    if(Math.random()<0.10*(D-1)&&S.hubs.length){ const mine=S.hubs.slice().sort((a,b)=>AP(b).traffic-AP(a).traffic)[0], cand=AIRPORT_CODES.filter(c=>c!==mine&&AP(c).cls>=2&&dist(e.hub,c)<(e.fleet>=20?5000:2500)&&dist(c,mine)>300&&dist(c,mine)<(e.fleet>=20?5000:2500)&&!carriersOn(c,mine).includes(e.code));
+      const setup=e.fleet<30?1.5e6:3.5e6;
+      if(cand.length&&e.cash>=setup){ const c=cand.sort((x,y)=>marketDemand(e.hub,y)-marketDemand(e.hub,x))[0], key=pairKey(c,mine); e.cash-=setup; (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
         const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&!R.routes.some(x=>pairKey(x.a,x.b)===key)) R.routes.push({a:c,b:mine,freq:2});
         aiNews(`🐜 David contre Goliath : ${e.name} ouvre ${keyCity(c)} → ${keyCity(mine)} et s’attaque à votre hub.`,'rival',true); } }
     // petite guerre des prix
@@ -74,12 +79,11 @@ function aiOutsiders(){
 // rachats : les plus grosses avalent de petites compagnies pour grossir d'un coup
 function aiChallengeMonthly(){
   const ai=S.ai; if(!ai||!drive()) return; const D=drive(), {chals}=aiChallengers();
-  for(const r of chals){ const e=r.e; if(Math.random()>0.12*D) continue;
-    const prey=aiAlive().filter(x=>x!==e&&x.fleet>=12&&x.fleet<=e.fleet*0.35&&dist(x.hub,e.hub)<9000&&!x.chal); if(!prey.length) continue;
-    const w=pick(prey), price=w.fleet*rnd(6e6,12e6); e.cash-=price; e.fleet+=Math.round(w.fleet*0.8); e.routes+=Math.round(w.routes*0.6); w.status='dead'; w.deadAt=S.time; ai.ver++;
-    if(S.rivals) S.rivals=S.rivals.filter(R=>R.code!==w.code);
-    const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet;
-    aiNews(`🏴‍☠️ ${e.name} rachète ${w.name} pour ${Md(price)} : flotte portée à ${e.fleet} avions.`,'rival',true); }
+  if(ai.acquisitionMonth===monthKey(S.time)) return;
+  for(const r of chals){ const e=r.e; if(e.debt>0||e.cash<e.fleet*8e6||(e.mavg||0)<-0.05||Math.random()>0.08*D) continue;
+    const prey=aiAlive().filter(x=>x!==e&&x.fleet>=12&&x.fleet<=e.fleet*0.35&&dist(x.hub,e.hub)<9000&&!x.chal&&(x.debt>=1||(x.cash<x.fleet*3e6&&x.rep<45)||((x.mavg||0)<-0.18&&x.cash<x.fleet*8e6)));
+    if(prey.length&&aiAcquireCompany(e,pick(prey),'rival')) break;
+  }
 }
 { const _aw=aiWeekly; aiWeekly=function(){ _aw(); try{ aiChallenge(); aiOutsiders(); }catch(e){ console.warn(e); } }; }
 { const _am=aiMonthly; aiMonthly=function(){ _am(); try{ aiChallengeMonthly(); }catch(e){ console.warn(e); } }; }
