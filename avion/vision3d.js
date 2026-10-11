@@ -125,7 +125,7 @@ function visDraw(){
       // derrière la Terre : pas de cadre
       if(t.d>2e6) continue;
       const sz=Math.max(14,Math.min(160,t.span*1.3*H/(2*t.d*Math.tan(fov/2))));
-      const c=t.own?col:red, x=w.x-sz/2, y=w.y-sz/2, k=Math.max(4,sz*0.25);
+      const c=t.own?col:t.live?'#7dd3fc':red, x=w.x-sz/2, y=w.y-sz/2, k=Math.max(4,sz*0.25);
       g.strokeStyle=c; g.beginPath();
       g.moveTo(x,y+k); g.lineTo(x,y); g.lineTo(x+k,y); g.moveTo(x+sz-k,y); g.lineTo(x+sz,y); g.lineTo(x+sz,y+k);
       g.moveTo(x+sz,y+sz-k); g.lineTo(x+sz,y+sz); g.lineTo(x+sz-k,y+sz); g.moveTo(x+k,y+sz); g.lineTo(x,y+sz); g.lineTo(x,y+sz-k); g.stroke();

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta name="se-ver" content="20261084">
+<meta name="se-ver" content="20261085">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Sky Empire</title>
@@ -486,6 +486,8 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 #ticker .tk.old{opacity:.4}
 #une{position:absolute;left:50%;transform:translateX(-50%);top:10px;z-index:790;width:min(560px,calc(100% - 24px));display:flex;align-items:center;gap:8px;background:rgba(11,18,32,.96);border:1px solid #27406a;border-left:4px solid var(--gold);border-radius:10px;padding:7px 10px;font-size:12.5px;line-height:1.35;box-shadow:0 4px 16px rgba(0,0,0,.5);cursor:pointer;animation:tkin .35s ease-out}
 #une[hidden]{display:none}
+.cyc-ic{font-size:28px;line-height:34px;text-align:center;filter:drop-shadow(0 0 4px #000);animation:cycspin 4s linear infinite}
+@keyframes cycspin{to{transform:rotate(-360deg)}}
 #detect{position:absolute;left:0;top:0;z-index:5;pointer-events:none;display:none}
 #contacts{position:fixed;right:8px;bottom:calc(230px + env(safe-area-inset-bottom));z-index:1065;width:min(240px,52vw);max-height:38vh;overflow:auto;opacity:.92;background:rgba(5,12,8,.82);border:1px solid #2f5d3a;border-radius:8px;padding:6px 8px;font:11px ui-monospace,Menlo,monospace;color:#c8ffd0}
 #contacts[hidden]{display:none}
@@ -628,6 +630,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
       <button class="on adv" data-act="mapToggle" data-k="rival">🔴 Rival</button>
       <button class="on adv" data-act="mapToggle" data-k="trails">〰️ Traînées</button>
       <button class="on adv" data-act="mapToggle" data-k="weather">⛈️ Météo</button>
+      <button class="adv" data-act="liveRadar2D">🌧️ Radar réel</button>
+      <button class="adv on" data-act="liveCyc">🌀 Cyclones réels</button>
       <button class="adv" data-act="mapStyle">🗺️ Fond de carte</button>
       <button class="keep" data-act="focusHub">🛬 Mon aéroport</button>
       <button data-act="focusHome">🏠 Mon pays</button>
@@ -667,7 +671,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="ai-challenge.js?v=20261078"></script>
 <script src="ai-duel.js?v=20261078"></script>
 <script src="gameplay2.js?v=20261082"></script>
-<script src="world-director.js?v=20261083"></script>
+<script src="world-director.js?v=20261085"></script>
 <script src="passengers.js?v=20261082"></script>
 <script src="pulse.js?v=20261082"></script>
 <script src="business.js?v=20261078"></script>
@@ -676,8 +680,9 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="pilot.js?v=20261078"></script>
 <script src="actions.js?v=20261079"></script>
 <script src="aircraft3d.js?v=20261078"></script>
-<script src="globe.js?v=20261084"></script>
-<script src="vision3d.js?v=20261084"></script>
+<script src="globe.js?v=20261085"></script>
+<script src="vision3d.js?v=20261085"></script>
+<script src="live-data.js?v=20261085"></script>
 <script src="terrain.js?v=20261078"></script>
 <script src="airport3d.js?v=20261080"></script>
 <script src="runway3d.js?v=20261078"></script>
@@ -689,7 +694,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="calendar.js?v=20261078"></script>
 <script src="paxcases.js?v=20261083"></script>
 <script src="inbox.js?v=20261078"></script>
-<script src="pwa.js?v=20261084"></script>
+<script src="pwa.js?v=20261085"></script>
 <script src="simple.js?v=20261082"></script>
 </body>
 </html>

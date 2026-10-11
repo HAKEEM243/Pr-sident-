@@ -239,6 +239,7 @@ function wdTabHtml(){
   const moodTxt=W.mood==='aide'?'🤝 Votre compagnie souffre : le monde vous laisse respirer et des occasions arrivent.':W.mood==='défi'?'🔥 Tout vous réussit : le monde devient plus agité pour vous mettre au défi.':'⚖️ Le monde suit son cours.';
   return `<div class="simplehelp">🎬 <b>Directeur du monde</b> — une IA fait vivre la planète : population et richesse de chaque pays, économie (essor, récession), guerres qui ferment l’espace aérien, catastrophes et évacuations. Elle dose le rythme selon votre partie. Événements fictifs.<br>${moodTxt}</div>
     <div class="btns">${WD_LVL.map(([l],i)=>`<button class="btn sm ${(S.wdLevel===undefined?1:S.wdLevel)===i?'gold':''}" data-act="wdLevel" data-k="${i}">${l}</button>`).join('')}</div>
+    <h3>🛰️ Le monde réel en direct</h3>${typeof liveStatusHtml==='function'?liveStatusHtml():''}<div class="btns"><button class="btn sm" data-act="liveRadar">🌧️ Radar réel</button><button class="btn sm" data-act="liveCyc">🌀 Cyclones réels</button></div>
     ${deals}${wars||''}${dis||''}${!wars&&!dis?'<div class="mut small">Aucune guerre ni catastrophe en cours.</div>':''}
     <h3>📈 Où la demande monte</h3>${up.map(line).join('')}
     <h3>📉 Où la demande baisse</h3>${down.map(line).join('')}
