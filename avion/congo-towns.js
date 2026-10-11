@@ -36,6 +36,6 @@ const DRC_CITY_POP={'Kinshasa':17000,'Lubumbashi':2800,'Mbuji-Mayi':2800,'Kanang
   'Kolwezi':700,'Matadi':550,'Boma':350,'Mbandaka':450,'Kikwit':550,'Muanda':100,'Bunia':900,'Beni':400,'Butembo':900,'Kindu':300,'Kalemie':300,
   'Gemena':300,'Bandundu':200,'Kamina':200,'Isiro':250,'Ilebo':150,'Boende':80,'Basankusu':60,'Lisala':90,'Kabinda':150,'Kongolo':100,'Manono':80,
   'Gandajika':200,'Buta':90,'Lusambo':60,'Pweto':60,'Moba':50,'Mweka':50,'Inongo':60,'Lodja':120,'Bumba':180,'Gbadolite':200};
-// voyages en avion par an (millions) : les 3 grandes portes du pays + un taux par habitant pour les autres villes
-// (choix du jeu : la RDC est immense et presque sans routes, l'avion y est vital)
-const DRC_AIR={'Kinshasa':6.0,'Lubumbashi':3.0,'Goma':2.5}, DRC_AIR_RATE=0.12;
+// Voyageurs en avion par an (millions), minima de scénario pour les grands centres.
+// Les autres villes reçoivent un plancher calculé selon leur population dans data.js.
+const DRC_AIR={'Kinshasa':48,'Goma':35,'Lubumbashi':20,'Mbuji-Mayi':20,'Kananga':20,'Kisangani':20,'Bukavu':20,'Tshikapa':20};

@@ -191,17 +191,21 @@ function diasporaNews(){ const cc=homeCcOf(); if(!cc||!DIASPORA[cc]) return; con
 /* ---------- habitants et voyageurs en avion ---------- */
 // voyages par an dans un aéroport : trafic de base × demande du pays (directeur du monde) × croissance de la ville
 function paxYear(code){ const A=AP(code); if(!A) return 0; const x=typeof wdC==='function'&&wdC(A.cc);
-  return (A.traffic||0)*1e6*(typeof wdF==='function'?wdF(A.cc):1)*(A.popK&&x?Math.pow(x.pop,1.3):1); }
+  const annual=(A.traffic||0)*1e6*(typeof wdF==='function'?wdF(A.cc):1)*(A.popK&&x?Math.pow(x.pop,1.3):1);
+  if(A.cc!=='CD'||!A.drcCityMain) return annual;
+  const popK=A.popK||(typeof DRC_CITY_POP!=='undefined'&&DRC_CITY_POP[A.city])||0;
+  const floor=typeof DRC_AIR!=='undefined'&&DRC_AIR[A.city]?DRC_AIR[A.city]*1e6:popK>=1000?20e6:popK>=500?5e6:popK>=100?2e6:popK>0?(0.1+Math.min(100,popK)*0.002)*1e6:0.1e6;
+  return Math.max(annual,floor); }
 const fmtN=n=>n>=1e6?(n/1e6).toFixed(n<1e7?1:0).replace('.',',')+' M':n>=1e3?Math.round(n/1e3)+' k':String(Math.round(n));
 function countryAirHtml(cc){
   cc=cc||homeCC(); const x=typeof wdC==='function'&&wdC(cc), base=typeof WD_POP!=='undefined'&&WD_POP[cc]; if(!x||!base) return '';
-  const pop=base*x.pop*1e6, aps=AIRPORT_CODES.filter(c=>AP(c).cc===cc), tot=aps.reduce((t,c)=>t+paxYear(c),0)/2;   // un voyage = un départ + une arrivée
+  const pop=base*x.pop*1e6, aps=AIRPORT_CODES.filter(c=>AP(c).cc===cc), tot=aps.reduce((t,c)=>t+paxYear(c),0)/2, tripsPerResident=tot/Math.max(1,pop);   // un voyage = un départ + une arrivée
   // une ligne par ville (aéroport principal), les plus fréquentées d'abord
   const byCity=new Map(); for(const c of aps){ const A=AP(c), k=A.city, cur=byCity.get(k); if(!cur||A.traffic>AP(cur).traffic) byCity.set(k,c); }
   const top=[...byCity.values()].sort((a,b)=>paxYear(b)-paxYear(a)), n=UI.cityAll?top.length:8;
   const meDay=c=>{ try{ const M=apMarket(c), m=M.list.find(r=>r.me); return m?m.pax:0; }catch(e){ return 0; } };
   return `<div class="card"><h3>👥 ${esc(ccName(cc))} : ${fmtN(pop)} d’habitants · ✈️ ${fmtN(tot)} voyages en avion par an</h3>
-    <div class="small mut">Soit environ 1 voyage par an pour ${Math.max(1,Math.round(pop/Math.max(1,tot)))} habitants. Les chiffres bougent avec la population, l’économie, la saison et les crises du pays.</div>
+    <div class="small mut">Soit environ ${tripsPerResident>=1?`${tripsPerResident.toFixed(1).replace('.',',')} voyages par habitant et par an`:`1 voyage par an pour ${Math.max(1,Math.round(1/Math.max(0.001,tripsPerResident)))} habitants`}. Les chiffres bougent avec la population, l’économie, la saison et les crises du pays.</div>
     <div style="overflow-x:auto"><table class="tbl small"><tr><th>Ville</th><th>Habitants</th><th>Voyageurs/an</th><th>Vous/an</th></tr>
     ${top.slice(0,n).map(c=>{ const A=AP(c), p=cityPop(c), me=meDay(c)*365; return `<tr data-act="openAp" data-c="${c}" style="cursor:pointer"><td><b>${esc(A.city)}</b> <span class="mut">${c}</span></td><td>${p?fmtN(p*1e6):'—'}</td><td><b>${fmtN(paxYear(c))}</b></td><td class="${me?'pos':'mut'}">${me?fmtN(me):'—'}</td></tr>`; }).join('')}</table></div>
     ${top.length>8?`<div class="btns"><button class="btn sm" data-act="cityAll">${UI.cityAll?'Réduire':`Voir les ${top.length} villes`}</button></div>`:''}</div>`;
