@@ -60,6 +60,8 @@ function hydratePhotos(){
 /* ---------- notifications ---------- */
 function toast(text, kind='info'){
   const box=$('#toasts'); if(!box) return;
+  // en Rapide, Turbo et Ultra : seulement les messages importants, au plus un toutes les 4 s
+  if(S&&SPEEDS[S.speed]&&SPEEDS[S.speed].mult>=600&&!S.paused){ if(kind!=='bad'&&kind!=='ok') return; const n=Date.now(); if(n-(UI._tkFast||0)<4000) return; UI._tkFast=n; }
   const el=document.createElement('div'); el.className='toast '+kind; el.innerHTML=text; el.addEventListener('click',ev=>{ if(!ev.target.closest('[data-act]')) el.remove(); });
   box.appendChild(el); setTimeout(()=>el.classList.add('out'),5200); setTimeout(()=>el.remove(),5800);
   while(box.children.length>(UI.mobile?2:3)) box.firstChild.remove();
