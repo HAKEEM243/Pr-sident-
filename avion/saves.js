@@ -43,8 +43,11 @@ function svWarn(){ if(_svWarned) return; _svWarned=true; if(typeof toast==='func
 async function loadAsync(){
   let best=null;
   try{ const raw=localStorage.getItem(SAVE_KEY); if(raw){ const o=JSON.parse(raw); if(svValid(o)) best={o,real:o.lastReal||0}; } }catch(e){}
-  try{ const r=await Promise.race([svGet('main'), new Promise(res=>setTimeout(()=>res(null),2500))]);
+  // une très grosse compagnie ne tient plus dans localStorage : sa sauvegarde est seulement dans IndexedDB, dont la lecture peut prendre plusieurs secondes sur iPhone
+  const wait=setTimeout(()=>{ try{ if(!document.getElementById('svloading')) document.body.insertAdjacentHTML('beforeend','<div id="svloading" style="position:fixed;inset:0;z-index:6000;display:flex;align-items:center;justify-content:center;background:rgba(8,12,22,.92);color:#fff;font:600 16px system-ui;text-align:center;padding:20px">💾 Chargement de votre partie…<br><small style="opacity:.7;font-weight:400">grosse compagnie : quelques secondes</small></div>'); }catch(e){} },700);
+  try{ const r=await Promise.race([svGet('main'), new Promise(res=>setTimeout(()=>res(null),30000))]);
     if(r&&r.txt){ const real=(r.meta&&r.meta.real)||0; if(!best||real>best.real){ const o=JSON.parse(r.txt); if(svValid(o)) best={o,real}; } } }catch(e){}
+  clearTimeout(wait); try{ const l=document.getElementById('svloading'); if(l) l.remove(); }catch(e){}
   if(!best) return false;
   S=best.o; migrate(); return true;
 }
@@ -52,6 +55,9 @@ function applySave(txt, how){
   let o; try{ o=JSON.parse(txt); }catch(e){ toast('⛔ Ce n’est pas une sauvegarde valide (texte illisible)','bad'); return false; }
   if(!svValid(o)){ toast('⛔ Ce fichier n’est pas une partie Sky Empire','bad'); return false; }
   if(S&&S.company&&!confirm(`${how||'Charger'} la partie « ${o.company.name} » (${fmtMoney(o.cash)}, ${(o.fleet||[]).length} avions) ?\nLa partie en cours sur cet appareil sera remplacée (une copie de secours est gardée).`)) return false;
+  // depuis l'écran « nouvelle partie » (aucune partie ouverte) : on charge directement, sans recharger la page
+  if(!S||!S.company){ try{ S=o; migrate(); if(typeof closeModal==='function'){ UI.modal=null; closeModal(); } boot(); try{ const pl=catchUpPlan(); if(pl) runCatchUp(pl); }catch(e){} toast(`✅ Partie « ${esc(o.company.name)} » reprise`,'ok'); setTimeout(()=>{ try{ save(); }catch(e){} },1500); return true; }
+    catch(e){ console.warn(e); setTimeout(()=>{ throw e; },0); return false; } }
   const go=()=>{ o.lastReal=Date.now(); const t=JSON.stringify(o); try{ localStorage.setItem(SAVE_KEY,t); }catch(e){}
     const done=()=>{ window._svNoUnloadSave=true; location.reload(); };
     if(typeof indexedDB!=='undefined') svPut('main',{txt:t,meta:svMeta(o)}).then(done,done); else done(); };
