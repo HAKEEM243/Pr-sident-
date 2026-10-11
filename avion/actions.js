@@ -85,7 +85,7 @@ const ACTIONS = {
     const ac=findAc(d.id), m=modelOf(ac);
     if(ac.owned){ const v=acValue(ac); if(!confirm(`Vendre ${ac.reg} (${m.name}) pour ${fmtMoney(v)} ?`)) return; S.cash+=v; S.led.total.ventes=(S.led.total.ventes||0)+v; }
     else { if(!confirm(`Rendre ${ac.reg} au loueur (frais : 1 mois, ${fmtMoney(ac.lease)}) ?`)) return; book('leasing',-ac.lease); }
-    S.fleet=S.fleet.filter(x=>x!==ac); logMsg(`${ac.owned?'💵 Vente':'↩ Restitution'} de ${ac.reg} (${m.name}).`,'info'); closeModal(); after();
+    S.fleet=S.fleet.filter(x=>x!==ac); invalidateScheduleCache(); logMsg(`${ac.owned?'💵 Vente':'↩ Restitution'} de ${ac.reg} (${m.name}).`,'info'); closeModal(); after();
   },
   catFam:d=>{ UI.catFam=d.f; renderPanel(); },
   buy:d=>{
@@ -173,10 +173,11 @@ const INPUTS = {
   'ed.cargo':el=>{ UI.edit.cargo=el.value; }, 'ed.range':el=>{ UI.edit.range=el.value; }, 'ed.speed':el=>{ UI.edit.speed=el.value; },
   'ed.color':el=>{ UI.edit.color=el.value; }, 'ed.logo':el=>{ UI.edit.logo=el.value; },
   price:el=>{ const r=findRoute(el.dataset.id), k=el.dataset.k, ip=idealPrice(r.stops[0],r.stops[1],k); if(+el.value>0) r.pm[k]=clamp(+el.value/ip,0.3,3); after(); },
+  routeDepartureHour:el=>{ const r=findRoute(el.dataset.id); if(!r) return; const h=el.value===''?null:+el.value; r.departureHour=h===null||SLOT_HOURS.includes(h)?h:null; invalidateScheduleCache(); after(); if(typeof save==='function') save(); },
   addPlan:el=>{ if(!el.value) return; const ac=findAc(el.value), r=findRoute(el.dataset.id); if(!err(setPlan(ac,r.id,Math.max(1,Math.min(7,maxWeekly(ac,r)))))){ S.tutoPlan=true; after(); } },
   hold:el=>{ findAc(el.dataset.id).hold=el.checked; after(); },
   cfg:el=>{ const ac=findAc(el.dataset.id); if(ac.status==='flight'){ el.value=ac.cfg[el.dataset.k]; return err('Reconfiguration impossible en vol'); } ac.cfg[el.dataset.k]=+el.value; refreshModal(); renderPanel(); },
-  transfer:el=>{ if(!el.value) return; const ac=findAc(el.dataset.id); if(!confirm(`Transférer ${ac.reg} à ${AP(el.value).city} ? Son planning sera vidé.`)) return; ac.hub=el.value; ac.plan=[]; ac.pendingReturn=null; if(ac.status==='idle') ferry(ac,ac.hub); closeModal(); after(); },
+  transfer:el=>{ if(!el.value) return; const ac=findAc(el.dataset.id); if(!confirm(`Transférer ${ac.reg} à ${AP(el.value).city} ? Son planning sera vidé.`)) return; ac.hub=el.value; ac.plan=[]; invalidateScheduleCache(); ac.pendingReturn=null; if(ac.status==='idle') ferry(ac,ac.hub); closeModal(); after(); },
   country:el=>{ UI.country=el.value; renderPanel(); },
   hq:el=>{ UI.hq=el.value; const pos=el.selectionStart; refreshModal(); const n=$('#hq'); if(n){ n.focus(); n.setSelectionRange(pos,pos); } },
   olq:el=>{ UI.ol.q=el.value; const pos=el.selectionStart; refreshModal(); const n=$('#olq'); if(n){ n.focus(); n.setSelectionRange(pos,pos); } },
