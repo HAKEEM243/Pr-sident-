@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261087';
+const GAME_VER='20261088';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['📱 3D beaucoup plus légère sur téléphone','Mémoire graphique réduite (pas d’anticrénelage du tampon principal, transparence simplifiée, mode 3D seul). Si la 3D se ferme quand même, une fenêtre explique pourquoi et propose de voir les avions en 🏙️ Ville 3D, plus légère.'],
   ['🛠️ Démarrage réparé','Après une longue absence, le jeu s’affiche tout de suite et rattrape le temps passé en arrière-plan (barre de progression, bouton ⏭️ Passer) au lieu de rester bloqué sur un écran vide.'],
   ['📡 Le monde réel en direct','Vue 3D → <b>📡 Trafic réel</b> : les vrais avions en vol en ce moment autour de la caméra (bleu clair, heure réelle). <b>🌧️ Radar réel</b> : la vraie pluie (carte 2D aussi, dans ☰ Carte). <b>🌀 Cyclones réels</b> sur la carte et en 3D ; un vrai cyclone près de vos aéroports peut les fermer 24 h. État des sources dans Actus → 🌍 Monde.'],
   ['👁️ Vision « œil de Dieu »','En vue 3D : bouton <b>👁️</b> pour la caméra thermique FLIR (noir et blanc ou couleur), la vision nocturne, l’écran CRT ou le noir ; <b>🎯 Détection</b> encadre chaque avion avec son identifiant, son altitude et sa vitesse ; <b>📡 Contacts</b> liste les avions autour (touchez un des vôtres pour le suivre). Effets adaptés du projet libre God’s Eye View (licence MIT).'],
