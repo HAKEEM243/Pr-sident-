@@ -221,6 +221,7 @@ if(typeof RUNWAY_DB!=='undefined') for(const [code,a] of Object.entries(AIRPORTS
   a.surface= hard.length? 'Asphalte' : 'Latérite / herbe';
   a.cls = best<1200?1: best<1700?2: best<2400?3: best<3100?4: 5;
 }
+if(AIRPORTS.BKY){ AIRPORTS.BKY.runway=4200; AIRPORTS.BKY.surface='Asphalte'; AIRPORTS.BKY.cls=5; }
 // Scénario du jeu : Kinshasa commence avec une forte influence, distincte du trafic réel et du bonus de demande.
 if(AIRPORTS.FIH){ let mx=0; for(const [c,a] of Object.entries(AIRPORTS)) if(c!=='FIH'&&a.traffic>mx) mx=a.traffic; AIRPORTS.FIH.marketTraffic=Math.round(mx*1.06); AIRPORTS.FIH.influence=Math.round(mx*2.6); AIRPORTS.FIH.large=true; }
 const AIRPORT_CODES = Object.keys(AIRPORTS);

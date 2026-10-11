@@ -196,6 +196,7 @@ function seasonMult(t){ const m=new Date(t).getUTCMonth(); return [0.85,0.85,0.9
 function demandMult(a,b){
   let k = seasonMult(S.time);
   const A=AP(a), B=AP(b);
+  if(typeof wdF==='function'){ const wa=wdF(A.cc), wb=wdF(B.cc); if(Number.isFinite(wa)&&Number.isFinite(wb)) k*=Math.sqrt(Math.max(0.15,wa)*Math.max(0.15,wb)); }
   if(typeof moodDemand==='function'&&S.ai) k*=Math.sqrt(moodDemand(A.cc)*moodDemand(B.cc));   // climat des pays (tension, essor)
   const domestic = A.drc&&B.drc, intl = A.cc!==B.cc, africa = continentOf(a)==='AF'&&continentOf(b)==='AF';
   for(const e of S.events){
@@ -1271,6 +1272,7 @@ function migrateCore(){
   if(S.rival && !S.rivals){ Object.assign(S.rival,{local:true,color:'#e5484d'}); S.rivals=[S.rival]; for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false)); delete S.rival; }
   if(!S.rivals||!S.rivals.length) initRivals();
   if(!S.ai && typeof initWorldAI==='function' && typeof AIRLINE_DB!=='undefined') initWorldAI();
+  if(S.ai && typeof ensureBukavuAirline==='function') ensureBukavuAirline();
   // anciennes parties : les compagnies fictives sont remplacées par les vraies compagnies
   if(!S.rivalsReal && typeof initRealRivals==='function' && typeof AIRLINE_DB!=='undefined'){
     let refund=0; if(S.stock&&S.stock.holdings) for(const [code,pct] of Object.entries(S.stock.holdings)){ const R=S.rivals.find(x=>x.code===code); if(R&&typeof rivalValue==='function') refund+=pct*rivalValue(R); }

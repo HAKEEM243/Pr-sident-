@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261108';
+const GAME_VER='20261109';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🇨🇩 Air Kivu part de Bukavu','Air Kivu arrive comme petite compagnie congolaise avec 5 avions et 2,5 Md$ de fonds de départ, puis se développe selon sa rentabilité. Son hub à Bukavu dispose d’une piste revêtue de 4 200 m, classe 5. Les chiffres Passagers intègrent maintenant l’évolution démographique et économique, et indiquent leur variation depuis la mesure précédente ; ce sont toujours des estimations.'],
   ['🌍 Jeunes compagnies dans les pays défavorisés','Pendant quatre mois de jeu, une nouvelle jeune compagnie peut naître tous les 30 jours dans chacun des 79 pays déjà représentés à revenu faible ou moyen inférieur. Panama est inclus à ta demande ; aucun aéroport n’est ajouté aux pays absents du jeu.'],
   ['⚖️ Agrandissements sans réaction artificielle','Les travaux ne font plus apparaître de vols concurrents instantanément. Après un agrandissement important, les IA attendent 60 jours de jeu avant d’ouvrir de nouvelles lignes vers l’aéroport ou d’y installer une startup. Les compagnies et lignes déjà présentes restent intactes.'],
   ['🇨🇩 120 M d’habitants, 4 terminaux en 3D','Accueil : habitants du pays, voyages en avion par an, et classement des villes (habitants, voyageurs, vos passagers). Kinshasa, Lubumbashi et Goma deviennent de grandes portes (6 M, 3 M et 2,5 M de voyages par an au départ), les autres villes suivent leur population. Agrandissement en 7 étapes avec Terminal 3 et Terminal 4 ; pistes allongées, 2ᵉ piste et terminaux visibles tout de suite en 3D et sur la carte 2D.'],

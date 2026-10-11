@@ -31,9 +31,20 @@ function initWorldAI(){
   for(const R of S.rivals||[]) if(!codes.includes(R.code) && AIRLINE_DB[R.code]) codes.push(R.code);
   S.ai={ list:codes.filter(c=>c!==mine).map(makeAI), news:[], crashes:[], extra:{}, cut:{}, rank:{}, ver:1, lastWeek:-1, lastMonth:-1, myRank:0 };
   aiNews(`🌍 Le ciel est ouvert : ${S.ai.list.length} compagnies se disputent le marché mondial.`,'news');
+  ensureBukavuAirline();
 }
 const aiAlive=()=>S.ai.list.filter(e=>e.status!=='dead');
 const aiBy=code=>S.ai&&S.ai.list.find(e=>e.code===code);
+function ensureBukavuAirline(){
+  if(!S.ai||!S.ai.list||!AP('BKY')) return null;
+  let e=aiBy('KVA'); if(e) return e;
+  e={code:'KVA',name:'Air Kivu',color:airlineColor('KVA'),hub:'BKY',cc:'CD',real:false,startup:true,founded:S.time,
+    fleet:5,fleet0:5,cash:2.5e9,rep:62,safety:0.96,routes:0,crashes:0,incidents:0,status:'ok',debt:0,pax:0,hist:[],plan:{mode:'grow'}};
+  S.ai.list.push(e); S.ai.extra.KVA=[]; S.ai.ver++;
+  aiRoute(e,'open'); aiRoute(e,'open');
+  aiNews(`🆕 Air Kivu (KVA) démarre à Bukavu avec 5 avions et un capital de lancement de ${fmtMoney(e.cash)}. La compagnie va développer son réseau progressivement.`,'rival',true);
+  return e;
+}
 function aiNews(text, kind='news', important=false){
   const ai=S.ai; ai.news.unshift({t:S.time,text,kind});
   if(ai.news.length>300) ai.news.length=300;
