@@ -77,7 +77,7 @@ function newGame(opts){
   S = {
     time:start, startTime:start, speed:'standard', paused:false, lastReal:Date.now(),
     company:{ name:opts.name||'Sky Empire', code:(opts.code||'SE').toUpperCase().slice(0,3), color:opts.color||'#d4a72c', logo:opts.logo||'🐆', hub:opts.hub||'FIH' },
-    cash:opts.capital||80e6, reputation:50, service:3,
+    cash:opts.capital||80e6, reputation:50, service:3, paxPolicy:'standard',
     ancillary:{seat:true, bags:true, wifi:false, meals:false},
     oil:82, oilBase:82, fleet:[], customModels:[], pilots:[], candidates:[], cabinCrew:8, routes:[],
     v:2, simple:true, auto:{pil:true,pnc:true,meca:true,sol:true}, hubs:[opts.hub||'FIH'],
@@ -162,7 +162,7 @@ function addAircraft(modelId, {owned=true, used=false, hub=null}={}){
 /* ---------- registre comptable ---------- */
 const LED_CATS = {
   billets:['Billets passagers',1], annexes:['Revenus annexes',1], cargo:['Fret & contrats cargo',1], ventes:['Ventes d’avions',1],
-  carburant:['Carburant',-1], taxes:['Taxes aéroportuaires',-1], service:['Service à bord',-1], salaires:['Salaires',-1],
+  carburant:['Carburant',-1], taxes:['Taxes aéroportuaires',-1], service:['Service à bord',-1], handling:['Accueil & assistance passagers',-1], airportOps:['Gestion aéroportuaire',-1], salaires:['Salaires',-1],
   leasing:['Leasing',-1], maintenance:['Maintenance',-1], interets:['Intérêts bancaires',-1], marketing:['Marketing',-1],
   alliance:['Cotisations alliance',-1], formation:['Formation',-1], incidents:['Incidents',-1], co2:['Quotas CO₂',-1], investissements:['Investissements aéroports',-1], licences:['Hubs & licences de lignes',-1], recrutement:['Recrutement',-1], admin:['Primes & bac à sable',1], assurance:['Indemnités d’assurance',1], subventions:['Subventions d’État',1],
 };
@@ -234,7 +234,13 @@ function baseFare(a,b){
   return f;
 }
 function ancillaryPenalty(){ const a=S.ancillary; return 1-(a.seat?0.02:0)-(a.bags?0.03:0)-(a.wifi?0.005:0)-(a.meals?(S.service>=4?0.04:0.01):0); }
-function playerQuality(){ return (0.55+S.reputation/100)*SERVICE_ATTR[S.service-1]*ancillaryPenalty()*(S.loyalty?1.06:1); }
+const PAX_POLICIES={
+  economy:{label:'Économique', fee:0, quality:0.95, satisfaction:-5, review:-0.4, desc:'Aucun surcoût ; attractivité −5 %, satisfaction −5 pts et avis plus exigeants.'},
+  standard:{label:'Équilibrée', fee:0, quality:1, satisfaction:0, review:0, desc:'Aucun bonus ni malus ; aucun frais supplémentaire.'},
+  care:{label:'Assistance+', fee:2.5, quality:1.08, satisfaction:6, review:0.5, desc:'+2,50 $ par passager et par tronçon ; attractivité +8 %, satisfaction +6 pts et meilleurs avis.'},
+};
+const currentPaxPolicy=()=>PAX_POLICIES[S&&S.paxPolicy]||PAX_POLICIES.standard;
+function playerQuality(){ return (0.55+S.reputation/100)*SERVICE_ATTR[S.service-1]*ancillaryPenalty()*(S.loyalty?1.06:1)*currentPaxPolicy().quality; }
 function rivalFreq(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.freq+(typeof duelFq==='function'?duelFq(x.R.code,a,b):0),0); }
 function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.sqrt(x.freq)*(typeof isPartner==='function'&&isPartner(x.R)?0.3:1)*(typeof warFactor==='function'?warFactor(x.R.code,a,b):1)*(typeof duelFactor==='function'?duelFactor(x.R.code,a,b,x.freq):1),0); }
 function routeCycleHours(route, ac){
@@ -529,8 +535,9 @@ function completeLeg(ac){
       const a=S.ancillary;
       const anc = paxCount*((a.seat?6*0.3:0)+(a.bags?25*0.35:0)+(a.wifi&&hrs>1.5?9*0.18:0)+(a.meals&&S.service<4?11*0.3:0));
       const svc = paxCount*SERVICE_COST[S.service-1]*Math.max(0.5,hrs) + (leg.pax.f*60+leg.pax.j*30)*Math.max(0.5,hrs);
-      book('billets',tix); book('annexes',anc); book('service',-svc);
-      rev+=tix+anc; cost+=svc;
+      const handling=paxCount*currentPaxPolicy().fee;
+      book('billets',tix); book('annexes',anc); book('service',-svc); if(handling) book('handling',-handling);
+      rev+=tix+anc; cost+=svc+handling;
       S.stats.pax+=paxCount;
       route.stats.pax+=paxCount; route.stats.seats+=acSeats(ac).total; route.stats.shareSum+=leg.share||0; route.stats.shareN++;
     }
@@ -560,7 +567,7 @@ function completeLeg(ac){
   let delay=0;
   const storm=stormAt(B.lat,B.lon);
   if(storm){ delay+=rnd(10,40)*storm.power*(B.ils?0.4:1); const hold=m.burn*0.55*delay/60*fuelPrice(leg.to); book('carburant',-hold); cost+=hold; }
-  if(B.cls>=5) delay+=Math.random()<0.3? rnd(0,18):0;
+  if(B.cls>=5) delay+=Math.random()<0.3? rnd(0,18)*(B.groundOps?0.6:1):0;
   if(delay>0) ac.readyAt=Math.max(ac.readyAt||0, arr+delay*MIN);
   if(fl.kind==='route'){ if(delay>15){ S.stats.late=(S.stats.late||0)+1; } else S.stats.onTime=(S.stats.onTime||0)+1; }
   if(delay>15 && route) route.stats.late=(route.stats.late||0)+1;
@@ -573,7 +580,7 @@ function completeLeg(ac){
   fl.li++;
   if(fl.li>=fl.legs.length){
     const next=fl.next; ac.flight=null; ac.status=ac.status==='flight'?'idle':ac.status;
-    ac.readyAt=Math.max(ac.readyAt||0, arr+turnaround(m)*(1+staffShortage('sol')));
+    ac.readyAt=Math.max(ac.readyAt||0, arr+turnaround(m)*(B.groundOps?0.85:1)*(1+staffShortage('sol')));
     if(next && next.kind==='cargo'){ const c=S.cargo.active.find(x=>x.id===next.contractId); if(c) startFlight(ac,[c.from,c.to],'cargo',ac.readyAt,{contractId:c.id}); }
   }
 }
@@ -771,6 +778,8 @@ function dailyTick(){
 }
 function monthlyTick(){
   if(typeof businessMonthly==='function') businessMonthly();
+  const airportOpsCost=Object.entries(S.upgrades||{}).reduce((sum,[code,types])=>sum+(Array.isArray(types)&&types.includes('ground')?groundOpsMonthlyCost(AP(code)):0),0);
+  if(airportOpsCost) book('airportOps',-airportOpsCost);
   for(const l of S.loans){
     const interest=l.remaining*l.rate/12;
     const princ=Math.min(l.remaining, l.monthly-interest);
@@ -958,7 +967,7 @@ function satisfaction(){
   const cond = S.fleet.length? S.fleet.reduce((s,a)=>s+a.condition,0)/S.fleet.length : 85;
   let p=0,se=0; for(const r of S.routes){ p+=r.stats.pax; se+=r.stats.seats; } const lf=se?p/se:0.7;
   const age = S.fleet.length? S.fleet.reduce((s,a)=>s+acAgeYears(a),0)/S.fleet.length : 0;
-  let v = 52 + (S.service-3)*11 + (punct-0.85)*90 + (cond-80)*0.35 - Math.max(0,lf-0.92)*80 - age*0.6
+  let v = 52 + (S.service-3)*11 + (punct-0.85)*90 + (cond-80)*0.35 - Math.max(0,lf-0.92)*80 - age*0.6 + currentPaxPolicy().satisfaction
     - (S.ancillary.bags?3:0) - (S.ancillary.seat?2:0) + (S.ancillary.wifi?2:0);
   return clamp(v,0,100);
 }
@@ -967,6 +976,7 @@ function punctuality(){ const on=S.stats.onTime||0, late=S.stats.late||0; return
 /* ---------- investissements aéroportuaires ---------- */
 const AP_BASE = JSON.parse(JSON.stringify(AIRPORTS));
 const UPGRADES = {
+  ground:{name:'Équipe d’escale dédiée', icon:'🧑‍✈️', days:45, cost:a=>Math.round(18e6+Math.min(20,a.traffic)*4e6), can:a=>S.hubs.includes(a.code)&&!a.groundOps, desc:'Rotation des avions −15 % et retards de congestion −40 % dans ce hub ; entretien fixe de 150 000 $/mois + 12 000 $ par million de voyageurs/an.', apply:a=>{ a.groundOps=true; }},
   pave:{name:'Bitumer la piste', icon:'🛣️', days:60, cost:a=>8e6, can:a=>a.surface==='Latérite', desc:'Asphalte : plus de fermeture pendant les pluies, classe 2 minimum (ATR 72, Dash 8).', apply:a=>{ a.surface='Asphalte'; a.cls=Math.max(a.cls,2); a.runway=Math.max(a.runway,1800); }},
   extend:{name:'Allonger la piste', icon:'📏', days:90, cost:a=>12e6*a.cls, can:a=>a.surface==='Asphalte'&&a.cls<4, desc:'+1 classe : accueille des avions plus gros (A320/737 en classe 3, gros-porteurs en 4).', apply:a=>{ a.cls=Math.min(4,a.cls+1); a.runway+=700; }},
   fuel:{name:'Dépôt de carburant Jet A1', icon:'⛽', days:30, cost:a=>5e6, can:a=>!a.fuelDepot&&!['FIH','FBM','GOM','FKI'].includes(a.code), desc:'Supprime la surtaxe de 35 % sur le kérosène acheminé à l’intérieur.', apply:a=>{ a.fuelDepot=true; }},
@@ -975,6 +985,7 @@ const UPGRADES = {
   mbase:{name:'Base de maintenance (hub)', icon:'🛠️', days:90, cost:a=>25e6, can:a=>S.hubs.includes(a.code)&&!a.mbase, desc:'Checks A/C/D 35 % moins chers et 40 % plus rapides pour les avions entretenus ici.', apply:a=>{ a.mbase=true; }},
   ils:{name:'Balisage lumineux & ILS', icon:'💡', days:45, cost:a=>4e6, can:a=>!a.ils&&a.surface==='Asphalte', desc:'Divise par 2,5 les retards dus aux orages, limite les incidents.', apply:a=>{ a.ils=true; }},
 };
+function groundOpsMonthlyCost(a){ return Math.round(150000+Math.min(20,Math.max(0,a&&a.traffic||0))*12000); }
 function applyUpgrades(){
   for(const code of Object.keys(S.upgrades||{})){
     const a=AIRPORTS[code]; Object.assign(a, JSON.parse(JSON.stringify(AP_BASE[code])));
@@ -1197,6 +1208,7 @@ function catchUp(){
 function save(){ if(!S||(typeof window!=='undefined'&&window._svNoUnloadSave)) return; S.lastReal=Date.now(); const txt=JSON.stringify(S); if(typeof saveAll==='function') return saveAll(txt); try{ localStorage.setItem(SAVE_KEY, txt); }catch(e){} }
 function migrate(){
   if(typeof ensureBiz==='function') ensureBiz();
+  if(!PAX_POLICIES[S.paxPolicy]) S.paxPolicy='standard';
   if(S.simple===undefined) S.simple=true;
   if(S.rivalDrive===undefined) S.rivalDrive=3;
   if(!S.auto) S.auto={pil:!!S.simple,pnc:!!S.simple,meca:!!S.simple,sol:!!S.simple};
