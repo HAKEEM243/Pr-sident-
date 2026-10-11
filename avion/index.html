@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta name="se-ver" content="20261095">
+<meta name="se-ver" content="20261097">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Sky Empire</title>
@@ -486,6 +486,8 @@ body.piloting #mapctl,body.piloting #flightcard,body.piloting #panel{display:non
 #ticker .tk.old{opacity:.4}
 #une{position:absolute;left:50%;transform:translateX(-50%);top:10px;z-index:790;width:min(560px,calc(100% - 24px));display:flex;align-items:center;gap:8px;background:rgba(11,18,32,.96);border:1px solid #27406a;border-left:4px solid var(--gold);border-radius:10px;padding:7px 10px;font-size:12.5px;line-height:1.35;box-shadow:0 4px 16px rgba(0,0,0,.5);cursor:pointer;animation:tkin .35s ease-out}
 #une[hidden]{display:none}
+#speedlim{font-size:11px;color:var(--warn,#f59e0b);align-self:center;white-space:nowrap}
+#speedlim[hidden]{display:none}
 #catchup{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:5000;width:min(340px,calc(100% - 32px));background:rgba(11,18,32,.97);border:1px solid var(--gold);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 10px 40px rgba(0,0,0,.6);text-align:center}
 #catchup .cu-bar{height:8px;background:#1e293b;border-radius:6px;overflow:hidden}
 #catchup .cu-bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .2s}
@@ -616,6 +618,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
       <button data-speed="turbo" title="1 s = 1 heure : un jour en 24 s">Turbo</button>
       <button data-speed="ultra" title="1 s = 8 heures : un jour en 3 s">Ultra</button>
       <button id="tb-pause" title="Pause">⏸</button>
+      <span id="speedlim" hidden title="Votre téléphone calcule moins vite que la vitesse demandée : le jeu ralentit un peu au lieu de se figer">🐢 limité par l’appareil</span>
     </div>
   </header>
   <div id="main">
@@ -680,45 +683,45 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 })();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="airports-db.js?v=20261093"></script>
-<script src="runways-db.js?v=20261093"></script>
-<script src="data.js?v=20261093"></script>
-<script src="sim.js?v=20261095"></script>
-<script src="realism.js?v=20261093"></script>
-<script src="airport-expand.js?v=20261093"></script>
-<script src="atc.js?v=20261093"></script>
-<script src="saves.js?v=20261094"></script>
-<script src="airlines-db.js?v=20261093"></script>
-<script src="airlines.js?v=20261093"></script>
-<script src="world-ai.js?v=20261095"></script>
-<script src="ai-brain.js?v=20261095"></script>
-<script src="ai-challenge.js?v=20261095"></script>
-<script src="ai-duel.js?v=20261093"></script>
-<script src="gameplay2.js?v=20261093"></script>
-<script src="world-director.js?v=20261093"></script>
-<script src="passengers.js?v=20261095"></script>
-<script src="pulse.js?v=20261093"></script>
-<script src="business.js?v=20261093"></script>
-<script src="map.js?v=20261093"></script>
-<script src="ui.js?v=20261094"></script>
-<script src="pilot.js?v=20261093"></script>
-<script src="actions.js?v=20261094"></script>
-<script src="aircraft3d.js?v=20261093"></script>
-<script src="globe.js?v=20261093"></script>
-<script src="vision3d.js?v=20261093"></script>
-<script src="live-data.js?v=20261093"></script>
-<script src="terrain.js?v=20261093"></script>
-<script src="airport3d.js?v=20261093"></script>
-<script src="runway3d.js?v=20261093"></script>
-<script src="globe-fx.js?v=20261093"></script>
-<script src="city3d.js?v=20261093"></script>
-<script src="ui-biz.js?v=20261093"></script>
-<script src="progress.js?v=20261093"></script>
-<script src="studio.js?v=20261093"></script>
-<script src="calendar.js?v=20261093"></script>
-<script src="paxcases.js?v=20261093"></script>
-<script src="inbox.js?v=20261093"></script>
-<script src="pwa.js?v=20261095"></script>
-<script src="simple.js?v=20261093"></script>
+<script src="airports-db.js?v=20261096"></script>
+<script src="runways-db.js?v=20261096"></script>
+<script src="data.js?v=20261096"></script>
+<script src="sim.js?v=20261097"></script>
+<script src="realism.js?v=20261096"></script>
+<script src="airport-expand.js?v=20261096"></script>
+<script src="atc.js?v=20261096"></script>
+<script src="saves.js?v=20261096"></script>
+<script src="airlines-db.js?v=20261096"></script>
+<script src="airlines.js?v=20261096"></script>
+<script src="world-ai.js?v=20261097"></script>
+<script src="ai-brain.js?v=20261097"></script>
+<script src="ai-challenge.js?v=20261097"></script>
+<script src="ai-duel.js?v=20261096"></script>
+<script src="gameplay2.js?v=20261096"></script>
+<script src="world-director.js?v=20261096"></script>
+<script src="passengers.js?v=20261097"></script>
+<script src="pulse.js?v=20261096"></script>
+<script src="business.js?v=20261096"></script>
+<script src="map.js?v=20261096"></script>
+<script src="ui.js?v=20261096"></script>
+<script src="pilot.js?v=20261096"></script>
+<script src="actions.js?v=20261096"></script>
+<script src="aircraft3d.js?v=20261096"></script>
+<script src="globe.js?v=20261096"></script>
+<script src="vision3d.js?v=20261096"></script>
+<script src="live-data.js?v=20261096"></script>
+<script src="terrain.js?v=20261096"></script>
+<script src="airport3d.js?v=20261096"></script>
+<script src="runway3d.js?v=20261096"></script>
+<script src="globe-fx.js?v=20261096"></script>
+<script src="city3d.js?v=20261096"></script>
+<script src="ui-biz.js?v=20261096"></script>
+<script src="progress.js?v=20261096"></script>
+<script src="studio.js?v=20261096"></script>
+<script src="calendar.js?v=20261096"></script>
+<script src="paxcases.js?v=20261096"></script>
+<script src="inbox.js?v=20261096"></script>
+<script src="pwa.js?v=20261097"></script>
+<script src="simple.js?v=20261096"></script>
 </body>
 </html>

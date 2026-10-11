@@ -347,7 +347,13 @@ function boot(){
     if(UI.catching){ last=now; UI.lastWall=wall; return; }   // rattrapage d'absence en cours, par morceaux
     if(gap>15000&&!S.paused){ last=now; S.lastReal=wall-gap; let pl=null; try{ pl=catchUpPlan(); }catch(e){ console.warn(e); } if(pl) runCatchUp(pl); renderTop(); return; }
     const dt=Math.min(now-last, 3600000); last=now; S.lastReal=wall;
-    if(!S.paused){ advance(dt*SPEEDS[S.speed].mult); }
+    // avance du temps avec un budget de calcul : sur un téléphone qui ne suit pas (grosse flotte en Ultra),
+    // le jeu ralentit un peu au lieu de s'emballer et de figer l'écran
+    if(!S.paused){ let want=Math.min(dt,1000)*SPEEDS[S.speed].mult; const t0=performance.now(), slice=Math.max(MIN,Math.min(30*MIN,want)); let done=0;
+      while(want>0){ const d=Math.min(slice,want); advance(d); want-=d; done+=d; if(performance.now()-t0>70) break; }
+      UI.effMult=UI.effMult?UI.effMult*0.8+0.2*(done/Math.max(1,Math.min(dt,1000))):done/Math.max(1,Math.min(dt,1000));
+      const lim=SPEEDS[S.speed].mult>=600&&UI.effMult<SPEEDS[S.speed].mult*0.6;
+      if(lim!==UI.speedLimited){ UI.speedLimited=lim; const el=document.getElementById('speedlim'); if(el) el.hidden=!lim; } }
     if(typeof globeNoteSim==='function') globeNoteSim();
     pilotBackground(dt);
     // vue 3D ouverte : la carte 2D (cachée) n'est rafraîchie que toutes les 2 s, pour laisser le téléphone dessiner la 3D
