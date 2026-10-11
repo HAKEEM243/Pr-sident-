@@ -50,7 +50,7 @@ function xpTabHtml(){
     ${list.map(c=>{ const a=AP(c), lv=a.xp||0, pr=(S.projects||[]).find(p=>p.code===c&&p.type.startsWith('xp')), nx=XP_STEPS[lv];
       return `<div class="card row" data-act="openAp" data-c="${c}" style="cursor:pointer"><div class="grow"><b>${esc(a.city)}</b> <span class="mut">${c}${S.hubs.includes(c)?' · 🏢 hub':''}</span><br>
         <span class="small">${'▰'.repeat(lv)}${'▱'.repeat(5-lv)} étape ${lv}/5 · ${a.traffic>=1?a.traffic.toFixed(1)+' M':Math.round(a.traffic*1000)+' k'} voyageurs/an${a.rw2?' · 2 pistes':''}</span><br>
-        <span class="small ${pr?'warnt':'mut'}">${pr?`🏗️ Chantier en cours : ${XP_STEPS[+pr.type.slice(2)-1].name}, fin le ${fmtDate(pr.until)}`:nx?`Prochaine étape : ${nx.icon} ${nx.name} · ${fmtMoney(UPGRADES[nx.k].cost(a))}`:'✅ Aéroport complètement agrandi'}</span></div></div>`; }).join('')}`;
+        <span class="small ${pr?'warnt':'mut'}">${pr?`🏗️ Chantier en cours : ${XP_STEPS[+pr.type.slice(2)-1].name}, fin le ${fmtDate(pr.until)}`:nx?`Prochaine étape : ${nx.icon} ${nx.name} · ${fmtMoney(UPGRADES[nx.k].cost(a))} · immédiat`:'✅ Aéroport complètement agrandi'}</span></div></div>`; }).join('')}`;
 }
 
 function registerXpActions(){
