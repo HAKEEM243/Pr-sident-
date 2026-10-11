@@ -202,7 +202,7 @@ function pDash(){
     ['⏱️','Ponctualité',pct(punctuality()),''],
   ];
   const top=[...S.routes].sort((a,b)=>(b.stats.rev-b.stats.cost)-(a.stats.rev-a.stats.cost)).slice(0,5);
-  return `${typeof natRivalHtml==='function'?natRivalHtml():''}
+  return `${typeof natRivalHtml==='function'?natRivalHtml():''}${typeof countryAirHtml==='function'?countryAirHtml():''}
   <div class="hero">
     <div class="biglogo" style="background:${S.company.color}">${esc(S.company.logo)}</div>
     <div class="grow"><h2>${esc(S.company.name)} <span class="mut">${esc(S.company.code)}</span></h2>
