@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta name="se-ver" content="20261085">
+<meta name="se-ver" content="20261086">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Sky Empire</title>
@@ -656,6 +656,26 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 </div>
 <div id="modal" hidden></div>
 <div id="toasts"></div>
+<script>
+/* filet de sécurité : si une erreur bloque le jeu, elle s'affiche à l'écran (capture possible) avec des boutons de réparation */
+(function(){ var shown=0, list=[];
+  function box(msg){ list.push(msg); if(list.length>4) list.shift(); var d=document.getElementById('crashbox');
+    if(!d){ d=document.createElement('div'); d.id='crashbox'; d.style.cssText='position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:99999;background:#7f1d1d;color:#fff;border:2px solid #fca5a5;border-radius:12px;padding:10px 12px;font:12px/1.4 system-ui;box-shadow:0 6px 24px rgba(0,0,0,.6);max-height:45vh;overflow:auto';
+      (document.body||document.documentElement).appendChild(d); }
+    var v=(document.querySelector('meta[name="se-ver"]')||{}).content||'?';
+    d.innerHTML='<b>⚠️ Erreur dans le jeu (version '+v+')</b><br>Faites une capture de cet écran et envoyez-la.<pre style="white-space:pre-wrap;font:11px ui-monospace,Menlo,monospace;margin:6px 0;background:rgba(0,0,0,.25);padding:6px;border-radius:6px">'+list.map(function(x){return String(x).replace(/[<&]/g,function(c){return c==='<'?'&lt;':'&amp;';});}).join('\n\n')+'</pre>'+
+      '<button id="cbFix" style="margin:2px;padding:6px 10px;border-radius:8px;border:0;font-weight:700">🔄 Réparer (vider le cache, partie gardée)</button><button id="cbSafe" style="margin:2px;padding:6px 10px;border-radius:8px;border:0">🪶 Relancer en mode sans échec</button><button id="cbX" style="margin:2px;padding:6px 10px;border-radius:8px;border:0">✕</button>';
+    document.getElementById('cbX').onclick=function(){ d.remove(); list=[]; };
+    document.getElementById('cbSafe').onclick=function(){ try{ localStorage.setItem('se-safe','1'); localStorage.setItem('se-q','l'); }catch(e){} location.reload(); };
+    document.getElementById('cbFix').onclick=async function(){ try{ if(navigator.serviceWorker){ var rg=await navigator.serviceWorker.getRegistrations(); for(var i=0;i<rg.length;i++) await rg[i].unregister(); } if(window.caches){ var ks=await caches.keys(); for(var j=0;j<ks.length;j++) await caches.delete(ks[j]); } }catch(e){} location.replace(location.pathname+'?r='+Date.now()); };
+  }
+  window.addEventListener('error',function(e){ if(e&&e.target&&e.target!==window){ var t=e.target; if(t.tagName==='SCRIPT'&&t.src&&!/cesium|maplibre|jsdelivr|unpkg|cdnjs/i.test(t.src)) box('Fichier non chargé : '+t.src); return; }
+    if(!e.message&&!e.error) return;
+    if(shown++>12) return; box((e.message||'Erreur')+'\n'+(e.filename||'').split('/').pop()+':'+(e.lineno||'')+':'+(e.colno||'')+(e.error&&e.error.stack?'\n'+String(e.error.stack).split('\n').slice(0,3).join('\n'):'')); },true);
+  window.addEventListener('unhandledrejection',function(e){ var r=e.reason; if(r&&(r.name==='AbortError'||/fetch|NetworkError|Load failed|cesium|maplibre/i.test(String(r&&r.message||r)))) return; if(shown++>12) return; box('Promesse : '+(r&&r.stack?String(r.stack).split('\n').slice(0,3).join('\n'):String(r))); });
+  window.SE_SAFE=(function(){ try{ return localStorage.getItem('se-safe')==='1'; }catch(e){ return false; } })();
+})();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="airports-db.js?v=20261078"></script>
 <script src="runways-db.js?v=20261078"></script>
@@ -671,7 +691,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="ai-challenge.js?v=20261078"></script>
 <script src="ai-duel.js?v=20261078"></script>
 <script src="gameplay2.js?v=20261082"></script>
-<script src="world-director.js?v=20261085"></script>
+<script src="world-director.js?v=20261086"></script>
 <script src="passengers.js?v=20261082"></script>
 <script src="pulse.js?v=20261082"></script>
 <script src="business.js?v=20261078"></script>
@@ -681,8 +701,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="actions.js?v=20261079"></script>
 <script src="aircraft3d.js?v=20261078"></script>
 <script src="globe.js?v=20261085"></script>
-<script src="vision3d.js?v=20261085"></script>
-<script src="live-data.js?v=20261085"></script>
+<script src="vision3d.js?v=20261086"></script>
+<script src="live-data.js?v=20261086"></script>
 <script src="terrain.js?v=20261078"></script>
 <script src="airport3d.js?v=20261080"></script>
 <script src="runway3d.js?v=20261078"></script>
@@ -694,7 +714,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="calendar.js?v=20261078"></script>
 <script src="paxcases.js?v=20261083"></script>
 <script src="inbox.js?v=20261078"></script>
-<script src="pwa.js?v=20261085"></script>
-<script src="simple.js?v=20261082"></script>
+<script src="pwa.js?v=20261086"></script>
+<script src="simple.js?v=20261086"></script>
 </body>
 </html>
