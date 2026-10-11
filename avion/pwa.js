@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261081';
+const GAME_VER='20261082';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🎬 Directeur du monde','Une IA fait vivre la planète : population et richesse des pays, essor et récessions, guerres qui ferment l’espace aérien (réfugiés vers les voisins), séismes, cyclones, éruptions, épidémies… et des missions d’évacuation payées (📬). Elle dose le rythme selon votre partie. Actus → <b>🌍 Monde</b>.'],
   ['🪶 3D qui ne se coupe plus','Si le téléphone manque de mémoire graphique, la 3D se relance toute seule en mode <b>Minimal</b> au lieu de se fermer. Plus → Options → 🌍 Vue 3D : mode Minimal et 🩺 Diagnostic 3D.'],
   ['🛬 Décollages et atterrissages réparés','Sol de nouveau précis autour des pistes ; si le téléphone a un souci d’affichage, l’aéroport passe en version allégée au lieu de disparaître ; « Voir décoller / atterrir » attend moins longtemps.'],
   ['📱 3D allégée sur téléphone','Mémoire réduite d’environ un tiers : 30 images/s en Éco, moins d’avions et de décor au loin, carte 2D en pause pendant la 3D, sauvegarde moins fréquente, villes Google 3D allégées (et coupées si la 3D a planté).'],

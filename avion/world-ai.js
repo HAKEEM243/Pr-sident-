@@ -224,9 +224,10 @@ const feedRows=(list,n)=>list.slice(0,n).map(l=>`<div class="lg ${l.kind}"><span
 function pNews(){
   const ai=S.ai; if(!ai) return '<div class="mut">Les actualités arrivent bientôt.</div>';
   const t=UI.newsTab||'actu';
-  const chips=[['actu','📰 Actualités'],['pays','🏛️ Présidents'],['crash','💥 Accidents'],['rank','🏆 Classement'],['secu','🛡️ Sécurité'],['new','🆕 Nouvelles / faillites'],['avis','⭐ Avis passagers'],['apt','🏢 Aéroports']].map(([k,l])=>`<button class="chip ${t===k?'on':''}" data-act="newsTab" data-k="${k}">${l}</button>`).join('');
+  const chips=[['actu','📰 Actualités'],['monde','🌍 Monde'],['pays','🏛️ Présidents'],['crash','💥 Accidents'],['rank','🏆 Classement'],['secu','🛡️ Sécurité'],['new','🆕 Nouvelles / faillites'],['avis','⭐ Avis passagers'],['apt','🏢 Aéroports']].map(([k,l])=>`<button class="chip ${t===k?'on':''}" data-act="newsTab" data-k="${k}">${l}</button>`).join('');
   let body='';
-  if(t==='crash'){
+  if(t==='monde'&&typeof wdTabHtml==='function'){ body=wdTabHtml(); }
+  else if(t==='crash'){
     const cr=ai.news.filter(n=>/accident|crash|victimes|sortie de piste|atterrissage d.urgence|évacu|💥|🔥/i.test(n.text));
     body=`<div class="simplehelp">Tous les accidents et incidents du monde (les vôtres et ceux des autres). Les épaves apparaissent sur la carte 2D et en 3D (icône 💥). Données fictives.</div><div class="log big">${feedRows(cr,60)}</div>`;
   } else if(t==='actu'){

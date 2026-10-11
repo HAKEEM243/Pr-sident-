@@ -127,7 +127,7 @@ function aiReact(){
 /* ---------- bandeau d'actualités (interface) ---------- */
 let _tkAt=0;
 // les grandes nouvelles (présidents, accidents, attaques des rivaux) passent toujours et restent « À la une »
-const UNE_RX=/président|gouvernement|ministre|état |ciel ouvert|taxe|accident|crash|victimes|détruit|sortie de piste|tragédie|💥|🔥|🏛️|attaque|guerre des prix|rachète|commande record|alliance|faillite/i;
+const UNE_RX=/guerre|séisme|cyclone|inondation|éruption|épidémie|sécheresse|réfugiés|récession|cessez-le-feu|bruits de bottes|évacu|président|gouvernement|ministre|état |ciel ouvert|taxe|accident|crash|victimes|détruit|sortie de piste|tragédie|💥|🔥|🏛️|attaque|guerre des prix|rachète|commande record|alliance|faillite/i;
 function tickerPush(text,kind,important){
   if(typeof UI==='undefined'||typeof document==='undefined') return;
   const big=important||kind==='bad'||kind==='rival'||UNE_RX.test(text);

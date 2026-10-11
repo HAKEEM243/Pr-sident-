@@ -156,6 +156,7 @@ if(typeof registerPaxActions==='function') registerPaxActions();
 if(typeof registerAirlineActions==='function') registerAirlineActions();
 if(typeof registerChallengeActions==='function') registerChallengeActions();
 if(typeof registerGameplayActions==='function') registerGameplayActions();
+if(typeof registerWorldActions==='function') registerWorldActions();
 if(typeof registerCityActions==='function') registerCityActions();
 if(typeof registerInboxActions==='function') registerInboxActions();
 if(typeof registerPwaActions==='function') registerPwaActions();

@@ -136,7 +136,7 @@ function govTabHtml(){
 }
 function registerGameplayActions(){ Object.assign(ACTIONS,{
   uneClose:()=>{ const el=$('#une'); if(el) el.hidden=true; if(UI.une) UI.une.list=[]; },
-  uneOpen:()=>{ const n=UI.une&&UI.une.list[0]; UI.newsTab=n&&/président|gouvernement|ministre|état |ciel ouvert|taxe|🏛️/i.test(n.text)?'pays':n&&/accident|crash|victimes|💥|🔥/i.test(n.text)?'crash':'actu'; setTab('news'); if(typeof renderPanel==='function') renderPanel(); },
+  uneOpen:()=>{ const n=UI.une&&UI.une.list[0]; UI.newsTab=n&&/guerre|séisme|cyclone|inondation|éruption|épidémie|sécheresse|réfugiés|récession|essor|cessez-le-feu|bruits de bottes|évacu/i.test(n.text)?'monde':n&&/président|gouvernement|ministre|état |ciel ouvert|taxe|🏛️/i.test(n.text)?'pays':n&&/accident|crash|victimes|💥|🔥/i.test(n.text)?'crash':'actu'; setTab('news'); if(typeof renderPanel==='function') renderPanel(); },
   // voir un décollage / atterrissage depuis la carte 2D ou la liste des vols : ouvre la 3D puis saute au moment
   watchGo:async d=>{ if(typeof fxAudioUnlock==='function') fxAudioUnlock(); if($('#globe').hidden){ const ok=await open3D(); if(!ok) return; } UI.fl=false; if(typeof renderFlightList==='function') renderFlightList(); setTimeout(()=>ACTIONS.watchEvent({k:d.k}),250); },
   accLevel:d=>{ S.accMult=+d.k; toast('⚠️ Accidents : '+(ACC_LEVELS.find(x=>x[1]===S.accMult)||['—'])[0],'info'); if(typeof renderPanel==='function') renderPanel(); } }); }
