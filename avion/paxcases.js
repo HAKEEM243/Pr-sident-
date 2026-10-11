@@ -28,10 +28,10 @@ const rep=d=>{ S.reputation=clamp(S.reputation+d,0,100); };
 const PAX_CASES=[
   {w:1.2, f:()=>{ const x=paxPick(r=>r.cls==='y'); if(!x) return false; const n=rndi(3,9), c=Math.round(idealPrice(x.m.leg.from,x.m.leg.to,'y')*1.5/10)*10;
     return paxMail('paxOverbook',x,`Surréservation sur le ${fnOf(x.ac)}`,`Le vol ${fnOf(x.ac)} ${esc(x.m.from.city)} → ${esc(x.m.to.city)} a été vendu en surréservation : <b>${n} passagers</b> n’ont pas de siège, dont ${esc(x.r.first)}, furieux${x.r.F?'se':''} au comptoir.<br>Que proposez-vous ?`,
-      [{k:'cash',l:`💵 ${fmtMoney(c)} chacun + vol suivant`},{k:'voucher',l:'🎟️ Bon d’achat + hôtel'},{k:'no',l:'🙅 Rien (conditions de vente)'}],{n,c}); }},
+      [{k:'cash',l:`💵 ${fmtMoney(c)} chacun + place sur notre vol suivant`},{k:'voucher',l:'🎟️ Bon d’achat + hôtel + vol suivant'},{k:'no',l:'🙅 Rien (conditions de vente)'}],{n,c,obFrom:x.m.leg.from,obTo:x.m.leg.to}); }},
   {w:1.3, f:()=>{ const x=paxPick(r=>r.bags>0); if(!x) return false;
     return paxMail('paxBag',x,`Bagage perdu — ${x.r.first} ${x.r.last}`,`« Je suis arrivé${x.r.F?'e':''} à ${esc(x.m.to.city)} avec le ${fnOf(x.ac)}, mais ma valise de ${x.r.bag} kg n’est jamais sortie du tapis. ${x.r.purp==='business'?'J’ai une réunion demain matin, mes costumes sont dedans !':x.r.purp==='family'?'Il y avait tous les cadeaux pour ma famille…':'Tous mes vêtements sont dedans.'} »`,
-      [{k:'courier',l:'🚚 Livraison express + 250 $'},{k:'std',l:'📄 Procédure standard (5 à 10 jours)'}]); }},
+      [{k:'courier',l:'🧳 Mettre la valise sur notre prochain vol + livraison à domicile'},{k:'std',l:'📄 Procédure standard (5 à 10 jours)'}],{bagFrom:x.m.leg.from,bagTo:x.m.leg.to,kg:x.r.bag}); }},
   {w:0.7, f:()=>{ const x=paxPick(r=>r.age>45); if(!x) return false; const st=flightState(x.ac); if(!st||st.phase<3||st.phase>5) return false;
     const cost=Math.round(rnd(45e3,140e3)/1e3)*1e3;
     return paxMail('paxMed',x,`🚨 Urgence médicale à bord du ${fnOf(x.ac)}`,`${esc(x.r.first)} ${esc(x.r.last)}, ${x.r.age} ans (siège ${x.r.seat}), fait un malaise grave au-dessus de ${st.frac<0.5?esc(x.m.from.city):esc(x.m.to.city)}. ${Math.random()<0.5?'Un médecin s’est présenté parmi les passagers.':'Aucun médecin à bord, l’équipage applique les premiers secours.'}<br>Le commandant demande votre décision.`,
@@ -51,7 +51,7 @@ const PAX_CASES=[
       [{k:'share',l:'📣 Partager sur nos réseaux'},{k:'crew',l:'🏅 Prime pour l’équipage (5 000 $)'}]); }},
 ];
 function paxCaseTick(){
-  if(!S.fleet||!S.fleet.length) return; S.inbox=S.inbox||[];
+  if(!S.fleet||!S.fleet.length) return; S.inbox=S.inbox||[]; try{ bagQueueTick(); }catch(e){ console.warn(e); }
   // cas ignorés : le passager s'en souvient
   for(const m of S.inbox||[]) if(m.st==='new'&&m.kind&&m.kind.startsWith('pax')&&m.exp<S.time){ m.st='exp';
     if(['paxComplaint','paxBag','paxOverbook'].includes(m.kind)){ rep(-0.6); review({first:(m.pname||'X').split(' ')[0],last:(m.pname||'X X').split(' ')[1]||'X',nat:'',route:''},1,'Ma réclamation est restée sans réponse. Inadmissible.'); }
@@ -71,12 +71,14 @@ function paxAnswer(m,k){
   let res='';
   switch(m.kind){
     case 'paxOverbook':
+      if((k==='cash'||k==='voucher')&&m.obFrom) (S.rebook=S.rebook||[]).push({from:m.obFrom,to:m.obTo,n:m.n,since:S.time});
       if(k==='cash'){ book('incidents',-m.n*m.c); rep(0.4); review(rv,4,'Surréservé, mais bien indemnisé et replacé sur le vol suivant. Correct.'); res=`💵 ${m.n} passagers indemnisés (${fmtMoney(m.n*m.c)}). Ils repartent satisfaits.`; }
       else if(k==='voucher'){ book('incidents',-m.n*180); review(rv,3,'Bon d’achat et nuit d’hôtel… on fait avec.'); res=`🎟️ Bons d’achat et hôtel pour ${m.n} passagers (${fmtMoney(m.n*180)}).`; }
       else { rep(-1.5); review(rv,1,'Débarqué sans rien, « conditions de vente » ! Plus jamais.'); if(Math.random()<0.4) aiNews(`😡 Colère à l’aéroport : ${S.company.name} laisse ${m.n} passagers surréservés sans compensation.`,'warn',true); res=`🙅 Aucune compensation. Les passagers sont furieux (image -1,5).`; }
       break;
     case 'paxBag':
-      if(k==='courier'){ book('incidents',-(250+rndi(80,220))); rep(0.3); review(rv,4,'Valise perdue mais livrée à mon hôtel le lendemain, avec un dédommagement. Bravo pour la réactivité.'); res=`🚚 Valise retrouvée et livrée sous 24 h à ${p.first}.`; }
+      if(k==='courier'&&m.bagFrom){ book('incidents',-rndi(60,140)); (S.bagQ=S.bagQ||[]).push({from:m.bagFrom,to:m.bagTo,who:`${p.first} ${p.last}`,first:p.first,kg:m.kg||20,since:S.time,rv}); res=`🧳 La valise de ${p.first} (${m.kg||20} kg) est retrouvée à ${keyCity(m.bagFrom)} : elle partira sur votre <b>prochain vol ${m.bagFrom} → ${m.bagTo}</b>, puis sera livrée chez ${p.F?'elle':'lui'}. Vous serez prévenu à l’arrivée.`; }
+      else if(k==='courier'){ book('incidents',-(250+rndi(80,220))); rep(0.3); review(rv,4,'Valise perdue mais livrée à mon hôtel le lendemain. Bravo pour la réactivité.'); res=`🚚 Valise retrouvée et livrée sous 24 h à ${p.first}.`; }
       else { rep(-0.3); review(rv,2,'Valise rendue au bout d’une semaine. Service lent.'); res='📄 Dossier ouvert : la valise sera rendue dans quelques jours.'; }
       break;
     case 'paxMed':
@@ -104,3 +106,19 @@ function paxAnswer(m,k){
   }
   return res;
 }
+
+/* ---------- conséquences réelles sur vos vols ----------
+   • la valise perdue voyage vraiment sur votre prochain vol vers la bonne ville ;
+   • les passagers surréservés prennent vraiment des sièges sur votre vol suivant. */
+{ const _sf=startFlight; startFlight=function(ac,stops,kind,t,extra){ const e=_sf(ac,stops,kind,t,extra); if(e||kind!=='route'||!S.rebook||!S.rebook.length) return e;
+  for(const l of ac.flight.legs){ const i=S.rebook.findIndex(r=>r.from===l.from&&r.to===l.to); if(i<0||!l.pax) continue; const r=S.rebook[i], cap=acSeats(ac).y;
+    const take=Math.min(r.n,cap); l.pax.y=Math.min(l.pax.y,Math.max(0,cap-take)); l.rebook=take; r.n-=take; if(r.n<=0) S.rebook.splice(i,1);
+    logMsg(`🔁 ${take} passager${take>1?'s':''} surréservé${take>1?'s':''} embarque${take>1?'nt':''} sur le ${fnOf(ac)} ${keyCity(l.from)} → ${keyCity(l.to)} (sièges non vendus).`,'info'); }
+  return e; }; }
+{ const _cl3=completeLeg; completeLeg=function(ac){ const fl=ac.flight, leg=fl&&fl.legs[fl.li]; _cl3(ac); if(!leg||!S.bagQ||!S.bagQ.length) return;
+  for(const b of S.bagQ.slice()){ if(b.from!==leg.from||b.to!==leg.to||leg.dep<b.since) continue; S.bagQ=S.bagQ.filter(x=>x!==b);
+    rep(0.3); review(b.rv,4,`Ma valise a été retrouvée et mise sur le vol suivant, livrée chez moi le jour même. Merci !`);
+    logMsg(`🧳 La valise de ${b.who} (${b.kg} kg) est arrivée à ${keyCity(b.to)} à bord du ${fnOf(ac)} et a été livrée.`,'ok'); } }; }
+function bagQueueTick(){ for(const b of (S.bagQ||[]).slice()) if(S.time-b.since>4*DAY){ S.bagQ=S.bagQ.filter(x=>x!==b); book('incidents',-450); review(b.rv,3,'Valise rendue après 4 jours, par transporteur express. Correct, sans plus.');
+  logMsg(`🧳 Aucun de vos vols ${b.from} → ${b.to} en 4 jours : la valise de ${b.who} part par transporteur express (450 $).`,'warn'); }
+  for(const r of (S.rebook||[]).slice()) if(S.time-r.since>3*DAY){ S.rebook=S.rebook.filter(x=>x!==r); book('incidents',-r.n*220); logMsg(`🔁 Aucun vol ${r.from} → ${r.to} en 3 jours : ${r.n} passagers surréservés repartent sur une autre compagnie à vos frais.`,'warn'); } }
