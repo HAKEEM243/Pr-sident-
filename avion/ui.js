@@ -202,7 +202,7 @@ function pDash(){
     ['⏱️','Ponctualité',pct(punctuality()),''],
   ];
   const top=[...S.routes].sort((a,b)=>(b.stats.rev-b.stats.cost)-(a.stats.rev-a.stats.cost)).slice(0,5);
-  return `
+  return `${typeof natRivalHtml==='function'?natRivalHtml():''}
   <div class="hero">
     <div class="biglogo" style="background:${S.company.color}">${esc(S.company.logo)}</div>
     <div class="grow"><h2>${esc(S.company.name)} <span class="mut">${esc(S.company.code)}</span></h2>
@@ -749,9 +749,10 @@ function airportHtml(code){
     ${isHub?'<div class="al ok">🏢 C’est l’un de vos hubs.</div>':a.cls>=2?`<div class="btns"><button class="btn gold" data-act="buyHub" data-c="${code}">🏢 Acheter ce hub · ${fmtMoney(hubCost(code))}</button></div>`:''}
     ${a.groundOps?`<div class="al ok">🧑‍✈️ Équipe d’escale : rotation −15 %, retards de congestion −40 % · entretien ${fmtMoney(groundOpsMonthlyCost(a))}/mois.</div>`:''}
     <div class="btns">${S.hubs.filter(h=>h!==code).map(h=>`<button class="btn sm" data-act="draftPair" data-a="${h}" data-b="${code}">➕ Ligne ${h} → ${code} · ${num(dist(h,code))} km</button>`).join('')}</div>
+    ${typeof apPopHtml==='function'?apPopHtml(code):''}
     ${typeof apMarketHtml==='function'?apMarketHtml(code):''}
     ${here.length?`<div class="small">Vos avions au sol ici (${here.length}) : ${here.slice(0,UI.apPil===code?here.length:4).map(x=>`<button class="btn sm" data-act="pilot" data-id="${x.id}">🕹️ Piloter ${x.reg}</button>`).join(' ')}${here.length>4&&UI.apPil!==code?` <button class="btn sm" data-act="apPil" data-c="${code}">+${here.length-4}</button>`:''}</div>`:''}
     ${boardHtml(code)}
     ${true?`<h3>Investir dans l’aéroport${a.drc?' (partenariat RVA)':''}</h3>${projects.map(p=>`<div class="al">${UPGRADES[p.type].icon} ${UPGRADES[p.type].name} — fin le ${fmtDate(p.until)}</div>`).join('')}
-      ${Object.entries(UPGRADES).filter(([k,u])=>u.can(a)&&!projects.some(p=>p.type===k)).map(([k,u])=>`<div class="card row"><div class="grow">${u.icon} <b>${u.name}</b> — ${fmtMoney(u.cost(a))} · ${u.days} j<br><span class="small mut">${u.desc}</span></div><button class="btn sm gold" data-act="project" data-c="${code}" data-k="${k}">Lancer</button></div>`).join('')||'<div class="mut small">Aucun chantier disponible ici.</div>'}`:''}`;
+      ${Object.entries(UPGRADES).filter(([k,u])=>u.can(a)&&!projects.some(p=>p.type===k)).map(([k,u])=>`<div class="card row"><div class="grow">${u.icon} <b>${u.name}</b> — ${fmtMoney(u.cost(a))} · immédiat<br><span class="small mut">${u.desc}</span></div><button class="btn sm gold" data-act="project" data-c="${code}" data-k="${k}">Lancer</button></div>`).join('')||'<div class="mut small">Aucun chantier disponible ici.</div>'}`:''}`;
 }
