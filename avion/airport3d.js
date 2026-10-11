@@ -126,9 +126,10 @@ function airportProps(code,N){
   const EL=typeof gElev==='function'?gElev(code):0;
   const mk=(p,hdg,url,minPx)=>{ const pos=C.Cartesian3.fromDegrees(p.lon,p.lat,0.2+EL); N.ents.push(apLit(V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(hdg-90),0,0)), model:{uri:url, minimumPixelSize:minPx||0, shadows:C.ShadowMode.ENABLED, distanceDisplayCondition:new C.DistanceDisplayCondition(0,30000)}}),'lit')); };
   const s=ap.side, gx=ap.x, a0=ap.a, A=AP(code), big=A.cls>=3, hdgOut=(r.hdg+90*s+360)%360;
-  const span=big?1900:700, n=big?22:8;
+  const xp=A.xp||0, span=Math.round((big?1900:700)*(1+0.1*xp)), n=Math.min(44,(big?22:8)+(A.gatesX||0));   // aéroport agrandi par le joueur
   // terminal derrière la ligne de portes
   mk(rwPt(r,a0,gx+s*72),hdgOut+180,apModel('term'+span,M_TERMINAL(span)));
+  if(xp>=4){ const s2=Math.round(span*0.55); mk(rwPt(r,a0+span/2+s2/2+260,gx+s*110),hdgOut+180,apModel('term'+s2,M_TERMINAL(s2))); }   // terminal 2
   // passerelles aux portes (positions de stationnement réelles du jeu)
   AP3D.bridges=AP3D.bridges||{}; AP3D.bridges[code]={};
   for(let k=0;k<n;k++){ const sp=slotPt(code,k); const q=destPt(sp.lat,sp.lon,hdgOut,0.062); mk(q,hdgOut+180,apModel('bridge',M_BRIDGE)); AP3D.bridges[code][k]=N.ents[N.ents.length-1]; }
@@ -198,7 +199,7 @@ function signModel(city,code){
 }
 /* ---------- aire de stationnement : béton + marquages ---------- */
 function apronGround(code,N,EL){
-  const C=Cesium, V=G.viewer, ap=apronOf(code), r=ap.rw, s=ap.side, gx=ap.x, a0=ap.a, big=AP(code).cls>=3, span=big?1900:700, n=big?22:8, hdgOut=(r.hdg+90*s+360)%360;
+  const C=Cesium, V=G.viewer, ap=apronOf(code), r=ap.rw, s=ap.side, gx=ap.x, a0=ap.a, big=AP(code).cls>=3, span=Math.round((big?1900:700)*(1+0.1*(AP(code).xp||0))), n=Math.min(44,(big?22:8)+(AP(code).gatesX||0)), hdgOut=(r.hdg+90*s+360)%360;
   const c1=rwPt(r,a0-span/2-60,gx-s*70), c2=rwPt(r,a0+span/2+60,gx-s*70), c3=rwPt(r,a0+span/2+60,gx+s*70), c4=rwPt(r,a0-span/2-60,gx+s*70);
   const geo=[new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray([c1,c2,c3,c4].flatMap(q=>[q.lon,q.lat]))),height:EL+0.18,vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(AP3D.night?new C.Color(0.4,0.35,0.28,1):new C.Color(0.72,0.72,0.70,1))}})];
   const lines=[], Y=C.Color.fromCssColorString(AP3D.night?'#b8901a':'#facc15');

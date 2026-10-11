@@ -678,6 +678,7 @@ function pWorld(){
   <h3>Aéroports par région</h3>
   ${Object.entries(regions).sort((x,y)=>AP(y[1][0]).traffic-AP(x[1][0]).traffic).slice(0,40).map(([k,list])=>`<details class="prov"><summary><b>${esc(k)}</b> <span class="mut">${list.length} aéroport(s) · ${list.slice(0,3).map(c=>AP(c).city).join(', ')}</span></summary>
     ${list.map(c=>{const a=AP(c); return `<div class="aprow"><span><b>${c}</b> ${a.icao||''} — ${esc(a.city)}${S.hubs.includes(c)?' 🏢':''}${served.has(c)?' ✈':''}</span><span class="small">${num(a.runway)} m · ${a.surface} · cl.${a.cls} · ${a.traffic>=1?a.traffic+' M':Math.round(a.traffic*1000)+' k'} pax${a.fuelDepot?' ⛽':''}${a.terminal?' 🏢':''}${a.ils?' 💡':''}${airportClosed(c)?' · <b class="neg">fermé</b>':''}</span><span><button class="btn sm" data-act="openAp" data-c="${c}">Voir</button></span></div>`;}).join('')}</details>`).join('')}
+  ${typeof xpTabHtml==='function'?xpTabHtml():''}
   <h3>Vos chantiers aéroportuaires</h3>
   ${(S.projects||[]).map(p=>`<div class="card row"><div class="grow">${UPGRADES[p.type].icon} <b>${UPGRADES[p.type].name}</b> — ${AP(p.code).city}<br>${bar((S.time-p.start)/(p.until-p.start))}<span class="small mut">Fin le ${fmtDate(p.until)}</span></div></div>`).join('')||'<div class="mut small">Aucun chantier. Ouvrez un aéroport pour construire un terminal, un dépôt de carburant, un ILS ou allonger la piste.</div>'}
   <h3>Le monde</h3>
