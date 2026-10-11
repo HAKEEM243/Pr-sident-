@@ -388,6 +388,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   initSheet();
   if(typeof L==='undefined'){ document.body.insertAdjacentHTML('beforeend','<div class="fatal">Impossible de charger la carte (Leaflet). Vérifiez votre connexion Internet puis rechargez.</div>'); }
   (typeof loadAsync==='function'? loadAsync() : Promise.resolve(load())).catch(e=>{ console.warn(e); setTimeout(()=>{ throw e; },0); return load(); }).then(ok=>{
+    // la partie s'ouvre toujours en vitesse Réaliste si elle était restée en Turbo ou Ultra (trop de notifications, boutons inaccessibles)
+    if(ok&&S&&['turbo','ultra'].includes(S.speed)){ S.speed='realiste'; S.paused=false; setTimeout(()=>toast('⏱️ Jeu remis en vitesse <b>Réaliste</b> (il était resté en Ultra/Turbo).','info'),3000); }
     if(ok){ let pl=null; try{ pl=catchUpPlan(); }catch(e){ console.warn(e); } boot(); if(pl) runCatchUp(pl); }
     if(ok&&typeof GQ!=='undefined'&&GQ.crashed) setTimeout(()=>{ try{ let L=[]; try{ L=JSON.parse(localStorage.getItem('se-3d-log')||'[]'); }catch(e){}
       showModal('⚠️ La 3D avait fermé la page',`<p>La dernière fois, le jeu s’est fermé pendant la vue 3D. La 3D repart en mode <b>Minimal</b>.</p><p class="small">Si ça recommence, envoyez une capture de cet écran.</p><h3>Derniers événements</h3>${L.slice(0,6).map(x=>`<div class="small">${new Date(x.t).toLocaleString('fr-FR')} — <b>${esc(x.ev)}</b> ${esc(x.msg)}</div>`).join('')||'<div class="small mut">Aucun</div>'}<div class="small mut" style="margin-top:6px">${esc(navigator.userAgent)}</div><div class="btns"><button class="btn gold" data-act="closeModal">OK</button><button class="btn" data-act="openCity">🏙️ Ville 3D</button></div>`); }catch(e){} },2500);
