@@ -11,7 +11,7 @@ const AI_SUFFIX=['Air','Airways','Jet','Wings','Aviation','Express'];
 const keyCity=c=>AP(c)?AP(c).city:c;
 const _cAP={}; const cAirports=cc=>_cAP[cc]||(_cAP[cc]=AIRPORT_CODES.filter(c=>AP(c).cc===cc).sort((x,y)=>AP(y).traffic-AP(x).traffic));
 const AI_PLAYER_BUILD_GRACE=60*DAY;
-function aiAirportMarketOpen(code){ const built=S.playerAirportBuilds&&S.playerAirportBuilds[code]; return built==null||!Number.isFinite(+built)||S.time-(+built)>=AI_PLAYER_BUILD_GRACE; }
+function aiAirportMarketOpen(code,buildReaction=false){ const built=S.playerAirportBuilds&&S.playerAirportBuilds[code], age=S.time-(+built); return built==null||!Number.isFinite(+built)||age>=AI_PLAYER_BUILD_GRACE||(buildReaction&&age>=3*DAY); }
 function aiAirlineMarketOpen(code){ const a=AIRLINE_DB[code]; return !!a&&aiAirportMarketOpen(a[2])&&!airlinePairs(code).some(([x,y])=>!aiAirportMarketOpen(x)||!aiAirportMarketOpen(y)); }
 const AI_POOR_COUNTRY_EXTRA=new Set(['CD','CG','PA','PS','SD']);
 function aiPoorCountryEligible(cc){ const lvl=typeof INCOME_LVL==='undefined'?undefined:INCOME_LVL[cc]; return !!COUNTRIES[cc]&&cAirports(cc).length>0&&(AI_POOR_COUNTRY_EXTRA.has(cc)||(lvl!==undefined&&lvl<=1)); }
@@ -39,7 +39,7 @@ function ensureBukavuAirline(){
   if(!S.ai||!S.ai.list||!AP('BKY')) return null;
   let e=aiBy('KVA'); if(e) return e;
   e={code:'KVA',name:'Air Kivu',color:airlineColor('KVA'),hub:'BKY',cc:'CD',real:false,startup:true,founded:S.time,
-    fleet:5,fleet0:5,cash:2.5e9,rep:62,safety:0.96,routes:0,crashes:0,incidents:0,status:'ok',debt:0,pax:0,hist:[],plan:{mode:'grow'}};
+    fleet:5,fleet0:5,cash:2.5e9,rep:62,safety:0.96,routes:0,crashes:0,incidents:0,status:'ok',debt:0,pax:0,hist:[],lastMargin:0.08,lastStartupRouteAttempt:S.time,plan:{mode:'grow'}};
   S.ai.list.push(e); S.ai.extra.KVA=[]; S.ai.ver++;
   aiRoute(e,'open'); aiRoute(e,'open');
   aiNews(`🆕 Air Kivu (KVA) démarre à Bukavu avec 5 avions et un capital de lancement de ${fmtMoney(e.cash)}. La compagnie va développer son réseau progressivement.`,'rival',true);
@@ -81,7 +81,7 @@ function aiWeekly(){
 function aiStep(e,oilF){
   const R=(S.rivals||[]).find(x=>x.code===e.code);
   const margin=aiOperatingMargin(e,oilF); e.lastMargin=margin;
-  e.cash+=e.fleet*margin*0.45e6;
+  e.lastOperatingResult=Math.round(e.fleet*margin*0.45e6); e.cash+=e.lastOperatingResult;
   if(e.cash>e.fleet*60e6) e.cash*=0.97;                      // dividendes
   if(Math.random()<0.004){ const l=e.fleet*rnd(0.6e6,2.5e6); e.cash-=l; if(e.fleet>=60&&l>e.fleet*1.8e6) aiNews(`✊ ${e.name} : grève et pertes record (${fmtMoney(l)}).`,'news'); }
   e.rep=clamp(e.rep+rnd(-0.45,0.55)+(margin>0.06?0.16:margin<-0.12?-0.25:0)+(e.rep>72?-0.12:0.08),20,95);
@@ -99,7 +99,7 @@ function aiStep(e,oilF){
   if(e.lastRouteMonth!==routeMonth){
     const distressed=(e.debt||0)>0||e.cash<e.fleet*3e6||margin<-0.12;
     if(distressed&&e.routes>4){ aiRoute(e,'close'); e.lastRouteMonth=routeMonth; }
-    else if(!distressed&&margin>0.025&&e.cash>e.fleet*(e.startup?14e6:28e6)&&e.routes<e.fleet*(e.startup?0.8:0.9)){ aiRoute(e,'open'); e.lastRouteMonth=routeMonth; }
+    else if(!distressed&&margin>0.025&&e.cash>e.fleet*(e.startup?14e6:28e6)&&e.routes<e.fleet*(e.startup?0.8:0.9)){ if(aiRoute(e,'open')) e.lastRouteMonth=routeMonth; }
   }
   // sécurité
   if(Math.random()<(typeof aiRisk==='function'?aiRisk(e):0.0034*Math.sqrt(Math.max(1,e.fleet)/100)/e.safety*(e.startup?1.4:1))) aiAccident(e);
@@ -125,33 +125,34 @@ function aiStep(e,oilF){
 }
 
 /* ---------- lignes ouvertes / fermées ---------- */
-function aiRoute(e, mode){
+function aiRoute(e, mode, target){
   const ai=S.ai, code=e.code, R=(S.rivals||[]).find(x=>x.code===code);
   if(mode==='open'){
-    if((ai.extra[code]||[]).length>=90) return;
+    if((ai.extra[code]||[]).length>=90) return false;
     const maxD=e.fleet>=60?9500:e.fleet>=15?5000:e.fleet>=6?2500:1400, minT=e.fleet>=30?1.5:e.fleet>=8?0.7:0.25;
     const nodes=new Map(); for(const [a,b] of airlinePairs(code)){ nodes.set(a,(nodes.get(a)||0)+1); nodes.set(b,(nodes.get(b)||0)+1); }
     let origin=e.hub, central=-1; for(const [c,n] of nodes){ const score=n*1000+AP(c).traffic+(c===e.hub?500:0); if(score>central){ central=score; origin=c; } }
     const suspended=ai.suspend||{}, shut=ai.shut||{}, originCC=AP(origin).cc;
-    if(!aiAirportMarketOpen(origin)||shut[origin]>S.time) return;
+    if(!aiAirportMarketOpen(origin)||shut[origin]>S.time) return false;
     let best=null;
     for(const c of AIRPORT_CODES){
-      const A=AP(c); if(!aiAirportMarketOpen(c)||c===origin||A.cls<2||A.traffic<minT||shut[c]>S.time||[originCC,A.cc].some(cc=>suspended[cc]>S.time&&e.cc!==cc)) continue;
+      const A=AP(c); if((target&&c!==target)||!aiAirportMarketOpen(c,!!target)||c===origin||A.cls<2||A.traffic<minT||shut[c]>S.time||[originCC,A.cc].some(cc=>suspended[cc]>S.time&&e.cc!==cc)) continue;
       const d=dist(origin,c); if(d<200||d>maxD) continue;
       const k=pairKey(origin,c); if(carriersOn(origin,c).includes(code)) continue;
       if(typeof runwayCheck==='function' && e.fleet<8 && A.cls<3) continue;
       const competition=carriersOn(origin,c).length, domestic=A.cc===AP(origin).cc?1.2:1, home=A.cc===e.cc?1.12:1, rivalry=touchesMe(origin,c)?1.08:1;
       const s=marketDemand(origin,c)*domestic*home*rivalry/(1+competition*0.08); if(!best||s>best.s) best={c,k,s,d};
     }
-    if(!best) return;
+    if(!best) return false;
     const setupCost=e.fleet<8?0.55e6:e.fleet<30?1.5e6:3.5e6;
-    if(e.cash<setupCost) return;
+    if(e.cash<setupCost) return false;
     e.cash-=setupCost;
     (ai.extra[code]=ai.extra[code]||[]).push(best.k); ai.cut[code]=(ai.cut[code]||[]).filter(k=>k!==best.k);
     e.routes++; ai.ver++;
     if(R && !R.routes.some(r=>pairKey(r.a,r.b)===best.k)) R.routes.push({a:origin,b:best.c,freq:realFreq(origin,best.c,carriersOn(origin,best.c).length+1)});
-    const mine=touchesMe(origin,best.c), notable=mine||e.fleet>=120||e.startup||AP(origin).cc===homeCC()||AP(best.c).cc===homeCC();
+    const mine=touchesMe(origin,best.c), notable=!!target||mine||e.fleet>=120||e.startup||AP(origin).cc===homeCC()||AP(best.c).cc===homeCC();
     if(notable) aiNews(vary('open',[`🛫 ${e.name} ouvre ${keyCity(origin)} → ${keyCity(best.c)}${mine?' — sur votre marché !':''}.`,`🆕 Nouvelle liaison : ${e.name} desservira ${keyCity(best.c)} depuis ${keyCity(origin)}${mine?' (concurrence directe)':''}.`,`🛫 ${keyCity(origin)}–${keyCity(best.c)} : ${e.name} se lance${moodOf(AP(best.c).cc).boom>0.2?' pour profiter de l’engouement':''}${mine?', sur votre terrain':''}.`]), mine?'rival':'news', mine);
+    return true;
   } else {
     const cut=new Set(ai.cut[code]||[]), own=(ai.extra[code]||[]), active=[...new Set([...airlinePairs(code).map(([a,b])=>pairKey(a,b)),...own])].filter(k=>!cut.has(k));
     if(active.length<=4) return;

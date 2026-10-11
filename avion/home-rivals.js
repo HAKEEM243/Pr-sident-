@@ -4,9 +4,8 @@
      terminés dès qu'on les paie.
    • Rival national : une compagnie de votre pays grandit avec vous,
      copie vos meilleures lignes, casse ses prix, s'installe dans vos hubs.
-   • Les chantiers du joueur ne déclenchent pas d'arrivées forcées ;
-     les IA développent leur réseau selon le marché, avec un délai
-     après un grand agrandissement joueur.
+   • Après un chantier joueur, une compagnie existante peut ouvrir une
+     ligne vers l’aéroport ; une seule réaction est autorisée tous les 3 jours.
    Tout est simulé (estimations du jeu).
    ========================================================= */
 'use strict';
@@ -17,9 +16,36 @@ startProject=function(code,type){
   const c=u.cost(a); book('investissements',-c);
   (S.upgrades[code]=S.upgrades[code]||[]).push(type); applyUpgrades();
   if(type.startsWith('xp')||type==='terminal'||type==='extend') (S.playerAirportBuilds=S.playerAirportBuilds||{})[code]=S.time;
+  if(S.ai){ S.playerBuildRouteQueue=S.playerBuildRouteQueue||[]; S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>x.code!==code); S.playerBuildRouteQueue.push({code,type,t:S.time}); if(S.playerBuildRouteQueue.length>20) S.playerBuildRouteQueue.shift(); }
   logMsg(`🏗️ ${u.name} à ${a.city} : terminé (${fmtMoney(c)}).`,'drc');
   return null;
 };
+
+/* ---------- réactions espacées aux investissements du joueur ---------- */
+function hrPlayerBuildRouteTick(){
+  if(!S.ai||!S.playerBuildRouteQueue||!S.playerBuildRouteQueue.length) return;
+  const now=S.time, interval=3*DAY;
+  S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>now-x.t<=60*DAY);
+  if(!S.playerBuildRouteQueue.length||now-(S.ai.lastPlayerBuildRouteAt??-Infinity)<interval) return;
+  const task=S.playerBuildRouteQueue.find(x=>now-x.t>=interval); if(!task) return;
+  if(now-(task.lastTry??-Infinity)<DAY) return; task.lastTry=now;
+  const target=task.code, A=AP(target); if(!A||A.cls<2) { S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>x!==task); return; }
+  const viable=aiAlive().filter(e=>e.fleet>=5&&e.cash>e.fleet*3e6&&e.routes<e.fleet*0.9&&dist(e.hub,target)>200)
+    .sort((x,y)=>marketDemand(y.hub,target)/(1+aiOpenRoutes(y)*0.1)-marketDemand(x.hub,target)/(1+aiOpenRoutes(x)*0.1)).slice(0,8);
+  for(const e of viable) if(aiRoute(e,'open',target)){
+    S.ai.lastPlayerBuildRouteAt=now; S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>x!==task); return;
+  }
+}
+
+/* Air Kivu choisit et finance son réseau ; ses résultats hebdomadaires restent calculés par aiStep. */
+function hrAirKivuRouteTick(){
+  const e=aiBy('KVA'); if(!e||e.status==='dead') return;
+  const now=S.time; if(now-(e.lastStartupRouteAttempt??e.founded??now)<3*DAY) return;
+  e.lastStartupRouteAttempt=now;
+  if((e.lastMargin||0)<=0.025||e.cash<=e.fleet*14e6) return;
+  const cap=Math.max(2,Math.floor(e.fleet*0.8)); if(aiOpenRoutes(e)>=cap) return;
+  aiRoute(e,'open');
+}
 
 /* ---------- rival national ---------- */
 const homeCcOf=()=>AP(S.company.hub)&&AP(S.company.hub).cc;
@@ -97,6 +123,7 @@ function hrAiBuilds(){
   aiNews(`🏗️ ${ccWith(a.cc)} : ${keyCity(code)} inaugure ${st[2]}${owner?` — ${owner.name} en profite pour grandir`:''}.`,'rival',mineCountry(a.cc));
 }
 { const _aw=aiWeekly; aiWeekly=function(){ _aw(); if(window.SE_SAFE) return; try{ natRivalWeekly(); }catch(e){ console.warn(e); } try{ aiWorldGrow(); const lv=typeof drive==='function'?drive():2; for(const e of aiAlive().sort((x,y)=>y.fleet-x.fleet).slice(0,6)) aiImprove(e,lv,false); }catch(e){ console.warn(e); } try{ if(Math.floor(S.time/(7*DAY))%4===0) hrAiBuilds(); }catch(e){ console.warn(e); } }; }
+{ const _dt=dailyTick; dailyTick=function(){ _dt(); if(window.SE_SAFE) return; try{ hrPlayerBuildRouteTick(); hrAirKivuRouteTick(); }catch(e){ console.warn(e); } }; }
 
 /* ---------- population du pays et des villes ---------- */
 // population du pays (estimation de départ × évolution du directeur du monde) et part qui vit autour de l'aéroport
