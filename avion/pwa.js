@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261094';
+const GAME_VER='20261096';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🐢 Ultra ne fige plus le jeu','Avec une grande flotte, le téléphone ne suivait pas la vitesse Ultra et le jeu s’emballait jusqu’à se figer. Maintenant le calcul a un budget : le jeu ralentit un peu (« 🐢 limité par l’appareil ») mais reste fluide.'],
   ['🧳 Contrôle passagers avec choix réels','Passagers → choisissez Économique (attractivité −5 %, satisfaction −5), Équilibrée (neutre) ou Assistance+ (+2,50 $ par passager et par tronçon, attractivité +8 %, satisfaction +6). Les frais et les avis des prochains vols suivent ce choix.'],
   ['🧑‍✈️ Équipe d’escale pour vos hubs','Dans la fiche d’un hub, investissez dans une équipe d’escale : rotations −15 %, retards de congestion −40 %, avec un entretien mensuel affiché.'],
   ['🛠️ Reprise de partie réparée','Le jeu rouvrait l’écran « Fondez votre compagnie » par-dessus votre partie : corrigé. Les très grosses compagnies se chargent sans limite de temps, et « Reprendre » ouvre la partie directement.'],
