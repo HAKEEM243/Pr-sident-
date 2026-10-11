@@ -29,10 +29,10 @@ async function open3D(){
   if(UI.mobile) setTab('map');
   document.body.classList.add('globe-on'); $('#globe').hidden=false; $('#globeHud').hidden=false;
   if(!G){ try{ log3D('ouverture',GQ.mode); initGlobe(); }catch(e){ log3D('erreur au démarrage',String(e&&e.message||e)); try{ if(G&&G.viewer) G.viewer.destroy(); }catch(_){} G=null; close3D();
-      toast('⛔ La 3D n’a pas pu démarrer sur cet appareil : '+String(e&&e.message||e).slice(0,90)+' (Plus → Options → Diagnostic 3D)','bad'); return false; } }
+      fail3D('La 3D n’a pas pu démarrer : '+String(e&&e.message||e).slice(0,140)); return false; } }
   else G.viewer.resize();
   live3D(true);
-  if(GQ.crashed){ GQ.crashed=false; toast('⚙️ La vue 3D s’était fermée : qualité Éco activée (⚙️ pour changer)','info'); }
+  if(GQ.crashed){ GQ.crashed=false; toast('🪶 La 3D avait fait fermer la page : mode Minimal activé (⚙️ pour changer)','info'); }
   globeSync(true);
   renderGlobeHud();
   return true;
@@ -40,6 +40,10 @@ async function open3D(){
 // marqueur « vue 3D ouverte » : s'il reste posé au prochain lancement, la page a planté pendant la 3D
 // journal de la 3D (gardé sur l'appareil) : aide à comprendre une fermeture qu'on ne peut pas reproduire ici
 function log3D(ev,msg){ try{ const L=JSON.parse(localStorage.getItem('se-3d-log')||'[]'); L.unshift({t:Date.now(),ev,msg:String(msg||'').slice(0,160)}); localStorage.setItem('se-3d-log',JSON.stringify(L.slice(0,12))); }catch(e){} }
+// la 3D s'est fermée : on explique et on propose une solution (au lieu d'un message qui disparaît)
+function fail3D(why){ log3D('fermeture',why);
+  showModal('⚠️ La vue 3D s’est fermée',`<p>${esc(why)}</p><p class="small">Le mode <b>Minimal</b> est activé pour la prochaine ouverture. Fermer les autres onglets et applis libère de la mémoire.</p>
+    <div class="btns"><button class="btn gold" data-act="open3D">🔁 Réessayer la 3D</button><button class="btn" data-act="city3DFallback">🏙️ Voir les avions en Ville 3D (plus léger)</button><button class="btn" data-act="diag3D">🩺 Diagnostic</button></div>`); }
 function live3D(on){ try{ if(on&&!$('#globe').hidden&&!document.hidden) localStorage.setItem('se-3d-live','1'); else localStorage.removeItem('se-3d-live'); }catch(e){} }
 document.addEventListener('visibilitychange',()=>live3D(!document.hidden));
 window.addEventListener('pagehide',()=>live3D(false));
@@ -101,7 +105,9 @@ function initGlobe(){
   const C=Cesium; C.Ion.defaultAccessToken=''; patchCesium(C); G3night=null;
   const base0=BASE3D[(()=>{ try{ return localStorage.getItem('se-3dstyle'); }catch(e){ return null; } })()]||BASE3D.hybrid;
   const viewer=new C.Viewer('globe',{ baseLayer:new C.ImageryLayer(base0.make(C)[0]), baseLayerPicker:false, geocoder:false, homeButton:false, sceneModePicker:false,
-    navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, msaaSamples:GQ.hq?4:1, orderIndependentTranslucency:!window.SE_NO_OIT });
+    navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false, infoBox:false, selectionIndicator:false, msaaSamples:GQ.hq&&!GQ.mob?4:1, scene3DOnly:true,
+    // téléphone : pas d'anticrénelage du tampon principal ni de transparence « indépendante de l'ordre » (plusieurs images plein écran en plus) — c'est ce qui saturait la mémoire graphique de l'iPhone
+    orderIndependentTranslucency:!window.SE_NO_OIT&&!GQ.mob, contextOptions:GQ.mob?{webgl:{antialias:false, powerPreference:'default', preserveDrawingBuffer:false}, allowTextureFilterAnisotropic:false}:undefined });
   { const extra=base0.make(C).slice(1); G3labels=extra.map(pv=>viewer.imageryLayers.addImageryProvider(pv)); }
   // la nuit, les villes s'allument : images « Black Marble » de la NASA (GIBS, libres d'accès), affichées seulement du côté nuit du globe
   if(!GQ.mini) try{ const nl=viewer.imageryLayers.addImageryProvider(new C.UrlTemplateImageryProvider({url:'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_Black_Marble/default/2016-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', maximumLevel:8, credit:'Lumières nocturnes : NASA Black Marble (GIBS)'}),1);
@@ -120,7 +126,7 @@ function initGlobe(){
     const again=Date.now()-(window._se3dLost||0)<30000; window._se3dLost=Date.now();
     GQ.mode='l'; GQ.mini=true; GQ.hq=false; try{ localStorage.setItem('se-q','l'); }catch(e){}
     const g=G, fol=g&&g.follow; G=null; setTimeout(()=>{ try{ clearInterval(g.loop); g.viewer.destroy(); }catch(e){} },0);
-    if(again){ live3D(false); try{ close3D(); }catch(e){} toast('⚠️ Le téléphone a coupé la 3D deux fois de suite. Fermez d’autres onglets ou applis puis réessayez (mode Minimal activé).','bad'); return; }
+    if(again){ live3D(false); try{ close3D(); }catch(e){} fail3D('Le téléphone a coupé la carte graphique deux fois de suite (mémoire graphique pleine).'); return; }
     // première coupure : on relance tout seul la 3D en mode Minimal, sans quitter l'écran
     toast('⚙️ Le téléphone a manqué de mémoire graphique : relance de la 3D en mode Minimal…','warn');
     setTimeout(()=>{ if($('#globe').hidden) return; try{ initGlobe(); globeSync(true); if(fol&&S.fleet.some(a=>a.id===fol)) globeFollow(fol); renderGlobeHud(); log3D('relance minimale','ok'); }
@@ -462,6 +468,7 @@ Object.assign(ACTIONS,{
   globeNext:()=>{ const fl=S.fleet.filter(a=>a.status==='flight'); if(!fl.length) return; const i=fl.findIndex(a=>a.id===G.follow); const ac=fl[(i+1)%fl.length]; selectPlane(ac.id); globeFollow(ac.id); },
   globeCam:d=>{ G.lastMode=d.k; setCam(d.k); },
   globeQ:()=>{ GQ.mode=GQ.mode==='l'?'e':GQ.mode==='e'?'h':GQ.mode==='h'?'a':'l'; try{ localStorage.setItem('se-q',GQ.mode); }catch(e){} toast(GQ.mode==='l'?'⚙️ Minimal : pour les téléphones qui coupent la 3D (sans relief ni nuages ; relancez la 3D pour tout alléger)':GQ.mode==='e'?'⚙️ Éco : plus fluide sur téléphone':GQ.mode==='h'?'⚙️ Haute qualité : image nette, anticrénelage, ombres':'⚙️ Auto : haute qualité, allègement doux si la vue rame','info'); applyQuality(); renderGlobeHud(); },
+  city3DFallback:()=>{ closeModal(); const ac=S.fleet.find(a=>a.status==='flight'&&a.flight); const st=ac&&flightState(ac,simNow()); const c=st&&st.alt<3000?(st.frac<0.5?st.origin:st.dest):S.company.hub; const A=AP(c)||AP(S.company.hub); if(typeof openCity==='function') openCity(A.lat,A.lon); else ACTIONS.openCity&&ACTIONS.openCity(); },
   diag3D:()=>{ let L=[]; try{ L=JSON.parse(localStorage.getItem('se-3d-log')||'[]'); }catch(e){} let gl='?'; try{ const c=document.createElement('canvas'), x=c.getContext('webgl2')||c.getContext('webgl'); gl=x?(x instanceof (window.WebGL2RenderingContext||Object)?'WebGL2':'WebGL1')+' · max texture '+x.getParameter(x.MAX_TEXTURE_SIZE):'WebGL indisponible'; }catch(e){ gl='erreur '+e.message; }
     showModal('🩺 Diagnostic 3D',`<div class="small">Mode : <b>${GQ.mode==='l'?'Minimal':GQ.mode==='e'?'Éco':GQ.mode==='h'?'Haute':'Auto'}</b> · écran ×${window.devicePixelRatio||1} · ${esc(gl)}<br><span class="mut">${esc(navigator.userAgent)}</span></div><h3>Derniers événements</h3>${L.length?L.map(x=>`<div class="small">${new Date(x.t).toLocaleString('fr-FR')} — <b>${esc(x.ev)}</b> ${esc(x.msg)}</div>`).join(''):'<div class="mut small">Rien d’enregistré.</div>'}<p class="small mut">Faites une capture de cet écran pour signaler un problème.</p><div class="btns"><button class="btn" data-act="q3Mini">🪶 Passer en mode Minimal</button><button class="btn" data-act="closeModal">Fermer</button></div>`); },
   q3Mini:()=>{ GQ.mode='l'; try{ localStorage.setItem('se-q','l'); }catch(e){} if(G){ try{ applyQuality(); }catch(e){} } toast('🪶 Mode Minimal activé pour la 3D','ok'); closeModal(); },
