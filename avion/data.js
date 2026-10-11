@@ -204,6 +204,13 @@ WORLD_AIRPORTS.forEach(([code,name,city])=>{ if(AIRPORTS[code]){ AIRPORTS[code].
 DRC_AIRPORTS.forEach(([code,icao,name,city,prov,lat,lon,runway,surface,cls,traffic])=>{
   AIRPORTS[code] = Object.assign(AIRPORTS[code]||{}, {code,icao,name,city,cc:'CD',prov,lat,lon,runway,surface,cls,traffic,drc:true,large:cls>=4});
 });
+// 3 bis) villes congolaises supplémentaires (aérodromes en latérite à améliorer) et populations des villes
+if(typeof DRC_TOWNS!=='undefined'){ const taken=new Set(Object.keys(AIRPORTS));
+  const mkCode=city=>{ const L=city.normalize('NFD').replace(/[^A-Za-z]/g,'').toUpperCase(); const tries=[L.slice(0,3),L[0]+L[2]+L[4],L[0]+L[1]+L[L.length-1],L[0]+L[3]+L[5]]; for(const t of tries) if(t&&t.length===3&&!taken.has(t)) return t;
+    for(let i=0;i<26;i++){ const t=L[0]+L[1]+String.fromCharCode(65+i); if(!taken.has(t)) return t; } return null; };
+  for(const [city,prov,lat,lon,rw,popK] of DRC_TOWNS){ if(Object.values(AIRPORTS).some(a=>a.cc==='CD'&&a.city===city)) continue; const code=mkCode(city); if(!code) continue; taken.add(code);
+    AIRPORTS[code]={code,icao:'',name:`Aérodrome de ${city}`,city,cc:'CD',prov,lat,lon,runway:rw,surface:'Latérite',cls:rw>=1200?1:1,traffic:+Math.max(0.002,popK/1e5).toFixed(3),drc:true,large:false,utc:lon<22?1:2,popK,extra:true}; } }
+if(typeof DRC_CITY_POP!=='undefined') for(const a of Object.values(AIRPORTS)) if(a.cc==='CD'&&a.popK===undefined&&DRC_CITY_POP[a.city]) a.popK=DRC_CITY_POP[a.city];
 // 4) pistes réelles et altitude (OurAirports)
 if(typeof RUNWAY_DB!=='undefined') for(const [code,a] of Object.entries(AIRPORTS)){
   const rws=RUNWAY_DB[code]; if(ELEV_DB&&ELEV_DB[code]!==undefined) a.elev=ELEV_DB[code];
