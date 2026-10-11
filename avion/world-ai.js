@@ -10,6 +10,9 @@ const AI_PREFIX=['Nova','Zenith','Aurora','Horizon','Atlas','Savane','Azur','Mer
 const AI_SUFFIX=['Air','Airways','Jet','Wings','Aviation','Express'];
 const keyCity=c=>AP(c)?AP(c).city:c;
 const _cAP={}; const cAirports=cc=>_cAP[cc]||(_cAP[cc]=AIRPORT_CODES.filter(c=>AP(c).cc===cc).sort((x,y)=>AP(y).traffic-AP(x).traffic));
+const AI_PLAYER_BUILD_GRACE=60*DAY;
+function aiAirportMarketOpen(code){ const built=S.playerAirportBuilds&&S.playerAirportBuilds[code]; return built==null||!Number.isFinite(+built)||S.time-(+built)>=AI_PLAYER_BUILD_GRACE; }
+function aiAirlineMarketOpen(code){ const a=AIRLINE_DB[code]; return !!a&&aiAirportMarketOpen(a[2])&&!airlinePairs(code).some(([x,y])=>!aiAirportMarketOpen(x)||!aiAirportMarketOpen(y)); }
 
 /* ---------- état ---------- */
 function makeAI(code){
@@ -116,10 +119,10 @@ function aiRoute(e, mode){
     const nodes=new Map(); for(const [a,b] of airlinePairs(code)){ nodes.set(a,(nodes.get(a)||0)+1); nodes.set(b,(nodes.get(b)||0)+1); }
     let origin=e.hub, central=-1; for(const [c,n] of nodes){ const score=n*1000+AP(c).traffic+(c===e.hub?500:0); if(score>central){ central=score; origin=c; } }
     const suspended=ai.suspend||{}, shut=ai.shut||{}, originCC=AP(origin).cc;
-    if(shut[origin]>S.time) return;
+    if(!aiAirportMarketOpen(origin)||shut[origin]>S.time) return;
     let best=null;
     for(const c of AIRPORT_CODES){
-      const A=AP(c); if(c===origin||A.cls<2||A.traffic<minT||shut[c]>S.time||[originCC,A.cc].some(cc=>suspended[cc]>S.time&&e.cc!==cc)) continue;
+      const A=AP(c); if(!aiAirportMarketOpen(c)||c===origin||A.cls<2||A.traffic<minT||shut[c]>S.time||[originCC,A.cc].some(cc=>suspended[cc]>S.time&&e.cc!==cc)) continue;
       const d=dist(origin,c); if(d<200||d>maxD) continue;
       const k=pairKey(origin,c); if(carriersOn(origin,c).includes(code)) continue;
       if(typeof runwayCheck==='function' && e.fleet<8 && A.cls<3) continue;
@@ -223,13 +226,14 @@ function aiMonthly(){
 }
 function aiStartup(){
   const ai=S.ai, mine=S.company.code;
-  const ccs=Object.keys(COUNTRIES).filter(cc=>cAirports(cc).some(c=>AP(c).cls>=2&&AP(c).traffic>=0.15));
+  const hubCandidates=cc=>cAirports(cc).filter(c=>AP(c).cls>=2&&AP(c).traffic>=0.15&&aiAirportMarketOpen(c));
+  const ccs=Object.keys(COUNTRIES).filter(cc=>hubCandidates(cc).length);
   const w=ccs.map(cc=>{ const nat=Object.values(AIRLINE_DB).filter(a=>a[1]===cc&&AP(a[2])&&AP(a[2]).cc===cc&&a[3]>=3).length+aiAlive().filter(e=>e.startup&&e.cc===cc).length*2;
     const climate=typeof moodDemand==='function'?clamp(moodDemand(cc),0.45,1.6):1;
     return 1/(1+nat*1.6)*Math.sqrt(cAirports(cc).length)*Math.sqrt(climate); });
   if(!ccs.length) return;
   let r=Math.random()*w.reduce((s,x)=>s+x,0), cc=ccs[0]; for(let i=0;i<ccs.length;i++){ r-=w[i]; if(r<=0){ cc=ccs[i]; break; } }
-  const hub=cAirports(cc).find(c=>AP(c).cls>=2); if(!hub) return;
+  const hubs=hubCandidates(cc); if(!hubs.length) return; const hub=pick(hubs);
   let code=null; for(let i=0;i<300&&!code;i++){ const c=String.fromCharCode(65+rndi(0,25))+String.fromCharCode(65+rndi(0,25)); if(!AIRLINE_DB[c]&&c!==mine&&!aiBy(c)) code=c; }
   if(!code) return;
   const name=`${pick(AI_PREFIX)} ${pick(AI_SUFFIX)}`, fleet=rndi(3,6);
@@ -383,7 +387,7 @@ function moodEpisode(){
     const why=pick(['la pleine saison touristique','un grand festival','une compétition sportive continentale','la découverte d’un gisement de pétrole','un sommet international','les vacances scolaires','une libéralisation des visas','un concert géant']);
     m.boom=clamp(m.boom+rnd(0.3,0.65),0,1); m.note=why; m.surge=S.time+rndi(10,24)*DAY;
     const big=aiAlive().filter(e=>e.fleet>=40&&e.cc!==cc).sort(()=>Math.random()-0.5).slice(0,rndi(2,4)); const added=[];
-    for(const e of big){ const k=pairKey(e.hub,hub); if(carriersOn(e.hub,hub).includes(e.code)||dist(e.hub,hub)>9500||dist(e.hub,hub)<250) continue;
+    for(const e of big){ const k=pairKey(e.hub,hub); if(!aiAirportMarketOpen(e.hub)||!aiAirportMarketOpen(hub)||carriersOn(e.hub,hub).includes(e.code)||dist(e.hub,hub)>9500||dist(e.hub,hub)<250) continue;
       (ai.extra[e.code]=ai.extra[e.code]||[]).push(k); e.routes++; ai.ver++; added.push(e.name); }
     aiNews(vary('boom',[`🎉 ${C} : ${why} — les réservations explosent, ${added.length?added.join(' et ')+' ajoutent des vols':'les compagnies ajoutent des vols'}.`,`📈 ${ccName(cc)} en effervescence (${why}) : avions pleins vers ${city}${added.length?` ; ${added[0]} ouvre une ligne`:''}.`,`🌟 ${why[0].toUpperCase()+why.slice(1)} en ${ccName(cc)} : la demande grimpe de ${Math.round(m.boom*55+10)} % vers ${city}.`]),'ok',mine);
   } else if(type==='strike'){
