@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261094';
+const GAME_VER='20261095';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🐢 Ultra ne fige plus le jeu','Avec une grande flotte, le téléphone ne suivait pas la vitesse Ultra et le jeu s’emballait jusqu’à se figer. Maintenant le calcul a un budget : le jeu ralentit un peu (« 🐢 limité par l’appareil ») mais reste fluide.'],
   ['🛠️ Reprise de partie réparée','Le jeu rouvrait l’écran « Fondez votre compagnie » par-dessus votre partie : corrigé. Les très grosses compagnies se chargent sans limite de temps, et « Reprendre » ouvre la partie directement.'],
   ['🏗️ Agrandir vos aéroports','Plus → <b>🏗️ Agrandir mes aéroports</b> : dans les pays où vous avez un hub, 5 étapes (extension du terminal, jetée, 2e piste, Terminal 2, ville aéroportuaire). Plus de voyageurs, plus de portes, une piste réservée aux arrivées (moins de retards), avions plus gros, et l’aéroport grandit en 3D.'],
   ['🪶 3D stable sur iPhone','Sur téléphone, la 3D démarre en mode Minimal (sans relief ni nuages) pour ne plus couper ; ⚙️ dans la 3D pour essayer Éco ou Haute. Correction : en Minimal, avions et aéroports flottaient au-dessus du sol.'],
