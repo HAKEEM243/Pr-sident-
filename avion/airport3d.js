@@ -91,7 +91,7 @@ function apLightSet(el){ apLightInit(); const C=Cesium, k=Math.max(0.1,Math.min(
 // branche un modèle de l'aéroport sur cet éclairage ; kind 'lit' = vitres allumées la nuit, 'rwy' = piste
 function apLit(ent,kind){ apLightInit(); if(!ent||!ent.model) return ent; ent.model.lightColor=kind==='rwy'?AP3D.rc:AP3D.lc; ent.model.imageBasedLightingFactor=AP3D.ib; if(kind==='lit') ent.model.nodeTransformations=AP3D.nt; return ent; }
 function nightTick(p){
-  const sc=G.viewer.scene, el=(sc.globe.enableLighting&&!G.forceDay&&typeof sunElevAt==='function')? sunElevAt(p.st.lat,p.st.lon) : 45;
+  const sc=G.viewer.scene, el=(sc.globe.enableLighting&&typeof globeSunElevation==='function')?globeSunElevation(p.st.lat,p.st.lon):45;
   AP3D.el=el; apLightSet(el); const nt=el<-4;
   // nuages sombres la nuit, dorés au crépuscule
   const ck=Math.max(0.07,Math.min(1,(el+6)/12));

@@ -35,6 +35,7 @@ async function open3D(){
   if(GQ.crashed){ GQ.crashed=false; toast('🪶 La 3D avait fait fermer la page : mode Minimal activé (⚙️ pour changer)','info'); }
   if(GQ.mig){ GQ.mig=false; toast('🪶 3D en mode Minimal sur téléphone pour qu’elle ne coupe plus. Touchez ⚙️ Minimal pour essayer Éco ou Haute.','info'); }
   globeSync(true);
+  if(G.snowOn) snowStart3D();
   renderGlobeHud();
   return true;
 }
@@ -46,7 +47,7 @@ function fail3D(why){ log3D('fermeture',why);
   showModal('⚠️ La vue 3D s’est fermée',`<p>${esc(why)}</p><p class="small">Le mode <b>Minimal</b> est activé pour la prochaine ouverture. Fermer les autres onglets et applis libère de la mémoire.</p>
     <div class="btns"><button class="btn gold" data-act="open3D">🔁 Réessayer la 3D</button><button class="btn" data-act="city3DFallback">🏙️ Voir les avions en Ville 3D (plus léger)</button><button class="btn" data-act="diag3D">🩺 Diagnostic</button></div>`); }
 function live3D(on){ try{ if(on&&!$('#globe').hidden&&!document.hidden) localStorage.setItem('se-3d-live','1'); else localStorage.removeItem('se-3d-live'); }catch(e){} }
-document.addEventListener('visibilitychange',()=>live3D(!document.hidden));
+document.addEventListener('visibilitychange',()=>{ live3D(!document.hidden); if(!document.hidden&&G&&G.snowOn) snowStart3D(); });
 window.addEventListener('pagehide',()=>live3D(false));
 function close3D(){
   live3D(false);
@@ -54,6 +55,35 @@ function close3D(){
   document.body.classList.remove('globe-on'); $('#globe').hidden=true; $('#globeHud').hidden=true;
   const h=$('#rfsHud'); if(h) h.hidden=true;
   setTimeout(()=>map&&map.invalidateSize(),60);
+}
+// Neige d'écran légère : Canvas 2D, sans particules Cesium ni ressource distante.
+const SNOW3D={canvas:null,ctx:null,raf:0,last:0,w:0,h:0,items:[]};
+function snowResize3D(){
+  const c=SNOW3D.canvas,host=$('#globe'); if(!c||!host) return;
+  const w=host.clientWidth,h=host.clientHeight,dpr=GQ.mob?0.72:Math.min(window.devicePixelRatio||1,0.95);
+  if(c.width!==Math.round(w*dpr)||c.height!==Math.round(h*dpr)){ c.width=Math.max(1,Math.round(w*dpr)); c.height=Math.max(1,Math.round(h*dpr)); c.style.width=w+'px'; c.style.height=h+'px'; SNOW3D.ctx=c.getContext('2d',{alpha:true}); SNOW3D.ctx.setTransform(dpr,0,0,dpr,0,0); SNOW3D.w=w; SNOW3D.h=h; }
+  const count=GQ.mob?38:72; while(SNOW3D.items.length<count) SNOW3D.items.push({x:Math.random()*w,y:Math.random()*h,r:0.7+Math.random()*1.5,v:18+Math.random()*34,drift:-9+Math.random()*18,a:0.35+Math.random()*0.5});
+  if(SNOW3D.items.length>count) SNOW3D.items.length=count;
+}
+function snowFrame3D(now){
+  if(!G||!G.snowOn||document.hidden||$('#globe').hidden){ SNOW3D.raf=0; return; }
+  if(now-SNOW3D.last<40){ SNOW3D.raf=requestAnimationFrame(snowFrame3D); return; }
+  snowResize3D(); const c=SNOW3D.ctx,w=SNOW3D.w,h=SNOW3D.h,dt=Math.min(0.08,(now-(SNOW3D.last||now-40))/1000); SNOW3D.last=now;
+  if(!c||!w||!h){ SNOW3D.raf=requestAnimationFrame(snowFrame3D); return; }
+  c.clearRect(0,0,w,h);
+  for(const p of SNOW3D.items){ p.y+=p.v*dt; p.x+=p.drift*dt; if(p.y>h+3){p.y=-3;p.x=Math.random()*w;} if(p.x<-4)p.x=w+3; else if(p.x>w+4)p.x=-3; c.fillStyle=`rgba(255,255,255,${p.a})`; c.beginPath(); c.arc(p.x,p.y,p.r,0,Math.PI*2); c.fill(); }
+  SNOW3D.raf=requestAnimationFrame(snowFrame3D);
+}
+function snowStart3D(){
+  if(!G||!G.snowOn||document.hidden) return;
+  let c=SNOW3D.canvas||document.getElementById('globeSnow');
+  if(!c){ c=document.createElement('canvas'); c.id='globeSnow'; c.setAttribute('aria-hidden','true'); c.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:6;'; $('#globe').appendChild(c); }
+  SNOW3D.canvas=c; snowResize3D(); if(!SNOW3D.raf) SNOW3D.raf=requestAnimationFrame(snowFrame3D);
+}
+function set3DSnow(on,quiet=false){
+  if(!G) return; G.snowOn=!!on; try{localStorage.setItem('se-snow',G.snowOn?'1':'0');}catch(e){}
+  if(G.snowOn) snowStart3D(); else { if(SNOW3D.raf) cancelAnimationFrame(SNOW3D.raf); SNOW3D.raf=0; if(SNOW3D.ctx&&SNOW3D.canvas) SNOW3D.ctx.clearRect(0,0,SNOW3D.w,SNOW3D.h); }
+  if(!quiet){ toast(G.snowOn?'❄️ Neige 3D activée (effet léger)':'❄️ Neige 3D désactivée','info'); renderGlobeHud(); }
 }
 function patchCesium(C){
   // Sur iPhone/iPad (pas de transparence indépendante de l'ordre), Cesium trie les objets transparents
@@ -154,6 +184,8 @@ function initGlobe(){
   sc.globe.depthTestAgainstTerrain=false; sc.highDynamicRange=false; sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4;
   viewer.clock.shouldAnimate=false;
   G={viewer, baseKey:(BASE3D[(()=>{ try{ return localStorage.getItem('se-3dstyle'); }catch(e){ return null; } })()]?localStorage.getItem('se-3dstyle'):'hybrid'), planes:new Map(), rivals:[], routes:[], airports:[], follow:null, cam:{mode:'chase',h:0,p:-9,range:120}, lighting:true, tiles:null, simAt:performance.now(), simTime:S.time, att:new Map(), trail:[], hudAt:0, forceDay:(()=>{ try{ return localStorage.getItem('se-day')==='1'; }catch(e){ return false; } })()};
+  G.forceNight=!G.forceDay&&(()=>{ try{ return localStorage.getItem('se-night')==='1'; }catch(e){ return false; } })();
+  G.snowOn=(()=>{ try{ return localStorage.getItem('se-snow')==='1'; }catch(e){ return false; } })();
   applyQuality();
   // clic sur un avion
   const h=new C.ScreenSpaceEventHandler(sc.canvas);
@@ -211,9 +243,13 @@ function acAnimate(an,mi,ph,alt,gnd,spd,hold,push,lat,lon){
   if(!an.t){ Object.assign(an,tg); an.litAt=0; }
   else AC3D.step(an,tg,Math.min(0.5,(now-an.t)/1000)*Math.max(1,Math.min(20,(SPEEDS[S.speed]||{mult:1}).mult)));
   an.t=now;
-  if(now-an.litAt>2500){ an.litAt=now; const el=(G&&G.viewer.scene.globe.enableLighting&&!G.forceDay&&typeof sunElevAt==='function')? sunElevAt(lat,lon) : 45;
+  if(now-an.litAt>2500){ an.litAt=now; const el=globeSunElevation(lat,lon);
     an.lit=el<-4; an.el=el; }
   an.gnd=gnd||ph<=1||ph>=8;
+}
+function globeSunElevation(lat,lon){
+  if(!G||!G.lighting) return 45; if(G.forceNight) return -12; if(G.forceDay) return 45;
+  return typeof sunElevAt==='function'?sunElevAt(lat,lon):45;
 }
 // lumière du soleil sur l'avion : nuit sombre (seuls hublots et feux brillent), lumière dorée à l'aube et au crépuscule
 function acLight(an,out){
@@ -228,7 +264,7 @@ function acLight(an,out){
 function globeSync(full){
   if(!G) return;
   const C=Cesium, V=G.viewer;
-  let tv=S.time; if(G.forceDay){ const f=G.follow&&S.fleet.find(a=>a.id===G.follow), st=f&&flightState(f), lon=st?st.lon:(V.camera.positionCartographic?C.Math.toDegrees(V.camera.positionCartographic.longitude):0); tv=fxNoon(lon)+2*HOUR; }
+  let tv=S.time; if(G.forceDay||G.forceNight){ const f=G.follow&&S.fleet.find(a=>a.id===G.follow), st=f&&flightState(f), lon=st?st.lon:(V.camera.positionCartographic?C.Math.toDegrees(V.camera.positionCartographic.longitude):0); tv=fxNoon(lon)+(G.forceNight?14:2)*HOUR; }
   V.clock.currentTime=C.JulianDate.fromDate(new Date(tv));
   V.scene.globe.enableLighting=G.lighting;
   const seen=new Set();
@@ -417,6 +453,9 @@ function renderGlobeHud(){
   const box=$('#globeHud'); if(!box||!G) return;
   const sel=selectedPlane && S.fleet.find(a=>a.id===selectedPlane && a.status==='flight');
   const flying=S.fleet.filter(a=>a.status==='flight');
+  const skyLabel=G.forceNight?'🌙 Nuit':G.forceDay?'☀️ Jour':'🕒 Auto';
+  const skyBtn=`<button class="gh ${G.forceDay||G.forceNight?'on':''}" data-act="globeDay" title="Cycle du soleil : automatique, jour forcé, nuit forcée">${skyLabel}</button>`;
+  const snowBtn=`<button class="gh ${G.snowOn?'on':''}" data-act="globeSnow" title="Neige animée légère sur la vue 3D">❄️ Neige</button>`;
   if(G.follow){
     box.innerHTML=`<button class="gh" data-act="close3D">✖ Carte</button><button class="gh" data-act="globeFollow">🌍 Quitter la poursuite</button>
       ${Object.entries(CAM_MODES).map(([k,v])=>`<button class="gh ${G.cam.mode===k?'on':''}" data-act="globeCam" data-k="${k}">${v.label}</button>`).join('')}
@@ -424,7 +463,7 @@ function renderGlobeHud(){
       <button class="gh" data-act="globeNext">⏭ Avion suivant</button>
       <button class="gh ${typeof FX!=='undefined'&&FX.soundOn?'on':''}" data-act="globeSound">🔊 Son</button>
       ${typeof visionButtons==='function'?visionButtons():''}${typeof liveButtons==='function'?liveButtons():''}
-      <button class="gh ${G.forceDay?'on':''}" data-act="globeDay" title="Toujours en plein jour">☀️ Jour</button>
+      ${skyBtn}${snowBtn}
       <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief" title="Relief réel (montagnes, vallées)">⛰️ Relief</button>
       <button class="gh" data-act="globeQ" title="Qualité graphique">⚙️ ${GQ.mode==='a'?'Auto':GQ.mode==='h'?'Haute':GQ.mode==='l'?'Minimal':'Éco'}</button>
       <button class="gh" data-act="globeBase" title="Changer le fond : satellite, plan, relief, sombre…">🗺️ Fond</button>
@@ -441,7 +480,7 @@ function renderGlobeHud(){
   box.innerHTML=`<button class="gh" data-act="close3D">✖ Carte 2D</button>
     <button class="gh" data-act="globeFollow" ${flying.length?'':'disabled'}>🎥 Suivre un avion${!sel&&flying.length?' (au hasard)':''}</button>
     <button class="gh" data-act="globeHome">🏠 Mon hub</button>
-    <button class="gh ${G.lighting?'on':''}" data-act="globeLight">🌗 Soleil</button>
+    <button class="gh ${G.lighting?'on':''}" data-act="globeLight">🌗 Soleil</button>${skyBtn}${snowBtn}
     ${typeof visionButtons==='function'?visionButtons():''}${typeof liveButtons==='function'?liveButtons():''}
     <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief">⛰️ Relief</button>
     <button class="gh ${G.tiles?'on':''}" data-act="google3D">🏙️ Villes 3D Google</button>
@@ -480,7 +519,8 @@ Object.assign(ACTIONS,{
   globeRelief:()=>{ TERRAIN.on=!TERRAIN.on; try{ localStorage.setItem('se-relief',TERRAIN.on?'1':'0'); }catch(e){} terrainApply(); toast(TERRAIN.on?'⛰️ Relief réel activé : montagnes, vallées et volcans':'Relief désactivé (terre plate, plus léger)','info'); renderGlobeHud(); },
   globeSound:()=>fxToggleSound(),
   globeRain:()=>{ FX.forceRain=!FX.forceRain; fxAudioUnlock(); renderGlobeHud(); },
-  globeDay:()=>{ G.forceDay=!G.forceDay; try{ localStorage.setItem('se-day',G.forceDay?'1':'0'); }catch(e){} globeSync(false); renderGlobeHud(); },
+  globeDay:()=>{ if(G.forceNight){ G.forceNight=false; G.forceDay=false; } else if(G.forceDay){ G.forceDay=false; G.forceNight=true; } else { G.forceDay=true; G.forceNight=false; } G.lighting=true; try{ localStorage.setItem('se-day',G.forceDay?'1':'0'); localStorage.setItem('se-night',G.forceNight?'1':'0'); }catch(e){} globeSync(false); renderGlobeHud(); },
+  globeSnow:()=>set3DSnow(!G.snowOn),
   globeZoom:d=>{ G.cam.range=clamp(G.cam.range*(+d.d),15,80000); },
   globeHome:()=>{ globeFollow(null); const a=AP(S.company.hub); G.viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(a.lon,a.lat-6,2.2e6), orientation:{heading:0,pitch:Cesium.Math.toRadians(-55),roll:0}, duration:2}); },
   globeLight:()=>{ G.lighting=!G.lighting; G.viewer.scene.globe.enableLighting=G.lighting; renderGlobeHud(); },
