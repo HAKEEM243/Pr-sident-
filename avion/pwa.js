@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261093';
+const GAME_VER='20261094';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -83,7 +83,7 @@ async function checkUpdate(manual){
 const WHATS_NEW=[
   ['🧳 Contrôle passagers avec choix réels','Passagers → choisissez Économique (attractivité −5 %, satisfaction −5), Équilibrée (neutre) ou Assistance+ (+2,50 $ par passager et par tronçon, attractivité +8 %, satisfaction +6). Les frais et les avis des prochains vols suivent ce choix.'],
   ['🧑‍✈️ Équipe d’escale pour vos hubs','Dans la fiche d’un hub, investissez dans une équipe d’escale : rotations −15 %, retards de congestion −40 %, avec un entretien mensuel affiché.'],
-  ['💾 Reprise de partie réparée','Le bouton « Reprendre » depuis l’écran d’accueil restaure maintenant votre sauvegarde directement, même pour une très grosse compagnie sur iPhone. Les copies de secours ne sont pas supprimées.'],
+  ['🛠️ Reprise de partie réparée','Le jeu rouvrait l’écran « Fondez votre compagnie » par-dessus votre partie : corrigé. Les très grosses compagnies se chargent sans limite de temps, et « Reprendre » ouvre la partie directement.'],
   ['🏗️ Agrandir vos aéroports','Plus → <b>🏗️ Agrandir mes aéroports</b> : dans les pays où vous avez un hub, 5 étapes (extension du terminal, jetée, 2e piste, Terminal 2, ville aéroportuaire). Plus de voyageurs, plus de portes, une piste réservée aux arrivées (moins de retards), avions plus gros, et l’aéroport grandit en 3D.'],
   ['🪶 3D stable sur iPhone','Sur téléphone, la 3D démarre en mode Minimal (sans relief ni nuages) pour ne plus couper ; ⚙️ dans la 3D pour essayer Éco ou Haute. Correction : en Minimal, avions et aéroports flottaient au-dessus du sol.'],
   ['📱 3D beaucoup plus légère sur téléphone','Mémoire graphique réduite (pas d’anticrénelage du tampon principal, transparence simplifiée, mode 3D seul). Si la 3D se ferme quand même, une fenêtre explique pourquoi et propose de voir les avions en 🏙️ Ville 3D, plus légère.'],
