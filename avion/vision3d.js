@@ -85,7 +85,7 @@ const VIS_SHADERS={
     out_FragColor=vec4(mix(g,sep,0.15),c.a); }`,
 };
 const VIS_MODES=[['off','Normal'],['flir','FLIR'],['iron','FLIR couleur'],['nvg','Vision nocturne'],['crt','Écran CRT'],['noir','Noir']];
-const VIS={mode:(()=>{ try{ return localStorage.getItem('se-vis')||'off'; }catch(e){ return 'off'; } })(), det:(()=>{ try{ return localStorage.getItem('se-det')==='1'; }catch(e){ return false; } })(), contacts:false, stage:null, viewer:null, t0:performance.now(), at:0, list:[]};
+const VIS={mode:(()=>{ if(window.SE_SAFE) return 'off'; try{ return localStorage.getItem('se-vis')||'off'; }catch(e){ return 'off'; } })(), det:(()=>{ if(window.SE_SAFE) return false; try{ return localStorage.getItem('se-det')==='1'; }catch(e){ return false; } })(), contacts:false, stage:null, viewer:null, t0:performance.now(), at:0, list:[]};
 function visApply(){
   if(typeof G==='undefined'||!G||!G.viewer) return; const C=Cesium, PS=G.viewer.scene.postProcessStages;
   if(VIS.stage&&VIS.viewer===G.viewer){ try{ PS.remove(VIS.stage); }catch(e){} } VIS.stage=null; VIS.viewer=G.viewer;

@@ -11,7 +11,7 @@
    commercial), RainViewer (usage personnel), GDACS (ONU/UE), NOAA NHC.
    ========================================================= */
 'use strict';
-const LIVE={air:false, radar:false, cyc:(()=>{ try{ return localStorage.getItem('se-cyc')!=='0'; }catch(e){ return true; } })(),
+const LIVE={air:false, radar:false, cyc:(()=>{ if(window.SE_SAFE) return false; try{ return localStorage.getItem('se-cyc')!=='0'; }catch(e){ return true; } })(),
   ac:new Map(), src:'', err:'', at:0, busy:false, rv:null, rvAt:0, cyclones:[], cycAt:0, cycSrc:'', ents:new Map(), layer3:null, layer2:null, cycL2:null, cycE:[], viewer:null};
 async function liveFetch(url,ms){ const c=new AbortController(), t=setTimeout(()=>c.abort(),ms||9000); try{ const r=await fetch(url,{signal:c.signal,cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return await r.json(); } finally{ clearTimeout(t); } }
 

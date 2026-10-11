@@ -202,7 +202,7 @@ function wdHelp(){
 
 /* ---------- la semaine du directeur ---------- */
 function wdWeekly(){
-  if(!S.ai||!S.ai.list) return; wdInit(); const W=S.wd;
+  if(window.SE_SAFE||!S.ai||!S.ai.list) return; wdInit(); const W=S.wd;
   const wk=Math.floor(S.time/(7*DAY)); if(W.week===wk) return; W.week=wk;
   wdPace(); wdEconomy(); wdWarTick(); wdDisTick(); wdHelp();
   W.quiet++;
@@ -274,4 +274,5 @@ function wdHookCharters(){ if(wdHookCharters.done||typeof charterStart!=='functi
   else { M.closed=true; wdNote(`${K.ic} Mission accomplie : ${S.company.name} a ramené ${saved} personnes de ${keyCity(M.to)} en ${M.done} rotation${M.done>1?'s':''}. ${ccName(M.cc)} remercie la compagnie.`,'ok',true); }
   return pay; }; }
 }
-function registerWorldActions(){ wdHookCharters(); Object.assign(ACTIONS,{ wdLevel:d=>{ S.wdLevel=+d.k; toast('🎬 Monde : '+WD_LVL[S.wdLevel][0],'info'); if(typeof renderPanel==='function') renderPanel(); } }); }
+function registerWorldActions(){ wdHookCharters(); if(window.SE_SAFE) setTimeout(()=>toast('🪶 Mode sans échec : trafic réel, cyclones, modes de vision et directeur du monde en pause. Plus → Options pour en sortir.','warn'),2500);
+  Object.assign(ACTIONS,{ safeOff:()=>{ try{ localStorage.removeItem('se-safe'); }catch(e){} location.reload(); }, wdLevel:d=>{ S.wdLevel=+d.k; toast('🎬 Monde : '+WD_LVL[S.wdLevel][0],'info'); if(typeof renderPanel==='function') renderPanel(); } }); }
