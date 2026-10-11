@@ -4,9 +4,9 @@
      terminés dès qu'on les paie.
    • Rival national : une compagnie de votre pays grandit avec vous,
      copie vos meilleures lignes, casse ses prix, s'installe dans vos hubs.
-   • IA des chantiers : quand vous agrandissez un aéroport, des
-     compagnies viennent s'y installer ; ailleurs, les États et les
-     compagnies rivales agrandissent aussi leurs aéroports.
+   • Les chantiers du joueur ne déclenchent pas d'arrivées forcées ;
+     les IA développent leur réseau selon le marché, avec un délai
+     après un grand agrandissement joueur.
    Tout est simulé (estimations du jeu).
    ========================================================= */
 'use strict';
@@ -16,8 +16,8 @@ startProject=function(code,type){
   if(!u.can(a)) return 'Projet non disponible ici';
   const c=u.cost(a); book('investissements',-c);
   (S.upgrades[code]=S.upgrades[code]||[]).push(type); applyUpgrades();
+  if(type.startsWith('xp')||type==='terminal'||type==='extend') (S.playerAirportBuilds=S.playerAirportBuilds||{})[code]=S.time;
   logMsg(`🏗️ ${u.name} à ${a.city} : terminé (${fmtMoney(c)}).`,'drc');
-  try{ hrReactToBuild(code,type); }catch(e){ console.warn(e); }
   return null;
 };
 
@@ -47,8 +47,8 @@ function aiImprove(e,lvl,isNat){
   if(Math.random()>0.25+0.12*lvl) return;
   const mineSet=new Set(S.routes.flatMap(r=>r.stops));
   const r=Math.random(), cc=e.cc||homeOf(e.code);
-  if(r<0.35){ // une destination que vous ne desservez pas
-    const cand=AIRPORT_CODES.filter(c=>c!==e.hub&&AP(c).cls>=1&&!mineSet.has(c)&&!carriersOn(e.hub,c).includes(e.code)&&dist(e.hub,c)>150&&dist(e.hub,c)<(e.fleet>=60?7000:isNat?2600:3500))
+  if(r<0.35&&aiAirportMarketOpen(e.hub)){ // une destination que vous ne desservez pas
+    const cand=AIRPORT_CODES.filter(c=>c!==e.hub&&aiAirportMarketOpen(c)&&AP(c).cls>=1&&!mineSet.has(c)&&!carriersOn(e.hub,c).includes(e.code)&&dist(e.hub,c)>150&&dist(e.hub,c)<(e.fleet>=60?7000:isNat?2600:3500))
       .sort((x,y)=>(AP(y).cc===cc)-(AP(x).cc===cc)||marketDemand(e.hub,y)-marketDemand(e.hub,x)).slice(0,12);
     if(cand.length){ const c=pick(cand); (S.ai.extra[e.code]=S.ai.extra[e.code]||[]).push(pairKey(e.hub,c)); e.routes++; S.ai.ver++;
       aiNews(`🆕 ${e.name} ouvre une nouvelle destination : ${keyCity(e.hub)} → ${keyCity(c)}.`,'rival',isNat); }
@@ -65,7 +65,7 @@ function aiImprove(e,lvl,isNat){
 function aiWorldGrow(){
   if(!S.ai||typeof AIRLINE_DB==='undefined') return; const target=120; if(S.ai.list.length>=target) return;
   const have=new Set(S.ai.list.map(e=>e.code)), mine=S.company.code;
-  const cand=Object.entries(AIRLINE_DB).filter(([c,a])=>!have.has(c)&&c!==mine&&AP(a[2])&&a[3]>=3).sort((x,y)=>y[1][3]-x[1][3]).slice(0,30);
+  const cand=Object.entries(AIRLINE_DB).filter(([c,a])=>!have.has(c)&&c!==mine&&AP(a[2])&&a[3]>=3&&aiAirlineMarketOpen(c)).sort((x,y)=>y[1][3]-x[1][3]).slice(0,30);
   for(let i=0;i<3&&cand.length;i++){ const [c]=cand.splice(Math.floor(Math.random()*Math.min(10,cand.length)),1)[0]; const e=makeAI(c); S.ai.list.push(e); S.ai.ver++;
     aiNews(`🆕 ${e.name} (${ccName(e.cc)}) entre dans la course : ${e.fleet} avions au départ de ${keyCity(e.hub)}.`,'rival',mineCountry(e.cc)); }
 }
@@ -81,17 +81,8 @@ function natRivalHtml(){
     ${last?`<div class="mut">Dernier coup : ${last.text}</div>`:''}</div>`;
 }
 
-/* ---------- l'IA des chantiers ---------- */
-// quand vous agrandissez un aéroport, il attire des compagnies (vos concurrents viennent s'y battre)
-function hrReactToBuild(code,type){
-  if(!S.ai) return; const A=AP(code), big=type.startsWith('xp')||type==='terminal'||type==='extend';
-  if(!big) return;
-  const cand=aiAlive().filter(e=>e.fleet>=15&&!carriersOn(code,e.hub).includes(e.code)&&dist(e.hub,code)>250&&dist(e.hub,code)<(e.fleet>=60?9000:3500)).sort((x,y)=>y.fleet-x.fleet).slice(0,8);
-  const n=Math.min(cand.length,1+Math.floor(Math.random()*2)), names=[];
-  for(let i=0;i<n;i++){ const e=cand[Math.floor(Math.random()*cand.length)]; if(names.includes(e.name)) continue; (S.ai.extra[e.code]=S.ai.extra[e.code]||[]).push(pairKey(e.hub,code)); e.routes++; names.push(e.name); }
-  const nr=natRival(); if(nr&&nr.hub!==code&&!carriersOn(nr.hub,code).includes(nr.code)&&A.cc===homeCcOf()){ (S.ai.extra[nr.code]=S.ai.extra[nr.code]||[]).push(pairKey(nr.hub,code)); names.push(nr.name); }
-  if(names.length){ S.ai.ver++; aiNews(`🏗️ Le nouvel aéroport de ${keyCity(code)} attire la concurrence : ${names.join(', ')} ${names.length>1?'ouvrent':'ouvre'} des vols.`,'rival',true); }
-}
+/* ---------- l’IA des chantiers ---------- */
+// Les projets joueurs n’ajoutent pas de lignes IA ; leur entrée reste progressive et indépendante.
 // ailleurs, États et compagnies rivales agrandissent aussi leurs aéroports (tous les mois)
 function hrAiBuilds(){
   if(!S.ai||Math.random()>0.55) return;
@@ -154,7 +145,7 @@ function homeGovBuilds(){
       [{k:'ok',l:'🤝 J’accepte'},{k:'no',l:'Refuser'}],{cc,hub:c,reward});
   }
   // le rival national s'y installe s'il est en forme
-  const nr=natRival(); if(nr&&Math.random()<0.5&&!carriersOn(nr.hub,c).includes(nr.code)){ (S.ai.extra[nr.code]=S.ai.extra[nr.code]||[]).push(pairKey(nr.hub,c)); nr.routes++; S.ai.ver++;
+  const nr=natRival(); if(nr&&Math.random()<0.5&&aiAirportMarketOpen(nr.hub)&&aiAirportMarketOpen(c)&&!carriersOn(nr.hub,c).includes(nr.code)){ (S.ai.extra[nr.code]=S.ai.extra[nr.code]||[]).push(pairKey(nr.hub,c)); nr.routes++; S.ai.ver++;
     aiNews(`🆕 ${nr.name} annonce des vols vers ${a.city}, le nouvel aéroport.`,'rival',true); }
 }
 // saisons de la diaspora : à Noël et l'été, les familles rentrent au pays
