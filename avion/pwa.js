@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261094';
+const GAME_VER='20261095';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,8 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🧠 Concurrents plus réalistes','Le résultat hebdomadaire dépend du réseau, des lignes réellement exploitées, du pays, du carburant, de la réputation, de l’âge et de la dette. Les compagnies fragiles peuvent restructurer, être rachetées ou faire faillite ; les rachats coûtent vraiment de l’argent et règlent votre participation.'],
+  ['📊 Parts de marché passagers expliquées','Les parts distinguent désormais votre poids sur toute la demande étudiée et votre part parmi les marchés ayant un vol direct. Les marchés sans vol direct identifié ne sont plus présentés comme une compagnie « via escale » ; fréquence, prix, couverture de l’échantillon et limites des correspondances sont explicités.'],
   ['🧳 Contrôle passagers avec choix réels','Passagers → choisissez Économique (attractivité −5 %, satisfaction −5), Équilibrée (neutre) ou Assistance+ (+2,50 $ par passager et par tronçon, attractivité +8 %, satisfaction +6). Les frais et les avis des prochains vols suivent ce choix.'],
   ['🧑‍✈️ Équipe d’escale pour vos hubs','Dans la fiche d’un hub, investissez dans une équipe d’escale : rotations −15 %, retards de congestion −40 %, avec un entretien mensuel affiché.'],
   ['🛠️ Reprise de partie réparée','Le jeu rouvrait l’écran « Fondez votre compagnie » par-dessus votre partie : corrigé. Les très grosses compagnies se chargent sans limite de temps, et « Reprendre » ouvre la partie directement.'],

@@ -164,13 +164,13 @@ const LED_CATS = {
   billets:['Billets passagers',1], annexes:['Revenus annexes',1], cargo:['Fret & contrats cargo',1], ventes:['Ventes d’avions',1],
   carburant:['Carburant',-1], taxes:['Taxes aéroportuaires',-1], service:['Service à bord',-1], handling:['Accueil & assistance passagers',-1], airportOps:['Gestion aéroportuaire',-1], salaires:['Salaires',-1],
   leasing:['Leasing',-1], maintenance:['Maintenance',-1], interets:['Intérêts bancaires',-1], marketing:['Marketing',-1],
-  alliance:['Cotisations alliance',-1], formation:['Formation',-1], incidents:['Incidents',-1], co2:['Quotas CO₂',-1], investissements:['Investissements aéroports',-1], licences:['Hubs & licences de lignes',-1], recrutement:['Recrutement',-1], admin:['Primes & bac à sable',1], assurance:['Indemnités d’assurance',1], subventions:['Subventions d’État',1],
+  alliance:['Cotisations alliance',-1], formation:['Formation',-1], incidents:['Incidents',-1], co2:['Quotas CO₂',-1], investissements:['Investissements aéroports',-1], licences:['Hubs & licences de lignes',-1], recrutement:['Recrutement',-1], participations:['Cessions de participations',1], admin:['Primes & bac à sable',1], assurance:['Indemnités d’assurance',1], subventions:['Subventions d’État',1],
 };
 function book(cat, amount){ // montant signé : + revenu, - coût
   S.cash += amount;
   for(const k of ['day','week','month','total']){ const l=S.led[k]||(S.led[k]={}); l[cat]=(l[cat]||0)+amount; }
 }
-const ledSum = (l,sign)=>Object.entries(l).filter(([k])=>!['admin','ventes','investissements','licences'].includes(k)).reduce((s,[,v])=>s+(sign>0?Math.max(0,v):Math.min(0,v)),0);
+const ledSum = (l,sign)=>Object.entries(l).filter(([k])=>!['admin','ventes','investissements','licences','participations'].includes(k)).reduce((s,[,v])=>s+(sign>0?Math.max(0,v):Math.min(0,v)),0);
 
 function logMsg(text, kind='info'){
   S.log.unshift({t:S.time, text, kind});
