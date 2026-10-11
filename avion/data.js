@@ -211,6 +211,7 @@ if(typeof DRC_TOWNS!=='undefined'){ const taken=new Set(Object.keys(AIRPORTS));
   for(const [city,prov,lat,lon,rw,popK] of DRC_TOWNS){ if(Object.values(AIRPORTS).some(a=>a.cc==='CD'&&a.city===city)) continue; const code=mkCode(city); if(!code) continue; taken.add(code);
     AIRPORTS[code]={code,icao:'',name:`Aérodrome de ${city}`,city,cc:'CD',prov,lat,lon,runway:rw,surface:'Latérite',cls:rw>=1200?1:1,traffic:+Math.max(0.002,popK/1e5).toFixed(3),drc:true,large:false,utc:lon<22?1:2,popK,extra:true}; } }
 if(typeof DRC_CITY_POP!=='undefined') for(const a of Object.values(AIRPORTS)) if(a.cc==='CD'&&a.popK===undefined&&DRC_CITY_POP[a.city]) a.popK=DRC_CITY_POP[a.city];
+if(typeof DRC_AIR!=='undefined') for(const a of Object.values(AIRPORTS)) if(a.cc==='CD'){ const t=DRC_AIR[a.city]?(a.cls>=3?DRC_AIR[a.city]:0):a.popK?a.popK/1000*DRC_AIR_RATE:0; if(t>a.traffic) a.traffic=+t.toFixed(3); }
 // 4) pistes réelles et altitude (OurAirports)
 if(typeof RUNWAY_DB!=='undefined') for(const [code,a] of Object.entries(AIRPORTS)){
   const rws=RUNWAY_DB[code]; if(ELEV_DB&&ELEV_DB[code]!==undefined) a.elev=ELEV_DB[code];

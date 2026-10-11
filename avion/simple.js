@@ -160,6 +160,7 @@ if(typeof registerWorldActions==='function') registerWorldActions();
 if(typeof registerXpActions==='function') registerXpActions();
 if(typeof registerApMarketActions==='function') registerApMarketActions();
 if(typeof registerCityActions==='function') registerCityActions();
+if(typeof registerCityActions==='function') registerCityActions();
 if(typeof registerInboxActions==='function') registerInboxActions();
 if(typeof registerPwaActions==='function') registerPwaActions();
 if(typeof registerProgressActions==='function') registerProgressActions();
