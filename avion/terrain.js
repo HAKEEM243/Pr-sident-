@@ -19,7 +19,7 @@ function terrTile(z,x,y){
     const wm=new Uint8Array(256*256);
     for(let i=0;i<h.length;i++){ const v=d[i*4]*256+d[i*4+1]+d[i*4+2]/256-32768; h[i]=v<0?0:v; if(v<-0.5) wm[i]=255; }   // la mer reste au niveau 0 ; masque d'eau : fonds marins
     h.wm=wm; return h; }).catch(()=>null);
-  TERRAIN.tiles.set(k,p); if(TERRAIN.tiles.size>160) TERRAIN.tiles.delete(TERRAIN.tiles.keys().next().value);
+  TERRAIN.tiles.set(k,p); if(TERRAIN.tiles.size>(typeof GQ!=='undefined'&&GQ.mob?60:160)) TERRAIN.tiles.delete(TERRAIN.tiles.keys().next().value);
   return p;
 }
 // zones aplanies (pistes, aires de stationnement) : enregistrées pour les aéroports proches
