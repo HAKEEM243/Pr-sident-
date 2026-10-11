@@ -26,3 +26,10 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Données en direct (live-data.js)
+
+Chargées à l'exécution par le navigateur, jamais copiées dans le dépôt :
+- Trafic aérien : [adsb.lol](https://adsb.lol) (données ODbL 1.0), [airplanes.live](https://airplanes.live), [OpenSky Network](https://opensky-network.org) (usage non commercial).
+- Radar de pluie : [RainViewer](https://www.rainviewer.com/api.html) (usage personnel / éducatif).
+- Cyclones : [GDACS](https://www.gdacs.org) (ONU / Commission européenne), [NOAA NHC](https://www.nhc.noaa.gov).

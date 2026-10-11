@@ -412,7 +412,7 @@ function renderGlobeHud(){
       <button class="gh" data-act="globeZoom" data-d="0.7">🔍＋</button><button class="gh" data-act="globeZoom" data-d="1.4">🔍－</button>
       <button class="gh" data-act="globeNext">⏭ Avion suivant</button>
       <button class="gh ${typeof FX!=='undefined'&&FX.soundOn?'on':''}" data-act="globeSound">🔊 Son</button>
-      ${typeof visionButtons==='function'?visionButtons():''}
+      ${typeof visionButtons==='function'?visionButtons():''}${typeof liveButtons==='function'?liveButtons():''}
       <button class="gh ${G.forceDay?'on':''}" data-act="globeDay" title="Toujours en plein jour">☀️ Jour</button>
       <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief" title="Relief réel (montagnes, vallées)">⛰️ Relief</button>
       <button class="gh" data-act="globeQ" title="Qualité graphique">⚙️ ${GQ.mode==='a'?'Auto':GQ.mode==='h'?'Haute':GQ.mode==='l'?'Minimal':'Éco'}</button>
@@ -431,7 +431,7 @@ function renderGlobeHud(){
     <button class="gh" data-act="globeFollow" ${flying.length?'':'disabled'}>🎥 Suivre un avion${!sel&&flying.length?' (au hasard)':''}</button>
     <button class="gh" data-act="globeHome">🏠 Mon hub</button>
     <button class="gh ${G.lighting?'on':''}" data-act="globeLight">🌗 Soleil</button>
-    ${typeof visionButtons==='function'?visionButtons():''}
+    ${typeof visionButtons==='function'?visionButtons():''}${typeof liveButtons==='function'?liveButtons():''}
     <button class="gh ${typeof TERRAIN!=='undefined'&&TERRAIN.on?'on':''}" data-act="globeRelief">⛰️ Relief</button>
     <button class="gh ${G.tiles?'on':''}" data-act="google3D">🏙️ Villes 3D Google</button>
     <button class="gh" data-act="globeBase" title="Changer le fond : satellite, plan, relief, sombre…">🗺️ Fond</button>
