@@ -122,6 +122,13 @@ function paxProfile(a,b){
 
 /* ---------- immigration d'un pays : tous les vols qui y arrivent ---------- */
 const _ccCache={};
+function countryPaxTrend(cc,perDay){
+  S.paxTrend=S.paxTrend||{}; const now=Number(S.time)||0, prev=S.paxTrend[cc], value=Math.round(perDay);
+  if(!prev||now<prev.t){ S.paxTrend[cc]={t:now,perDay:value}; return null; }
+  if(now-prev.t<7*DAY) return null;
+  S.paxTrend[cc]={t:now,perDay:value};
+  return {delta:value-prev.perDay,pct:prev.perDay?(value-prev.perDay)/prev.perDay:0,days:(now-prev.t)/DAY};
+}
 function countryImmigration(cc){
   const routeSig=(S.routes||[]).map(r=>`${r.id}:${routeFreq(r)}:${(r.pm&&r.pm.y)??r.price??1}`).join(','), rivalSig=(S.rivals||[]).map(r=>`${r.code}:${(r.routes||[]).length}:${r.quality||1}:${r._v||0}`).join(',');
   const policySig=`${S.reputation}|${S.service}|${S.paxPolicy||'standard'}|${S.loyalty?1:0}|${S.ancillary&&Object.values(S.ancillary).join(',')||''}`;
@@ -154,6 +161,7 @@ function countryImmigration(cc){
     wealth, purpose, cls, fare, airlines, orig:Object.entries(orig).map(([c,s])=>({cc:c,share:s})).sort((a,b)=>b.share-a.share), trips, uniqueYear:perDay*365/Math.max(0.5,trips),
     directCoverage:servedW, unservedDirect:unservedW, sampleCoverage:total>0?sampTot/total:0,
     refusal:clamp(refusalW*(1+moodT*2),0.002,0.08), income:incomeOf(cc), topPairs:pairs.slice(0,8)};
+  res.weeklyTrend=countryPaxTrend(cc,res.perDay);
   if(Object.keys(_ccCache).length>140) for(const old of Object.keys(_ccCache)) delete _ccCache[old];
   _ccCache[key]=res; return res;
 }
@@ -324,7 +332,7 @@ function pPax(){
   const countries=Object.keys(COUNTRIES).filter(k=>cAirports(k).length).sort((x,y)=>COUNTRIES[x][0].localeCompare(COUNTRIES[y][0]));
   const origins=im&&im.orig?im.orig.slice(0,6).map(x=>x.cc):[];
   const quick=[...new Set([cc,homeCC(),...S.hubs.map(h=>AP(h).cc),...origins])].filter(k=>COUNTRIES[k]&&cAirports(k).length).slice(0,9);
-const head=`<div class="simplehelp">🛂 <b>Contrôle des passagers</b> : qui arrive dans un pays, d’où il vient, ce qu’il paie, avec quelle compagnie. Les volumes suivent la demande du jeu ; la répartition (richesse, nationalité, motif) est une <b>estimation</b>, les personnes sont fictives. Les parts sont pondérées par la demande sur les 70 liaisons étudiées : les marchés sans liaison directe identifiée sont isolés et ne sont pas attribués à une compagnie.</div>
+const head=`<div class="simplehelp">🛂 <b>Contrôle des passagers</b> : qui arrive dans un pays, d’où il vient, ce qu’il paie, avec quelle compagnie. Les chiffres sont des <b>estimations modélisées</b> (70 liaisons échantillonnées), pas un compteur direct, et n’évoluent donc pas à chaque minute. La variation compare l’estimation à une semaine simulée d’intervalle. Les profils de richesse, nationalité et motif sont des estimations ; les personnes sont fictives. Les marchés sans liaison directe identifiée ne sont pas attribués à une compagnie.</div>
   <div class="row wrap"><select data-in="paxCountry">${countries.map(k=>`<option value="${k}" ${k===cc?'selected':''}>${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</option>`).join('')}</select></div>
   <div class="chips">${quick.map(k=>`<button class="chip ${k===cc?'on':''}" data-act="paxCountry" data-cc="${k}">${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</button>`).join('')}</div>`;
   const policyBox=paxPolicyHtml();
@@ -338,7 +346,7 @@ const head=`<div class="simplehelp">🛂 <b>Contrôle des passagers</b> : qui ar
   <h2>${C[2]} ${C[0]} <span class="mut small">· ${INCOME_LABEL[im.income]}</span></h2>
   ${unitChips()}
   <div class="kpis">
-    ${kp('Passagers arrivant',volLine(im.perDay),`depuis ${im.orig.length} pays · ${im.airports} aéroport(s)`)}
+    ${kp('Passagers arrivant (estimation)',volLine(im.perDay),`${im.orig.length} pays · ${im.airports} aéroport(s)${im.weeklyTrend?` · ${im.weeklyTrend.delta===0?'stable':`${im.weeklyTrend.delta>0?'▲':'▼'} ${volLine(Math.abs(im.weeklyTrend.delta))} /jour (${im.weeklyTrend.pct>0?'+':''}${(im.weeklyTrend.pct*100).toFixed(1).replace('.',',')} %)`} depuis ${Math.round(im.weeklyTrend.days)} jour${Math.round(im.weeklyTrend.days)===1?'':'s'} simulé${Math.round(im.weeklyTrend.days)===1?'':'s'}`:''}`)}
     ${kp('Voyageurs différents',`≈ ${num(Math.round(im.uniqueYear))} / an`,`chacun voyage ${im.trips.toFixed(1).replace('.',',')} fois par an en moyenne`)}
     ${kp('Refus d’entrée',(im.refusal*100).toFixed(1).replace('.',',')+' %',`≈ ${num(Math.round(im.perDay*im.refusal*(UNITS[UI.paxUnit||'week'][1])))} refoulés / ${UNITS[UI.paxUnit||'week'][0]}`)}
     ${kp('Votre part des 70 routes',(myShare*100).toFixed(1).replace('.',',')+' %','part du volume estimé sur les routes analysées ; correspondances exclues')}
