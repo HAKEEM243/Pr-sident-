@@ -89,7 +89,7 @@ function newGame(opts){
     led:{ day:{}, week:{}, prevWeek:{}, month:{}, prevMonth:{}, total:{} },
     stats:{ pax:0, flights:0, cargoT:0, incidents:0 },
     autoMaint:true, notifications:false, lastDay:dayIndex(start), lastMonth:monthKey(start),
-    rivals:[], admin:false, seq:1,
+    rivals:[], rivalDrive:3, admin:false, seq:1,
   };
   const pack=START_PACKS[opts.pack||'regional'];
   S.packId=opts.pack||'regional';
@@ -1198,6 +1198,7 @@ function save(){ if(!S||(typeof window!=='undefined'&&window._svNoUnloadSave)) r
 function migrate(){
   if(typeof ensureBiz==='function') ensureBiz();
   if(S.simple===undefined) S.simple=true;
+  if(S.rivalDrive===undefined) S.rivalDrive=3;
   if(!S.auto) S.auto={pil:!!S.simple,pnc:!!S.simple,meca:!!S.simple,sol:!!S.simple};
   if(S.rival && !S.rivals){ Object.assign(S.rival,{local:true,color:'#e5484d'}); S.rivals=[S.rival]; for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false)); delete S.rival; }
   if(!S.rivals||!S.rivals.length) initRivals();

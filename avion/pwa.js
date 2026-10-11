@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261088';
+const GAME_VER='20261089';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -106,6 +106,10 @@ const WHATS_NEW=[
   ['⚙️ Vue 3D plus fluide','Le réglage « Éco » réduit maintenant vraiment le nombre de pixels rendus pour soulager les appareils mobiles.'],
   ['⏩ Progression hors ligne','La partie avance maintenant à la vitesse choisie en votre absence (plafond ×60 et 30 jours), sauf si vous l’avez mise en pause.'],
   ['🤝 Concurrents plus vivants','Les jeunes compagnies ont davantage de chances de grandir ; les compagnies en difficulté peuvent être rachetées plus tôt par un concurrent solide.'],
+  ['⚔️ Concurrence renforcée','Les nouvelles parties et les anciennes sauvegardes sans réglage démarrent en mode Impitoyable. Les challengers investissent davantage et leurs changements de flotte/réseau sont mieux synchronisés. Vous pouvez choisir Calme, Normale ou Féroce à tout moment.'],
+  ['📈 Créations, rachats et faillites','Davantage de jeunes compagnies peuvent entrer sur le marché avec un capital proportionnel à leur flotte, grandir puis devenir des transporteurs établis. Les rachats de compagnies fragiles sont plus fréquents. Les grandes compagnies ne sont plus automatiquement sauvées : l’aide publique est conditionnelle, limitée à une seule fois et impose une réduction de flotte et de lignes.'],
+  ['🌍 Pays qui pèsent sur les compagnies','Les périodes de crise et de boom affectent aussi les résultats des transporteurs IA, en plus de la demande et des restrictions déjà appliquées aux vols.'],
+  ['📷 Photos des avions plus justes','Le jeu demande des pages photo plus précises par modèle/variante. En attendant la photo, il affiche une silhouette plutôt qu’une photo de famille potentiellement trompeuse.'],
   ['🗺️ Fond de carte 3D','En vue 3D : bouton <b>🗺️ Fond</b> (satellite, Sentinel-2, plan, relief, sombre…).'],
   ['🛫 Décollage / 🛬 atterrissage','En vue 3D sans avion suivi : <b>Prochain décollage</b> et <b>Prochain atterrissage</b>.'],
   ['🗓️ Calendrier des vols','Bouton <b>🗓️ Calendrier</b> (onglet Lignes, ou la liste des vols) : la semaine quadrillée, un bloc par rotation.'],

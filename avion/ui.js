@@ -41,18 +41,11 @@ function photoFetch(t){
       hydratePhotos();
     }).catch(()=>{ setTimeout(()=>{ PHOTO_PENDING[t]=false; },60000); });
 }
-// Illustrations fournies avec le jeu (affichées tant que la photo Wikimedia n'est pas chargée)
-const MODEL_IMG={A20N:'a320',A320:'a320',A19N:'a320',A318:'a320',A321:'a320',A21N:'a320',A21X:'a320',B738:'b737',B38M:'b737',B3XM:'b737',B737:'b737',B39M:'b737',B38F:'b737',
-  A388:'a380',B744:'b747',B748:'b747',B74F:'b747',B788:'b787',B789:'b787',B78X:'b787',CONC:'conc',A359:'a350',A35K:'a350',A35F:'a350',
-  B77E:'b777',B77W:'b777',B779:'b777',B77F:'b777',B77L:'b777',B778:'b777',AT76:'atr',AT46:'atr',AT7F:'atr',CRJ2:'crj',CRJ7:'crj',CRJ9:'crj',
-  E175:'e195',E190:'e195',E195:'e195',E170:'e195',E290:'e195',E295:'e195',C208:'c208'};
 function photoHtml(m, cls='', color){
   const t=WIKI_TITLES[m.id], c=color||m.color||S.company.color, svg=PLANE_SVG(c,cls.includes('thumb')?44:92,planeCat(m));
   const rec=t&&photoRec(t);
   if(rec) return `<div class="photo ok ${cls}"><img src="${rec.src}" alt="${esc(m.name)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('fail')"><a class="credit" href="${rec.file}" target="_blank" rel="noopener" title="Photo Wikimedia Commons — auteur et licence">📷 Wikimedia</a>${svg}</div>`;
-  const fb=MODEL_IMG[m.id];
-  if(fb) return `<div class="photo ok fallback ${cls}" ${t?`data-pt="${esc(t)}" data-mid="${m.id}"`:''}><img src="img/ac-${fb}.jpg" alt="${esc(m.name)}" loading="lazy"></div>`;
-  return `<div class="photo ${cls}" ${t?`data-pt="${esc(t)}" data-mid="${m.id}"`:''}>${svg}</div>`;
+  return `<div class="photo ${cls}" ${t?`data-pt="${esc(t)}" data-mid="${m.id}" title="Photo du modèle ${esc(m.name)} en chargement"`:''}>${svg}</div>`;
 }
 function hydratePhotos(){
   document.querySelectorAll('.photo[data-pt]').forEach(el=>{
