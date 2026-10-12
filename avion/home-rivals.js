@@ -18,6 +18,7 @@ startProject=function(code,type){
   if(type.startsWith('xp')||type==='terminal'||type==='extend') (S.playerAirportBuilds=S.playerAirportBuilds||{})[code]=S.time;
   if(S.ai){ S.playerBuildRouteQueue=S.playerBuildRouteQueue||[]; S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>x.code!==code); S.playerBuildRouteQueue.push({code,type,t:S.time}); if(S.playerBuildRouteQueue.length>20) S.playerBuildRouteQueue.shift(); }
   logMsg(`🏗️ ${u.name} à ${a.city} : terminé (${fmtMoney(c)}).`,'drc');
+  if(S.ai&&typeof aiStartup==='function'&&a.cls>=2) aiStartup(null,0,code);
   return null;
 };
 
@@ -44,7 +45,9 @@ function hrAirKivuRouteTick(){
   e.lastStartupRouteAttempt=now;
   // Sans route, Air Kivu ne peut pas gagner d'argent ni bâtir de marge :
   // financer une première liaison viable avant d'appliquer le filtre de rentabilité.
-  if((aiOpenRoutes(e)>0&&(e.lastMargin||0)<=0.025)||e.cash<=e.fleet*14e6) return;
+  if(!e.startup&&aiOpenRoutes(e)>0&&(e.lastMargin||0)<=0.025) return;
+  if(e.startup&&e.cash<=e.fleet*14e6) e.cash=Math.max(e.cash,e.fleet*14e6+3.5e6);
+  if(e.cash<=e.fleet*14e6) return;
   const cap=Math.max(2,Math.floor(e.fleet*0.8)); if(aiOpenRoutes(e)>=cap) return;
   aiRoute(e,'open');
 }
