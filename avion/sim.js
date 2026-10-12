@@ -81,7 +81,7 @@ function newGame(opts){
     ancillary:{seat:true, bags:true, wifi:false, meals:false},
     oil:82, oilBase:82, fleet:[], customModels:[], pilots:[], candidates:[], cabinCrew:8, routes:[],
     v:2, simple:true, auto:{pil:true,pnc:true,meca:true,sol:true}, hubs:[opts.hub||'FIH'],
-    fuel:{stock:400000, cap:1500000, auto:false, autoBelow:0.72, hist:[]},
+    fuel:{stock:400000, cap:1500000, auto:true, autoBelow:0.90, hist:[]},
     co2:{stock:300, cap:3000, price:85, base:85, hist:[]},
     staff:{pnc:8, meca:6, sol:18, sal:{pil:100,pnc:100,meca:100,sol:100}, morale:{pil:70,pnc:70,meca:70,sol:70}, strikeUntil:0},
     loans:[], campaigns:[], alliance:null, cargo:{offers:[], active:[], done:0},
@@ -956,11 +956,12 @@ function initRivals(){
   for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false));
 }
 function initRival(){ initRivals(); }
-function rivalTick(){ for(const R of S.rivals||[]) rivalStep(R); }
+function rivalTick(){ if(typeof airspacePruneRivals==='function') airspacePruneRivals(); for(const R of S.rivals||[]) rivalStep(R); }
 const _rdem=new WeakMap(); // demande des lignes concurrentes, recalculée une fois par semaine (évite les à-coups)
 function rivalStep(R){
   let pax=0, rev=0;
   for(const r of R.routes){
+    if(typeof airspaceViolation==='function'&&airspaceViolation(R.code,r.a,r.b)) continue;
     let c=_rdem.get(r); const wk=Math.floor((S.time+((r.a.charCodeAt(2)+r.b.charCodeAt(2))%7)*DAY)/(7*DAY)); // recalcul étalé sur la semaine
     if(!c||c.wk!==wk||c.f!==r.freq){
       const d=dist(r.a,r.b), dem=marketDemand(r.a,r.b)+marketDemand(r.b,r.a), seats = d<1200?70:d<4000?180:300;
@@ -982,9 +983,10 @@ function rivalStep(R){
   // expansion : le rival local copie vos lignes, les majors s'attaquent à celles proches de leur hub
   if(R.cash>50e6 && Math.random()<(R.local?0.12:0.06)){
     let a,b;
-    const player=S.routes.filter(r=>r.stops.length>=2 && (R.local || r.stops.some(c=>dist(c,R.hub)<3000)));
+    const player=S.routes.filter(r=>r.stops.length>=2 && (R.local || r.stops.some(c=>dist(c,R.hub)<3000)) && (typeof airspaceViolation!=='function'||r.stops.slice(1).every((c,i)=>!airspaceViolation(R.code,r.stops[i],c))));
     if(player.length && !(typeof isPartner==='function'&&isPartner(R)) && Math.random()<(R.local?0.55:0.3)){ const r=pick(player); a=r.stops[0]; b=r.stops[1]; }
-    else { a=R.hub; const opts=AIRPORT_CODES.filter(c=>c!==R.hub && AP(c).cls>=3 && dist(R.hub,c)<(R.local?4000:9000) && AP(c).traffic>=1); if(!opts.length) return; b=pick(opts); }
+    else { a=R.hub; const opts=AIRPORT_CODES.filter(c=>c!==R.hub && AP(c).cls>=3 && dist(R.hub,c)<(R.local?4000:9000) && AP(c).traffic>=1 && (typeof airspaceViolation!=='function'||!airspaceViolation(R.code,R.hub,c))); if(!opts.length) return; b=pick(opts); }
+    if(typeof airspaceViolation==='function'&&airspaceViolation(R.code,a,b)) return;
     const ex=R.routes.find(x=>(x.a===a&&x.b===b)||(x.a===b&&x.b===a));
     if(ex) ex.freq=Math.min(6,ex.freq+1); else R.routes.push({a,b,freq:1});
     R.cash-=40e6; R.fleet++;
@@ -993,7 +995,7 @@ function rivalStep(R){
   }
   if(R.cash<0 && R.routes.length>2){ R.routes.sort((x,y)=>x.freq-y.freq).shift(); R.fleet=Math.max(3,R.fleet-1); R.cash+=25e6; }
 }
-if(typeof rivalsOn!=='function') var rivalsOn=function(a,b){ const out=[]; for(const R of S.rivals||[]) for(const r of R.routes) if((r.a===a&&r.b===b)||(r.a===b&&r.b===a)) out.push({R,freq:r.freq}); return out; };
+if(typeof rivalsOn!=='function') var rivalsOn=function(a,b){ const out=[]; for(const R of S.rivals||[]) for(const r of R.routes) if((r.a===a&&r.b===b)||(r.a===b&&r.b===a)) if(typeof airspaceViolation!=='function'||!airspaceViolation(R.code,r.a,r.b)) out.push({R,freq:r.freq}); return out; };
 
 /* ---------- météo : cellules orageuses ---------- */
 function stormAt(lat,lon){ for(const c of S.weather||[]){ if(gcDist(c,{lat,lon})<c.r) return c; } return null; }
@@ -1281,6 +1283,8 @@ function migrateCore(){
   if(!PAX_POLICIES[S.paxPolicy]) S.paxPolicy='standard';
   if(S.simple===undefined) S.simple=true;
   if(S.rivalDrive===undefined) S.rivalDrive=3;
+  S.fuel=S.fuel||{stock:400000,cap:1500000,auto:true,autoBelow:0.90,hist:[]};
+  if(!S.autoOpsVersion){ S.autoMaint=true; S.fuel.auto=true; S.fuel.autoBelow=Math.max(Number(S.fuel.autoBelow)||0,0.90); S.autoOpsVersion=1; }
   if(!S.auto) S.auto={pil:!!S.simple,pnc:!!S.simple,meca:!!S.simple,sol:!!S.simple};
   if(S.rival && !S.rivals){ Object.assign(S.rival,{local:true,color:'#e5484d'}); S.rivals=[S.rival]; for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false)); delete S.rival; }
   if(!S.rivals||!S.rivals.length) initRivals();
@@ -1312,6 +1316,7 @@ function migrateCore(){
   if(S.tuto===undefined) S.tuto=0;
   for(const ac of S.fleet) if(ac.status==='manual'){ ac.status='idle'; }
   applyUpgrades();
+  if(typeof airspacePruneRivals==='function') airspacePruneRivals();
 }
 function load(){ try{ const raw=localStorage.getItem(SAVE_KEY); if(raw){ S=JSON.parse(raw); migrate(); return true; } }catch(e){} return false; }
 

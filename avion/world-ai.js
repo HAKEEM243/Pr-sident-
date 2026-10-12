@@ -93,7 +93,7 @@ function aiStep(e,oilF){
   if(e.cash>e.fleet*60e6) e.cash*=0.97;                      // dividendes
   if(Math.random()<0.004){ const l=e.fleet*rnd(0.6e6,2.5e6); e.cash-=l; if(e.fleet>=60&&l>e.fleet*1.8e6) aiNews(`✊ ${e.name} : grève et pertes record (${fmtMoney(l)}).`,'news'); }
   e.rep=clamp(e.rep+rnd(-0.45,0.55)+(margin>0.06?0.16:margin<-0.12?-0.25:0)+(e.rep>72?-0.12:0.08),20,95);
-  if(e.startup&&(e.fleet>=25||(S.time-(e.founded||S.time)>=365*DAY&&e.cash>e.fleet*5e6))){ e.startup=false; aiNews(`🎉 ${e.name} sort de la phase de lancement : ${e.fleet} avions, ${e.routes} lignes. Les aides de jeune compagnie cessent.`,'news',true); }
+  if(e.startup&&(e.fleet>=25||S.time-(e.founded||S.time)>=365*DAY)){ e.startup=false; aiNews(`🎉 ${e.name} sort de la phase de lancement : ${e.fleet} avions, ${e.routes} lignes. Les aides de jeune compagnie cessent.`,'news',true); }
   e.pax=Math.round(e.fleet*520*(0.6+e.rep/150));
   // Expansion prioritaire des jeunes compagnies : les investisseurs financent
   // les ouvertures et une petite commande même si le compte est déficitaire.
@@ -109,8 +109,8 @@ function aiStep(e,oilF){
   const routeMonth=monthKey(S.time);
   if(e.lastRouteMonth!==routeMonth){
     const distressed=(e.debt||0)>0||e.cash<e.fleet*3e6||margin<-0.12;
-    if(e.startup&&e.routes<Math.max(2,Math.min(30,e.fleet*1.5))){
-      e.cash=Math.max(e.cash,3.5e6); if(aiRoute(e,'open')) e.lastRouteMonth=routeMonth;
+    if(e.startup&&aiOpenRoutes(e)<Math.max(4,Math.min(30,e.fleet*1.5))){
+      if(aiRoute(e,'open')) e.lastRouteMonth=routeMonth;
     } else if(distressed&&e.routes>4){ aiRoute(e,'close'); e.lastRouteMonth=routeMonth; }
     else if(!distressed&&margin>0.025&&e.cash>e.fleet*28e6&&e.routes<e.fleet*0.9){ if(aiRoute(e,'open')) e.lastRouteMonth=routeMonth; }
   }
@@ -142,7 +142,7 @@ function aiRoute(e, mode, target){
   const ai=S.ai, code=e.code, R=(S.rivals||[]).find(x=>x.code===code);
   if(mode==='open'){
     if((ai.extra[code]||[]).length>=90) return false;
-    const maxD=e.fleet>=60?9500:e.fleet>=15?5000:e.fleet>=6?2500:1400, minT=e.fleet>=30?1.5:e.fleet>=8?0.7:0.25;
+    const maxD=e.fleet>=60?9500:e.fleet>=15?5000:e.fleet>=6?2500:1400, minT=e.startup?0.12:e.fleet>=30?1.5:e.fleet>=8?0.7:0.25;
     const nodes=new Map(); for(const [a,b] of airlinePairs(code)){ nodes.set(a,(nodes.get(a)||0)+1); nodes.set(b,(nodes.get(b)||0)+1); }
     let origin=e.hub, central=-1; for(const [c,n] of nodes){ const score=n*1000+AP(c).traffic+(c===e.hub?500:0); if(score>central){ central=score; origin=c; } }
     const suspended=ai.suspend||{}, shut=ai.shut||{}, originCC=AP(origin).cc;
@@ -164,7 +164,7 @@ function aiRoute(e, mode, target){
     }
     if(!best) return false;
     const setupCost=e.fleet<8?0.55e6:e.fleet<30?1.5e6:3.5e6;
-    if(e.cash<setupCost) return false;
+    if(e.cash<setupCost&&!e.startup) return false;
     e.cash-=setupCost;
     (ai.extra[code]=ai.extra[code]||[]).push(best.k); ai.cut[code]=(ai.cut[code]||[]).filter(k=>k!==best.k);
     e.routes++; ai.ver++;
@@ -225,7 +225,7 @@ function aiAcquireCompany(buyer,target,kind='fusion'){
   if(buyer.cash<price+integration) return false;
   const planes=Math.max(1,Math.round(target.fleet*((target.debt||0)>=3?0.62:0.72)));
   const targetCuts=new Set(S.ai.cut&&S.ai.cut[target.code]||[]), already=new Set([...airlinePairs(buyer.code).map(([a,b])=>pairKey(a,b)),...(S.ai.extra[buyer.code]||[])]);
-  const candidates=[...new Set([...airlinePairs(target.code).map(([a,b])=>pairKey(a,b)),...(S.ai.extra[target.code]||[])])].filter(k=>!targetCuts.has(k)&&!already.has(k));
+  const candidates=[...new Set([...airlinePairs(target.code).map(([a,b])=>pairKey(a,b)),...(S.ai.extra[target.code]||[])])].filter(k=>!targetCuts.has(k)&&!already.has(k)&&!airspaceViolation(buyer.code,k.slice(0,3),k.slice(3)));
   const acquired=candidates.sort((x,y)=>{ const ax=x.slice(0,3), bx=x.slice(3), ay=y.slice(0,3), by=y.slice(3); return marketDemand(ay,by)*(AP(ay).cc===buyer.cc||AP(by).cc===buyer.cc?1.2:1)-marketDemand(ax,bx)*(AP(ax).cc===buyer.cc||AP(bx).cc===buyer.cc?1.2:1); }).slice(0,Math.min(120,Math.max(1,Math.round(candidates.length*0.58))));
   const routes=acquired.length;
   S.ai.extra[buyer.code]=[...new Set([...(S.ai.extra[buyer.code]||[]),...acquired])].slice(0,120);

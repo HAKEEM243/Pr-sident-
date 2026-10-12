@@ -46,7 +46,8 @@ function airlinePairs(code){
 }
 /* Restrictions d'espace aérien : géofences Natural Earth, testées uniquement à l'ouverture/au contrôle d'une route. */
 const AIRSPACE_KP_EXEMPT=new Set(['CN','RU','CD','NG']);
-const AIRSPACE_RW_DENY=new Set(['CD','KP','SD','PS']);
+const AIRSPACE_RW_DENY=new Set(['CD','KP','SD','PS','IR','UA']);
+const AIRSPACE_CLOSED_TO_HOME={IR:new Set(['US']),UA:new Set(['RU'])};
 const _airspaceRouteCache=new Map();
 const _airspacePolygons={};
 for(const [cc,g] of Object.entries(typeof AIRSPACE_ZONES!=='undefined'?AIRSPACE_ZONES:{})){
@@ -59,7 +60,8 @@ function airlineHomeCountry(code){
   const player=typeof S!=='undefined'&&S&&S.company;
   if(player&&player.code===code){ const hub=AP(player.hub); if(hub&&hub.cc) return hub.cc; }
   const a=typeof AIRLINE_DB!=='undefined'&&AIRLINE_DB[code]; if(a&&a[1]) return a[1];
-  const e=typeof S!=='undefined'&&S&&S.ai&&S.ai.list&&S.ai.list.find(x=>x.code===code); return e&&e.cc||'';
+  const e=typeof S!=='undefined'&&S&&S.ai&&S.ai.list&&S.ai.list.find(x=>x.code===code); if(e&&e.cc) return e.cc;
+  const r=typeof S!=='undefined'&&S&&S.rivals&&S.rivals.find(x=>x.code===code); return r&&(r.cc||(AP(r.hub)||{}).cc)||'';
 }
 function airspacePointInRing(lon,lat,ring){
   let inside=false;
@@ -106,15 +108,25 @@ function airspaceViolation(code,a,b){
   const home=airlineHomeCountry(code), pa=AP(a), pb=AP(b); if(!pa||!pb) return null;
   const key=home+':'+code+':'+(a<b?a+b:b+a); if(_airspaceRouteCache.has(key)) return _airspaceRouteCache.get(key);
   const countries=[]; if(!AIRSPACE_KP_EXEMPT.has(home)) countries.push('KP'); if(home==='RW') for(const cc of AIRSPACE_RW_DENY) if(!countries.includes(cc)) countries.push(cc);
+  for(const [cc,blockedHomes] of Object.entries(AIRSPACE_CLOSED_TO_HOME)) if(blockedHomes.has(home)&&!countries.includes(cc)) countries.push(cc);
   let result=null;
   for(const cc of countries){
     if(pa.cc===cc||pb.cc===cc||airspaceRouteCrosses(cc,a,b)){
-      result=cc==='KP'?{country:cc,reason:'La Corée du Nord ferme son espace aérien à cette compagnie; seuls les transporteurs de Chine, Russie, RDC et Nigeria sont autorisés.'}:{country:cc,reason:'Les compagnies rwandaises ne sont pas autorisées dans les espaces aériens en conflit représentés par cette règle.'};
+      const reason=cc==='KP'?'La Corée du Nord n’autorise que les compagnies de Chine, Russie, RDC et Nigeria.':cc==='CD'?'La RDC interdit le survol aux compagnies rwandaises.':cc==='IR'?'L’Iran ferme son espace aérien aux compagnies américaines.':cc==='UA'?'L’Ukraine ferme son espace aérien aux compagnies russes.':'Les compagnies rwandaises ne sont pas autorisées dans cet espace aérien en conflit.';
+      result={country:cc,reason};
       break;
     }
   }
   if(_airspaceRouteCache.size>20000) _airspaceRouteCache.clear();
   _airspaceRouteCache.set(key,result); return result;
+}
+function airspacePruneRivals(){
+  if(typeof S==='undefined'||!S) return 0;
+  let removed=0;
+  for(const R of S.rivals||[]){ const routes=Array.isArray(R.routes)?R.routes:[], kept=routes.filter(r=>!airspaceViolation(R.code,r.a,r.b)); R.routes=kept; if(kept.length!==routes.length){ removed+=routes.length-kept.length; R._v=(R._v||0)+1; } }
+  if(S.ai&&S.ai.extra) for(const [code,routes] of Object.entries(S.ai.extra)){ const old=Array.isArray(routes)?routes:[], kept=old.filter(k=>!airspaceViolation(code,k.slice(0,3),k.slice(3))); if(kept.length!==old.length){ removed+=old.length-kept.length; S.ai.extra[code]=kept; } }
+  if(removed){ if(S.ai){ S.ai.ver=(S.ai.ver||0)+1; if(typeof aiOpenRoutes==='function') for(const e of S.ai.list||[]) e.routes=aiOpenRoutes(e); } if(typeof _rvIdx!=='undefined'){ _rvIdx=null; _rvSig=''; } if(typeof _realOn!=='undefined') _realOn.clear(); if(typeof _ghostRoutes!=='undefined') _ghostRoutes.clear(); if(typeof aiNews==='function') aiNews(`⛔ ${removed} liaison(s) de compagnie non autorisée(s) retirée(s) des réseaux enregistrés.`,'warn'); }
+  return removed;
 }
 /* ---------- monde vivant : lignes ouvertes/fermées, compagnies disparues ---------- */
 let _aiVer=-1, _aiSrc=null, _cutSet=new Set(), _extraMap=new Map(), _deadSet=new Set();
@@ -196,7 +208,7 @@ function rivalSig(){ return (S.rivals||[]).map(R=>R.code+R.routes.length+'.'+(R.
 function rivalIndex(){
   const sig=rivalSig(); if(_rvIdx && sig===_rvSig && _rvIdx._S===S) return _rvIdx;
   const m=new Map(); m._S=S;
-  for(const R of S.rivals||[]) for(const r of R.routes){ const k=pairKey(r.a,r.b); (m.get(k)||m.set(k,[]).get(k)).push({R,freq:r.freq}); }
+  for(const R of S.rivals||[]) for(const r of R.routes){ if(airspaceViolation(R.code,r.a,r.b)) continue; const k=pairKey(r.a,r.b); (m.get(k)||m.set(k,[]).get(k)).push({R,freq:r.freq}); }
   _rvIdx=m; _rvSig=sig; return m;
 }
 const _realOn=new Map();

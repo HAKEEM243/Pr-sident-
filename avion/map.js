@@ -571,7 +571,7 @@ function updateRival(){
   const bounds=map.getBounds().pad(0.3), t=simNow(), c0=map.getCenter().lng, want=new Set();
   let n=0;
   // vos concurrents suivis + toutes les compagnies réelles qui desservent les aéroports à l'écran
-  const list=[]; for(const R of S.rivals) for(const r of R.routes){ if(!r.c) r.c=R.code; list.push({R,r}); }
+  const list=[]; for(const R of S.rivals) for(const r of R.routes){ if(typeof airspaceViolation==='function'&&airspaceViolation(R.code,r.a,r.b)) continue; if(!r.c) r.c=R.code; list.push({R,r}); }
   if(map.getZoom()>=4 && typeof visibleRealRoutes==='function') list.push(...visibleRealRoutes(map.getBounds().pad(0.1), c0, map.getZoom()>=7?20:45));
   const cap=map.getZoom()>=6?220:160;
   const vb=bounds, W=vb.getWest(), E=vb.getEast(), So=vb.getSouth(), No=vb.getNorth();
