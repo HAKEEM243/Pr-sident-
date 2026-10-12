@@ -71,11 +71,11 @@ function airspaceReason(cc){
   return cc==='KP'?'La Corée du Nord n’autorise que les compagnies de Chine, Russie, RDC et Nigeria.':cc==='CD'?'La RDC interdit le survol aux compagnies rwandaises.':cc==='IR'?'L’Iran ferme son espace aérien aux compagnies américaines.':cc==='UA'?'L’Ukraine ferme son espace aérien aux compagnies russes.':'La compagnie n’est pas autorisée dans cet espace aérien.';
 }
 function airspaceZonesFor(code){
-  const home=airlineHomeCountry(code), zones=[];
-  for(const cc of Object.keys(_airspacePolygons)){
-    const custom=typeof S!=='undefined'&&S&&S.airspaceBans&&S.airspaceBans[cc];
-    if(airspaceDefaultBan(cc,home)||(Array.isArray(custom)&&custom.includes(home))) zones.push(cc);
-  }
+  const home=airlineHomeCountry(code), zones=[], candidates=new Set(['KP',...Object.keys(AIRSPACE_CLOSED_TO_HOME),...AIRSPACE_RW_DENY]);
+  // Fast path: policies are sparse. Avoid scanning all 234 boundaries for every route.
+  for(const cc of candidates) if(_airspacePolygons[cc]&&airspaceDefaultBan(cc,home)) zones.push(cc);
+  const custom=typeof S!=='undefined'&&S&&S.airspaceBans;
+  if(custom) for(const [cc,origins] of Object.entries(custom)) if(_airspacePolygons[cc]&&Array.isArray(origins)&&origins.includes(home)&&!zones.includes(cc)) zones.push(cc);
   return zones;
 }
 function airspacePointInRing(lon,lat,ring){
@@ -195,6 +195,9 @@ function airspacePathCoordinates(code,a,b,refLon){
   return out;
 }
 function airspaceViolation(code,a,b){
+  const A=AP(a),B=AP(b); if(!A||!B) return null;
+  const endpointZone=airspaceZonesFor(code).find(cc=>A.cc===cc||B.cc===cc);
+  if(endpointZone) return {country:endpointZone,reason:airspaceReason(endpointZone)};
   const p=airspaceRoutePlan(code,a,b); return p.violation;
 }
 function airspacePolicyChanged(){
@@ -216,15 +219,15 @@ function airspacePolicyChanged(){
   if(S.ai) S.ai.ver=(S.ai.ver||0)+1;
   if(typeof _rvIdx!=='undefined'){ _rvIdx=null; _rvSig=''; }
   if(typeof _realOn!=='undefined') _realOn.clear(); if(typeof _ghostRoutes!=='undefined') _ghostRoutes.clear();
-  airspacePruneRivals();
   if(typeof drawRoutes==='function') drawRoutes(); if(typeof updateRival==='function') updateRival();
   if(typeof G!=='undefined'&&G.viewer&&typeof drawGlobeRivals==='function') drawGlobeRivals();
 }
 function airspacePruneRivals(){
   if(typeof S==='undefined'||!S) return 0;
+  const endpointBlocked=(code,a,b)=>{ const A=AP(a),B=AP(b); if(!A||!B) return false; const zones=airspaceZonesFor(code); return zones.some(cc=>A.cc===cc||B.cc===cc); };
   let removed=0;
-  for(const R of S.rivals||[]){ const routes=Array.isArray(R.routes)?R.routes:[], kept=routes.filter(r=>!airspaceViolation(R.code,r.a,r.b)); R.routes=kept; if(kept.length!==routes.length){ removed+=routes.length-kept.length; R._v=(R._v||0)+1; } }
-  if(S.ai&&S.ai.extra) for(const [code,routes] of Object.entries(S.ai.extra)){ const old=Array.isArray(routes)?routes:[], kept=old.filter(k=>!airspaceViolation(code,k.slice(0,3),k.slice(3))); if(kept.length!==old.length){ removed+=old.length-kept.length; S.ai.extra[code]=kept; } }
+  for(const R of S.rivals||[]){ const routes=Array.isArray(R.routes)?R.routes:[], kept=routes.filter(r=>!endpointBlocked(R.code,r.a,r.b)); R.routes=kept; if(kept.length!==routes.length){ removed+=routes.length-kept.length; R._v=(R._v||0)+1; } }
+  if(S.ai&&S.ai.extra) for(const [code,routes] of Object.entries(S.ai.extra)){ const old=Array.isArray(routes)?routes:[], kept=old.filter(k=>!endpointBlocked(code,k.slice(0,3),k.slice(3))); if(kept.length!==old.length){ removed+=old.length-kept.length; S.ai.extra[code]=kept; } }
   if(removed){ if(S.ai){ S.ai.ver=(S.ai.ver||0)+1; if(typeof aiOpenRoutes==='function') for(const e of S.ai.list||[]) e.routes=aiOpenRoutes(e); } if(typeof _rvIdx!=='undefined'){ _rvIdx=null; _rvSig=''; } if(typeof _realOn!=='undefined') _realOn.clear(); if(typeof _ghostRoutes!=='undefined') _ghostRoutes.clear(); if(typeof aiNews==='function') aiNews(`⛔ ${removed} liaison(s) de compagnie non autorisée(s) retirée(s) des réseaux enregistrés.`,'warn'); }
   return removed;
 }

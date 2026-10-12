@@ -653,16 +653,16 @@ function cargoHtml(){
 const _cache={};
 function countryAirports(cc){ return _cache['ca'+cc]||(_cache['ca'+cc]=AIRPORT_CODES.filter(c=>AP(c).cc===cc).sort((x,y)=>AP(y).traffic-AP(x).traffic)); }
 function airspacePolicyHtml(cc){
-  if(cc!==homeCC()) return '';
   if(!_airspacePolygons[cc]) return `<div class="card"><h3>🛂 Espace aérien de ${esc(COUNTRIES[cc][0])}</h3><div class="small mut">Le réglage personnalisé attend une frontière géographique détaillée pour votre pays. Les fermetures déjà intégrées restent actives.</div></div>`;
-  const origins=new Set(Object.values(AIRLINE_DB||{}).map(a=>a[1]).filter(k=>COUNTRIES[k]&&k!==cc));
-  for(const e of S.ai&&S.ai.list||[]) if(e.cc&&COUNTRIES[e.cc]&&e.cc!==cc) origins.add(e.cc);
-  for(const R of S.rivals||[]){ const k=AP(R.hub)?.cc; if(k&&COUNTRIES[k]&&k!==cc) origins.add(k); }
+  const origins=Object.keys(COUNTRIES).filter(k=>k!==cc).sort((a,b)=>COUNTRIES[a][0].localeCompare(COUNTRIES[b][0]));
   const bans=new Set(S.airspaceBans&&S.airspaceBans[cc]||[]);
-  const rows=[...origins].sort((a,b)=>COUNTRIES[a][0].localeCompare(COUNTRIES[b][0]));
-  return `<div class="card"><h3>🛂 Espace aérien de ${esc(COUNTRIES[cc][0])}</h3><div class="small mut">Choisissez les pays d’origine des compagnies interdites de survol. Les vols légaux seront automatiquement détournés autour de votre territoire ; les liaisons qui y atterrissent resteront interdites. Les règles géopolitiques déjà actives restent prioritaires.</div>
-    <div class="chips" style="margin-top:10px">${rows.map(origin=>{ const fixed=airspaceDefaultBan(cc,origin), on=fixed||bans.has(origin); return `<button class="chip ${on?'on':''}" data-act="toggleAirspaceBan" data-zone="${cc}" data-origin="${origin}" ${fixed?'disabled title="Règle géopolitique automatique"':''}>${COUNTRIES[origin][2]} ${esc(COUNTRIES[origin][0])}${fixed?' · automatique':on?' · interdit':''}</button>`; }).join('')||'<span class="mut small">Aucune compagnie étrangère répertoriée.</span>'}</div>
-    <div class="small mut" style="margin-top:8px">Interdictions personnalisées actives : ${bans.size} · Les itinéraires et les avions visibles en 2D/3D suivent le détour.</div></div>`;
+  const active=[...bans].filter(k=>COUNTRIES[k]&&k!==cc).sort((a,b)=>COUNTRIES[a][0].localeCompare(COUNTRIES[b][0]));
+  const fixed=origins.filter(k=>airspaceDefaultBan(cc,k));
+  return `<div class="card"><h3>🛂 Espace aérien de ${esc(COUNTRIES[cc][0])}</h3><div class="small mut">Choisissez les pays d’origine des compagnies interdites de survol. Ce réglage est disponible pour tous les pays. Les vols légaux contournent le territoire; les destinations interdites restent bloquées.</div>
+    <div class="row wrap" style="margin-top:10px"><select id="airspaceOrigin">${origins.map(k=>`<option value="${k}" ${airspaceDefaultBan(cc,k)||bans.has(k)?'disabled':''}>${COUNTRIES[k][2]} ${esc(COUNTRIES[k][0])}${airspaceDefaultBan(cc,k)?' · règle automatique':bans.has(k)?' · déjà interdit':''}</option>`).join('')}</select><button class="btn sm gold" data-act="addAirspaceBan" data-zone="${cc}">⛔ Interdire</button></div>
+    <div class="chips" style="margin-top:8px">${active.map(k=>`<button class="chip on" data-act="toggleAirspaceBan" data-zone="${cc}" data-origin="${k}">${COUNTRIES[k][2]} ${esc(COUNTRIES[k][0])} · retirer</button>`).join('')||'<span class="mut small">Aucune interdiction personnalisée.</span>'}</div>
+    ${fixed.length?`<div class="small mut" style="margin-top:8px">Fermetures automatiques non modifiables : ${fixed.map(k=>`${COUNTRIES[k][2]} ${esc(COUNTRIES[k][0])}`).join(', ')}.</div>`:''}
+    <div class="small mut" style="margin-top:8px">${active.length} interdiction(s) personnalisée(s) · détour visible sur les cartes 2D et 3D.</div></div>`;
 }
 function pWorld(){
   const cc=UI.country||homeCC(), C=COUNTRIES[cc], aps=countryAirports(cc);
