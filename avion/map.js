@@ -498,7 +498,7 @@ function routeBBox(r){
   return r._bb={minLat:minLat-3,maxLat:maxLat+3,minLon:minLon-3,maxLon:maxLon+3};
 }
 /* Les avions des autres compagnies sont dessinés sur UN canvas (au lieu de centaines d'éléments HTML) : la carte reste fluide. */
-let rivalCv=null, rivalCtx=null, rivalHover=null, rivalTipLayer=null, _rvDirty=false;
+let rivalCv=null, rivalCtx=null, rivalHover=null, rivalTipLayer=null, rivalTipPinned=false, _rvTipAt=0, _rvDirty=false;
 const spriteCache=new Map();
 function rivalSprite(color,cat){
   const k=color+'|'+cat; let sp=spriteCache.get(k); if(sp) return sp.ok? sp.img : null;
@@ -519,10 +519,10 @@ function initRivalCanvas(){
   map.on('zoomend',()=>{ rivalCv.style.visibility='visible'; _rvDirty=true; });
   // survol / toucher : infobulle de l'avion le plus proche
   const pick=(pt)=>{ let best=null, bd=18*18; for(const e of rivalPool.values()){ if(e.px===undefined) continue; const dx=e.px-pt.x, dy=e.py-pt.y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=e; } } return best; };
-  const show=(e)=>{ if(rivalHover===e) return; rivalHover=e; if(rivalTipLayer){ map.removeLayer(rivalTipLayer); rivalTipLayer=null; }
-    if(e) rivalTipLayer=L.tooltip({permanent:true,direction:'right',offset:[10,0],className:'flight-tip',interactive:false}).setLatLng([e.lat,e.lon]).setContent(rivalTip(e)).addTo(map); };
-  map.on('mousemove',ev=>{ if(map._mv) return; const e=pick(ev.containerPoint); host.style.cursor=e?'pointer':''; show(e); });
-  map.on('click',ev=>{ const e=pick(ev.containerPoint); if(e){ show(e); setTimeout(()=>{ if(rivalHover===e) show(null); },3500); } });
+  const show=(e,pin=false)=>{ if(rivalHover===e&&(!e||rivalTipPinned===pin)) return; rivalHover=e; rivalTipPinned=!!(e&&pin); if(rivalTipLayer){ map.removeLayer(rivalTipLayer); rivalTipLayer=null; }
+    if(e) rivalTipLayer=L.tooltip({permanent:true,direction:'auto',offset:[10,0],className:'flight-tip rival-detail',interactive:false}).setLatLng([e.lat,e.lon]).setContent(rivalTip(e)).addTo(map); };
+  map.on('mousemove',ev=>{ if(map._mv||rivalTipPinned) return; const e=pick(ev.containerPoint); host.style.cursor=e?'pointer':''; show(e); });
+  map.on('click',ev=>{ const e=pick(ev.containerPoint); if(e){ if(rivalHover===e&&rivalTipPinned) show(null); else show(e,true); } else show(null); });
   map.on('movestart zoomstart',()=>show(null));
 }
 function drawRivals(){
@@ -539,10 +539,32 @@ function drawRivals(){
     if(e.lbl&&sz>=22){ g.font='600 10px system-ui'; g.fillStyle='#fff'; g.strokeStyle='rgba(0,0,0,.75)'; g.lineWidth=3; g.strokeText(e.lbl,p.x+z/2+2,p.y+3); g.fillText(e.lbl,p.x+z/2+2,p.y+3); }
   }
 }
-function clearRivals(){ rivalPool.clear(); rivalHover=null; _rvDirty=true; }
+function clearRivals(){ rivalPool.clear(); rivalHover=null; rivalTipPinned=false; if(rivalTipLayer&&map){ map.removeLayer(rivalTipLayer); rivalTipLayer=null; } _rvDirty=true; }
 function setRivalSize(){ _rvDirty=true; }
-function rivalTip(e){ const q=rivalPos(e.r,e.i,simNow()); if(!q) return `<b>${e.R.name}</b>`; const mn=typeof realMinutes==='function'?realMinutes(e.r.a,e.r.b):0;
-  return `<b>${e.R.name}</b> <span class="mut">${e.R.code}</span><br>${q.from.city} (${q.from.code}) → ${q.to.city} (${q.to.code})<br>${PHASES[q.ph]}${q.gnd?'':` · ${num(Math.round(q.alt*3.28/100)*100)} ft`}<br><span class="mut">${num(q.d)} km${mn?` · vol réel ≈ ${fmtDur(mn*MIN)}`:''}</span>`; }
+function rivalTip(e){
+  const q=rivalPos(e.r,e.i,simNow()); if(!q) return `<b>${esc(e.R.name)}</b>`;
+  const code=e.r.c||e.R.code, K=rivalSched(e.r), mn=typeof realMinutes==='function'?realMinutes(e.r.a,e.r.b):0;
+  let carrier=null, demand=0, freq=0, routePax=0, pax=null, seats=Number(K&&K.m&&K.m.seats)||0;
+  try{
+    if(typeof lineAirlines==='function') carrier=lineAirlines(q.from.code,q.to.code).find(x=>x.code===code)||null;
+    if(typeof marketDemand==='function') demand=Math.max(0,marketDemand(q.from.code,q.to.code));
+    freq=Math.max(0,Number(carrier&&carrier.freq)||Number(e.r.freq)||Number(K&&K.nP)||0);
+    if(carrier&&freq>0&&seats>0){ routePax=Math.max(0,Math.round(demand*(carrier.share||0))); pax=Math.min(seats,Math.max(0,Math.round(routePax/freq))); }
+  }catch(err){ carrier=null; }
+  const load=pax!==null&&seats?Math.round(pax/seats*100):0, share=carrier?Math.round((carrier.share||0)*100):null;
+  const progress=q.d>0?clamp(gcDist(q.from,q.p)/q.d,0,1):0, travelled=Math.round(q.d*progress), remain=Math.max(0,Math.round(q.d-travelled));
+  const position=q.p&&Number.isFinite(q.p.lat)&&Number.isFinite(q.p.lon)?`${q.p.lat.toFixed(2)}°, ${q.p.lon.toFixed(2)}°`:'—';
+  const phase=q.gnd?'Au sol / roulage':(PHASES[q.ph]||'En vol');
+  return `<div class="rv-title"><b>${esc(e.R.name)}</b> <span class="mut">${esc(code)} · ligne modélisée</span></div>`+
+    `<div class="rv-route"><b>${esc(q.from.city)} (${esc(q.from.code)})</b> → <b>${esc(q.to.city)} (${esc(q.to.code)})</b></div>`+
+    `<div class="rv-phase">${esc(phase)}${q.gnd?'':` · ${num(Math.round(q.alt*3.28/100)*100)} ft`} · cap ${String(Math.round(q.hdg||0)).padStart(3,'0')}°</div>`+
+    `<div class="rv-progress"><i style="width:${(progress*100).toFixed(1)}%"></i></div><div class="mut">Position simulée ${position} · ${num(travelled)} km parcourus · ${num(remain)} km restants</div>`+
+    `<div class="rv-kpis"><div><small>Avion représenté</small><b>${esc(K&&K.m&&K.m.name||'modèle estimé')}</b></div><div><small>Capacité estimée</small><b>${seats?`${num(seats)} sièges`:'—'}</b></div>`+
+    `<div><small>Passagers / vol</small><b>${pax===null?'Estimation indisponible':`~${num(pax)} (${load} %)`}</b></div><div><small>Fréquence / sens</small><b>${freq?`~${num(freq)} vol${freq>1?'s':''}/jour`:'—'}</b></div></div>`+
+    `<div class="rv-market">Demande modélisée : ${num(Math.round(demand))} passagers/jour/sens${share===null?'':` · part de cette compagnie ~${share} % · ~${num(routePax)} passagers/jour/sens`}</div>`+
+    `<div class="mut">Liaison ${num(q.d)} km${mn?` · durée estimée ${fmtDur(mn*MIN)}`:''}${carrier&&carrier.price?` · tarif éco estimé ${fmtMoney(carrier.price)}`:''}</div>`+
+    `<div class="rv-note">Avion, fréquence et passagers sont estimés par le jeu; ce n’est pas un manifeste réel.</div>`;
+}
 function updateRival(){
   if(!map) return;
   if(!MAPOPT.rival || !S.rivals){ if(rivalPool.size) clearRivals(); return; }
@@ -564,11 +586,12 @@ function updateRival(){
       if(n++>cap) break outer;
       const key=R.code+'|'+r.a+'|'+r.b+'|'+i; if(want.has(key)) continue; want.add(key);
       let e=rivalPool.get(key);
-      if(!e){ e={R,r,i,cat:q.d<1200?'prop':q.d<5000?'nb':'wb'}; rivalPool.set(key,e); }
+      if(!e){ e={key,R,r,i,cat:q.d<1200?'prop':q.d<5000?'nb':'wb'}; rivalPool.set(key,e); }
       e.lat=q.p.lat; e.lon=lon; e.hdg=q.hdg; e.gnd=q.gnd; e.lbl=phaseLbl(q);
     }
   }
   for(const k of rivalPool.keys()) if(!want.has(k)) rivalPool.delete(k);
+  if(rivalHover&&!want.has(rivalHover.key)){ if(rivalTipLayer){ map.removeLayer(rivalTipLayer); rivalTipLayer=null; } rivalHover=null; rivalTipPinned=false; }
   _rvDirty=true;
 }
 function animateRivals(t,b){
@@ -576,6 +599,7 @@ function animateRivals(t,b){
     const q=rivalPos(e.r,e.i,t); if(!q) continue;
     e.lat=q.p.lat; e.lon=unwrapLon(q.p.lon,e.lon); e.hdg=q.hdg; e.gnd=q.gnd; e.lbl=phaseLbl(q);
   }
+  if(rivalTipPinned&&rivalHover&&rivalTipLayer){ const now=performance.now(); rivalTipLayer.setLatLng([rivalHover.lat,rivalHover.lon]); if(now-_rvTipAt>2500){ _rvTipAt=now; rivalTipLayer.setContent(rivalTip(rivalHover)); } }
   _rvDirty=true;
 }
 /* ---------- animation fluide (60 images/s) ---------- */
