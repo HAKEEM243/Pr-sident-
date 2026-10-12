@@ -957,7 +957,7 @@ function initRivals(){
   for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false));
 }
 function initRival(){ initRivals(); }
-function rivalTick(){ for(const R of S.rivals||[]) rivalStep(R); }
+function rivalTick(){ if(typeof airspacePruneRivals==='function') airspacePruneRivals(); for(const R of S.rivals||[]) rivalStep(R); }
 const _rdem=new WeakMap(); // demande des lignes concurrentes, recalculée une fois par semaine (évite les à-coups)
 function rivalStep(R){
   let pax=0, rev=0;
