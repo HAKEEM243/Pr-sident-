@@ -79,7 +79,7 @@ function aiImprove(e,lvl,isNat){
   const mineSet=new Set(S.routes.flatMap(r=>r.stops));
   const r=Math.random(), cc=e.cc||homeOf(e.code);
   if(r<0.35&&aiAirportMarketOpen(e.hub)){ // une destination que vous ne desservez pas
-    const cand=AIRPORT_CODES.filter(c=>c!==e.hub&&aiAirportMarketOpen(c)&&AP(c).cls>=1&&!mineSet.has(c)&&!carriersOn(e.hub,c).includes(e.code)&&dist(e.hub,c)>150&&dist(e.hub,c)<(e.fleet>=60?7000:isNat?2600:3500))
+    const cand=AIRPORT_CODES.filter(c=>c!==e.hub&&aiAirportMarketOpen(c)&&AP(c).cls>=1&&!mineSet.has(c)&&!carriersOn(e.hub,c).includes(e.code)&&!airspaceViolation(e.code,e.hub,c)&&dist(e.hub,c)>150&&dist(e.hub,c)<(e.fleet>=60?7000:isNat?2600:3500))
       .sort((x,y)=>(AP(y).cc===cc)-(AP(x).cc===cc)||marketDemand(e.hub,y)-marketDemand(e.hub,x)).slice(0,12);
     if(cand.length){ const c=pick(cand); (S.ai.extra[e.code]=S.ai.extra[e.code]||[]).push(pairKey(e.hub,c)); e.routes++; S.ai.ver++;
       aiNews(`🆕 ${e.name} ouvre une nouvelle destination : ${keyCity(e.hub)} → ${keyCity(c)}.`,'rival',isNat); }

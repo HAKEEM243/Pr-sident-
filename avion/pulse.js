@@ -104,7 +104,7 @@ function aiReact(){
     // 2. un rival copie votre ligne rentable
     const profit=r.stats.rev-r.stats.cost;
     if(S.noCopy===false&&r.stats.flights>=8&&profit>0&&aiAirportMarketOpen(a)&&aiAirportMarketOpen(b)&&Math.random()<0.08){
-      const cand=aiAlive().filter(e=>e.fleet>=8&&!carriersOn(a,b).includes(e.code)&&dist(e.hub,a)<1200&&dist(a,b)<(e.fleet>=40?9000:3500));
+      const cand=aiAlive().filter(e=>e.fleet>=8&&!carriersOn(a,b).includes(e.code)&&!airspaceViolation(e.code,a,b)&&dist(e.hub,a)<1200&&dist(a,b)<(e.fleet>=40?9000:3500));
       if(cand.length){ const e=pick(cand); (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
         const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&!R.routes.some(x=>pairKey(x.a,x.b)===key)) R.routes.push({a,b,freq:2});
         aiNews(vary('copy',[`🎯 ${e.name} copie votre succès : une nouvelle ligne ${keyCity(a)}–${keyCity(b)} s’ouvre en concurrence directe.`,`🎯 Voyant votre ligne ${keyCity(a)}–${keyCity(b)} remplir ses avions, ${e.name} décide de s’y installer.`]),'rival',true); }

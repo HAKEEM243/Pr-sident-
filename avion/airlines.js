@@ -44,6 +44,20 @@ function airlinePairs(code){
   if(!_alIdx){ _alIdx={}; for(const [k,p] of PAIR_DB) for(const c of p.c) (_alIdx[c]=_alIdx[c]||[]).push([k.slice(0,3),k.slice(3)]); }
   return _alIdx[code]||[];
 }
+/* Restrictions d'espace aérien (modèle de routes directes par pays). */
+const AIRSPACE_KP_EXEMPT=new Set(['CN','RU','CD','NG']);
+const AIRSPACE_RW_DENY=new Set(['CD','KP','SD','PS']);
+function airlineHomeCountry(code){
+  const a=typeof AIRLINE_DB!=='undefined'&&AIRLINE_DB[code]; if(a&&a[1]) return a[1];
+  const e=typeof S!=='undefined'&&S&&S.ai&&S.ai.list&&S.ai.list.find(x=>x.code===code); return e&&e.cc||'';
+}
+function airspaceViolation(code,a,b){
+  const ca=AP(a)&&AP(a).cc, cb=AP(b)&&AP(b).cc, home=airlineHomeCountry(code);
+  if(!ca||!cb) return null;
+  if((ca==='KP'||cb==='KP')&&!AIRSPACE_KP_EXEMPT.has(home)) return {country:'KP',reason:'La Corée du Nord ferme son espace aérien à cette compagnie; seuls les transporteurs de Chine, Russie, RDC et Nigeria sont autorisés.'};
+  if(home==='RW'&&(AIRSPACE_RW_DENY.has(ca)||AIRSPACE_RW_DENY.has(cb))) return {country:ca==='CD'||cb==='CD'?'CD':ca==='SD'||cb==='SD'?'SD':ca==='PS'||cb==='PS'?'PS':'KP',reason:'Les compagnies rwandaises ne sont pas autorisées dans les espaces aériens en conflit représentés par cette règle.'};
+  return null;
+}
 /* ---------- monde vivant : lignes ouvertes/fermées, compagnies disparues ---------- */
 let _aiVer=-1, _aiSrc=null, _cutSet=new Set(), _extraMap=new Map(), _deadSet=new Set();
 function aiIndexes(){
@@ -61,8 +75,8 @@ function carriersOn(a,b){
   const k=pairKey(a,b), base=realCarriers(a,b);
   if(!aiIndexes()) return base;
   const sp=S.ai.suspend, ca=AP(a).cc, cb=AP(b).cc, susp=sp&&((sp[ca]>S.time&&ca)||(sp[cb]>S.time&&cb));
-  const out=base.filter(c=>!_deadSet.has(c)&&!_cutSet.has(c+k)&&(!susp||homeOf(c)===susp));
-  for(const c of _extraMap.get(k)||[]) if(!out.includes(c)&&!_deadSet.has(c)) out.push(c);
+  const out=base.filter(c=>!_deadSet.has(c)&&!_cutSet.has(c+k)&&(!susp||homeOf(c)===susp)&&!airspaceViolation(c,a,b));
+  for(const c of _extraMap.get(k)||[]) if(!out.includes(c)&&!_deadSet.has(c)&&!airspaceViolation(c,a,b)) out.push(c);
   return out;
 }
 function airlinesOfCountry(cc, minPairs=3){
@@ -98,7 +112,7 @@ function ghostAirline(code){
   _ghost.set(code,R); return R;
 }
 function makeRealRival(code, local){
-  const a=AIRLINE_DB[code], pairs=airlinePairs(code).filter(([x,y])=>AP(x)&&AP(y));
+  const a=AIRLINE_DB[code], pairs=airlinePairs(code).filter(([x,y])=>AP(x)&&AP(y)&&!airspaceViolation(code,x,y));
   const scored=pairs.map(([x,y])=>({a:x,b:y,s:marketDemand(x,y)})).sort((p,q)=>q.s-p.s).slice(0, local?400:260);
   const fleet=realFleet(a[3],code);
   return { name:a[0], code, color:airlineColor(code), hub:a[2], local:!!local, real:true, cash:fleet*22e6, fleet,
