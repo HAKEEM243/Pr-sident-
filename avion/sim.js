@@ -89,7 +89,7 @@ function newGame(opts){
     led:{ day:{}, week:{}, prevWeek:{}, month:{}, prevMonth:{}, total:{} },
     stats:{ pax:0, flights:0, cargoT:0, incidents:0 },
     autoMaint:true, notifications:false, lastDay:dayIndex(start), lastMonth:monthKey(start),
-    rivals:[], rivalDrive:3, admin:false, seq:1,
+    rivals:[], rivalDrive:3, airspaceBans:{}, airspacePolicyRev:1, admin:false, seq:1,
   };
   const pack=START_PACKS[opts.pack||'regional'];
   S.packId=opts.pack||'regional';
@@ -246,7 +246,7 @@ function rivalFreq(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.freq+(typeof due
 function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.sqrt(x.freq)*(typeof isPartner==='function'&&isPartner(x.R)?0.3:1)*(typeof warFactor==='function'?warFactor(x.R.code,a,b):1)*(typeof duelFactor==='function'?duelFactor(x.R.code,a,b,x.freq):1),0); }
 function routeCycleHours(route, ac){
   const m=modelOf(ac); let h=0;
-  for(let i=0;i<route.stops.length-1;i++){ const a=route.stops[i], b=route.stops[i+1], d=dist(a,b);
+  for(let i=0;i<route.stops.length-1;i++){ const a=route.stops[i], b=route.stops[i+1], d=typeof airspaceRouteDistance==='function'?airspaceRouteDistance(S.company.code,a,b):dist(a,b);
     h+=(legProfile(d,m,windKmh(a,b),a,b).total+legProfile(d,m,windKmh(b,a),b,a).total)/HOUR; }
   return h + 2*turnaround(m)/HOUR;
 }
@@ -417,7 +417,7 @@ const _profH=new WeakMap();
 function legProf(leg,m){
   const base=legProfile(leg.dist,m,leg.wind,leg.from,leg.to), ho=leg.hOut||0, hi=leg.hIn||0;
   if(!ho&&!hi) return base;
-  const c=_profH.get(leg); if(c&&c.k===m.id+'|'+ho+'|'+hi) return c.p;
+  const key=m.id+'|'+ho+'|'+hi+'|'+Math.round(leg.dist*10)+'|'+Math.round(leg.wind||0), c=_profH.get(leg); if(c&&c.k===key) return c.p;
   const segs=[]; let sh=0;
   for(const sg of base.segs){
     if(sg.ph===6&&hi){ segs.push({ph:6,hold:'in',t0:sg.t0+sh,t1:sg.t0+sh+hi,d0:sg.d0,d1:sg.d0,a0:sg.a0,a1:sg.a0,s0:sg.s0,s1:sg.s0}); sh+=hi; }
@@ -425,7 +425,7 @@ function legProf(leg,m){
     if(sg.ph===1&&ho){ segs.push({ph:1,hold:'out',t0:sg.t1+sh,t1:sg.t1+sh+ho,d0:0,d1:0,a0:0,a1:0,s0:0,s1:0}); sh+=ho; }
   }
   const p={segs,total:base.total+ho+hi,airborne:base.airborne+hi};
-  _profH.set(leg,{k:m.id+'|'+ho+'|'+hi,p}); return p;
+  _profH.set(leg,{k:key,p}); return p;
 }
 const legEnd=(leg,m)=>leg.dep+legProf(leg,m).total;
 // État instantané d'un avion en vol
@@ -490,11 +490,12 @@ function crewCheck(ac){
 }
 
 /* ---------- dispatch ---------- */
-function legsFor(stops){ const L=[]; for(let i=0;i<stops.length-1;i++) L.push({from:stops[i],to:stops[i+1],dist:dist(stops[i],stops[i+1]),wind:windKmh(stops[i],stops[i+1])}); return L; }
+function legsFor(stops, carrier=S.company.code){ const L=[]; for(let i=0;i<stops.length-1;i++){ const from=stops[i],to=stops[i+1];
+  L.push({from,to,ownerCode:carrier,dist:typeof airspaceRouteDistance==='function'?airspaceRouteDistance(carrier,from,to):dist(from,to),wind:windKmh(from,to)}); } return L; }
 function checkLegs(ac, legs){
   const m=modelOf(ac);
   for(const l of legs){
-    const carrier=ac.ownerCode||S.company.code, airspace=typeof airspaceViolation==='function'?airspaceViolation(carrier,l.from,l.to):null;
+    const carrier=l.ownerCode||ac.ownerCode||S.company.code, airspace=typeof airspaceViolation==='function'?airspaceViolation(carrier,l.from,l.to):null;
     if(airspace) return `⛔ Vol interdit : ${airspace.reason} (${l.from} → ${l.to}).`;
     if(l.dist>m.range) return `Tronçon ${l.from}→${l.to} (${Math.round(l.dist)} km) hors autonomie (${m.range} km)`;
     for(const c of [l.from,l.to]){
@@ -517,7 +518,7 @@ function canFly(ac){
   return crewCheck(ac);
 }
 function startFlight(ac, stops, kind, t, extra={}){
-  const legs=legsFor(stops); const m=modelOf(ac);
+  const legs=legsFor(stops,ac.ownerCode||S.company.code); const m=modelOf(ac);
   const err = canFly(ac) || checkLegs(ac,legs);
   if(err) return err;
   let dep=Math.max(t, ac.readyAt||0);
@@ -915,7 +916,7 @@ function acceptCargo(offerId, acId){
   const m=modelOf(ac);
   if(m.cargo<o.tons) return `Capacité insuffisante (${m.cargo} t < ${o.tons} t)`;
   if(ac.plan&&ac.plan.length) return 'Videz d’abord le planning de cet avion';
-  const legErr=checkLegs(ac, legsFor([o.from,o.to])); if(legErr) return legErr;
+  const legErr=checkLegs(ac, legsFor([o.from,o.to],ac.ownerCode||S.company.code)); if(legErr) return legErr;
   const err=canFly(ac); if(err) return err;
   S.cargo.offers=S.cargo.offers.filter(x=>x!==o);
   S.cargo.active.push(o);
@@ -1079,8 +1080,8 @@ function buyHub(code){
   logMsg(`🏢 Nouveau hub : ${a.city} (${code}) pour ${fmtMoney(c)}.`,'ok');
   return null;
 }
-function lineCost(stops){ let c=0; for(let i=0;i<stops.length-1;i++){ const a=stops[i], b=stops[i+1], d=dist(a,b); let x=20000+d*35; if(isDrc(a)&&isDrc(b)) x*=0.6; if(AP(b).cls>=5) x*=1.5; c+=x; } return Math.round(c/1000)*1000; }
-function auditCost(route){ const d=legsFor(route.stops).reduce((s,l)=>s+l.dist,0); return Math.round((5000+d*6)/500)*500; }
+function lineCost(stops){ let c=0; for(let i=0;i<stops.length-1;i++){ const a=stops[i], b=stops[i+1], d=typeof airspaceRouteDistance==='function'?airspaceRouteDistance(S.company.code,a,b):dist(a,b); let x=20000+d*35; if(isDrc(a)&&isDrc(b)) x*=0.6; if(AP(b).cls>=5) x*=1.5; c+=x; } return Math.round(c/1000)*1000; }
+function auditCost(route){ const d=legsFor(route.stops,S.company.code).reduce((s,l)=>s+l.dist,0); return Math.round((5000+d*6)/500)*500; }
 function openLine(stops){
   if(!S.hubs.includes(stops[0])) return 'Une ligne doit partir d’un de vos hubs';
   if(stops.length<2) return 'Choisissez une destination';
@@ -1103,7 +1104,7 @@ function auditLine(route){ if(route.audit) return 'Audit déjà réalisé'; book
 function setPlan(ac, routeId, weekly){
   const r=S.routes.find(x=>x.id===routeId); if(!r) return 'Ligne introuvable';
   if(r.stops[0]!==ac.hub) return `Cet avion est basé à ${ac.hub} : il ne peut desservir que les lignes de ce hub`;
-  const e=checkLegs(ac,legsFor(r.stops)); if(e && weekly>0) return e;
+  const e=checkLegs(ac,legsFor(r.stops,ac.ownerCode||S.company.code)); if(e && weekly>0) return e;
   const plan=(ac.plan||[]).filter(p=>p.routeId!==routeId);
   if(weekly>0) plan.push({routeId, weekly});
   const h=planHours(ac,plan);
@@ -1312,6 +1313,7 @@ function migrateCore(){
     }
   }
   S.weather=S.weather||[]; S.projects=S.projects||[]; S.upgrades=S.upgrades||{}; S.missions=S.missions||[];
+  S.airspaceBans=S.airspaceBans&&typeof S.airspaceBans==='object'?S.airspaceBans:{}; S.airspacePolicyRev=S.airspacePolicyRev||1;
   S.stats.onTime=S.stats.onTime||0; S.stats.late=S.stats.late||0; S.stats.manual=S.stats.manual||0;
   if(S.tuto===undefined) S.tuto=0;
   for(const ac of S.fleet) if(ac.status==='manual'){ ac.status='idle'; }

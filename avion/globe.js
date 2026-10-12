@@ -291,13 +291,18 @@ function globeSync(full){
   if(full || (G.netKey!==netKey())){ drawGlobeNetwork(); }
   if(full || !G.rivAt || performance.now()-G.rivAt>20000){ G.rivAt=performance.now(); drawGlobeRivals(); }
 }
-const netKey=()=>S.routes.map(r=>r.id).join()+'|'+S.hubs.join()+'|'+S.company.color;
+const netKey=()=>S.routes.map(r=>r.id).join()+'|'+S.hubs.join()+'|'+S.company.color+'|'+airspacePolicyRev();
 function drawGlobeNetwork(){
   const C=Cesium, V=G.viewer; G.netKey=netKey();
   for(const e of [...G.routes,...G.airports]) V.entities.remove(e); G.routes=[]; G.airports=[];
   const col=C.Color.fromCssColorString(S.company.color);
   for(const r of S.routes){
-    const pts=r.stops.flatMap(c=>[AP(c).lon,AP(c).lat]);
+    const pts=[];
+    for(let i=0;i<r.stops.length-1;i++){
+      const plan=airspaceRoutePlan(S.company.code,r.stops[i],r.stops[i+1]); if(plan.violation) continue;
+      for(let j=i?1:0;j<plan.points.length;j++) pts.push(plan.points[j].lon,plan.points[j].lat);
+    }
+    if(pts.length<4) continue;
     G.routes.push(V.entities.add({polyline:{positions:C.Cartesian3.fromDegreesArray(pts), width:3, arcType:C.ArcType.GEODESIC, material:new C.PolylineGlowMaterialProperty({glowPower:0.25, color:col.withAlpha(0.9)}), distanceDisplayCondition:new C.DistanceDisplayCondition(30000,3e7)}}));
   }
   const codes=new Set([...S.hubs, ...S.routes.flatMap(r=>r.stops)]);

@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261118';
+const GAME_VER='20261119';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,8 +81,10 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🗺️ Détours d’espace aérien visibles','Une ligne qui traverse un espace fermé est maintenant détournée autour du territoire : durée, distance, avion rival et tracé vert suivent la route de contournement en 2D comme en 3D. Une liaison vers un aéroport interdit reste bloquée.'],
+  ['🛂 Choisir qui survole votre pays','Dans la fiche Monde → votre pays → Espace aérien, interdisez le survol aux compagnies de certains pays. Le choix est sauvegardé ; les avions existants et futurs prennent le détour. Les interdictions géopolitiques déjà actives restent prioritaires.'],
   ['✈️ Détails des avions sur la carte','Touchez un avion concurrent pour voir sa ligne directe, sa position et sa progression, le modèle et la capacité estimés, la fréquence, la part de marché et les passagers estimés par vol. La fiche reste ouverte jusqu’au déplacement/zoom, au toucher d’un autre avion ou à un second toucher sur le même. Les passagers des concurrents sont une estimation de marché, pas un manifeste réel.'],
-  ['⛔ Fermetures d’espace aérien','Le contrôle s’applique aux vols directs et aux survols : les compagnies américaines ne peuvent traverser l’Iran, les compagnies russes l’Ukraine, et les compagnies rwandaises les espaces de la RDC, de Corée du Nord, du Soudan, de Palestine, d’Iran et d’Ukraine. La Corée du Nord n’autorise que les compagnies chinoises, russes, congolaises et nigérianes. Les anciennes routes interdites sont retirées des réseaux et du marché.'],
+  ['⛔ Fermetures géopolitiques','Les compagnies américaines contournent l’Iran, les compagnies russes contournent l’Ukraine, et les compagnies rwandaises ne survolent pas la RDC, la Corée du Nord, le Soudan, la Palestine, l’Iran ni l’Ukraine. En Corée du Nord, seules les compagnies chinoises, russes, congolaises et nigérianes restent autorisées.'],
   ['🛫 Jeunes compagnies enfin actives','Les startups ouvrent des lignes même quand leur trésorerie est négative; le coût reste comptabilisé et les pertes ne sont pas effacées. Une tentative supplémentaire revient tous les 3 jours par startup, avec au plus une ouverture tentée par jour de simulation pour préserver la fluidité. Elles peuvent encore faire faillite après leur première année si leur réseau ne fonctionne pas.'],
   ['🇨🇩 Air Kivu développe enfin son réseau','Air Kivu profite de la même priorité d’expansion que les autres jeunes compagnies, avec des destinations régionales accessibles depuis Bukavu. Elle ne reçoit pas d’argent illimité pour masquer ses pertes; son résultat hebdomadaire détermine ensuite sa survie.'],
   ['⛽ Carburant et entretien automatiques','Pour les parties existantes et nouvelles, l’achat de carburant et la maintenance des avions sont activés automatiquement par défaut. Le seuil de ravitaillement automatique est réglé à 0,90 $/L; les IA comptabilisent également carburant et maintenance dans leurs finances.'],

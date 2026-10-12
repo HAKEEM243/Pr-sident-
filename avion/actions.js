@@ -42,6 +42,16 @@ const ACTIONS = {
   focusHome:()=>{ if(UI.mobile) setTab('map'); focusCountry(homeCC()); },
   focusCountry:d=>{ if(UI.mobile) setTab('map'); focusCountry(d.cc); },
   country:d=>{ UI.country=d.cc; renderPanel(); },
+  toggleAirspaceBan:d=>{
+    const zone=d.zone, origin=d.origin;
+    if(zone!==homeCC()||!_airspacePolygons[zone]||!COUNTRIES[origin]||origin===zone) return err('Cette règle ne peut être modifiée que pour l’espace aérien cartographié de votre pays.');
+    if(airspaceDefaultBan(zone,origin)) return err('Cette interdiction est une règle géopolitique automatique et ne peut pas être retirée ici.');
+    S.airspaceBans=S.airspaceBans||{}; const set=new Set(Array.isArray(S.airspaceBans[zone])?S.airspaceBans[zone]:[]);
+    if(set.has(origin)) set.delete(origin); else set.add(origin);
+    if(set.size) S.airspaceBans[zone]=[...set].sort(); else delete S.airspaceBans[zone];
+    const denied=set.has(origin); airspacePolicyChanged(); save(); renderPanel(); renderTop();
+    toast(`${denied?'⛔ Survol interdit':'✅ Survol réautorisé'} pour les compagnies de ${COUNTRIES[origin][0]}.`,denied?'warn':'ok');
+  },
   focusWorld:()=>focusWorld(),
   focusHub:()=>{ if(UI.mobile) setTab('map'); focusAirport(S.company.hub); },
   apZoom:d=>{ closeModal(); if(UI.mobile) setTab('map'); focusAirport(d.c); },

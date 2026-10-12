@@ -652,6 +652,18 @@ function cargoHtml(){
 /* ---------- 🌐 MONDE & PAYS ---------- */
 const _cache={};
 function countryAirports(cc){ return _cache['ca'+cc]||(_cache['ca'+cc]=AIRPORT_CODES.filter(c=>AP(c).cc===cc).sort((x,y)=>AP(y).traffic-AP(x).traffic)); }
+function airspacePolicyHtml(cc){
+  if(cc!==homeCC()) return '';
+  if(!_airspacePolygons[cc]) return `<div class="card"><h3>🛂 Espace aérien de ${esc(COUNTRIES[cc][0])}</h3><div class="small mut">Le réglage personnalisé attend une frontière géographique détaillée pour votre pays. Les fermetures déjà intégrées restent actives.</div></div>`;
+  const origins=new Set(Object.values(AIRLINE_DB||{}).map(a=>a[1]).filter(k=>COUNTRIES[k]&&k!==cc));
+  for(const e of S.ai&&S.ai.list||[]) if(e.cc&&COUNTRIES[e.cc]&&e.cc!==cc) origins.add(e.cc);
+  for(const R of S.rivals||[]){ const k=AP(R.hub)?.cc; if(k&&COUNTRIES[k]&&k!==cc) origins.add(k); }
+  const bans=new Set(S.airspaceBans&&S.airspaceBans[cc]||[]);
+  const rows=[...origins].sort((a,b)=>COUNTRIES[a][0].localeCompare(COUNTRIES[b][0]));
+  return `<div class="card"><h3>🛂 Espace aérien de ${esc(COUNTRIES[cc][0])}</h3><div class="small mut">Choisissez les pays d’origine des compagnies interdites de survol. Les vols légaux seront automatiquement détournés autour de votre territoire ; les liaisons qui y atterrissent resteront interdites. Les règles géopolitiques déjà actives restent prioritaires.</div>
+    <div class="chips" style="margin-top:10px">${rows.map(origin=>{ const fixed=airspaceDefaultBan(cc,origin), on=fixed||bans.has(origin); return `<button class="chip ${on?'on':''}" data-act="toggleAirspaceBan" data-zone="${cc}" data-origin="${origin}" ${fixed?'disabled title="Règle géopolitique automatique"':''}>${COUNTRIES[origin][2]} ${esc(COUNTRIES[origin][0])}${fixed?' · automatique':on?' · interdit':''}</button>`; }).join('')||'<span class="mut small">Aucune compagnie étrangère répertoriée.</span>'}</div>
+    <div class="small mut" style="margin-top:8px">Interdictions personnalisées actives : ${bans.size} · Les itinéraires et les avions visibles en 2D/3D suivent le détour.</div></div>`;
+}
 function pWorld(){
   const cc=UI.country||homeCC(), C=COUNTRIES[cc], aps=countryAirports(cc);
   const served=servedAirports(), dom=S.routes.filter(r=>r.stops.every(c=>AP(c).cc===cc));
@@ -673,6 +685,7 @@ function pWorld(){
     <div class="btns sm"><button class="btn sm gold" data-act="focusCountry" data-cc="${cc}">🔍 Voir sur la carte</button></div></div></div>
   <div class="row wrap"><select data-in="country">${Object.keys(COUNTRIES).filter(k=>countryAirports(k).length).sort((x,y)=>COUNTRIES[x][0].localeCompare(COUNTRIES[y][0])).map(k=>`<option value="${k}" ${k===cc?'selected':''}>${COUNTRIES[k][2]} ${COUNTRIES[k][0]} (${countryAirports(k).length})</option>`).join('')}</select></div>
   <div class="chips">${quick.map(k=>`<button class="chip ${k===cc?'on':''}" data-act="country" data-cc="${k}">${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</button>`).join('')}</div>
+  ${airspacePolicyHtml(cc)}
   <div class="kpis">
     <div class="kpi"><div class="kl">Aéroports</div><div class="kv">${aps.length}</div></div>
     <div class="kpi"><div class="kl">Que vous desservez</div><div class="kv">${aps.filter(c=>served.has(c)).length}</div></div>

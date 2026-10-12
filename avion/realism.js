@@ -93,26 +93,31 @@ function payloadFactor(m, d){ const R=m.range; if(d<=0.82*R) return 1; return cl
 
 /* ---------- trajectoires alignées sur les pistes ---------- */
 const _pathCache=new Map();
+function invalidateAirspacePathCache(){ _pathCache.clear(); }
 function legPath(leg, m){
-  const key=leg.from+'>'+leg.to+'|'+(m?m.id:'');
+  const carrier=leg.ownerCode||(S&&S.company&&S.company.code)||'', rev=typeof airspacePolicyRev==='function'?airspacePolicyRev():0;
+  const key=leg.from+'>'+leg.to+'|'+(m?m.id:'')+'|'+carrier+'|'+rev;
   if(_pathCache.has(key)) return _pathCache.get(key);
   if(_pathCache.size>3000) _pathCache.clear();
   const A=AP(leg.from), B=AP(leg.to);
-  const dep=bestRunway(leg.from, bearing(A,B), m);
-  const arrCourse=(bearing(B,A)+180)%360;
+  const plan=typeof airspaceRoutePlan==='function'?airspaceRoutePlan(carrier,leg.from,leg.to):null;
+  const route=plan&&plan.points&&plan.points.length>1?plan.points:[A,B];
+  const dep=bestRunway(leg.from, bearing(A,route[1]||B), m);
+  const arrCourse=bearing(route[route.length-2]||A,B);
   const arr=bestRunway(leg.to, arrCourse, m);
   const short=leg.dist<60;
   const air=[];
   if(dep){ air.push(dep.thr, destPt(dep.thr.lat,dep.thr.lon,dep.hdg,dep.len/1000*0.55), dep.end, destPt(dep.end.lat,dep.end.lon,dep.hdg,short?2:6)); }
   else air.push({lat:A.lat,lon:A.lon});
   const faf = arr? destPt(arr.thr.lat,arr.thr.lon,(arr.hdg+180)%360, short?4:14) : {lat:B.lat,lon:B.lon};
-  const s=air[air.length-1], gd=gcDist(s,faf), n=Math.max(2,Math.ceil(gd/120));
-  for(let i=1;i<=n;i++){ const p=gcInterp(s,faf,i/n); air.push({lat:p.lat,lon:p.lon}); }
+  const anchors=[air[air.length-1],...route.slice(1,-1),faf];
+  for(let j=1;j<anchors.length;j++){ const s=anchors[j-1], e=anchors[j], n=Math.max(1,Math.ceil(gcDist(s,e)/120));
+    for(let i=1;i<=n;i++){ const p=gcInterp(s,e,i/n); air.push({lat:p.lat,lon:p.lon}); } }
   if(arr){ air.push(arr.thr, destPt(arr.thr.lat,arr.thr.lon,arr.hdg,Math.min(arr.len/1000*0.65,2.2))); }
   else air.push({lat:B.lat,lon:B.lon});
   const cum=[0]; for(let i=1;i<air.length;i++) cum.push(cum[i-1]+gcDist(air[i-1],air[i]));
   const p={air, cum, total:cum[cum.length-1]||1, dep, arr,
-    gateA:{lat:A.lat,lon:A.lon}, gateB:{lat:B.lat,lon:B.lon}};
+    gateA:{lat:A.lat,lon:A.lon}, gateB:{lat:B.lat,lon:B.lon}, route};
   _pathCache.set(key,p); return p;
 }
 function pointOnPath(p, s){
