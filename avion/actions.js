@@ -42,10 +42,9 @@ const ACTIONS = {
   focusHome:()=>{ if(UI.mobile) setTab('map'); focusCountry(homeCC()); },
   focusCountry:d=>{ if(UI.mobile) setTab('map'); focusCountry(d.cc); },
   country:d=>{ UI.country=d.cc; renderPanel(); },
-  addAirspaceBan:d=>{ const origin=$('#airspaceOrigin')?.value; if(origin) ACTIONS.toggleAirspaceBan({...d,origin}); },
   toggleAirspaceBan:d=>{
     const zone=d.zone, origin=d.origin;
-    if(!_airspacePolygons[zone]||!COUNTRIES[origin]||origin===zone) return err('Pays ou frontière indisponible pour cette règle.');
+    if(zone!==homeCC()||!_airspacePolygons[zone]||!COUNTRIES[origin]||origin===zone) return err('Cette règle ne peut être modifiée que pour l’espace aérien cartographié de votre pays.');
     if(airspaceDefaultBan(zone,origin)) return err('Cette interdiction est une règle géopolitique automatique et ne peut pas être retirée ici.');
     S.airspaceBans=S.airspaceBans||{}; const set=new Set(Array.isArray(S.airspaceBans[zone])?S.airspaceBans[zone]:[]);
     if(set.has(origin)) set.delete(origin); else set.add(origin);
