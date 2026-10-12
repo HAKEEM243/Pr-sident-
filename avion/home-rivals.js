@@ -38,17 +38,17 @@ function hrPlayerBuildRouteTick(){
   }
 }
 
-/* Air Kivu choisit et finance son réseau ; ses résultats hebdomadaires restent calculés par aiStep. */
+/* Les startups, notamment Air Kivu, privilégient le réseau même quand leur trésorerie est négative.
+   Une seule tentative supplémentaire par jour de simulation limite le coût de calcul. */
 function hrAirKivuRouteTick(){
-  const e=aiBy('KVA'); if(!e||e.status==='dead') return;
-  const now=S.time; if(now-(e.lastStartupRouteAttempt??e.founded??now)<3*DAY) return;
-  e.lastStartupRouteAttempt=now;
-  // Sans route, Air Kivu ne peut pas gagner d'argent ni bâtir de marge :
-  // financer une première liaison viable avant d'appliquer le filtre de rentabilité.
-  if(!e.startup&&aiOpenRoutes(e)>0&&(e.lastMargin||0)<=0.025) return;
-  if(e.startup&&e.cash<=e.fleet*14e6) e.cash=Math.max(e.cash,e.fleet*14e6+3.5e6);
-  if(e.cash<=e.fleet*14e6) return;
-  const cap=Math.max(2,Math.floor(e.fleet*0.8)); if(aiOpenRoutes(e)>=cap) return;
+  const ai=S.ai, now=S.time; if(!ai||!ai.list||now-(ai.lastStartupRouteBoost??-Infinity)<DAY) return;
+  const candidates=aiAlive().filter(e=>(e.startup||e.code==='KVA')&&now-(e.lastStartupRouteAttempt??e.founded??-Infinity)>=3*DAY&&aiOpenRoutes(e)<Math.max(4,Math.min(30,e.fleet*1.5)))
+    .sort((a,b)=>(a.lastStartupRouteAttempt??a.founded??-Infinity)-(b.lastStartupRouteAttempt??b.founded??-Infinity));
+  const e=candidates[0]; if(!e) return;
+  ai.lastStartupRouteBoost=now; e.lastStartupRouteAttempt=now;
+  // Une startup peut ouvrir en déficit : aiRoute comptabilise le coût sans effacer la perte.
+  // Air Kivu déjà sortie de lancement ne reçoit plus cette priorité si son réseau perd de l’argent.
+  if(!e.startup&&e.code==='KVA'&&aiOpenRoutes(e)>0&&(e.lastMargin||0)<=0.025) return;
   aiRoute(e,'open');
 }
 
