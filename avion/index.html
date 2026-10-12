@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta name="se-ver" content="20261116">
+<meta name="se-ver" content="20261117">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Sky Empire</title>
@@ -340,6 +340,12 @@ body.google-map .leaflet-control-attribution::before{content:"Google ";font-weig
 .ap-label.drc{color:#bbf7d0}
 .leaflet-tooltip.flight-tip{background:rgba(11,18,32,.95);color:var(--txt);border:1px solid var(--gold2);font-size:12px;min-width:210px}
 .leaflet-tooltip.flight-tip:before{border-right-color:var(--gold2)}
+.leaflet-tooltip-left.flight-tip:before{border-left-color:var(--gold2)}
+.leaflet-tooltip.flight-tip.rival-detail{max-width:min(340px,calc(100vw - 58px));white-space:normal;line-height:1.35}
+.rv-title{margin-bottom:3px}.rv-route{margin:3px 0}.rv-phase{font-size:11px;color:var(--mut)}
+.rv-progress{height:5px;background:#0a1220;border-radius:5px;overflow:hidden;margin:5px 0 2px}.rv-progress i{display:block;height:100%;background:linear-gradient(90deg,#38bdf8,#facc15);border-radius:5px}
+.rv-kpis{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:6px 0}.rv-kpis>div{background:rgba(23,38,63,.82);border-radius:6px;padding:4px 6px;min-width:0}.rv-kpis small,.rv-kpis b{display:block}.rv-kpis small{font-size:9px;color:var(--mut)}.rv-kpis b{font-size:11px;overflow-wrap:anywhere}
+.rv-market{margin:3px 0}.rv-note{font-size:9px;color:var(--mut);border-top:1px solid var(--line);padding-top:4px;margin-top:4px}
 .leaflet-tooltip{background:rgba(11,18,32,.95);color:var(--txt);border:1px solid var(--line)}
 .leaflet-tooltip-top:before{border-top-color:var(--line)}
 .leaflet-container{font:inherit}
@@ -711,7 +717,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="passengers.js?v=20261109"></script>
 <script src="pulse.js?v=20261115"></script>
 <script src="business.js?v=20261106"></script>
-<script src="map.js?v=20261106"></script>
+<script src="map.js?v=20261117"></script>
 <script src="ui.js?v=20261110"></script>
 <script src="pilot.js?v=20261106"></script>
 <script src="actions.js?v=20261106"></script>
@@ -730,7 +736,7 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 <script src="calendar.js?v=20261106"></script>
 <script src="paxcases.js?v=20261106"></script>
 <script src="inbox.js?v=20261106"></script>
-<script src="pwa.js?v=20261115"></script>
+<script src="pwa.js?v=20261117"></script>
 <script src="simple.js?v=20261106"></script>
 </body>
 </html>

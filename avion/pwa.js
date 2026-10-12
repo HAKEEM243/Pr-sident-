@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261116';
+const GAME_VER='20261117';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['✈️ Détails des avions sur la carte','Touchez un avion concurrent pour voir sa ligne directe, sa position et sa progression, le modèle et la capacité estimés, la fréquence, la part de marché et les passagers estimés par vol. La fiche reste ouverte jusqu’au déplacement/zoom, au toucher d’un autre avion ou à un second toucher sur le même. Les passagers des concurrents sont une estimation de marché, pas un manifeste réel.'],
   ['⛔ Fermetures d’espace aérien','Les fermetures s’appliquent aussi au trajet direct : le jeu vérifie si la route traverse la Corée du Nord, la RDC, le Soudan ou la Palestine. La Corée du Nord n’autorise que les compagnies chinoises, russes, congolaises et nigérianes; les compagnies rwandaises ne peuvent traverser les espaces concernés par cette règle. Un vol déjà en route est renvoyé à son dernier aéroport : 25 k$ de frais, 4 points de condition perdus et 6 h d’immobilisation. Les lignes interdites des IA sont exclues du marché.'],
   ['🛫 Nouvelles compagnies plus entreprenantes','Chaque chantier admissible lance une jeune compagnie basée sur l’aéroport construit. Elle développe d’abord sa flotte et son réseau, même si ses comptes sont en perte; le carburant et la maintenance sont gérés automatiquement par la simulation. Elle pourra ensuite échouer si elle ne redresse pas sa situation.'],
   ['🇨🇩 Air Kivu ouvre enfin son réseau','Correction pour les sauvegardes existantes : Air Kivu finance sa première ligne viable même avant ses premiers bénéfices. Après 3 jours, une amélioration récente de Bukavu ne bloque plus son hub; les autres marchés restent soumis aux règles normales. Ensuite, l’expansion dépend de ses résultats.'],
