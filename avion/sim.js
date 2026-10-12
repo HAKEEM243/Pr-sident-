@@ -494,6 +494,8 @@ function legsFor(stops){ const L=[]; for(let i=0;i<stops.length-1;i++) L.push({f
 function checkLegs(ac, legs){
   const m=modelOf(ac);
   for(const l of legs){
+    const carrier=ac.ownerCode||S.company.code, airspace=typeof airspaceViolation==='function'?airspaceViolation(carrier,l.from,l.to):null;
+    if(airspace) return `⛔ Vol interdit : ${airspace.reason} (${l.from} → ${l.to}).`;
     if(l.dist>m.range) return `Tronçon ${l.from}→${l.to} (${Math.round(l.dist)} km) hors autonomie (${m.range} km)`;
     for(const c of [l.from,l.to]){
       const rw=runwayCheck(m,c); if(rw) return rw;
@@ -1071,6 +1073,7 @@ function openLine(stops){
   if(!S.hubs.includes(stops[0])) return 'Une ligne doit partir d’un de vos hubs';
   if(stops.length<2) return 'Choisissez une destination';
   for(let i=1;i<stops.length;i++) if(stops[i]===stops[i-1]) return 'Deux escales identiques consécutives';
+  for(let i=1;i<stops.length;i++){ const restriction=typeof airspaceViolation==='function'?airspaceViolation(S.company.code,stops[i-1],stops[i]):null; if(restriction) return `⛔ Espace aérien fermé : ${restriction.reason}`; }
   if(S.routes.some(r=>r.stops.join()===stops.join())) return 'Vous exploitez déjà cette ligne';
   const c=lineCost(stops); book('licences',-c);
   const r={id:uid(), stops:[...stops], departureHour:null, pm:{y:1,j:1,f:1,c:1}, audit:false, opened:S.time, stats:{flights:0,pax:0,seats:0,rev:0,cost:0,recent:[],shareSum:0,shareN:0}};

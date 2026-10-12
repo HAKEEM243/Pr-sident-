@@ -64,8 +64,8 @@ const modelFor=e=>{ const big=e.fleet>=60, pool=MODELS.filter(m=>!isCargo(m)&&m.
 function aiOpenRoutes(e){
   const ai=S.ai, cut=new Set(ai.cut[e.code]||[]), suspended=ai.suspend||{};
   const blocked=(a,b)=>[AP(a)?.cc,AP(b)?.cc].some(cc=>cc&&suspended[cc]>S.time&&e.cc!==cc);
-  let n=airlinePairs(e.code).filter(([a,b])=>{ const k=pairKey(a,b); return !cut.has(k)&&!blocked(a,b); }).length;
-  for(const k of ai.extra[e.code]||[]) if(!cut.has(k)&&!blocked(k.slice(0,3),k.slice(3))) n++;
+  let n=airlinePairs(e.code).filter(([a,b])=>{ const k=pairKey(a,b); return !cut.has(k)&&!blocked(a,b)&&!airspaceViolation(e.code,a,b); }).length;
+  for(const k of ai.extra[e.code]||[]) if(!cut.has(k)&&!blocked(k.slice(0,3),k.slice(3))&&!airspaceViolation(e.code,k.slice(0,3),k.slice(3))) n++;
   return n;
 }
 function aiOperatingMargin(e,oilF){
@@ -155,6 +155,7 @@ function aiRoute(e, mode, target){
     let best=null;
     for(const c of AIRPORT_CODES){
       const A=AP(c); if((target&&c!==target)||!aiAirportMarketOpen(c,!!target)||c===origin||A.cls<2||A.traffic<minT||shut[c]>S.time||[originCC,A.cc].some(cc=>suspended[cc]>S.time&&e.cc!==cc)) continue;
+      if(airspaceViolation(code,origin,c)) continue;
       const d=dist(origin,c); if(d<200||d>maxD) continue;
       const k=pairKey(origin,c); if(carriersOn(origin,c).includes(code)) continue;
       if(typeof runwayCheck==='function' && e.fleet<8 && A.cls<3) continue;
