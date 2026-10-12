@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261113';
+const GAME_VER='20261114';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,12 +81,13 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛫 Nouvelles compagnies plus entreprenantes','Chaque chantier admissible lance une jeune compagnie basée sur l’aéroport construit. Elle développe d’abord sa flotte et son réseau, même si ses comptes sont en perte; le carburant et la maintenance sont gérés automatiquement par la simulation. Elle pourra ensuite échouer si elle ne redresse pas sa situation.'],
   ['🇨🇩 Air Kivu ouvre enfin son réseau','Correction pour les sauvegardes existantes : Air Kivu finance sa première ligne viable même avant ses premiers bénéfices. Après 3 jours, une amélioration récente de Bukavu ne bloque plus son hub; les autres marchés restent soumis aux règles normales. Ensuite, l’expansion dépend de ses résultats.'],
   ['🌙 Nuit et neige en vue 3D','Le bouton du soleil fait défiler Auto (heure du jeu), Jour et Nuit. Un bouton Neige active une chute de flocons légère, sans modèle ni ressource distante, désactivée par défaut. Les deux préférences sont mémorisées.'],
   ['✈️ Voyageurs en RDC : grandes villes revalorisées','Les portes des grandes villes ont un minimum de 20 M de voyageurs par an : Kinshasa 48 M, Goma 35 M, Lubumbashi 20 M, ainsi que les autres villes de plus d’un million d’habitants. Les villes moyennes et petites ont des planchers gradués selon leur population (5 M, 2 M ou 100 000 à 300 000). Ces valeurs alimentent aussi le marché aérien; elles restent adaptables à la hausse selon le trafic existant.'],
   ['🇨🇩 Air Kivu part de Bukavu','Air Kivu arrive comme petite compagnie congolaise avec 5 avions et 2,5 Md$ de fonds de départ. Quand sa marge est positive et sa trésorerie suffisante, elle ouvre une autre ligne au plus tous les 3 jours ; ses résultats hebdomadaires font varier ses fonds. Son hub à Bukavu dispose d’une piste revêtue de 4 200 m, classe 5. Les chiffres Passagers intègrent aussi l’évolution démographique et économique.'],
   ['🌍 Jeunes compagnies dans les pays défavorisés','Pendant quatre mois de jeu, une nouvelle jeune compagnie peut naître tous les 30 jours dans chacun des 79 pays déjà représentés à revenu faible ou moyen inférieur. Panama est inclus à ta demande ; aucun aéroport n’est ajouté aux pays absents du jeu.'],
-  ['⚖️ Réaction mesurée aux agrandissements','Après un chantier d’aéroport, une compagnie déjà présente dans le monde peut ouvrir une ligne vers l’aéroport. Les réactions sont espacées : au maximum une nouvelle ligne tous les 3 jours de jeu, sans créer de nouvelle compagnie à chaque chantier.'],
+  ['⚖️ Réaction mesurée aux agrandissements','Après un chantier d’aéroport, une compagnie existante peut aussi ouvrir une ligne vers l’aéroport. Les réactions aux lignes restent espacées d’au moins 3 jours de jeu.'],
   ['🇨🇩 120 M d’habitants, 4 terminaux en 3D','Accueil : habitants du pays, voyages en avion par an, et classement des villes (habitants, voyageurs, vos passagers). Kinshasa, Lubumbashi et Goma deviennent de grandes portes (6 M, 3 M et 2,5 M de voyages par an au départ), les autres villes suivent leur population. Agrandissement en 7 étapes avec Terminal 3 et Terminal 4 ; pistes allongées, 2ᵉ piste et terminaux visibles tout de suite en 3D et sur la carte 2D.'],
   ['🏛️ L’État construit, la diaspora voyage','Le gouvernement de votre pays goudronne et allonge les pistes des villes et vous propose des contrats pour ouvrir la ligne (courrier). Saisons de la diaspora (Noël, juillet-août) : demande +35 % vers l’Europe et l’Amérique. Les villes qui grandissent attirent plus de voyageurs.'],
   ['🕓 Horaires de départ au choix','Planning avion → choisissez une heure locale par ligne. Les pointes attirent plus de demande mais renforcent la concurrence ; les retours bien alignés sur les départs d’un autre vol améliorent les correspondances. L’ATC gère les conflits de piste ; « Automatique » conserve la répartition habituelle.'],

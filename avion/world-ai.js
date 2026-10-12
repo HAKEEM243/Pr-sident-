@@ -95,24 +95,29 @@ function aiStep(e,oilF){
   e.rep=clamp(e.rep+rnd(-0.45,0.55)+(margin>0.06?0.16:margin<-0.12?-0.25:0)+(e.rep>72?-0.12:0.08),20,95);
   if(e.startup&&(e.fleet>=25||(S.time-(e.founded||S.time)>=365*DAY&&e.cash>e.fleet*5e6))){ e.startup=false; aiNews(`🎉 ${e.name} sort de la phase de lancement : ${e.fleet} avions, ${e.routes} lignes. Les aides de jeune compagnie cessent.`,'news',true); }
   e.pax=Math.round(e.fleet*520*(0.6+e.rep/150));
-  // expansion : commandes d'avions
-  if(margin>0.035&&e.cash>e.fleet*(e.startup?14e6:34e6) && Math.random()<(e.startup?0.24:0.16)){
+  // Expansion prioritaire des jeunes compagnies : les investisseurs financent
+  // les ouvertures et une petite commande même si le compte est déficitaire.
+  if(e.startup&&e.cash<e.fleet*14e6) e.cash+=Math.min(18e6,Math.max(6e6,e.fleet*2e6));
+  if(((e.startup&&e.fleet<30)||margin>0.035&&e.cash>e.fleet*34e6) && Math.random()<(e.startup?0.38:0.16)){
     const n=Math.max(1,Math.round(e.fleet*rnd(0.01,0.05))), m=modelFor(e);
     e.fleet+=n; e.cash-=n*9e6;
     if(n>=6) aiNews(`🛒 ${e.name} commande ${n} ${m.name} — flotte portée à ${e.fleet} avions.`,'news',e.fleet>=100&&n>=10);
     else if(e.startup) aiNews(`🛒 ${e.name} (nouvelle compagnie) reçoit un ${m.name} : ${e.fleet} avions.`,'news');
   }
-  // Réseau : réévaluation mensuelle, motivée par la marge, le ratio lignes/flotte et la trésorerie.
+  // Les startups ouvrent d'abord leur réseau : une ligne mensuelle même en perte.
+  // Les compagnies établies gardent une croissance liée à leurs finances.
   const routeMonth=monthKey(S.time);
   if(e.lastRouteMonth!==routeMonth){
     const distressed=(e.debt||0)>0||e.cash<e.fleet*3e6||margin<-0.12;
-    if(distressed&&e.routes>4){ aiRoute(e,'close'); e.lastRouteMonth=routeMonth; }
-    else if(!distressed&&margin>0.025&&e.cash>e.fleet*(e.startup?14e6:28e6)&&e.routes<e.fleet*(e.startup?0.8:0.9)){ if(aiRoute(e,'open')) e.lastRouteMonth=routeMonth; }
+    if(e.startup&&e.routes<Math.max(2,Math.min(30,e.fleet*1.5))){
+      e.cash=Math.max(e.cash,3.5e6); if(aiRoute(e,'open')) e.lastRouteMonth=routeMonth;
+    } else if(distressed&&e.routes>4){ aiRoute(e,'close'); e.lastRouteMonth=routeMonth; }
+    else if(!distressed&&margin>0.025&&e.cash>e.fleet*28e6&&e.routes<e.fleet*0.9){ if(aiRoute(e,'open')) e.lastRouteMonth=routeMonth; }
   }
   // sécurité
   if(Math.random()<(typeof aiRisk==='function'?aiRisk(e):0.0034*Math.sqrt(Math.max(1,e.fleet)/100)/e.safety*(e.startup?1.4:1))) aiAccident(e);
   // difficultés financières
-  if(e.cash<-e.fleet*(e.startup?2.5e6:6e6)){
+  if(!e.startup&&e.cash<-e.fleet*6e6){
     e.debt=(e.debt||0)+1;
     if(e.debt===1) aiNews(`⚠️ ${e.name} en grande difficulté financière : plan de restructuration.`,'news',e.fleet>=40);
     if(e.debt>=(e.startup?4:6)){
@@ -145,7 +150,8 @@ function aiRoute(e, mode, target){
     // immobiliser son hub indéfiniment. Elle attend 3 jours, puis seule BKY
     // bénéficie de cette exception; les autres marchés gardent la grâce normale.
     const bukavuStartupHub=code==='KVA'&&origin==='BKY'&&S.time-(e.founded??S.time)>=3*DAY;
-    if((!aiAirportMarketOpen(origin)&&!bukavuStartupHub)||shut[origin]>S.time) return false;
+    const constructionStartupHub=!!e.buildStartupHub&&origin===e.buildStartupHub&&S.time-(e.founded??S.time)>=3*DAY;
+    if((!aiAirportMarketOpen(origin)&&!bukavuStartupHub&&!constructionStartupHub)||shut[origin]>S.time) return false;
     let best=null;
     for(const c of AIRPORT_CODES){
       const A=AP(c); if((target&&c!==target)||!aiAirportMarketOpen(c,!!target)||c===origin||A.cls<2||A.traffic<minT||shut[c]>S.time||[originCC,A.cc].some(cc=>suspended[cc]>S.time&&e.cc!==cc)) continue;
@@ -264,12 +270,12 @@ function aiMonthly(){
   // bilan du trimestre
   if(S.ai.lastMonth%3===0){ const top=aiRows().slice(0,3); aiNews(`🏆 Podium mondial : ${top.map((c,i)=>`${['🥇','🥈','🥉'][i]} ${c.name}`).join(' · ')}.`,'news'); }
 }
-function aiStartup(forcedCC=null,waveNo=0){
+function aiStartup(forcedCC=null,waveNo=0,forcedHub=null){
   const ai=S.ai, mine=S.company.code;
   const hubCandidates=cc=>{ const open=cAirports(cc).filter(c=>AP(c).cls>=1&&aiAirportMarketOpen(c)), strong=open.filter(c=>AP(c).cls>=2&&AP(c).traffic>=0.15); return strong.length?strong:(forcedCC?open:[]); };
-  let cc=forcedCC;
+  let cc=forcedHub&&AP(forcedHub)?AP(forcedHub).cc:forcedCC;
   if(forcedCC){ if(!COUNTRIES[forcedCC]||!aiPoorCountryEligible(forcedCC)) return false; }
-  else {
+  else if(!forcedHub) {
     const blockPoor=(ai.poorStartupWaveNumber||0)<4||ai.poorStartupWaveMonth===monthKey(S.time);
     const ccs=Object.keys(COUNTRIES).filter(c=>hubCandidates(c).length&&(!blockPoor||!aiPoorCountryEligible(c)));
     const w=ccs.map(c=>{ const nat=Object.values(AIRLINE_DB).filter(a=>a[1]===c&&AP(a[2])&&AP(a[2]).cc===c&&a[3]>=3).length+aiAlive().filter(e=>e.startup&&e.cc===c).length*2;
@@ -278,15 +284,16 @@ function aiStartup(forcedCC=null,waveNo=0){
     if(!ccs.length) return false;
     let r=Math.random()*w.reduce((s,x)=>s+x,0); cc=ccs[0]; for(let i=0;i<ccs.length;i++){ r-=w[i]; if(r<=0){ cc=ccs[i]; break; } }
   }
-  const hubs=hubCandidates(cc); if(!hubs.length) return false; const hub=forcedCC?hubs[waveNo%hubs.length]:pick(hubs);
+  const hubs=forcedHub&&AP(forcedHub)&&AP(forcedHub).cc===cc&&AP(forcedHub).cls>=1?[forcedHub,...hubCandidates(cc).filter(c=>c!==forcedHub)]:hubCandidates(cc); if(!hubs.length) return false;
+  const hub=forcedHub&&hubs.includes(forcedHub)?forcedHub:forcedCC?hubs[waveNo%hubs.length]:pick(hubs);
   let code=null; const codeStart=rndi(0,675); for(let i=0;i<676&&!code;i++){ const n=(codeStart+i)%676, c=String.fromCharCode(65+Math.floor(n/26))+String.fromCharCode(65+n%26); if(!AIRLINE_DB[c]&&c!==mine&&!aiBy(c)) code=c; }
   if(!code){ const start3=rndi(0,17575); for(let i=0;i<17576&&!code;i++){ const n=(start3+i)%17576, c=String.fromCharCode(65+Math.floor(n/676))+String.fromCharCode(65+Math.floor(n/26)%26)+String.fromCharCode(65+n%26); if(!AIRLINE_DB[c]&&c!==mine&&!aiBy(c)) code=c; } }
   if(!code) return false;
   const name=`${pick(AI_PREFIX)} ${pick(AI_SUFFIX)}`, fleet=rndi(3,6);
-  const e={ code, name, color:airlineColor(code), hub, cc, real:false, startup:true, founded:S.time, fleet, cash:fleet*rnd(12e6,20e6), rep:52, safety:+rnd(0.6,1.1).toFixed(2), routes:0, crashes:0, incidents:0, status:'ok', debt:0, pax:0, hist:[] };
+  const e={ code, name, color:airlineColor(code), hub, cc, real:false, startup:true, founded:S.time, ...(forcedHub?{buildStartupHub:forcedHub}:{}), fleet, cash:fleet*rnd(12e6,20e6), rep:52, safety:+rnd(0.6,1.1).toFixed(2), routes:0, crashes:0, incidents:0, status:'ok', debt:0, pax:0, hist:[] };
   ai.list.push(e); ai.ver++;
   for(let i=0,n=forcedCC?rndi(1,2):rndi(2,4);i<n;i++) aiRoute(e,'open');
-  aiNews(`🆕 Nouvelle compagnie : ${name} (${code}) démarre à ${keyCity(hub)} (${COUNTRIES[cc][0]}) avec ${fleet} avion${fleet>1?'s':''} et ${e.routes} ligne${e.routes>1?'s':''}.`,'news',!forcedCC);
+  aiNews(`🆕 Nouvelle compagnie : ${name} (${code}) démarre à ${keyCity(hub)} (${COUNTRIES[cc][0]})${forcedHub?' après vos travaux':''} avec ${fleet} avion${fleet>1?'s':''} et ${e.routes} ligne${e.routes>1?'s':''}.`,'news',!forcedCC||!!forcedHub);
   return e;
 }
 
