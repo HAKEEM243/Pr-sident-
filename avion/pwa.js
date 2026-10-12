@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261115';
+const GAME_VER='20261116';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,7 +81,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
-  ['⛔ Fermetures d’espace aérien','Les lignes directes vers/depuis la Corée du Nord sont réservées aux compagnies basées en Chine, en Russie, en RDC ou au Nigeria. La RDC interdit les liaisons des compagnies rwandaises vers/depuis son territoire. Le joueur et les IA ne peuvent pas ouvrir ou effectuer ces vols interdits; les routes concurrentes non autorisées disparaissent des estimations du marché.'],
+  ['⛔ Fermetures d’espace aérien','Les fermetures s’appliquent aussi au trajet direct : le jeu vérifie si la route traverse la Corée du Nord, la RDC, le Soudan ou la Palestine. La Corée du Nord n’autorise que les compagnies chinoises, russes, congolaises et nigérianes; les compagnies rwandaises ne peuvent traverser les espaces concernés par cette règle. Un vol déjà en route est renvoyé à son dernier aéroport : 25 k$ de frais, 4 points de condition perdus et 6 h d’immobilisation. Les lignes interdites des IA sont exclues du marché.'],
   ['🛫 Nouvelles compagnies plus entreprenantes','Chaque chantier admissible lance une jeune compagnie basée sur l’aéroport construit. Elle développe d’abord sa flotte et son réseau, même si ses comptes sont en perte; le carburant et la maintenance sont gérés automatiquement par la simulation. Elle pourra ensuite échouer si elle ne redresse pas sa situation.'],
   ['🇨🇩 Air Kivu ouvre enfin son réseau','Correction pour les sauvegardes existantes : Air Kivu finance sa première ligne viable même avant ses premiers bénéfices. Après 3 jours, une amélioration récente de Bukavu ne bloque plus son hub; les autres marchés restent soumis aux règles normales. Ensuite, l’expansion dépend de ses résultats.'],
   ['🌙 Nuit et neige en vue 3D','Le bouton du soleil fait défiler Auto (heure du jeu), Jour et Nuit. Un bouton Neige active une chute de flocons légère, sans modèle ni ressource distante, désactivée par défaut. Les deux préférences sont mémorisées.'],
