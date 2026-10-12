@@ -382,7 +382,7 @@ function boot(){
   window.addEventListener('beforeunload',save);
   document.addEventListener('visibilitychange',()=>{ if(document.hidden){ save(); try{ localStorage.setItem('se-lr',String(Date.now())); }catch(e){} } else wakeUp(); });
   window.addEventListener('pageshow',()=>wakeUp()); window.addEventListener('focus',()=>wakeUp());
-  function wakeUp(){ if(!S||S.paused) return; const wall=Date.now(), gap=wall-(UI.lastWall||wall); if(gap<=15000) return; UI.lastWall=wall; S.lastReal=wall-gap; UI.silent=true; const rep=catchUp(); UI.silent=false; if(rep){ try{ offlineReport(rep); }catch(e){} } renderTop(); }
+  function wakeUp(){ if(!S||S.paused||UI.catching) return; const wall=Date.now(), gap=wall-(UI.lastWall||wall); if(gap<=15000) return; UI.lastWall=wall; S.lastReal=wall-gap; let pl=null; try{ pl=catchUpPlan(); }catch(e){ console.warn(e); } if(pl) runCatchUp(pl); renderTop(); }
   setInterval(()=>{ try{ localStorage.setItem('se-lr',String(Date.now())); }catch(e){} },5000);
 }
 
