@@ -755,6 +755,16 @@ function simStep(){
     let guard=0;
     while(ac.flight && guard++<20){
       const leg=ac.flight.legs[ac.flight.li];
+      const restriction=typeof airspaceViolation==='function'&&leg?airspaceViolation(ac.ownerCode||S.company.code,leg.from,leg.to):null;
+      if(restriction){
+        const fl=ac.flight, origin=leg.from; ac.flight=null; ac.status='idle'; ac.loc=origin; ac.pendingReturn=null;
+        ac.readyAt=t+6*HOUR; ac.condition=clamp(ac.condition-4,0,100); ac.blocked=`Interception : ${restriction.country}`;
+        if(fl.routeId&&ac.wk&&ac.wk.c&&ac.wk.c[fl.routeId]>0) ac.wk.c[fl.routeId]--;
+        book('incidents',-25000);
+        logMsg(`🚨 Interception d'espace aérien : ${ac.reg} (${origin}→${leg.to}) est renvoyé à son dernier aéroport. Frais $25 k, immobilisé 6 h.`,'bad');
+        notify('Espace aérien fermé',`${ac.reg} est renvoyé à son dernier aéroport de départ.`);
+        break;
+      }
       const arr=legEnd(leg,modelOf(ac));
       if(arr<=t) completeLeg(ac); else break;
     }

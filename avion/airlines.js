@@ -44,19 +44,77 @@ function airlinePairs(code){
   if(!_alIdx){ _alIdx={}; for(const [k,p] of PAIR_DB) for(const c of p.c) (_alIdx[c]=_alIdx[c]||[]).push([k.slice(0,3),k.slice(3)]); }
   return _alIdx[code]||[];
 }
-/* Restrictions d'espace aérien (modèle de routes directes par pays). */
+/* Restrictions d'espace aérien : géofences Natural Earth, testées uniquement à l'ouverture/au contrôle d'une route. */
 const AIRSPACE_KP_EXEMPT=new Set(['CN','RU','CD','NG']);
 const AIRSPACE_RW_DENY=new Set(['CD','KP','SD','PS']);
+const _airspaceRouteCache=new Map();
+const _airspacePolygons={};
+for(const [cc,g] of Object.entries(typeof AIRSPACE_ZONES!=='undefined'?AIRSPACE_ZONES:{})){
+  const polys=g.type==='Polygon'?[g.coordinates]:g.coordinates;
+  _airspacePolygons[cc]=polys.map(rings=>{ const outer=rings[0]; let minX=180,maxX=-180,minY=90,maxY=-90;
+    for(const p of outer){ minX=Math.min(minX,p[0]); maxX=Math.max(maxX,p[0]); minY=Math.min(minY,p[1]); maxY=Math.max(maxY,p[1]); }
+    return {rings,minX,maxX,minY,maxY}; });
+}
 function airlineHomeCountry(code){
+  const player=typeof S!=='undefined'&&S&&S.company;
+  if(player&&player.code===code){ const hub=AP(player.hub); if(hub&&hub.cc) return hub.cc; }
   const a=typeof AIRLINE_DB!=='undefined'&&AIRLINE_DB[code]; if(a&&a[1]) return a[1];
   const e=typeof S!=='undefined'&&S&&S.ai&&S.ai.list&&S.ai.list.find(x=>x.code===code); return e&&e.cc||'';
 }
+function airspacePointInRing(lon,lat,ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
+    if((yi>lat)!==(yj>lat) && lon<(xj-xi)*(lat-yi)/(yj-yi)+xi) inside=!inside;
+  }
+  return inside;
+}
+function airspaceContains(cc,lon,lat){
+  for(const poly of _airspacePolygons[cc]||[]){
+    if(lon<poly.minX||lon>poly.maxX||lat<poly.minY||lat>poly.maxY||!airspacePointInRing(lon,lat,poly.rings[0])) continue;
+    let hole=false; for(let i=1;i<poly.rings.length;i++) if(airspacePointInRing(lon,lat,poly.rings[i])){ hole=true; break; }
+    if(!hole) return true;
+  }
+  return false;
+}
+function airspaceNear(cc,lon,lat,pad){
+  return (_airspacePolygons[cc]||[]).some(poly=>lon>=poly.minX-pad&&lon<=poly.maxX+pad&&lat>=poly.minY-pad&&lat<=poly.maxY+pad);
+}
+function airspaceRouteCrosses(cc,a,b){
+  if(!_airspacePolygons[cc]) return false;
+  const pa=AP(a),pb=AP(b); if(!pa||!pb||!Number.isFinite(pa.lat)||!Number.isFinite(pa.lon)||!Number.isFinite(pb.lat)||!Number.isFinite(pb.lon)) return false;
+  const rad=Math.PI/180,p1=pa.lat*rad,l1=pa.lon*rad,p2=pb.lat*rad,l2=pb.lon*rad;
+  const v1=[Math.cos(p1)*Math.cos(l1),Math.cos(p1)*Math.sin(l1),Math.sin(p1)];
+  const v2=[Math.cos(p2)*Math.cos(l2),Math.cos(p2)*Math.sin(l2),Math.sin(p2)];
+  const dot=clamp(v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2],-1,1), angle=Math.acos(dot), sin=Math.sin(angle);
+  const total=angle*6371, pointAt=t=>{ let x,y,z;
+    if(Math.abs(sin)<1e-7){ x=v1[0]*(1-t)+v2[0]*t; y=v1[1]*(1-t)+v2[1]*t; z=v1[2]*(1-t)+v2[2]*t; }
+    else{ const u=Math.sin((1-t)*angle)/sin,v=Math.sin(t*angle)/sin; x=u*v1[0]+v*v2[0]; y=u*v1[1]+v*v2[1]; z=u*v1[2]+v*v2[2]; }
+    return [Math.atan2(y,x)/rad,Math.atan2(z,Math.hypot(x,y))/rad];
+  };
+  // La plupart des routes sont loin de ces pays : échantillonnage grossier avant le test précis à 20 km.
+  const coarse=Math.max(1,Math.ceil(total/500)); let near=false;
+  for(let i=0;i<=coarse;i++){ const p=pointAt(i/coarse); if(airspaceNear(cc,p[0],p[1],5)){ near=true; break; } }
+  if(!near) return false;
+  const steps=Math.max(1,Math.ceil(total/(cc==='PS'?2:10)));
+  for(let i=0;i<=steps;i++){
+    const p=pointAt(i/steps); if(airspaceContains(cc,p[0],p[1])) return true;
+  }
+  return false;
+}
 function airspaceViolation(code,a,b){
-  const ca=AP(a)&&AP(a).cc, cb=AP(b)&&AP(b).cc, home=airlineHomeCountry(code);
-  if(!ca||!cb) return null;
-  if((ca==='KP'||cb==='KP')&&!AIRSPACE_KP_EXEMPT.has(home)) return {country:'KP',reason:'La Corée du Nord ferme son espace aérien à cette compagnie; seuls les transporteurs de Chine, Russie, RDC et Nigeria sont autorisés.'};
-  if(home==='RW'&&(AIRSPACE_RW_DENY.has(ca)||AIRSPACE_RW_DENY.has(cb))) return {country:ca==='CD'||cb==='CD'?'CD':ca==='SD'||cb==='SD'?'SD':ca==='PS'||cb==='PS'?'PS':'KP',reason:'Les compagnies rwandaises ne sont pas autorisées dans les espaces aériens en conflit représentés par cette règle.'};
-  return null;
+  const home=airlineHomeCountry(code), pa=AP(a), pb=AP(b); if(!pa||!pb) return null;
+  const key=home+':'+code+':'+(a<b?a+b:b+a); if(_airspaceRouteCache.has(key)) return _airspaceRouteCache.get(key);
+  const countries=[]; if(!AIRSPACE_KP_EXEMPT.has(home)) countries.push('KP'); if(home==='RW') for(const cc of AIRSPACE_RW_DENY) if(!countries.includes(cc)) countries.push(cc);
+  let result=null;
+  for(const cc of countries){
+    if(pa.cc===cc||pb.cc===cc||airspaceRouteCrosses(cc,a,b)){
+      result=cc==='KP'?{country:cc,reason:'La Corée du Nord ferme son espace aérien à cette compagnie; seuls les transporteurs de Chine, Russie, RDC et Nigeria sont autorisés.'}:{country:cc,reason:'Les compagnies rwandaises ne sont pas autorisées dans les espaces aériens en conflit représentés par cette règle.'};
+      break;
+    }
+  }
+  if(_airspaceRouteCache.size>20000) _airspaceRouteCache.clear();
+  _airspaceRouteCache.set(key,result); return result;
 }
 /* ---------- monde vivant : lignes ouvertes/fermées, compagnies disparues ---------- */
 let _aiVer=-1, _aiSrc=null, _cutSet=new Set(), _extraMap=new Map(), _deadSet=new Set();
