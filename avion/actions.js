@@ -303,11 +303,13 @@ function runCatchUp(pl){
   if(!small){ box=document.createElement('div'); box.id='catchup'; box.innerHTML=`<b>⏩ Rattrapage de votre absence</b><div class="cu-bar"><i></i></div><small></small><button class="btn sm">⏭️ Passer</button>`; document.body.appendChild(box);
     box.querySelector('button').onclick=()=>{ pl.left=0; }; }
   const step=()=>{ const t0=performance.now();
-    try{ UI.silent=true; while(pl.left>0&&performance.now()-t0<60){ const d=Math.min(pl.left,2*HOUR); advance(d); pl.left-=d; } }
+    // Cinq minutes simulées à la fois : advance() traite 24 pas internes par 2 h,
+    // ce qui pouvait monopoliser Safari sur une grande compagnie et rendre « Passer » inopérant.
+    try{ UI.silent=true; while(pl.left>0&&performance.now()-t0<20){ const d=Math.min(pl.left,5*MIN); advance(d); pl.left-=d; } }
     catch(e){ pl.left=0; UI.silent=false; setTimeout(()=>{ throw e; },0); }
     finally{ UI.silent=false; }
     if(box){ const f=1-pl.left/pl.total; box.querySelector('i').style.width=(f*100).toFixed(0)+'%'; box.querySelector('small').textContent=`${fmtDur(pl.total-pl.left)} de jeu sur ${fmtDur(pl.total)} · ${fmtDate(S.time)}`; }
-    if(pl.left>0){ setTimeout(step,0); return; }
+    if(pl.left>0){ setTimeout(step,16); return; }
     UI.catching=false; if(box) box.remove(); S.lastReal=Date.now();
     try{ renderTop(); if(typeof renderPanel==='function') renderPanel(); updatePlanes(); }catch(e){}
     try{ offlineReport(catchUpReport(pl)); }catch(e){ console.warn(e); } };
