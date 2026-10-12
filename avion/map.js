@@ -254,11 +254,13 @@ function drawRoutes(){
       let ref=AP(r.stops[0]).lon;
       for(let i=0;i<r.stops.length-1;i++){
         const A=AP(r.stops[i]), B=AP(r.stops[i+1]);
-        const pts=gcPath(A,B,ref).map(([la,lo])=>[la,lo+off]);
+        const plan=airspaceRoutePlan(S.company.code,A.code,B.code);
+        const raw=airspacePathCoordinates(S.company.code,A.code,B.code,ref); if(!raw.length) continue;
+        const pts=raw.map(([la,lo])=>[la,lo+off]);
         ref=pts[pts.length-1][1]-off;
         L.polyline(pts,{color:'#000', weight:5, opacity:0.35, interactive:false}).addTo(L_routes);
         L.polyline(pts,{color, weight:2.6, opacity:0.95, className:'route-anim'}).addTo(L_routes)
-          .bindTooltip(`${r.stops.join(' → ')}`,{sticky:true});
+          .bindTooltip(`${r.stops.join(' → ')}${plan.points.length>2?` · détour d’espace aérien (+${Math.max(0,Math.round(plan.distance-dist(A.code,B.code))).toLocaleString('fr-FR')} km)`:''}`,{sticky:true});
       }
       r.stops.slice(1,-1).forEach(c=>{
         const a=AP(c);
@@ -442,14 +444,14 @@ const TRAFFIC_MODEL={prop:'AT76', nb:'A20N', wb:'B789'};
 // horaire d'une ligne d'une autre compagnie : chaque avion part du poste à une heure locale fixe (la même chaque jour)
 const _tzAp=c=>{ const a=AP(c); if(!a) return 0; return (a.utc!==undefined&&a.utc!==null&&a.utc!==''?+a.utc:a.lon/15)*HOUR; };
 function rivalSched(r){
-  let K=r._tk; if(K&&K.c===(r.c||'')&&K.P) return K;
+  let K=r._tk; if(K&&K.c===(r.c||'')&&K.P&&K.pv===airspacePolicyRev()) return K;
   const A=AP(r.a), B=AP(r.b); if(!A||!B) return null;
-  const d=gcDist(A,B), cat=d<1200?'prop':d<5000?'nb':'wb', m=getModel(TRAFFIC_MODEL[cat]); if(!m) return null;
+  const d=typeof airspaceRouteDistance==='function'?airspaceRouteDistance(r.c||'',r.a,r.b):gcDist(A,B), cat=d<1200?'prop':d<5000?'nb':'wb', m=getModel(TRAFFIC_MODEL[cat]); if(!m) return null;
   const pA=legProfile(d,m,0,r.a,r.b), pB=legProfile(d,m,0,r.b,r.a), turn=55*MIN, T0=pA.total+pB.total+2*turn, f=Math.max(1,r.freq||1), nP=Math.max(1,Math.min(f,5));
   const base=Math.max(T0,nP*DAY/f), P=base<=DAY? DAY/Math.floor(DAY/base) : Math.ceil(base/DAY)*DAY;   // période : un nombre entier de départs par jour (ou un départ tous les n jours)
   const hs=hashStr(r.a+r.b+(r.c||'')), hb=(6+(hs%1000)/1000*9)*HOUR, tzA=_tzAp(r.a), tzB=_tzAp(r.b), bA=pA.segs[0].t1-pA.segs[0].t0, bB=pB.segs[0].t1-pB.segs[0].t0;
   const anchors=[]; for(let i=0;i<nP;i++){ const x=hb+i*P/nP+(hashStr(r.a+r.b+(r.c||'')+i)%6)*5*MIN, H=Math.round(((x%DAY)+DAY)%DAY/(5*MIN))*5*MIN; anchors.push(H-tzA+(P>DAY?(i%Math.round(P/DAY))*DAY:0)); }
-  return r._tk={c:r.c||'',d,cat,m,pA,pB,turn,T:P,P,nP,anchors,bA,bB,tzA,tzB,AB:null,BA:null,h:0};
+  return r._tk={c:r.c||'',pv:airspacePolicyRev(),d,cat,m,pA,pB,turn,T:P,P,nP,anchors,bA,bB,tzA,tzB,AB:null,BA:null,h:0};
 }
 // heures locales de départ du poste, dans chaque sens : [{a:[minutes],b:[minutes],every:jours}]
 function rivalTimes(r){ const K=rivalSched(r); if(!K) return null; const day=x=>Math.round((((x%DAY)+DAY)%DAY)/MIN);
@@ -470,11 +472,10 @@ function rivalPos(r,i,t){
   if(seg.ph===2){ const R=0.45; if(u<R){ const k=u/R; uD=0.4*k*k; alt=0; } else { const k=(u-R)/(1-R); uD=0.4+0.6*k; alt=seg.a1*Math.pow(k,1.3); } }
   else if(seg.ph===7){ uD=1-(1-u)*(1-u); alt=u<0.12? seg.a0*Math.pow(1-u/0.12,1.6) : 0; }
   let pp;
-  if(seg.ph===4){ // croisière : grand cercle direct (pas besoin du tracé des pistes, bien plus rapide)
-    const F=AP(from), Tt=AP(to), f=clamp((seg.d0+(seg.d1-seg.d0)*u)/d,0,1), a=gcInterp(F,Tt,f), b2=gcInterp(F,Tt,Math.min(1,f+0.002));
-    return {p:{lat:a.lat,lon:a.lon}, hdg:bearing(a,b2), from:F, to:Tt, d, alt, ph:4, gnd:false, cat};
-  }
-  const path=K[dir]||(K[dir]=legPath({from,to,dist:d},m)), fake={id:r.a+r.b+i};
+  const path=K[dir]||(K[dir]=legPath({from,to,dist:d,ownerCode:r.c||''},m));
+  if(seg.ph===4){ const F=AP(from),Tt=AP(to),f=clamp((seg.d0+(seg.d1-seg.d0)*u)/d,0,1),pp=pointOnPath(path,f*path.total);
+    return {p:{lat:pp.lat,lon:pp.lon},hdg:pp.hdg,from:F,to:Tt,d,alt,ph:4,gnd:false,cat}; }
+  const fake={id:r.a+r.b+i};
   // contrôle aérien : une seule machine sur la piste — sinon on attend
   if((seg.ph===2||seg.ph===7||(seg.ph===6&&alt<300))&&typeof atcRivalBlocked==='function'){
     const dep=seg.ph===2, rw=dep?path.dep:path.arr;
@@ -492,9 +493,10 @@ function rivalPos(r,i,t){
 const phaseLbl=q=>q.holding==='out'?'⏸ attend la piste':q.holding==='in'?'🔄 attente':q.ph===2?(q.gnd?'🛫 décolle':'🛫 décollage'):q.ph===7?(q.gnd?'🛬 atterrit':'🛬 toucher'):(q.ph===6&&q.alt<450)?'🛬 finale':'';
 function routeBBox(r){
   if(r._bb) return r._bb;
-  const A=AP(r.a), B=AP(r.b); let minLat=1e9,maxLat=-1e9,minLon=1e9,maxLon=-1e9, prev=A.lon;
-  for(let i=0;i<=12;i++){ const p=gcInterp(A,B,i/12), lon=unwrapLon(p.lon,prev); prev=lon;
-    if(p.lat<minLat)minLat=p.lat; if(p.lat>maxLat)maxLat=p.lat; if(lon<minLon)minLon=lon; if(lon>maxLon)maxLon=lon; }
+  const A=AP(r.a); let minLat=1e9,maxLat=-1e9,minLon=1e9,maxLon=-1e9, prev=A.lon;
+  const coords=airspacePathCoordinates(r.c||'',r.a,r.b,A.lon);
+  for(const [lat,lon0] of coords){ const lon=unwrapLon(lon0,prev); prev=lon;
+    if(lat<minLat)minLat=lat; if(lat>maxLat)maxLat=lat; if(lon<minLon)minLon=lon; if(lon>maxLon)maxLon=lon; }
   return r._bb={minLat:minLat-3,maxLat:maxLat+3,minLon:minLon-3,maxLon:maxLon+3};
 }
 /* Les avions des autres compagnies sont dessinés sur UN canvas (au lieu de centaines d'éléments HTML) : la carte reste fluide. */
