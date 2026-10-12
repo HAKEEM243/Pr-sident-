@@ -459,6 +459,9 @@ function rivalTimes(r){ const K=rivalSched(r); if(!K) return null; const day=x=>
   const rep=K.P<=DAY? Math.round(DAY/K.P):1; const out=(L)=>{ const o=[]; for(const m of L) for(let k=0;k<rep;k++) o.push((m+Math.round(k*K.P/MIN))%1440); return o.sort((x,y)=>x-y); };
   return {a:out(a),b:out(b),every:K.P>DAY?Math.round(K.P/DAY):1}; }
 function rivalPos(r,i,t){
+  // Garde de dernier recours : ne jamais animer un avion dont la liaison est interdite,
+  // même si son marqueur ou son horaire provient d'un cache antérieur à la politique.
+  if(typeof airspaceViolation==='function'&&airspaceViolation(r.c||'',r.a,r.b)) return null;
   const K=rivalSched(r); if(!K) return null;
   const d=K.d, cat=K.cat, m=K.m, pA=K.pA, pB=K.pB, turn=K.turn, T=K.P, cnt=K.nP;
   i=Math.min(i,cnt-1);
@@ -573,12 +576,20 @@ function updateRival(){
   const bounds=map.getBounds().pad(0.3), t=simNow(), c0=map.getCenter().lng, want=new Set();
   let n=0;
   // vos concurrents suivis + toutes les compagnies réelles qui desservent les aéroports à l'écran
-  const list=[]; for(const R of S.rivals) for(const r of R.routes){ if(typeof airspaceViolation==='function'&&airspaceViolation(R.code,r.a,r.b)) continue; if(!r.c) r.c=R.code; list.push({R,r}); }
+  const list=[]; for(const R of S.rivals) for(const r of R.routes){ if(!r.c) r.c=R.code; list.push({R,r}); }
   if(map.getZoom()>=4 && typeof visibleRealRoutes==='function') list.push(...visibleRealRoutes(map.getBounds().pad(0.1), c0, map.getZoom()>=7?20:45));
   const cap=map.getZoom()>=6?220:160;
   const vb=bounds, W=vb.getWest(), E=vb.getEast(), So=vb.getSouth(), No=vb.getNorth();
   outer: for(const {R,r} of list){
-    const bb=routeBBox(r);   // ligne entièrement hors de l'écran : on ne calcule rien
+    // Préfiltre bon marché sur le grand cercle direct : la plupart des routes
+    // mondiales sont hors champ; on ne construit leur détour que si elles peuvent
+    // réellement approcher l'écran.
+    if(!r._bb){ const A=AP(r.a),B=AP(r.b),M=gcInterp(A,B,0.5), pad=7;
+      const minLat=Math.min(A.lat,B.lat,M.lat)-pad,maxLat=Math.max(A.lat,B.lat,M.lat)+pad;
+      let bLon=unwrapLon(B.lon,A.lon),mLon=unwrapLon(M.lon,(A.lon+bLon)/2),minLon=Math.min(A.lon,bLon,mLon)-pad,maxLon=Math.max(A.lon,bLon,mLon)+pad;
+      if(maxLat<So||minLat>No||![-360,0,360].some(o=>maxLon+o>=W&&minLon+o<=E)) continue;
+    }
+    const bb=routeBBox(r);
     if(bb.maxLat<So||bb.minLat>No||![-360,0,360].some(o=>bb.maxLon+o>=W&&bb.minLon+o<=E)) continue;
     const sc=rivalSched(r); if(!sc) continue; const cnt=Math.min(typeof routeMoodFreq==='function'? Math.min(routeMoodFreq(r),5) : Math.min(r.freq,3), sc.nP);
     for(let i=0;i<cnt;i++){

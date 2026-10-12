@@ -66,7 +66,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261119';
+const GAME_VER='20261122';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -82,7 +82,7 @@ async function checkUpdate(manual){
 }
 const WHATS_NEW=[
   ['🗺️ Détours d’espace aérien visibles','Une ligne qui traverse un espace fermé est maintenant détournée autour du territoire : durée, distance, avion rival et tracé vert suivent la route de contournement en 2D comme en 3D. Une liaison vers un aéroport interdit reste bloquée.'],
-  ['🛂 Choisir qui survole votre pays','Dans la fiche Monde → votre pays → Espace aérien, interdisez le survol aux compagnies de certains pays. Le choix est sauvegardé ; les avions existants et futurs prennent le détour. Les interdictions géopolitiques déjà actives restent prioritaires.'],
+  ['🛂 Régler l’espace aérien de tous les pays','Dans Monde, choisissez un pays puis interdisez le survol aux compagnies de n’importe quel pays d’origine. Les routes légales sont recalculées et détournées; les destinations interdites restent bloquées. Les règles géopolitiques automatiques demeurent prioritaires.'],
   ['✈️ Détails des avions sur la carte','Touchez un avion concurrent pour voir sa ligne directe, sa position et sa progression, le modèle et la capacité estimés, la fréquence, la part de marché et les passagers estimés par vol. La fiche reste ouverte jusqu’au déplacement/zoom, au toucher d’un autre avion ou à un second toucher sur le même. Les passagers des concurrents sont une estimation de marché, pas un manifeste réel.'],
   ['⛔ Fermetures géopolitiques','Les compagnies américaines contournent l’Iran, les compagnies russes contournent l’Ukraine, et les compagnies rwandaises ne survolent pas la RDC, la Corée du Nord, le Soudan, la Palestine, l’Iran ni l’Ukraine. En Corée du Nord, seules les compagnies chinoises, russes, congolaises et nigérianes restent autorisées.'],
   ['🛫 Jeunes compagnies enfin actives','Les startups ouvrent des lignes même quand leur trésorerie est négative; le coût reste comptabilisé et les pertes ne sont pas effacées. Une tentative supplémentaire revient tous les 3 jours par startup, avec au plus une ouverture tentée par jour de simulation pour préserver la fluidité. Elles peuvent encore faire faillite après leur première année si leur réseau ne fonctionne pas.'],
