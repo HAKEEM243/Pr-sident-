@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261125';
+const GAME_VER='20261126';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['⏩ Rattrapage d’absence débloqué','Au retour, le jeu simule votre absence en détail pendant au plus ~12 secondes, puis estime le reste d’après votre bénéfice moyen. Le bouton « Passer » marche tout de suite.'],
   ['⚡ Le jeu ne se fige plus','Le calcul des espaces aériens fermés ralentissait tout le jeu (surtout avec beaucoup d’avions) : il est maintenant mis en cache, environ 10 fois plus rapide.'],
   ['🛡️ 6 mois d’avance quand vous agrandissez','Après un chantier, aucune nouvelle compagnie ne s’installe dans cet aéroport pendant 6 mois, plus aucune compagnie créée exprès ; au plus une compagnie peut venir après 4 mois.'],
   ['⚔️ Guerre = ciel fermé','Un pays en guerre ferme son espace aérien aux compagnies étrangères : vols vers ce pays interdits, et les lignes qui le survolent font un détour (visible sur la carte).'],
