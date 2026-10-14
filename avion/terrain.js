@@ -110,7 +110,7 @@ function _terrSample(h,fx,fy){ const px=Math.max(0,Math.min(255,fx*256-0.5)), py
 // version immédiate : réponse si la tuile est déjà décodée, sinon null (et on la demande)
 function terrElevSync(lat,lon){ if(!TERRAIN.on) return 0; const t=_terrTileXY(lat,lon,TERR_Z), tx=Math.floor(t.x), ty=Math.floor(t.y), k=tx+'/'+ty, h=TERR_DEC.get(k);
   if(h) return _terrSample(h,t.x-tx,t.y-ty);
-  if(h===undefined){ TERR_DEC.set(k,null); terrTile(TERR_Z,tx,ty).then(d=>{ if(d) TERR_DEC.set(k,d); else TERR_DEC.delete(k); if(TERR_DEC.size>80) TERR_DEC.delete(TERR_DEC.keys().next().value); }); }
+  if(h===undefined){ TERR_DEC.set(k,null); terrTile(TERR_Z,tx,ty).then(d=>{ if(d) TERR_DEC.set(k,d); else TERR_DEC.delete(k); if(TERR_DEC.size>(GQ.mob?24:80)) TERR_DEC.delete(TERR_DEC.keys().next().value); }); }
   return null; }
 function terrElevAsync(lat,lon){ if(!TERRAIN.on) return Promise.resolve(0); const t=_terrTileXY(lat,lon,TERR_Z), tx=Math.floor(t.x), ty=Math.floor(t.y), k=tx+'/'+ty;
   return terrTile(TERR_Z,tx,ty).then(d=>{ if(!d) return null; TERR_DEC.set(k,d); return _terrSample(d,t.x-tx,t.y-ty); }); }

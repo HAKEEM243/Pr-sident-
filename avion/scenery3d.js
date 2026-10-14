@@ -185,7 +185,7 @@ function osmBuildCell(elements,gb,pinned){
     try{ inst.push(new C.GeometryInstance({id:'b'+el.id, geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(g.slice(0,-1).flatMap(v=>[v.lon,v.lat]))), height:base-6, extrudedHeight:base+h, vertexFormat:VF}),
       attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(col), orgh:attr([enc.high.x,enc.high.y,enc.high.z]), orgl:attr([enc.low.x,enc.low.y,enc.low.z]), sty:attr([h>40?3.7:3.1, dens, (el.id%997)/7.3])}})); }catch(err){ continue; }
     // toit à 4 pans sur les maisons rectangulaires (tôle de couleur)
-    if(h<=9&&!GQ.mini&&g.length>=5&&g.length<=8) try{ const r=_roofFrame(g); if(r&&r.L*r.W<450&&r.fill>0.78){
+    if(h<=9&&!GQ.mob&&g.length>=5&&g.length<=8) try{ const r=_roofFrame(g); if(r&&r.L*r.W<450&&r.fill>0.78){
       const rh=Math.min(2.6,0.32*Math.min(r.L,r.W)), ctr=C.Cartesian3.fromDegrees(r.lon,r.lat,base+h);
       let m=C.Transforms.eastNorthUpToFixedFrame(ctr); m=C.Matrix4.multiply(m,C.Matrix4.fromRotationTranslation(C.Matrix3.fromRotationZ(r.ang)),new C.Matrix4());
       m=C.Matrix4.multiply(m,C.Matrix4.fromScale(new C.Cartesian3(r.L+0.6,r.W+0.6,rh)),new C.Matrix4());
@@ -196,8 +196,8 @@ function osmBuildCell(elements,gb,pinned){
   if(!inst.length) return null;
   const col=new C.PrimitiveCollection();
   // nom des bâtiments connus (hôtels, galeries, ministères…) au-dessus du toit
-  if(!GQ.mini){ const lab=col.add(new C.LabelCollection()); let nL=0;
-    for(const el of elements){ const t=el.tags||{}, g=el.geometry; if(!t.name||!g||nL>=40) continue; const lv=parseFloat(t['building:levels'])||0; if(lv<4&&!/hotel|commercial|office|public|government|hospital|church|cathedral|retail|civic/.test(t.building||'')&&!t.amenity) continue;
+  if(!GQ.mini){ const lab=col.add(new C.LabelCollection()); let nL=0; const maxL=GQ.mob?12:40;
+    for(const el of elements){ const t=el.tags||{}, g=el.geometry; if(!t.name||!g||nL>=maxL) continue; const lv=parseFloat(t['building:levels'])||0; if(lv<4&&!/hotel|commercial|office|public|government|hospital|church|cathedral|retail|civic/.test(t.building||'')&&!t.amenity) continue;
       let la=0,lo=0; for(const q of g){ la+=q.lat; lo+=q.lon; } la/=g.length; lo/=g.length; const hh=parseFloat(t.height)||lv*3.2||14; nL++;
       lab.add({position:C.Cartesian3.fromDegrees(lo,la,gb(g[0])+hh+8), text:t.name.length>34?t.name.slice(0,32)+'…':t.name, font:'600 12px system-ui', fillColor:C.Color.fromCssColorString('#fde68a'), outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, distanceDisplayCondition:new C.DistanceDisplayCondition(0,2200), translucencyByDistance:new C.NearFarScalar(800,1,2200,0)}); } }
   col.add(new C.Primitive({geometryInstances:inst, appearance:facadeAppearance(), asynchronous:true, shadows:C.ShadowMode.DISABLED}));
@@ -220,13 +220,14 @@ const X3D={cells:new Map(), busy:false, fail:0, lmCity:new Map()};
 const X_COL={park:'#4f8f3c',garden:'#5a9a45',pitch:'#3f9d4a',playground:'#6aa84f',grass:'#5f9a4a',recreation_ground:'#5a9445',forest:'#2f6b2a',wood:'#2f6b2a',cemetery:'#6b8f5a',marketplace:'#a88a5c'};
 function cityExtrasTick(v,agl){
   if(agl>5000||X3D.busy||X3D.fail>=4||typeof OSM_CELL==='undefined') return;
+  if(GQ.mini){ try{ landmarksTick(v); }catch(e){} return; }   // Minimal : monuments seulement
   try{ landmarksTick(v); }catch(e){ console.warn(e); }
-  const i=Math.floor(v.lat/OSM_CELL), j=Math.floor(v.lon/OSM_CELL), R=GQ.mini?0:1, want=[];
+  const i=Math.floor(v.lat/OSM_CELL), j=Math.floor(v.lon/OSM_CELL), R=GQ.mob?0:1, want=[];
   for(let di=-R;di<=R;di++) for(let dj=-R;dj<=R;dj++) want.push([i+di,j+dj,di*di+dj*dj]);
   want.sort((x,y)=>x[2]-y[2]);
   const c=want.find(([a,b])=>!X3D.cells.has(a+','+b)); if(c) extrasLoad(c[0],c[1],v);
   // ménage
-  const cap=GQ.mini?2:GQ.mob&&!GQ.hq?9:16;
+  const cap=GQ.mob?2:16;
   while(X3D.cells.size>cap){ let far=null, fd=-1; for(const k of X3D.cells.keys()){ const [a,b]=k.split(',').map(Number), d=(a-i)**2+(b-j)**2; if(d>fd){ fd=d; far=k; } }
     const old=X3D.cells.get(far); X3D.cells.delete(far); if(old) for(const p of old) G.viewer.scene.primitives.remove(p); }
 }
@@ -242,7 +243,7 @@ async function extrasLoad(i,j,v){
   let gs=p=>0; try{ gs=await cellGround(s,w,n,e,300); }catch(err){}
   if(!G||!G.viewer||!X3D.cells.has(key)) return;
   const C=Cesium, V=G.viewer, ground=[], obj=[], VF=C.PerInstanceColorAppearance.VERTEX_FORMAT, gh=(lat,lon)=>gs({lat,lon});
-  const treeCap=GQ.mini?0:GQ.mob&&!GQ.hq?350:1000, stallCap=GQ.mini?0:GQ.mob&&!GQ.hq?250:600; let trees=0, stalls=0;
+  const treeCap=GQ.mini?0:GQ.mob?90:1000, stallCap=GQ.mini?0:GQ.mob?80:600; let trees=0, stalls=0;
   const enu=(lat,lon,z,rot)=>{ let m=C.Transforms.eastNorthUpToFixedFrame(C.Cartesian3.fromDegrees(lon,lat,z)); if(rot) m=C.Matrix4.multiply(m,C.Matrix4.fromRotationTranslation(C.Matrix3.fromRotationZ(rot)),new C.Matrix4()); return m; };
   const colA=(h,a)=>({color:C.ColorGeometryInstanceAttribute.fromColor(C.Color.fromCssColorString(h).withAlpha(a==null?1:a))});
   for(const el of js.elements||[]){
