@@ -652,6 +652,7 @@ function worldTick(p){
 function worldClear(){
   if(!G) return; const V=G.viewer;
   if(G.osm){ for(const prim of G.osm.cells.values()) if(prim) V.scene.primitives.remove(prim); G.osm.cells.clear(); }
+  if(G.osmPin){ for(const st of G.osmPin.values()) if(st&&st.prim) V.scene.primitives.remove(st.prim); G.osmPin.clear(); }
   if(G.apNear){ for(const e of G.apNear.ents) V.entities.remove(e); G.apNear.lights.removeAll(); for(const e of G.apNear.rwy) V.scene.primitives.remove(e); V.scene.primitives.remove(G.apNear.lights); G.apNear=null; }
   if(G.tm){ if(G.tm.auto&&G.tm.prev&&S.speed!==G.tm.prev){ S.speed=G.tm.prev; if(typeof renderTop==='function') renderTop(); } G.tm=null; }
 }

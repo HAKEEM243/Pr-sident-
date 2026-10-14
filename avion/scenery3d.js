@@ -164,12 +164,13 @@ let _facadeApp=null;
 function facadeAppearance(){ const C=Cesium; return new C.PerInstanceColorAppearance({flat:false, closed:true, translucent:false, vertexShaderSource:FACADE_VS, fragmentShaderSource:FACADE_FS}); }
 const WALLS=['#f3ead8','#e9dcc0','#f1e4c8','#e2d3b5','#d9c7a3','#efe7da','#e6e1d7','#d6d9dc','#cfd8e0','#f2d9c4','#e8cfa8','#dcc9a8','#f5f0e6','#c9b79c','#e5d8c8'];
 const ROOF_TIN=['#8b4a2b','#9a5634','#7c8288','#5d6b78','#3f5f86','#a33b2b','#6b7280','#b45309'];
-function osmBuildCell(elements,gb){
+function osmBuildCell(elements,gb,pinned){
   const C=Cesium, V=G.viewer, inst=[], roofs=[], VF=C.PerInstanceColorAppearance.VERTEX_FORMAT, FL=C.ComponentDatatype.FLOAT;
   const attr=v=>new C.GeometryInstanceAttribute({componentDatatype:FL,componentsPerAttribute:3,value:v});
   for(const el of elements){
     const g=el.geometry; if(!g||g.length<4) continue;
     const t=el.tags||{}; if(!t.building) continue;
+    if(!pinned&&typeof osmSkip==='function'&&osmSkip(g[0].lat,g[0].lon)) continue;   // déjà dessiné par la case de la rive
     let h=parseFloat(t.height)||(parseFloat(t['building:levels'])||0)*3.2;
     const b=t.building;
     if(!h) h=b==='house'||b==='residential'||b==='detached'?6:b==='hangar'||b==='industrial'||b==='warehouse'?11:b==='terminal'||b==='transportation'?16:b==='apartments'?15:b==='commercial'||b==='office'?18:4+((el.id%7));
