@@ -82,7 +82,7 @@ function govAction(cc){
     else { g.fee=clamp(g.fee*1.18,0.7,1.7); govNote(cc,`📈 ${C} : ${who} augmente les taxes d’aéroport de 18 % — vos vols vers ${keyCity(mainAirport(cc))} coûtent plus cher.`,mineCountry(cc)); } }
   else if(r<0.70){ // ciel ouvert avec un autre pays
     const cc2=pick(govList().filter(x=>x!==cc)); if(cc2){ for(const c of [cc,cc2]){ const m=S.ai.mood[c]||(S.ai.mood[c]={tension:0,boom:0,note:''}); m.boom=clamp(m.boom+0.3,0,1); m.surge=S.time+rndi(30,60)*DAY; m.note='accord de ciel ouvert'; }
-      const a=mainAirport(cc), b=mainAirport(cc2), cand=aiAlive().filter(x=>x.fleet>=10&&!carriersOn(a,b).includes(x.code)&&(x.cc===cc||x.cc===cc2)).slice(0,2);
+      const a=mainAirport(cc), b=mainAirport(cc2), cand=aiAirportMarketOpen(a)&&aiAirportMarketOpen(b)?aiAlive().filter(x=>x.fleet>=10&&!carriersOn(a,b).includes(x.code)&&!airspaceViolation(x.code,a,b)&&(x.cc===cc||x.cc===cc2)).slice(0,2):[];
       for(const x of cand){ (S.ai.extra[x.code]=S.ai.extra[x.code]||[]).push(pairKey(a,b)); x.routes++; S.ai.ver++; }
       govNote(cc,`🌐 Accord de ciel ouvert entre ${ccName(cc)} et ${ccName(cc2)} : plus de vols, plus de voyageurs${cand.length?` (${cand.map(x=>x.name).join(', ')} ajoutent des lignes)`:''}.`,mineCountry(cc)||mineCountry(cc2)); } }
   else if(r<0.78&&st!=='liberal'){ // visas

@@ -71,6 +71,7 @@ function absorbRival(R){
   S.cash+=R.cash>0? R.cash*0.5 : R.cash;
   const lines=[];
   for(const r of R.routes){
+    if(typeof airspaceViolation==='function'&&airspaceViolation(R.code,r.a,r.b)) continue;
     let stops = r.a===hub? [r.a,r.b] : r.b===hub? [r.b,r.a] : null;
     if(!stops) continue;
     let line=S.routes.find(x=>x.stops.join()===stops.join());

@@ -254,11 +254,13 @@ function drawRoutes(){
       let ref=AP(r.stops[0]).lon;
       for(let i=0;i<r.stops.length-1;i++){
         const A=AP(r.stops[i]), B=AP(r.stops[i+1]);
-        const pts=gcPath(A,B,ref).map(([la,lo])=>[la,lo+off]);
+        const plan=airspaceRoutePlan(S.company.code,A.code,B.code);
+        const raw=airspacePathCoordinates(S.company.code,A.code,B.code,ref); if(!raw.length) continue;
+        const pts=raw.map(([la,lo])=>[la,lo+off]);
         ref=pts[pts.length-1][1]-off;
         L.polyline(pts,{color:'#000', weight:5, opacity:0.35, interactive:false}).addTo(L_routes);
         L.polyline(pts,{color, weight:2.6, opacity:0.95, className:'route-anim'}).addTo(L_routes)
-          .bindTooltip(`${r.stops.join(' → ')}`,{sticky:true});
+          .bindTooltip(`${r.stops.join(' → ')}${plan.points.length>2?` · détour d’espace aérien (+${Math.max(0,Math.round(plan.distance-dist(A.code,B.code))).toLocaleString('fr-FR')} km)`:''}`,{sticky:true});
       }
       r.stops.slice(1,-1).forEach(c=>{
         const a=AP(c);
@@ -442,14 +444,14 @@ const TRAFFIC_MODEL={prop:'AT76', nb:'A20N', wb:'B789'};
 // horaire d'une ligne d'une autre compagnie : chaque avion part du poste à une heure locale fixe (la même chaque jour)
 const _tzAp=c=>{ const a=AP(c); if(!a) return 0; return (a.utc!==undefined&&a.utc!==null&&a.utc!==''?+a.utc:a.lon/15)*HOUR; };
 function rivalSched(r){
-  let K=r._tk; if(K&&K.c===(r.c||'')&&K.P) return K;
+  let K=r._tk; if(K&&K.c===(r.c||'')&&K.P&&K.pv===airspacePolicyRev()) return K;
   const A=AP(r.a), B=AP(r.b); if(!A||!B) return null;
-  const d=gcDist(A,B), cat=d<1200?'prop':d<5000?'nb':'wb', m=getModel(TRAFFIC_MODEL[cat]); if(!m) return null;
+  const d=typeof airspaceRouteDistance==='function'?airspaceRouteDistance(r.c||'',r.a,r.b):gcDist(A,B), cat=d<1200?'prop':d<5000?'nb':'wb', m=getModel(TRAFFIC_MODEL[cat]); if(!m) return null;
   const pA=legProfile(d,m,0,r.a,r.b), pB=legProfile(d,m,0,r.b,r.a), turn=55*MIN, T0=pA.total+pB.total+2*turn, f=Math.max(1,r.freq||1), nP=Math.max(1,Math.min(f,5));
   const base=Math.max(T0,nP*DAY/f), P=base<=DAY? DAY/Math.floor(DAY/base) : Math.ceil(base/DAY)*DAY;   // période : un nombre entier de départs par jour (ou un départ tous les n jours)
   const hs=hashStr(r.a+r.b+(r.c||'')), hb=(6+(hs%1000)/1000*9)*HOUR, tzA=_tzAp(r.a), tzB=_tzAp(r.b), bA=pA.segs[0].t1-pA.segs[0].t0, bB=pB.segs[0].t1-pB.segs[0].t0;
   const anchors=[]; for(let i=0;i<nP;i++){ const x=hb+i*P/nP+(hashStr(r.a+r.b+(r.c||'')+i)%6)*5*MIN, H=Math.round(((x%DAY)+DAY)%DAY/(5*MIN))*5*MIN; anchors.push(H-tzA+(P>DAY?(i%Math.round(P/DAY))*DAY:0)); }
-  return r._tk={c:r.c||'',d,cat,m,pA,pB,turn,T:P,P,nP,anchors,bA,bB,tzA,tzB,AB:null,BA:null,h:0};
+  return r._tk={c:r.c||'',pv:airspacePolicyRev(),d,cat,m,pA,pB,turn,T:P,P,nP,anchors,bA,bB,tzA,tzB,AB:null,BA:null,h:0};
 }
 // heures locales de départ du poste, dans chaque sens : [{a:[minutes],b:[minutes],every:jours}]
 function rivalTimes(r){ const K=rivalSched(r); if(!K) return null; const day=x=>Math.round((((x%DAY)+DAY)%DAY)/MIN);
@@ -470,11 +472,10 @@ function rivalPos(r,i,t){
   if(seg.ph===2){ const R=0.45; if(u<R){ const k=u/R; uD=0.4*k*k; alt=0; } else { const k=(u-R)/(1-R); uD=0.4+0.6*k; alt=seg.a1*Math.pow(k,1.3); } }
   else if(seg.ph===7){ uD=1-(1-u)*(1-u); alt=u<0.12? seg.a0*Math.pow(1-u/0.12,1.6) : 0; }
   let pp;
-  if(seg.ph===4){ // croisière : grand cercle direct (pas besoin du tracé des pistes, bien plus rapide)
-    const F=AP(from), Tt=AP(to), f=clamp((seg.d0+(seg.d1-seg.d0)*u)/d,0,1), a=gcInterp(F,Tt,f), b2=gcInterp(F,Tt,Math.min(1,f+0.002));
-    return {p:{lat:a.lat,lon:a.lon}, hdg:bearing(a,b2), from:F, to:Tt, d, alt, ph:4, gnd:false, cat};
-  }
-  const path=K[dir]||(K[dir]=legPath({from,to,dist:d},m)), fake={id:r.a+r.b+i};
+  const path=K[dir]||(K[dir]=legPath({from,to,dist:d,ownerCode:r.c||''},m));
+  if(seg.ph===4){ const F=AP(from),Tt=AP(to),f=clamp((seg.d0+(seg.d1-seg.d0)*u)/d,0,1),pp=pointOnPath(path,f*path.total);
+    return {p:{lat:pp.lat,lon:pp.lon},hdg:pp.hdg,from:F,to:Tt,d,alt,ph:4,gnd:false,cat}; }
+  const fake={id:r.a+r.b+i};
   // contrôle aérien : une seule machine sur la piste — sinon on attend
   if((seg.ph===2||seg.ph===7||(seg.ph===6&&alt<300))&&typeof atcRivalBlocked==='function'){
     const dep=seg.ph===2, rw=dep?path.dep:path.arr;
@@ -492,13 +493,14 @@ function rivalPos(r,i,t){
 const phaseLbl=q=>q.holding==='out'?'⏸ attend la piste':q.holding==='in'?'🔄 attente':q.ph===2?(q.gnd?'🛫 décolle':'🛫 décollage'):q.ph===7?(q.gnd?'🛬 atterrit':'🛬 toucher'):(q.ph===6&&q.alt<450)?'🛬 finale':'';
 function routeBBox(r){
   if(r._bb) return r._bb;
-  const A=AP(r.a), B=AP(r.b); let minLat=1e9,maxLat=-1e9,minLon=1e9,maxLon=-1e9, prev=A.lon;
-  for(let i=0;i<=12;i++){ const p=gcInterp(A,B,i/12), lon=unwrapLon(p.lon,prev); prev=lon;
-    if(p.lat<minLat)minLat=p.lat; if(p.lat>maxLat)maxLat=p.lat; if(lon<minLon)minLon=lon; if(lon>maxLon)maxLon=lon; }
+  const A=AP(r.a); let minLat=1e9,maxLat=-1e9,minLon=1e9,maxLon=-1e9, prev=A.lon;
+  const coords=airspacePathCoordinates(r.c||'',r.a,r.b,A.lon);
+  for(const [lat,lon0] of coords){ const lon=unwrapLon(lon0,prev); prev=lon;
+    if(lat<minLat)minLat=lat; if(lat>maxLat)maxLat=lat; if(lon<minLon)minLon=lon; if(lon>maxLon)maxLon=lon; }
   return r._bb={minLat:minLat-3,maxLat:maxLat+3,minLon:minLon-3,maxLon:maxLon+3};
 }
 /* Les avions des autres compagnies sont dessinés sur UN canvas (au lieu de centaines d'éléments HTML) : la carte reste fluide. */
-let rivalCv=null, rivalCtx=null, rivalHover=null, rivalTipLayer=null, _rvDirty=false;
+let rivalCv=null, rivalCtx=null, rivalHover=null, rivalTipLayer=null, rivalTipPinned=false, _rvTipAt=0, _rvDirty=false;
 const spriteCache=new Map();
 function rivalSprite(color,cat){
   const k=color+'|'+cat; let sp=spriteCache.get(k); if(sp) return sp.ok? sp.img : null;
@@ -519,10 +521,10 @@ function initRivalCanvas(){
   map.on('zoomend',()=>{ rivalCv.style.visibility='visible'; _rvDirty=true; });
   // survol / toucher : infobulle de l'avion le plus proche
   const pick=(pt)=>{ let best=null, bd=18*18; for(const e of rivalPool.values()){ if(e.px===undefined) continue; const dx=e.px-pt.x, dy=e.py-pt.y, d=dx*dx+dy*dy; if(d<bd){ bd=d; best=e; } } return best; };
-  const show=(e)=>{ if(rivalHover===e) return; rivalHover=e; if(rivalTipLayer){ map.removeLayer(rivalTipLayer); rivalTipLayer=null; }
-    if(e) rivalTipLayer=L.tooltip({permanent:true,direction:'right',offset:[10,0],className:'flight-tip',interactive:false}).setLatLng([e.lat,e.lon]).setContent(rivalTip(e)).addTo(map); };
-  map.on('mousemove',ev=>{ if(map._mv) return; const e=pick(ev.containerPoint); host.style.cursor=e?'pointer':''; show(e); });
-  map.on('click',ev=>{ const e=pick(ev.containerPoint); if(e){ show(e); setTimeout(()=>{ if(rivalHover===e) show(null); },3500); } });
+  const show=(e,pin=false)=>{ if(rivalHover===e&&(!e||rivalTipPinned===pin)) return; rivalHover=e; rivalTipPinned=!!(e&&pin); if(rivalTipLayer){ map.removeLayer(rivalTipLayer); rivalTipLayer=null; }
+    if(e) rivalTipLayer=L.tooltip({permanent:true,direction:'auto',offset:[10,0],className:'flight-tip rival-detail',interactive:false}).setLatLng([e.lat,e.lon]).setContent(rivalTip(e)).addTo(map); };
+  map.on('mousemove',ev=>{ if(map._mv||rivalTipPinned) return; const e=pick(ev.containerPoint); host.style.cursor=e?'pointer':''; show(e); });
+  map.on('click',ev=>{ const e=pick(ev.containerPoint); if(e){ if(rivalHover===e&&rivalTipPinned) show(null); else show(e,true); } else show(null); });
   map.on('movestart zoomstart',()=>show(null));
 }
 function drawRivals(){
@@ -539,17 +541,39 @@ function drawRivals(){
     if(e.lbl&&sz>=22){ g.font='600 10px system-ui'; g.fillStyle='#fff'; g.strokeStyle='rgba(0,0,0,.75)'; g.lineWidth=3; g.strokeText(e.lbl,p.x+z/2+2,p.y+3); g.fillText(e.lbl,p.x+z/2+2,p.y+3); }
   }
 }
-function clearRivals(){ rivalPool.clear(); rivalHover=null; _rvDirty=true; }
+function clearRivals(){ rivalPool.clear(); rivalHover=null; rivalTipPinned=false; if(rivalTipLayer&&map){ map.removeLayer(rivalTipLayer); rivalTipLayer=null; } _rvDirty=true; }
 function setRivalSize(){ _rvDirty=true; }
-function rivalTip(e){ const q=rivalPos(e.r,e.i,simNow()); if(!q) return `<b>${e.R.name}</b>`; const mn=typeof realMinutes==='function'?realMinutes(e.r.a,e.r.b):0;
-  return `<b>${e.R.name}</b> <span class="mut">${e.R.code}</span><br>${q.from.city} (${q.from.code}) → ${q.to.city} (${q.to.code})<br>${PHASES[q.ph]}${q.gnd?'':` · ${num(Math.round(q.alt*3.28/100)*100)} ft`}<br><span class="mut">${num(q.d)} km${mn?` · vol réel ≈ ${fmtDur(mn*MIN)}`:''}</span>`; }
+function rivalTip(e){
+  const q=rivalPos(e.r,e.i,simNow()); if(!q) return `<b>${esc(e.R.name)}</b>`;
+  const code=e.r.c||e.R.code, K=rivalSched(e.r), mn=typeof realMinutes==='function'?realMinutes(e.r.a,e.r.b):0;
+  let carrier=null, demand=0, freq=0, routePax=0, pax=null, seats=Number(K&&K.m&&K.m.seats)||0;
+  try{
+    if(typeof lineAirlines==='function') carrier=lineAirlines(q.from.code,q.to.code).find(x=>x.code===code)||null;
+    if(typeof marketDemand==='function') demand=Math.max(0,marketDemand(q.from.code,q.to.code));
+    freq=Math.max(0,Number(carrier&&carrier.freq)||Number(e.r.freq)||Number(K&&K.nP)||0);
+    if(carrier&&freq>0&&seats>0){ routePax=Math.max(0,Math.round(demand*(carrier.share||0))); pax=Math.min(seats,Math.max(0,Math.round(routePax/freq))); }
+  }catch(err){ carrier=null; }
+  const load=pax!==null&&seats?Math.round(pax/seats*100):0, share=carrier?Math.round((carrier.share||0)*100):null;
+  const progress=q.d>0?clamp(gcDist(q.from,q.p)/q.d,0,1):0, travelled=Math.round(q.d*progress), remain=Math.max(0,Math.round(q.d-travelled));
+  const position=q.p&&Number.isFinite(q.p.lat)&&Number.isFinite(q.p.lon)?`${q.p.lat.toFixed(2)}°, ${q.p.lon.toFixed(2)}°`:'—';
+  const phase=q.gnd?'Au sol / roulage':(PHASES[q.ph]||'En vol');
+  return `<div class="rv-title"><b>${esc(e.R.name)}</b> <span class="mut">${esc(code)} · ligne modélisée</span></div>`+
+    `<div class="rv-route"><b>${esc(q.from.city)} (${esc(q.from.code)})</b> → <b>${esc(q.to.city)} (${esc(q.to.code)})</b></div>`+
+    `<div class="rv-phase">${esc(phase)}${q.gnd?'':` · ${num(Math.round(q.alt*3.28/100)*100)} ft`} · cap ${String(Math.round(q.hdg||0)).padStart(3,'0')}°</div>`+
+    `<div class="rv-progress"><i style="width:${(progress*100).toFixed(1)}%"></i></div><div class="mut">Position simulée ${position} · ${num(travelled)} km parcourus · ${num(remain)} km restants</div>`+
+    `<div class="rv-kpis"><div><small>Avion représenté</small><b>${esc(K&&K.m&&K.m.name||'modèle estimé')}</b></div><div><small>Capacité estimée</small><b>${seats?`${num(seats)} sièges`:'—'}</b></div>`+
+    `<div><small>Passagers / vol</small><b>${pax===null?'Estimation indisponible':`~${num(pax)} (${load} %)`}</b></div><div><small>Fréquence / sens</small><b>${freq?`~${num(freq)} vol${freq>1?'s':''}/jour`:'—'}</b></div></div>`+
+    `<div class="rv-market">Demande modélisée : ${num(Math.round(demand))} passagers/jour/sens${share===null?'':` · part de cette compagnie ~${share} % · ~${num(routePax)} passagers/jour/sens`}</div>`+
+    `<div class="mut">Liaison ${num(q.d)} km${mn?` · durée estimée ${fmtDur(mn*MIN)}`:''}${carrier&&carrier.price?` · tarif éco estimé ${fmtMoney(carrier.price)}`:''}</div>`+
+    `<div class="rv-note">Avion, fréquence et passagers sont estimés par le jeu; ce n’est pas un manifeste réel.</div>`;
+}
 function updateRival(){
   if(!map) return;
   if(!MAPOPT.rival || !S.rivals){ if(rivalPool.size) clearRivals(); return; }
   const bounds=map.getBounds().pad(0.3), t=simNow(), c0=map.getCenter().lng, want=new Set();
   let n=0;
   // vos concurrents suivis + toutes les compagnies réelles qui desservent les aéroports à l'écran
-  const list=[]; for(const R of S.rivals) for(const r of R.routes){ if(!r.c) r.c=R.code; list.push({R,r}); }
+  const list=[]; for(const R of S.rivals) for(const r of R.routes){ if(typeof airspaceViolation==='function'&&airspaceViolation(R.code,r.a,r.b)) continue; if(!r.c) r.c=R.code; list.push({R,r}); }
   if(map.getZoom()>=4 && typeof visibleRealRoutes==='function') list.push(...visibleRealRoutes(map.getBounds().pad(0.1), c0, map.getZoom()>=7?20:45));
   const cap=map.getZoom()>=6?220:160;
   const vb=bounds, W=vb.getWest(), E=vb.getEast(), So=vb.getSouth(), No=vb.getNorth();
@@ -564,11 +588,12 @@ function updateRival(){
       if(n++>cap) break outer;
       const key=R.code+'|'+r.a+'|'+r.b+'|'+i; if(want.has(key)) continue; want.add(key);
       let e=rivalPool.get(key);
-      if(!e){ e={R,r,i,cat:q.d<1200?'prop':q.d<5000?'nb':'wb'}; rivalPool.set(key,e); }
+      if(!e){ e={key,R,r,i,cat:q.d<1200?'prop':q.d<5000?'nb':'wb'}; rivalPool.set(key,e); }
       e.lat=q.p.lat; e.lon=lon; e.hdg=q.hdg; e.gnd=q.gnd; e.lbl=phaseLbl(q);
     }
   }
   for(const k of rivalPool.keys()) if(!want.has(k)) rivalPool.delete(k);
+  if(rivalHover&&!want.has(rivalHover.key)){ if(rivalTipLayer){ map.removeLayer(rivalTipLayer); rivalTipLayer=null; } rivalHover=null; rivalTipPinned=false; }
   _rvDirty=true;
 }
 function animateRivals(t,b){
@@ -576,6 +601,7 @@ function animateRivals(t,b){
     const q=rivalPos(e.r,e.i,t); if(!q) continue;
     e.lat=q.p.lat; e.lon=unwrapLon(q.p.lon,e.lon); e.hdg=q.hdg; e.gnd=q.gnd; e.lbl=phaseLbl(q);
   }
+  if(rivalTipPinned&&rivalHover&&rivalTipLayer){ const now=performance.now(); rivalTipLayer.setLatLng([rivalHover.lat,rivalHover.lon]); if(now-_rvTipAt>2500){ _rvTipAt=now; rivalTipLayer.setContent(rivalTip(rivalHover)); } }
   _rvDirty=true;
 }
 /* ---------- animation fluide (60 images/s) ---------- */

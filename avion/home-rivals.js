@@ -4,9 +4,8 @@
      terminés dès qu'on les paie.
    • Rival national : une compagnie de votre pays grandit avec vous,
      copie vos meilleures lignes, casse ses prix, s'installe dans vos hubs.
-   • IA des chantiers : quand vous agrandissez un aéroport, des
-     compagnies viennent s'y installer ; ailleurs, les États et les
-     compagnies rivales agrandissent aussi leurs aéroports.
+   • Après un chantier joueur, une compagnie existante peut ouvrir une
+     ligne vers l’aéroport ; une seule réaction est autorisée tous les 3 jours.
    Tout est simulé (estimations du jeu).
    ========================================================= */
 'use strict';
@@ -16,10 +15,42 @@ startProject=function(code,type){
   if(!u.can(a)) return 'Projet non disponible ici';
   const c=u.cost(a); book('investissements',-c);
   (S.upgrades[code]=S.upgrades[code]||[]).push(type); applyUpgrades();
+  if(type.startsWith('xp')||type==='terminal'||type==='extend') (S.playerAirportBuilds=S.playerAirportBuilds||{})[code]=S.time;
+  if(S.ai){ S.playerBuildRouteQueue=S.playerBuildRouteQueue||[]; S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>x.code!==code); S.playerBuildRouteQueue.push({code,type,t:S.time}); if(S.playerBuildRouteQueue.length>20) S.playerBuildRouteQueue.shift(); }
   logMsg(`🏗️ ${u.name} à ${a.city} : terminé (${fmtMoney(c)}).`,'drc');
-  try{ hrReactToBuild(code,type); }catch(e){ console.warn(e); }
+  if(type.startsWith('xp')||type==='terminal'||type==='extend') logMsg(`🛡️ ${a.city} : vous avez 6 mois d’avance, aucune nouvelle compagnie ne peut s’y installer d’ici là.`,'ok');
   return null;
 };
+
+/* ---------- réactions espacées aux investissements du joueur ---------- */
+function hrPlayerBuildRouteTick(){
+  if(!S.ai||!S.playerBuildRouteQueue||!S.playerBuildRouteQueue.length) return;
+  const now=S.time, interval=120*DAY;   // une seule compagnie, au plus tôt 4 mois après votre chantier
+  S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>now-x.t<=240*DAY);
+  if(!S.playerBuildRouteQueue.length||now-(S.ai.lastPlayerBuildRouteAt??-Infinity)<interval) return;
+  const task=S.playerBuildRouteQueue.find(x=>now-x.t>=interval); if(!task) return;
+  if(now-(task.lastTry??-Infinity)<DAY) return; task.lastTry=now;
+  const target=task.code, A=AP(target); if(!A||A.cls<2) { S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>x!==task); return; }
+  const viable=aiAlive().filter(e=>e.fleet>=5&&e.cash>e.fleet*3e6&&e.routes<e.fleet*0.9&&dist(e.hub,target)>200)
+    .sort((x,y)=>marketDemand(y.hub,target)/(1+aiOpenRoutes(y)*0.1)-marketDemand(x.hub,target)/(1+aiOpenRoutes(x)*0.1)).slice(0,8);
+  for(const e of viable) if(aiRoute(e,'open',target)){
+    S.ai.lastPlayerBuildRouteAt=now; S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>x!==task); return;
+  }
+}
+
+/* Les startups, notamment Air Kivu, privilégient le réseau même quand leur trésorerie est négative.
+   Une seule tentative supplémentaire par jour de simulation limite le coût de calcul. */
+function hrAirKivuRouteTick(){
+  const ai=S.ai, now=S.time; if(!ai||!ai.list||now-(ai.lastStartupRouteBoost??-Infinity)<DAY) return;
+  const candidates=aiAlive().filter(e=>(e.startup||e.code==='KVA')&&now-(e.lastStartupRouteAttempt??e.founded??-Infinity)>=3*DAY&&aiOpenRoutes(e)<Math.max(4,Math.min(30,e.fleet*1.5)))
+    .sort((a,b)=>(a.lastStartupRouteAttempt??a.founded??-Infinity)-(b.lastStartupRouteAttempt??b.founded??-Infinity));
+  const e=candidates[0]; if(!e) return;
+  ai.lastStartupRouteBoost=now; e.lastStartupRouteAttempt=now;
+  // Une startup peut ouvrir en déficit : aiRoute comptabilise le coût sans effacer la perte.
+  // Air Kivu déjà sortie de lancement ne reçoit plus cette priorité si son réseau perd de l’argent.
+  if(!e.startup&&e.code==='KVA'&&aiOpenRoutes(e)>0&&(e.lastMargin||0)<=0.025) return;
+  aiRoute(e,'open');
+}
 
 /* ---------- rival national ---------- */
 const homeCcOf=()=>AP(S.company.hub)&&AP(S.company.hub).cc;
@@ -47,9 +78,9 @@ function aiImprove(e,lvl,isNat){
   if(Math.random()>0.25+0.12*lvl) return;
   const mineSet=new Set(S.routes.flatMap(r=>r.stops));
   const r=Math.random(), cc=e.cc||homeOf(e.code);
-  if(r<0.35){ // une destination que vous ne desservez pas
-    const cand=AIRPORT_CODES.filter(c=>c!==e.hub&&AP(c).cls>=1&&!mineSet.has(c)&&!carriersOn(e.hub,c).includes(e.code)&&dist(e.hub,c)>150&&dist(e.hub,c)<(e.fleet>=60?7000:isNat?2600:3500))
-      .sort((x,y)=>(AP(y).cc===cc)-(AP(x).cc===cc)||marketDemand(e.hub,y)-marketDemand(e.hub,x)).slice(0,12);
+  if(r<0.35&&aiAirportMarketOpen(e.hub)){ // une destination que vous ne desservez pas
+    const cand=AIRPORT_CODES.filter(c=>c!==e.hub&&aiAirportMarketOpen(c)&&AP(c).cls>=1&&!mineSet.has(c)&&dist(e.hub,c)>150&&dist(e.hub,c)<(e.fleet>=60?7000:isNat?2600:3500)&&!carriersOn(e.hub,c).includes(e.code))
+      .sort((x,y)=>(AP(y).cc===cc)-(AP(x).cc===cc)||marketDemand(e.hub,y)-marketDemand(e.hub,x)).slice(0,30).filter(c=>!airspaceViolation(e.code,e.hub,c)).slice(0,12);
     if(cand.length){ const c=pick(cand); (S.ai.extra[e.code]=S.ai.extra[e.code]||[]).push(pairKey(e.hub,c)); e.routes++; S.ai.ver++;
       aiNews(`🆕 ${e.name} ouvre une nouvelle destination : ${keyCity(e.hub)} → ${keyCity(c)}.`,'rival',isNat); }
   } else if(r<0.55){ e.skill=clamp((e.skill||0)+0.04,-0.6,0.6); e.age=Math.max(2,(e.age||8)-1.5);
@@ -65,7 +96,7 @@ function aiImprove(e,lvl,isNat){
 function aiWorldGrow(){
   if(!S.ai||typeof AIRLINE_DB==='undefined') return; const target=120; if(S.ai.list.length>=target) return;
   const have=new Set(S.ai.list.map(e=>e.code)), mine=S.company.code;
-  const cand=Object.entries(AIRLINE_DB).filter(([c,a])=>!have.has(c)&&c!==mine&&AP(a[2])&&a[3]>=3).sort((x,y)=>y[1][3]-x[1][3]).slice(0,30);
+  const cand=Object.entries(AIRLINE_DB).filter(([c,a])=>!have.has(c)&&c!==mine&&AP(a[2])&&a[3]>=3&&aiAirlineMarketOpen(c)).sort((x,y)=>y[1][3]-x[1][3]).slice(0,30);
   for(let i=0;i<3&&cand.length;i++){ const [c]=cand.splice(Math.floor(Math.random()*Math.min(10,cand.length)),1)[0]; const e=makeAI(c); S.ai.list.push(e); S.ai.ver++;
     aiNews(`🆕 ${e.name} (${ccName(e.cc)}) entre dans la course : ${e.fleet} avions au départ de ${keyCity(e.hub)}.`,'rival',mineCountry(e.cc)); }
 }
@@ -81,17 +112,8 @@ function natRivalHtml(){
     ${last?`<div class="mut">Dernier coup : ${last.text}</div>`:''}</div>`;
 }
 
-/* ---------- l'IA des chantiers ---------- */
-// quand vous agrandissez un aéroport, il attire des compagnies (vos concurrents viennent s'y battre)
-function hrReactToBuild(code,type){
-  if(!S.ai) return; const A=AP(code), big=type.startsWith('xp')||type==='terminal'||type==='extend';
-  if(!big) return;
-  const cand=aiAlive().filter(e=>e.fleet>=15&&!carriersOn(code,e.hub).includes(e.code)&&dist(e.hub,code)>250&&dist(e.hub,code)<(e.fleet>=60?9000:3500)).sort((x,y)=>y.fleet-x.fleet).slice(0,8);
-  const n=Math.min(cand.length,1+Math.floor(Math.random()*2)), names=[];
-  for(let i=0;i<n;i++){ const e=cand[Math.floor(Math.random()*cand.length)]; if(names.includes(e.name)) continue; (S.ai.extra[e.code]=S.ai.extra[e.code]||[]).push(pairKey(e.hub,code)); e.routes++; names.push(e.name); }
-  const nr=natRival(); if(nr&&nr.hub!==code&&!carriersOn(nr.hub,code).includes(nr.code)&&A.cc===homeCcOf()){ (S.ai.extra[nr.code]=S.ai.extra[nr.code]||[]).push(pairKey(nr.hub,code)); names.push(nr.name); }
-  if(names.length){ S.ai.ver++; aiNews(`🏗️ Le nouvel aéroport de ${keyCity(code)} attire la concurrence : ${names.join(', ')} ${names.length>1?'ouvrent':'ouvre'} des vols.`,'rival',true); }
-}
+/* ---------- l’IA des chantiers ---------- */
+// Les projets joueurs n’ajoutent pas de lignes IA ; leur entrée reste progressive et indépendante.
 // ailleurs, États et compagnies rivales agrandissent aussi leurs aéroports (tous les mois)
 function hrAiBuilds(){
   if(!S.ai||Math.random()>0.55) return;
@@ -106,6 +128,7 @@ function hrAiBuilds(){
   aiNews(`🏗️ ${ccWith(a.cc)} : ${keyCity(code)} inaugure ${st[2]}${owner?` — ${owner.name} en profite pour grandir`:''}.`,'rival',mineCountry(a.cc));
 }
 { const _aw=aiWeekly; aiWeekly=function(){ _aw(); if(window.SE_SAFE) return; try{ natRivalWeekly(); }catch(e){ console.warn(e); } try{ aiWorldGrow(); const lv=typeof drive==='function'?drive():2; for(const e of aiAlive().sort((x,y)=>y.fleet-x.fleet).slice(0,6)) aiImprove(e,lv,false); }catch(e){ console.warn(e); } try{ if(Math.floor(S.time/(7*DAY))%4===0) hrAiBuilds(); }catch(e){ console.warn(e); } }; }
+{ const _dt=dailyTick; dailyTick=function(){ _dt(); if(window.SE_SAFE) return; try{ hrPlayerBuildRouteTick(); hrAirKivuRouteTick(); }catch(e){ console.warn(e); } }; }
 
 /* ---------- population du pays et des villes ---------- */
 // population du pays (estimation de départ × évolution du directeur du monde) et part qui vit autour de l'aéroport
@@ -154,7 +177,7 @@ function homeGovBuilds(){
       [{k:'ok',l:'🤝 J’accepte'},{k:'no',l:'Refuser'}],{cc,hub:c,reward});
   }
   // le rival national s'y installe s'il est en forme
-  const nr=natRival(); if(nr&&Math.random()<0.5&&!carriersOn(nr.hub,c).includes(nr.code)){ (S.ai.extra[nr.code]=S.ai.extra[nr.code]||[]).push(pairKey(nr.hub,c)); nr.routes++; S.ai.ver++;
+  const nr=natRival(); if(nr&&Math.random()<0.5&&aiAirportMarketOpen(nr.hub)&&aiAirportMarketOpen(c)&&!carriersOn(nr.hub,c).includes(nr.code)){ (S.ai.extra[nr.code]=S.ai.extra[nr.code]||[]).push(pairKey(nr.hub,c)); nr.routes++; S.ai.ver++;
     aiNews(`🆕 ${nr.name} annonce des vols vers ${a.city}, le nouvel aéroport.`,'rival',true); }
 }
 // saisons de la diaspora : à Noël et l'été, les familles rentrent au pays
@@ -173,17 +196,21 @@ function diasporaNews(){ const cc=homeCcOf(); if(!cc||!DIASPORA[cc]) return; con
 /* ---------- habitants et voyageurs en avion ---------- */
 // voyages par an dans un aéroport : trafic de base × demande du pays (directeur du monde) × croissance de la ville
 function paxYear(code){ const A=AP(code); if(!A) return 0; const x=typeof wdC==='function'&&wdC(A.cc);
-  return (A.traffic||0)*1e6*(typeof wdF==='function'?wdF(A.cc):1)*(A.popK&&x?Math.pow(x.pop,1.3):1); }
+  const annual=(A.traffic||0)*1e6*(typeof wdF==='function'?wdF(A.cc):1)*(A.popK&&x?Math.pow(x.pop,1.3):1);
+  if(A.cc!=='CD'||!A.drcCityMain) return annual;
+  const popK=A.popK||(typeof DRC_CITY_POP!=='undefined'&&DRC_CITY_POP[A.city])||0;
+  const floor=typeof DRC_AIR!=='undefined'&&DRC_AIR[A.city]?DRC_AIR[A.city]*1e6:popK>=1000?20e6:popK>=500?5e6:popK>=100?2e6:popK>0?(0.1+Math.min(100,popK)*0.002)*1e6:0.1e6;
+  return Math.max(annual,floor); }
 const fmtN=n=>n>=1e6?(n/1e6).toFixed(n<1e7?1:0).replace('.',',')+' M':n>=1e3?Math.round(n/1e3)+' k':String(Math.round(n));
 function countryAirHtml(cc){
   cc=cc||homeCC(); const x=typeof wdC==='function'&&wdC(cc), base=typeof WD_POP!=='undefined'&&WD_POP[cc]; if(!x||!base) return '';
-  const pop=base*x.pop*1e6, aps=AIRPORT_CODES.filter(c=>AP(c).cc===cc), tot=aps.reduce((t,c)=>t+paxYear(c),0)/2;   // un voyage = un départ + une arrivée
+  const pop=base*x.pop*1e6, aps=AIRPORT_CODES.filter(c=>AP(c).cc===cc), tot=aps.reduce((t,c)=>t+paxYear(c),0)/2, tripsPerResident=tot/Math.max(1,pop);   // un voyage = un départ + une arrivée
   // une ligne par ville (aéroport principal), les plus fréquentées d'abord
   const byCity=new Map(); for(const c of aps){ const A=AP(c), k=A.city, cur=byCity.get(k); if(!cur||A.traffic>AP(cur).traffic) byCity.set(k,c); }
   const top=[...byCity.values()].sort((a,b)=>paxYear(b)-paxYear(a)), n=UI.cityAll?top.length:8;
   const meDay=c=>{ try{ const M=apMarket(c), m=M.list.find(r=>r.me); return m?m.pax:0; }catch(e){ return 0; } };
   return `<div class="card"><h3>👥 ${esc(ccName(cc))} : ${fmtN(pop)} d’habitants · ✈️ ${fmtN(tot)} voyages en avion par an</h3>
-    <div class="small mut">Soit environ 1 voyage par an pour ${Math.max(1,Math.round(pop/Math.max(1,tot)))} habitants. Les chiffres bougent avec la population, l’économie, la saison et les crises du pays.</div>
+    <div class="small mut">Soit environ ${tripsPerResident>=1?`${tripsPerResident.toFixed(1).replace('.',',')} voyages par habitant et par an`:`1 voyage par an pour ${Math.max(1,Math.round(1/Math.max(0.001,tripsPerResident)))} habitants`}. Les chiffres bougent avec la population, l’économie, la saison et les crises du pays.</div>
     <div style="overflow-x:auto"><table class="tbl small"><tr><th>Ville</th><th>Habitants</th><th>Voyageurs/an</th><th>Vous/an</th></tr>
     ${top.slice(0,n).map(c=>{ const A=AP(c), p=cityPop(c), me=meDay(c)*365; return `<tr data-act="openAp" data-c="${c}" style="cursor:pointer"><td><b>${esc(A.city)}</b> <span class="mut">${c}</span></td><td>${p?fmtN(p*1e6):'—'}</td><td><b>${fmtN(paxYear(c))}</b></td><td class="${me?'pos':'mut'}">${me?fmtN(me):'—'}</td></tr>`; }).join('')}</table></div>
     ${top.length>8?`<div class="btns"><button class="btn sm" data-act="cityAll">${UI.cityAll?'Réduire':`Voir les ${top.length} villes`}</button></div>`:''}</div>`;

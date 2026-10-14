@@ -81,7 +81,7 @@ function newGame(opts){
     ancillary:{seat:true, bags:true, wifi:false, meals:false},
     oil:82, oilBase:82, fleet:[], customModels:[], pilots:[], candidates:[], cabinCrew:8, routes:[],
     v:2, simple:true, auto:{pil:true,pnc:true,meca:true,sol:true}, hubs:[opts.hub||'FIH'],
-    fuel:{stock:400000, cap:1500000, auto:false, autoBelow:0.72, hist:[]},
+    fuel:{stock:400000, cap:1500000, auto:true, autoBelow:0.90, hist:[]},
     co2:{stock:300, cap:3000, price:85, base:85, hist:[]},
     staff:{pnc:8, meca:6, sol:18, sal:{pil:100,pnc:100,meca:100,sol:100}, morale:{pil:70,pnc:70,meca:70,sol:70}, strikeUntil:0},
     loans:[], campaigns:[], alliance:null, cargo:{offers:[], active:[], done:0},
@@ -89,7 +89,7 @@ function newGame(opts){
     led:{ day:{}, week:{}, prevWeek:{}, month:{}, prevMonth:{}, total:{} },
     stats:{ pax:0, flights:0, cargoT:0, incidents:0 },
     autoMaint:true, notifications:false, lastDay:dayIndex(start), lastMonth:monthKey(start),
-    rivals:[], rivalDrive:3, admin:false, seq:1,
+    rivals:[], rivalDrive:3, airspaceBans:{}, airspacePolicyRev:1, admin:false, seq:1,
   };
   const pack=START_PACKS[opts.pack||'regional'];
   S.packId=opts.pack||'regional';
@@ -196,6 +196,7 @@ function seasonMult(t){ const m=new Date(t).getUTCMonth(); return [0.85,0.85,0.9
 function demandMult(a,b){
   let k = seasonMult(S.time);
   const A=AP(a), B=AP(b);
+  if(typeof wdF==='function'){ const wa=wdF(A.cc), wb=wdF(B.cc); if(Number.isFinite(wa)&&Number.isFinite(wb)) k*=Math.sqrt(Math.max(0.15,wa)*Math.max(0.15,wb)); }
   if(typeof moodDemand==='function'&&S.ai) k*=Math.sqrt(moodDemand(A.cc)*moodDemand(B.cc));   // climat des pays (tension, essor)
   const domestic = A.drc&&B.drc, intl = A.cc!==B.cc, africa = continentOf(a)==='AF'&&continentOf(b)==='AF';
   for(const e of S.events){
@@ -245,7 +246,7 @@ function rivalFreq(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.freq+(typeof due
 function rivalAttr(a,b){ return rivalsOn(a,b).reduce((s,x)=>s+x.R.quality*Math.sqrt(x.freq)*(typeof isPartner==='function'&&isPartner(x.R)?0.3:1)*(typeof warFactor==='function'?warFactor(x.R.code,a,b):1)*(typeof duelFactor==='function'?duelFactor(x.R.code,a,b,x.freq):1),0); }
 function routeCycleHours(route, ac){
   const m=modelOf(ac); let h=0;
-  for(let i=0;i<route.stops.length-1;i++){ const a=route.stops[i], b=route.stops[i+1], d=dist(a,b);
+  for(let i=0;i<route.stops.length-1;i++){ const a=route.stops[i], b=route.stops[i+1], d=typeof airspaceRouteDistance==='function'?airspaceRouteDistance(S.company.code,a,b):dist(a,b);
     h+=(legProfile(d,m,windKmh(a,b),a,b).total+legProfile(d,m,windKmh(b,a),b,a).total)/HOUR; }
   return h + 2*turnaround(m)/HOUR;
 }
@@ -416,7 +417,7 @@ const _profH=new WeakMap();
 function legProf(leg,m){
   const base=legProfile(leg.dist,m,leg.wind,leg.from,leg.to), ho=leg.hOut||0, hi=leg.hIn||0;
   if(!ho&&!hi) return base;
-  const c=_profH.get(leg); if(c&&c.k===m.id+'|'+ho+'|'+hi) return c.p;
+  const key=m.id+'|'+ho+'|'+hi+'|'+Math.round(leg.dist*10)+'|'+Math.round(leg.wind||0), c=_profH.get(leg); if(c&&c.k===key) return c.p;
   const segs=[]; let sh=0;
   for(const sg of base.segs){
     if(sg.ph===6&&hi){ segs.push({ph:6,hold:'in',t0:sg.t0+sh,t1:sg.t0+sh+hi,d0:sg.d0,d1:sg.d0,a0:sg.a0,a1:sg.a0,s0:sg.s0,s1:sg.s0}); sh+=hi; }
@@ -424,7 +425,7 @@ function legProf(leg,m){
     if(sg.ph===1&&ho){ segs.push({ph:1,hold:'out',t0:sg.t1+sh,t1:sg.t1+sh+ho,d0:0,d1:0,a0:0,a1:0,s0:0,s1:0}); sh+=ho; }
   }
   const p={segs,total:base.total+ho+hi,airborne:base.airborne+hi};
-  _profH.set(leg,{k:m.id+'|'+ho+'|'+hi,p}); return p;
+  _profH.set(leg,{k:key,p}); return p;
 }
 const legEnd=(leg,m)=>leg.dep+legProf(leg,m).total;
 // État instantané d'un avion en vol
@@ -489,10 +490,13 @@ function crewCheck(ac){
 }
 
 /* ---------- dispatch ---------- */
-function legsFor(stops){ const L=[]; for(let i=0;i<stops.length-1;i++) L.push({from:stops[i],to:stops[i+1],dist:dist(stops[i],stops[i+1]),wind:windKmh(stops[i],stops[i+1])}); return L; }
+function legsFor(stops, carrier=S.company.code){ const L=[]; for(let i=0;i<stops.length-1;i++){ const from=stops[i],to=stops[i+1];
+  L.push({from,to,ownerCode:carrier,dist:typeof airspaceRouteDistance==='function'?airspaceRouteDistance(carrier,from,to):dist(from,to),wind:windKmh(from,to)}); } return L; }
 function checkLegs(ac, legs){
   const m=modelOf(ac);
   for(const l of legs){
+    const carrier=l.ownerCode||ac.ownerCode||S.company.code, airspace=typeof airspaceViolation==='function'?airspaceViolation(carrier,l.from,l.to):null;
+    if(airspace) return `⛔ Vol interdit : ${airspace.reason} (${l.from} → ${l.to}).`;
     if(l.dist>m.range) return `Tronçon ${l.from}→${l.to} (${Math.round(l.dist)} km) hors autonomie (${m.range} km)`;
     for(const c of [l.from,l.to]){
       const rw=runwayCheck(m,c); if(rw) return rw;
@@ -514,7 +518,7 @@ function canFly(ac){
   return crewCheck(ac);
 }
 function startFlight(ac, stops, kind, t, extra={}){
-  const legs=legsFor(stops); const m=modelOf(ac);
+  const legs=legsFor(stops,ac.ownerCode||S.company.code); const m=modelOf(ac);
   const err = canFly(ac) || checkLegs(ac,legs);
   if(err) return err;
   let dep=Math.max(t, ac.readyAt||0);
@@ -752,6 +756,16 @@ function simStep(){
     let guard=0;
     while(ac.flight && guard++<20){
       const leg=ac.flight.legs[ac.flight.li];
+      const restriction=typeof airspaceViolation==='function'&&leg?airspaceViolation(ac.ownerCode||S.company.code,leg.from,leg.to):null;
+      if(restriction){
+        const fl=ac.flight, origin=leg.from; ac.flight=null; ac.status='idle'; ac.loc=origin; ac.pendingReturn=null;
+        ac.readyAt=t+6*HOUR; ac.condition=clamp(ac.condition-4,0,100); ac.blocked=`Interception : ${restriction.country}`;
+        if(fl.routeId&&ac.wk&&ac.wk.c&&ac.wk.c[fl.routeId]>0) ac.wk.c[fl.routeId]--;
+        book('incidents',-25000);
+        logMsg(`🚨 Interception d'espace aérien : ${ac.reg} (${origin}→${leg.to}) est renvoyé à son dernier aéroport. Frais $25 k, immobilisé 6 h.`,'bad');
+        notify('Espace aérien fermé',`${ac.reg} est renvoyé à son dernier aéroport de départ.`);
+        break;
+      }
       const arr=legEnd(leg,modelOf(ac));
       if(arr<=t) completeLeg(ac); else break;
     }
@@ -902,7 +916,7 @@ function acceptCargo(offerId, acId){
   const m=modelOf(ac);
   if(m.cargo<o.tons) return `Capacité insuffisante (${m.cargo} t < ${o.tons} t)`;
   if(ac.plan&&ac.plan.length) return 'Videz d’abord le planning de cet avion';
-  const legErr=checkLegs(ac, legsFor([o.from,o.to])); if(legErr) return legErr;
+  const legErr=checkLegs(ac, legsFor([o.from,o.to],ac.ownerCode||S.company.code)); if(legErr) return legErr;
   const err=canFly(ac); if(err) return err;
   S.cargo.offers=S.cargo.offers.filter(x=>x!==o);
   S.cargo.active.push(o);
@@ -943,11 +957,12 @@ function initRivals(){
   for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false));
 }
 function initRival(){ initRivals(); }
-function rivalTick(){ for(const R of S.rivals||[]) rivalStep(R); }
+function rivalTick(){ if(typeof airspacePruneRivals==='function') airspacePruneRivals(); for(const R of S.rivals||[]) rivalStep(R); }
 const _rdem=new WeakMap(); // demande des lignes concurrentes, recalculée une fois par semaine (évite les à-coups)
 function rivalStep(R){
   let pax=0, rev=0;
   for(const r of R.routes){
+    if(typeof airspaceViolation==='function'&&airspaceViolation(R.code,r.a,r.b)) continue;
     let c=_rdem.get(r); const wk=Math.floor((S.time+((r.a.charCodeAt(2)+r.b.charCodeAt(2))%7)*DAY)/(7*DAY)); // recalcul étalé sur la semaine
     if(!c||c.wk!==wk||c.f!==r.freq){
       const d=dist(r.a,r.b), dem=marketDemand(r.a,r.b)+marketDemand(r.b,r.a), seats = d<1200?70:d<4000?180:300;
@@ -969,9 +984,10 @@ function rivalStep(R){
   // expansion : le rival local copie vos lignes, les majors s'attaquent à celles proches de leur hub
   if(R.cash>50e6 && Math.random()<(R.local?0.12:0.06)){
     let a,b;
-    const player=S.routes.filter(r=>r.stops.length>=2 && (R.local || r.stops.some(c=>dist(c,R.hub)<3000)));
+    const player=S.routes.filter(r=>r.stops.length>=2 && (R.local || r.stops.some(c=>dist(c,R.hub)<3000)) && (typeof airspaceViolation!=='function'||r.stops.slice(1).every((c,i)=>!airspaceViolation(R.code,r.stops[i],c))));
     if(player.length && !(typeof isPartner==='function'&&isPartner(R)) && Math.random()<(R.local?0.55:0.3)){ const r=pick(player); a=r.stops[0]; b=r.stops[1]; }
-    else { a=R.hub; const opts=AIRPORT_CODES.filter(c=>c!==R.hub && AP(c).cls>=3 && dist(R.hub,c)<(R.local?4000:9000) && AP(c).traffic>=1); if(!opts.length) return; b=pick(opts); }
+    else { a=R.hub; const opts=AIRPORT_CODES.filter(c=>c!==R.hub && AP(c).cls>=3 && dist(R.hub,c)<(R.local?4000:9000) && AP(c).traffic>=1 && (typeof airspaceViolation!=='function'||!airspaceViolation(R.code,R.hub,c))); if(!opts.length) return; b=pick(opts); }
+    if(typeof airspaceViolation==='function'&&airspaceViolation(R.code,a,b)) return;
     const ex=R.routes.find(x=>(x.a===a&&x.b===b)||(x.a===b&&x.b===a));
     if(ex) ex.freq=Math.min(6,ex.freq+1); else R.routes.push({a,b,freq:1});
     R.cash-=40e6; R.fleet++;
@@ -980,7 +996,7 @@ function rivalStep(R){
   }
   if(R.cash<0 && R.routes.length>2){ R.routes.sort((x,y)=>x.freq-y.freq).shift(); R.fleet=Math.max(3,R.fleet-1); R.cash+=25e6; }
 }
-if(typeof rivalsOn!=='function') var rivalsOn=function(a,b){ const out=[]; for(const R of S.rivals||[]) for(const r of R.routes) if((r.a===a&&r.b===b)||(r.a===b&&r.b===a)) out.push({R,freq:r.freq}); return out; };
+if(typeof rivalsOn!=='function') var rivalsOn=function(a,b){ const out=[]; for(const R of S.rivals||[]) for(const r of R.routes) if((r.a===a&&r.b===b)||(r.a===b&&r.b===a)) if(typeof airspaceViolation!=='function'||!airspaceViolation(R.code,r.a,r.b)) out.push({R,freq:r.freq}); return out; };
 
 /* ---------- météo : cellules orageuses ---------- */
 function stormAt(lat,lon){ for(const c of S.weather||[]){ if(gcDist(c,{lat,lon})<c.r) return c; } return null; }
@@ -1064,12 +1080,13 @@ function buyHub(code){
   logMsg(`🏢 Nouveau hub : ${a.city} (${code}) pour ${fmtMoney(c)}.`,'ok');
   return null;
 }
-function lineCost(stops){ let c=0; for(let i=0;i<stops.length-1;i++){ const a=stops[i], b=stops[i+1], d=dist(a,b); let x=20000+d*35; if(isDrc(a)&&isDrc(b)) x*=0.6; if(AP(b).cls>=5) x*=1.5; c+=x; } return Math.round(c/1000)*1000; }
-function auditCost(route){ const d=legsFor(route.stops).reduce((s,l)=>s+l.dist,0); return Math.round((5000+d*6)/500)*500; }
+function lineCost(stops){ let c=0; for(let i=0;i<stops.length-1;i++){ const a=stops[i], b=stops[i+1], d=typeof airspaceRouteDistance==='function'?airspaceRouteDistance(S.company.code,a,b):dist(a,b); let x=20000+d*35; if(isDrc(a)&&isDrc(b)) x*=0.6; if(AP(b).cls>=5) x*=1.5; c+=x; } return Math.round(c/1000)*1000; }
+function auditCost(route){ const d=legsFor(route.stops,S.company.code).reduce((s,l)=>s+l.dist,0); return Math.round((5000+d*6)/500)*500; }
 function openLine(stops){
   if(!S.hubs.includes(stops[0])) return 'Une ligne doit partir d’un de vos hubs';
   if(stops.length<2) return 'Choisissez une destination';
   for(let i=1;i<stops.length;i++) if(stops[i]===stops[i-1]) return 'Deux escales identiques consécutives';
+  for(let i=1;i<stops.length;i++){ const restriction=typeof airspaceViolation==='function'?airspaceViolation(S.company.code,stops[i-1],stops[i]):null; if(restriction) return `⛔ Espace aérien fermé : ${restriction.reason}`; }
   if(S.routes.some(r=>r.stops.join()===stops.join())) return 'Vous exploitez déjà cette ligne';
   const c=lineCost(stops); book('licences',-c);
   const r={id:uid(), stops:[...stops], departureHour:null, pm:{y:1,j:1,f:1,c:1}, audit:false, opened:S.time, stats:{flights:0,pax:0,seats:0,rev:0,cost:0,recent:[],shareSum:0,shareN:0}};
@@ -1087,7 +1104,7 @@ function auditLine(route){ if(route.audit) return 'Audit déjà réalisé'; book
 function setPlan(ac, routeId, weekly){
   const r=S.routes.find(x=>x.id===routeId); if(!r) return 'Ligne introuvable';
   if(r.stops[0]!==ac.hub) return `Cet avion est basé à ${ac.hub} : il ne peut desservir que les lignes de ce hub`;
-  const e=checkLegs(ac,legsFor(r.stops)); if(e && weekly>0) return e;
+  const e=checkLegs(ac,legsFor(r.stops,ac.ownerCode||S.company.code)); if(e && weekly>0) return e;
   const plan=(ac.plan||[]).filter(p=>p.routeId!==routeId);
   if(weekly>0) plan.push({routeId, weekly});
   const h=planHours(ac,plan);
@@ -1267,10 +1284,13 @@ function migrateCore(){
   if(!PAX_POLICIES[S.paxPolicy]) S.paxPolicy='standard';
   if(S.simple===undefined) S.simple=true;
   if(S.rivalDrive===undefined) S.rivalDrive=3;
+  S.fuel=S.fuel||{stock:400000,cap:1500000,auto:true,autoBelow:0.90,hist:[]};
+  if(!S.autoOpsVersion){ S.autoMaint=true; S.fuel.auto=true; S.fuel.autoBelow=Math.max(Number(S.fuel.autoBelow)||0,0.90); S.autoOpsVersion=1; }
   if(!S.auto) S.auto={pil:!!S.simple,pnc:!!S.simple,meca:!!S.simple,sol:!!S.simple};
   if(S.rival && !S.rivals){ Object.assign(S.rival,{local:true,color:'#e5484d'}); S.rivals=[S.rival]; for(const t of AI_MAJORS) if(t.hub!==S.company.hub) S.rivals.push(makeRival(t,false)); delete S.rival; }
   if(!S.rivals||!S.rivals.length) initRivals();
   if(!S.ai && typeof initWorldAI==='function' && typeof AIRLINE_DB!=='undefined') initWorldAI();
+  if(S.ai && typeof ensureBukavuAirline==='function') ensureBukavuAirline();
   // anciennes parties : les compagnies fictives sont remplacées par les vraies compagnies
   if(!S.rivalsReal && typeof initRealRivals==='function' && typeof AIRLINE_DB!=='undefined'){
     let refund=0; if(S.stock&&S.stock.holdings) for(const [code,pct] of Object.entries(S.stock.holdings)){ const R=S.rivals.find(x=>x.code===code); if(R&&typeof rivalValue==='function') refund+=pct*rivalValue(R); }
@@ -1293,10 +1313,12 @@ function migrateCore(){
     }
   }
   S.weather=S.weather||[]; S.projects=S.projects||[]; S.upgrades=S.upgrades||{}; S.missions=S.missions||[];
+  S.airspaceBans=S.airspaceBans&&typeof S.airspaceBans==='object'?S.airspaceBans:{}; S.airspacePolicyRev=S.airspacePolicyRev||1;
   S.stats.onTime=S.stats.onTime||0; S.stats.late=S.stats.late||0; S.stats.manual=S.stats.manual||0;
   if(S.tuto===undefined) S.tuto=0;
   for(const ac of S.fleet) if(ac.status==='manual'){ ac.status='idle'; }
   applyUpgrades();
+  if(typeof airspacePruneRivals==='function') airspacePruneRivals();
 }
 function load(){ try{ const raw=localStorage.getItem(SAVE_KEY); if(raw){ S=JSON.parse(raw); migrate(); return true; } }catch(e){} return false; }
 

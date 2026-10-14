@@ -652,6 +652,18 @@ function cargoHtml(){
 /* ---------- 🌐 MONDE & PAYS ---------- */
 const _cache={};
 function countryAirports(cc){ return _cache['ca'+cc]||(_cache['ca'+cc]=AIRPORT_CODES.filter(c=>AP(c).cc===cc).sort((x,y)=>AP(y).traffic-AP(x).traffic)); }
+function airspacePolicyHtml(cc){
+  if(cc!==homeCC()) return '';
+  if(!_airspacePolygons[cc]) return `<div class="card"><h3>🛂 Espace aérien de ${esc(COUNTRIES[cc][0])}</h3><div class="small mut">Le réglage personnalisé attend une frontière géographique détaillée pour votre pays. Les fermetures déjà intégrées restent actives.</div></div>`;
+  const origins=new Set(Object.values(AIRLINE_DB||{}).map(a=>a[1]).filter(k=>COUNTRIES[k]&&k!==cc));
+  for(const e of S.ai&&S.ai.list||[]) if(e.cc&&COUNTRIES[e.cc]&&e.cc!==cc) origins.add(e.cc);
+  for(const R of S.rivals||[]){ const k=AP(R.hub)?.cc; if(k&&COUNTRIES[k]&&k!==cc) origins.add(k); }
+  const bans=new Set(S.airspaceBans&&S.airspaceBans[cc]||[]);
+  const rows=[...origins].sort((a,b)=>COUNTRIES[a][0].localeCompare(COUNTRIES[b][0]));
+  return `<div class="card"><h3>🛂 Espace aérien de ${esc(COUNTRIES[cc][0])}</h3><div class="small mut">Choisissez les pays d’origine des compagnies interdites de survol. Les vols légaux seront automatiquement détournés autour de votre territoire ; les liaisons qui y atterrissent resteront interdites. Les règles géopolitiques déjà actives restent prioritaires.</div>
+    <div class="chips" style="margin-top:10px">${rows.map(origin=>{ const fixed=airspaceDefaultBan(cc,origin), on=fixed||bans.has(origin); return `<button class="chip ${on?'on':''}" data-act="toggleAirspaceBan" data-zone="${cc}" data-origin="${origin}" ${fixed?'disabled title="Règle géopolitique automatique"':''}>${COUNTRIES[origin][2]} ${esc(COUNTRIES[origin][0])}${fixed?' · automatique':on?' · interdit':''}</button>`; }).join('')||'<span class="mut small">Aucune compagnie étrangère répertoriée.</span>'}</div>
+    <div class="small mut" style="margin-top:8px">Interdictions personnalisées actives : ${bans.size} · Les itinéraires et les avions visibles en 2D/3D suivent le détour.</div></div>`;
+}
 function pWorld(){
   const cc=UI.country||homeCC(), C=COUNTRIES[cc], aps=countryAirports(cc);
   const served=servedAirports(), dom=S.routes.filter(r=>r.stops.every(c=>AP(c).cc===cc));
@@ -661,7 +673,8 @@ function pWorld(){
   let domMarket=0; for(const p of pairs) domMarket+=2*p.dem;
   let domMine=0; for(const r of dom){ if(!routeAircraft(r).length) continue; for(let i=0;i<r.stops.length-1;i++){ domMine+=legMarket(r,r.stops[i],r.stops[i+1]).daily+legMarket(r,r.stops[i+1],r.stops[i]).daily; } }
   const regions={}; for(const c of aps){ const a=AP(c), k=a.prov||(a.region||'').replace(cc+'-','')||'—'; (regions[k]=regions[k]||[]).push(c); }
-  const rivalsHere=(S.rivals||[]).filter(R=>AP(R.hub).cc===cc), realHere=typeof airlinesOfCountry==='function'? airlinesOfCountry(cc,1) : [];
+  const rivalsHere=(S.rivals||[]).filter(R=>AP(R.hub).cc===cc), realHere=typeof airlinesOfCountry==='function'? airlinesOfCountry(cc,1) : [],
+    localAI=(S.ai&&S.ai.list||[]).filter(e=>e.status!=='dead'&&e.cc===cc&&AP(e.hub)&&AP(e.hub).cc===cc&&!AIRLINE_DB[e.code]);
   const evs=S.events.filter(e=>{ const t=EV(e); return (e.airports||[]).some(c=>AP(c).cc===cc) || (e.airport&&AP(e.airport).cc===cc) || (e.boostAirport&&AP(e.boostAirport).cc===cc) || ((e.ccs||t.ccs||[]).includes(cc)) || (t.drc&&cc==='CD'); });
   const intl = cc!==homeCC()? S.hubs.flatMap(h=>aps.slice(0,15).map(c=>({h,c,d:dist(h,c),dem:marketDemand(h,c)}))).filter(x=>x.h!==x.c).sort((x,y)=>y.dem-x.dem).slice(0,10) : [];
   const suggest=(p)=>{ const minCls=Math.min(AP(p.a).cls,AP(p.b).cls); const ok=MODELS.filter(m=>!isCargo(m)&&m.cls<=minCls&&m.range>=p.d).sort((x,y)=>Math.abs(x.seats-p.dem*0.3)-Math.abs(y.seats-p.dem*0.3)); return ok[0]?ok[0].name:'—'; };
@@ -672,6 +685,7 @@ function pWorld(){
     <div class="btns sm"><button class="btn sm gold" data-act="focusCountry" data-cc="${cc}">🔍 Voir sur la carte</button></div></div></div>
   <div class="row wrap"><select data-in="country">${Object.keys(COUNTRIES).filter(k=>countryAirports(k).length).sort((x,y)=>COUNTRIES[x][0].localeCompare(COUNTRIES[y][0])).map(k=>`<option value="${k}" ${k===cc?'selected':''}>${COUNTRIES[k][2]} ${COUNTRIES[k][0]} (${countryAirports(k).length})</option>`).join('')}</select></div>
   <div class="chips">${quick.map(k=>`<button class="chip ${k===cc?'on':''}" data-act="country" data-cc="${k}">${COUNTRIES[k][2]} ${COUNTRIES[k][0]}</button>`).join('')}</div>
+  ${airspacePolicyHtml(cc)}
   <div class="kpis">
     <div class="kpi"><div class="kl">Aéroports</div><div class="kv">${aps.length}</div></div>
     <div class="kpi"><div class="kl">Que vous desservez</div><div class="kv">${aps.filter(c=>served.has(c)).length}</div></div>
@@ -681,7 +695,7 @@ function pWorld(){
     <div class="kpi"><div class="kl">Kérosène</div><div class="kv">$${fuelPrice(aps[0]).toFixed(2)}/L</div></div>
   </div>
   ${evs.length?`<h3>Actualité du pays</h3>${evs.map(e=>{const t=EV(e);return `<div class="ev">${t.icon} <b>${t.name}</b>${e.where||''} — ${t.desc} <span class="mut">(jusqu’au ${fmtDate(e.until)})</span></div>`;}).join('')}`:''}
-  <h3>Compagnies aériennes du pays</h3>${realHere.length? realHere.slice(0,12).map(c=>{ const A=AIRLINE_DB[c]; return `<div class="card small"><span class="dot" style="background:${airlineColor(c)}"></span><b>${A[0]}</b> <span class="mut">${c}</span> — base ${apName(A[2])} · ${A[3]} ligne(s) régulière(s)${rivalsHere.some(R=>R.code===c)?' · <span class="badge">concurrent suivi</span>':''}</div>`; }).join('') : `<div class="al">Aucune compagnie aérienne n’est basée dans ce pays : il est desservi uniquement par des compagnies étrangères${cc===homeCC()?' — vous serez la compagnie nationale !':''}.</div>`}
+  <h3>Compagnies aériennes du pays</h3>${realHere.length||localAI.length? `${realHere.slice(0,12).map(c=>{ const A=AIRLINE_DB[c]; return `<div class="card small"><span class="dot" style="background:${airlineColor(c)}"></span><b>${A[0]}</b> <span class="mut">${c}</span> — base ${apName(A[2])} · ${A[3]} ligne(s) régulière(s)${rivalsHere.some(R=>R.code===c)?' · <span class="badge">concurrent suivi</span>':''}</div>`; }).join('')}${localAI.map(e=>{const result=e.lastOperatingResult;return `<div class="card small"><span class="dot" style="background:${e.color}"></span><b>${esc(e.name)}</b> <span class="mut">${e.code}</span> — base ${apName(e.hub)} · ${e.routes||0} ligne(s) · ${e.fleet} avions · fonds ${fmtMoney(e.cash)}${Number.isFinite(result)?` · résultat d’exploitation hebdo <span class="${result>=0?'pos':'neg'}">${result>0?'+':''}${fmtMoney(result)}</span>`:' · premier bilan à venir'}</div>`;}).join('')}` : `<div class="al">Aucune compagnie aérienne n’est basée dans ce pays : il est desservi uniquement par des compagnies étrangères${cc===homeCC()?' — vous serez la compagnie nationale !':''}.</div>`}
   ${rivalsHere.length&&false?`<h3>Concurrents basés ici</h3>${rivalsHere.map(R=>`<div class="card small"><span class="dot" style="background:${R.color}"></span><b>${R.name}</b> — hub ${apName(R.hub)} · ${R.fleet} avions · ${R.routes.length} lignes · ${stars(R.rep)}</div>`).join('')}`:''}
   ${intl.length?`<h3>Meilleures lignes depuis vos hubs vers ce pays</h3><table class="tbl"><tr><th>Ligne</th><th>km</th><th>Demande/j</th><th></th></tr>${intl.map(x=>`<tr><td>${x.h} → ${AP(x.c).city}</td><td>${num(x.d)}</td><td>${num(x.dem)}</td><td><button class="btn sm" data-act="draftPair" data-a="${x.h}" data-b="${x.c}">Ouvrir</button></td></tr>`).join('')}</table>`:''}
   <h3>Lignes intérieures les plus demandées</h3>

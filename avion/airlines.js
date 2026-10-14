@@ -44,6 +44,216 @@ function airlinePairs(code){
   if(!_alIdx){ _alIdx={}; for(const [k,p] of PAIR_DB) for(const c of p.c) (_alIdx[c]=_alIdx[c]||[]).push([k.slice(0,3),k.slice(3)]); }
   return _alIdx[code]||[];
 }
+/* Espace aérien : géofences Natural Earth, règles bilatérales et itinéraires de contournement. */
+const AIRSPACE_KP_EXEMPT=new Set(['CN','RU','CD','NG']);
+const AIRSPACE_RW_DENY=new Set(['CD','KP','SD','PS','IR','UA']);
+const AIRSPACE_CLOSED_TO_HOME={IR:new Set(['US']),UA:new Set(['RU'])};
+const _airspaceRouteCache=new Map();
+const _airspacePolygons={};
+for(const [cc,g] of Object.entries(typeof AIRSPACE_ZONES!=='undefined'?AIRSPACE_ZONES:{})){
+  const polys=g.type==='Polygon'?[g.coordinates]:g.coordinates;
+  _airspacePolygons[cc]=polys.map(rings=>{ const outer=rings[0]; let minX=180,maxX=-180,minY=90,maxY=-90;
+    for(const p of outer){ minX=Math.min(minX,p[0]); maxX=Math.max(maxX,p[0]); minY=Math.min(minY,p[1]); maxY=Math.max(maxY,p[1]); }
+    return {rings,minX,maxX,minY,maxY}; });
+}
+function airlineHomeCountry(code){
+  const player=typeof S!=='undefined'&&S&&S.company;
+  if(player&&player.code===code){ const hub=AP(player.hub); if(hub&&hub.cc) return hub.cc; }
+  const a=typeof AIRLINE_DB!=='undefined'&&AIRLINE_DB[code]; if(a&&a[1]) return a[1];
+  const e=typeof S!=='undefined'&&S&&S.ai&&S.ai.list&&S.ai.list.find(x=>x.code===code); if(e&&e.cc) return e.cc;
+  const r=typeof S!=='undefined'&&S&&S.rivals&&S.rivals.find(x=>x.code===code); return r&&(r.cc||(AP(r.hub)||{}).cc)||'';
+}
+function airspacePolicyRev(){ return typeof S!=='undefined'&&S?S.airspacePolicyRev||0:0; }
+function airspaceDefaultBan(zone,home){
+  return (zone==='KP'&&!AIRSPACE_KP_EXEMPT.has(home)) || (home==='RW'&&AIRSPACE_RW_DENY.has(zone)) || !!(AIRSPACE_CLOSED_TO_HOME[zone]&&AIRSPACE_CLOSED_TO_HOME[zone].has(home));
+}
+function airspaceReason(cc){
+  return cc==='KP'?'La Corée du Nord n’autorise que les compagnies de Chine, Russie, RDC et Nigeria.':cc==='CD'?'La RDC interdit le survol aux compagnies rwandaises.':cc==='IR'?'L’Iran ferme son espace aérien aux compagnies américaines.':cc==='UA'?'L’Ukraine ferme son espace aérien aux compagnies russes.':'La compagnie n’est pas autorisée dans cet espace aérien.';
+}
+// cache : les zones interdites ne dépendent que du pays de la compagnie et des règles en vigueur
+let _azKey='', _azCache=new Map();
+function airspaceZonesFor(code){
+  const k=airspacePolicyRev()+'|'+JSON.stringify((typeof S!=='undefined'&&S&&S.airspaceBans)||0).length+'|'+airspaceWarZones().join(','); if(k!==_azKey){ _azKey=k; _azCache.clear(); }
+  const home=airlineHomeCountry(code); let z=_azCache.get(home); if(!z){ z=airspaceZonesCalc(home); _azCache.set(home,z); } return z; }
+// pays en guerre (directeur du monde) : le ciel est fermé à toutes les compagnies étrangères
+let _awT=-1, _awZ=[];
+function airspaceWarZones(){ const W=typeof S!=='undefined'&&S&&S.wd; if(!W||!Array.isArray(W.wars)) return [];
+  const t=Math.floor(S.time/HOUR); if(t===_awT) return _awZ; _awT=t;
+  return _awZ=[...new Set(W.wars.filter(w=>w.stage==='war').flatMap(w=>w.ccs||[]))].filter(cc=>_airspacePolygons[cc]).sort(); }
+{ const _ar=airspaceReason; airspaceReason=function(cc){ return airspaceWarZones().includes(cc)?`⚔️ ${COUNTRIES[cc]?COUNTRIES[cc][0]:cc} est en guerre : son espace aérien est fermé aux compagnies étrangères.`:_ar(cc); }; }
+function airspaceZonesCalc(home){
+  const zones=airspaceWarZones().filter(cc=>cc!==home);
+  for(const cc of Object.keys(_airspacePolygons)){
+    const custom=typeof S!=='undefined'&&S&&S.airspaceBans&&S.airspaceBans[cc];
+    if(!zones.includes(cc)&&(airspaceDefaultBan(cc,home)||(Array.isArray(custom)&&custom.includes(home)))) zones.push(cc);
+  }
+  return zones;
+}
+function airspacePointInRing(lon,lat,ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
+    if((yi>lat)!==(yj>lat) && lon<(xj-xi)*(lat-yi)/(yj-yi)+xi) inside=!inside;
+  }
+  return inside;
+}
+function airspaceContainsPoly(poly,lon,lat){
+    if(!poly||lon<poly.minX||lon>poly.maxX||lat<poly.minY||lat>poly.maxY||!airspacePointInRing(lon,lat,poly.rings[0])) return false;
+    let hole=false; for(let i=1;i<poly.rings.length;i++) if(airspacePointInRing(lon,lat,poly.rings[i])){ hole=true; break; }
+    return !hole;
+}
+function airspaceContains(cc,lon,lat){ return (_airspacePolygons[cc]||[]).some(poly=>airspaceContainsPoly(poly,lon,lat));
+}
+function airspaceNear(cc,lon,lat,pad){
+  return (_airspacePolygons[cc]||[]).some(poly=>lon>=poly.minX-pad&&lon<=poly.maxX+pad&&lat>=poly.minY-pad&&lat<=poly.maxY+pad);
+}
+// test rapide : distance du grand cercle a→b au cercle qui englobe la zone (la plupart des lignes passent très loin)
+function _asV(lat,lon){ const r=Math.PI/180, c=Math.cos(lat*r); return [c*Math.cos(lon*r),c*Math.sin(lon*r),Math.sin(lat*r)]; }
+function _asCircle(poly){ if(poly._c) return poly._c; const lat=(poly.minY+poly.maxY)/2, lon=(poly.minX+poly.maxX)/2;
+  const rad=Math.max(gcDist({lat,lon},{lat:poly.minY,lon:poly.minX}),gcDist({lat,lon},{lat:poly.maxY,lon:poly.maxX}),gcDist({lat,lon},{lat:poly.minY,lon:poly.maxX}),gcDist({lat,lon},{lat:poly.maxY,lon:poly.minX}));
+  return poly._c={v:_asV(lat,lon),lat,lon,rad:rad+60}; }
+function _asFar(poly,pa,pb){ const C=_asCircle(poly), a=_asV(pa.lat,pa.lon), b=_asV(pb.lat,pb.lon), c=C.v;
+  const n=[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]], nl=Math.hypot(n[0],n[1],n[2]);
+  const dEnd=Math.min(gcDist(pa,C),gcDist(pb,C)); if(nl<1e-9) return dEnd>C.rad;
+  const cn=(c[0]*n[0]+c[1]*n[1]+c[2]*n[2])/nl, ct=Math.abs(Math.asin(clamp(cn,-1,1)))*6371;
+  const ac=[a[1]*c[2]-a[2]*c[1],a[2]*c[0]-a[0]*c[2],a[0]*c[1]-a[1]*c[0]], cb=[c[1]*b[2]-c[2]*b[1],c[2]*b[0]-c[0]*b[2],c[0]*b[1]-c[1]*b[0]];
+  const within=(ac[0]*n[0]+ac[1]*n[1]+ac[2]*n[2])>0&&(cb[0]*n[0]+cb[1]*n[1]+cb[2]*n[2])>0;
+  return (within?ct:dEnd)>C.rad; }
+function airspaceSegmentCrosses(cc,pa,pb,onlyPoly){
+  if(!_airspacePolygons[cc]) return false;
+  if(!pa||!pb||!Number.isFinite(pa.lat)||!Number.isFinite(pa.lon)||!Number.isFinite(pb.lat)||!Number.isFinite(pb.lon)) return false;
+  if(onlyPoly?_asFar(onlyPoly,pa,pb):_airspacePolygons[cc].every(poly=>_asFar(poly,pa,pb))) return false;
+  const rad=Math.PI/180,p1=pa.lat*rad,l1=pa.lon*rad,p2=pb.lat*rad,l2=pb.lon*rad;
+  const v1=[Math.cos(p1)*Math.cos(l1),Math.cos(p1)*Math.sin(l1),Math.sin(p1)];
+  const v2=[Math.cos(p2)*Math.cos(l2),Math.cos(p2)*Math.sin(l2),Math.sin(p2)];
+  const dot=clamp(v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2],-1,1), angle=Math.acos(dot), sin=Math.sin(angle);
+  const total=angle*6371, pointAt=t=>{ let x,y,z;
+    if(Math.abs(sin)<1e-7){ x=v1[0]*(1-t)+v2[0]*t; y=v1[1]*(1-t)+v2[1]*t; z=v1[2]*(1-t)+v2[2]*t; }
+    else{ const u=Math.sin((1-t)*angle)/sin,v=Math.sin(t*angle)/sin; x=u*v1[0]+v*v2[0]; y=u*v1[1]+v*v2[1]; z=u*v1[2]+v*v2[2]; }
+    return [Math.atan2(y,x)/rad,Math.atan2(z,Math.hypot(x,y))/rad];
+  };
+  // La plupart des routes sont loin de ces pays : échantillonnage grossier avant le test précis à 20 km.
+  const coarse=Math.max(1,Math.ceil(total/500)); let near=false;
+  for(let i=0;i<=coarse;i++){ const p=pointAt(i/coarse); if(onlyPoly?(p[0]>=onlyPoly.minX-5&&p[0]<=onlyPoly.maxX+5&&p[1]>=onlyPoly.minY-5&&p[1]<=onlyPoly.maxY+5):airspaceNear(cc,p[0],p[1],5)){ near=true; break; } }
+  if(!near) return false;
+  const steps=Math.max(1,Math.ceil(total/(cc==='PS'?3:20)));
+  for(let i=0;i<=steps;i++){
+    const p=pointAt(i/steps); if(onlyPoly?airspaceContainsPoly(onlyPoly,p[0],p[1]):airspaceContains(cc,p[0],p[1])) return true;
+  }
+  return false;
+}
+function airspaceRouteCrosses(cc,a,b){ return airspaceSegmentCrosses(cc,AP(a),AP(b)); }
+function airspacePoint(p){ return {lat:p.lat,lon:p.lon}; }
+function airspaceFindCrossing(cc,a,b){
+  const poly=(_airspacePolygons[cc]||[]).find(p=>airspaceSegmentCrosses(cc,a,b,p)); if(!poly) return null;
+  const total=gcDist(a,b), steps=Math.max(1,Math.ceil(total/20)); let first=-1,last=-1;
+  for(let i=0;i<=steps;i++){ const p=gcInterp(a,b,i/steps); if(airspaceContainsPoly(poly,p.lon,p.lat)){ if(first<0) first=i; last=i; } }
+  if(first<0) return null;
+  let lo=Math.max(0,first-2), hi=Math.min(steps,last+2), before=gcInterp(a,b,lo/steps), after=gcInterp(a,b,hi/steps), guard=0;
+  while(airspaceContainsPoly(poly,before.lon,before.lat)&&lo>0&&guard++<8){ lo=Math.max(0,lo-2); before=gcInterp(a,b,lo/steps); }
+  guard=0; while(airspaceContainsPoly(poly,after.lon,after.lat)&&hi<steps&&guard++<8){ hi=Math.min(steps,hi+2); after=gcInterp(a,b,hi/steps); }
+  return {poly,before:airspacePoint(before),after:airspacePoint(after)};
+}
+function airspaceDetourCandidates(poly){
+  const groups=[],mid=(poly.minY+poly.maxY)/2;
+  for(const margin of [1.2,2.5,5]){
+    const padLon=margin/Math.max(0.35,Math.cos(toRad(mid))),x0=poly.minX-padLon,x1=poly.maxX+padLon,y0=poly.minY-margin,y1=poly.maxY+margin;
+    const corners=[{lat:y1,lon:x0},{lat:y1,lon:x1},{lat:y0,lon:x1},{lat:y0,lon:x0}], paths=[];
+    for(let start=0;start<4;start++) for(let end=0;end<4;end++) if(start!==end) for(const dir of [1,-1]){
+      const via=[corners[start]]; let k=start,guard=0;
+      while(k!==end&&guard++<4){ k=(k+dir+4)%4; via.push(corners[k]); }
+      paths.push(via);
+    }
+    groups.push(paths);
+  }
+  return groups;
+}
+function airspaceRoutePlan(code,a,b){
+  // le trajet ne dépend que des zones interdites : toutes les compagnies d'un même pays partagent le calcul
+  const zones=airspaceZonesFor(code), key=`${zones.join(',')}:${a}>${b}:p${airspacePolicyRev()}`;
+  if(_airspaceRouteCache.has(key)) return _airspaceRouteCache.get(key);
+  const A=AP(a),B=AP(b); if(!A||!B) return {points:[],distance:0,violation:null};
+  if(!zones.length){ const plan={points:[airspacePoint(A),airspacePoint(B)],distance:gcDist(A,B),violation:null}; _airspaceRouteCache.set(key,plan); return plan; }
+  const blocked=zones.find(cc=>A.cc===cc||B.cc===cc);
+  if(blocked){ const plan={points:[airspacePoint(A),airspacePoint(B)],distance:gcDist(A,B),violation:{country:blocked,reason:airspaceReason(blocked)}}; _airspaceRouteCache.set(key,plan); return plan; }
+  let points=[airspacePoint(A),airspacePoint(B)], failure=null;
+  for(let pass=0;pass<Math.max(4,zones.length*3);pass++){
+    let hit=null;
+    outer: for(let i=0;i<points.length-1;i++) for(const cc of zones){
+      const crossing=airspaceFindCrossing(cc,points[i],points[i+1]); if(crossing){ hit={i,cc,...crossing}; break outer; }
+    }
+    if(!hit) break;
+    let best=null; const segA=points[hit.i],segB=points[hit.i+1],segD=gcDist(segA,segB);
+    const tBefore=segD?gcDist(segA,hit.before)/segD:0,tAfter=segD?gcDist(segA,hit.after)/segD:1;
+    for(const extra of [0,250,500,1000,2000]){
+      const before=gcInterp(segA,segB,Math.max(0,tBefore-extra/Math.max(1,segD))),after=gcInterp(segA,segB,Math.min(1,tAfter+extra/Math.max(1,segD)));
+      let bestAtMargin=null;
+      for(const group of airspaceDetourCandidates(hit.poly)){
+        for(const via of group){
+          const candidate=[segA,before,...via,after,segB];
+          let safe=true; for(let j=0;j<candidate.length-1;j++) if(airspaceSegmentCrosses(hit.cc,candidate[j],candidate[j+1])){ safe=false; break; }
+          if(!safe) continue;
+          const km=candidate.slice(1).reduce((sum,p,j)=>sum+gcDist(candidate[j],p),0);
+          if(!bestAtMargin||km<bestAtMargin.km) bestAtMargin={km,via,before:airspacePoint(before),after:airspacePoint(after)};
+        }
+        if(bestAtMargin) break;
+      }
+      if(bestAtMargin&&(!best||bestAtMargin.km<best.km)) best=bestAtMargin;
+    }
+    if(!best){ failure={country:hit.cc,reason:`Aucun contournement sûr n’a été trouvé autour de ${COUNTRIES[hit.cc]?.[0]||hit.cc}.`}; break; }
+    const replacement=[segA,best.before,...best.via,best.after,segB], clean=[];
+    for(const p of replacement) if(!clean.length||gcDist(clean[clean.length-1],p)>1) clean.push(p);
+    points.splice(hit.i,2,...clean);
+  }
+  if(!failure){ outer: for(let i=0;i<points.length-1;i++) for(const cc of zones) if(airspaceSegmentCrosses(cc,points[i],points[i+1])){ failure={country:cc,reason:`Aucun contournement sûr n’a été trouvé autour de ${COUNTRIES[cc]?.[0]||cc}.`}; break outer; } }
+  const plan={points,distance:points.slice(1).reduce((sum,p,i)=>sum+gcDist(points[i],p),0),violation:failure};
+  if(_airspaceRouteCache.size>150000) _airspaceRouteCache.clear(); _airspaceRouteCache.set(key,plan); return plan;
+}
+function airspaceRouteDistance(code,a,b){ const p=airspaceRoutePlan(code,a,b); return p.distance||dist(a,b); }
+function airspacePathCoordinates(code,a,b,refLon){
+  const plan=airspaceRoutePlan(code,a,b); if(plan.violation||plan.points.length<2) return [];
+  const out=[]; let ref=refLon===undefined?AP(a).lon:refLon;
+  for(let i=1;i<plan.points.length;i++){
+    const seg=gcPath(plan.points[i-1],plan.points[i],ref);
+    for(let j=i===1?0:1;j<seg.length;j++) out.push(seg[j]);
+    if(seg.length) ref=seg[seg.length-1][1];
+  }
+  return out;
+}
+function airspaceViolation(code,a,b){
+  const p=airspaceRoutePlan(code,a,b); return p.violation;
+}
+function airspacePolicyChanged(){
+  if(!S) return; S.airspacePolicyRev=(S.airspacePolicyRev||0)+1; _airspaceRouteCache.clear();
+  if(typeof invalidateAirspacePathCache==='function') invalidateAirspacePathCache();
+  for(const ac of S.fleet||[]) if(ac.status==='flight'&&ac.flight&&Array.isArray(ac.flight.legs)){
+    const carrier=ac.ownerCode||S.company.code, start=Math.max(0,ac.flight.li||0); let model=null,oldProfile=null,current=ac.flight.legs[start];
+    if(current) try{ model=modelOf(ac); oldProfile=legProf(current,model); }catch(_){}
+    for(let i=start;i<ac.flight.legs.length;i++){
+      const leg=ac.flight.legs[i],plan=airspaceRoutePlan(carrier,leg.from,leg.to); if(plan.violation) continue;
+      if(i===start&&oldProfile&&model){ const elapsed=clamp(S.time-leg.dep,0,oldProfile.total),progress=oldProfile.total?elapsed/oldProfile.total:0;
+        leg.dist=plan.distance; leg.wind=windKmh(leg.from,leg.to); leg.ownerCode=carrier;
+        const next=legProf(leg,model); leg.dep=S.time-progress*next.total;
+      }else{ leg.dist=plan.distance; leg.wind=windKmh(leg.from,leg.to); leg.ownerCode=carrier; }
+    }
+  }
+  for(const R of S.rivals||[]) for(const r of R.routes||[]){ delete r._tk; delete r._bb; }
+  if(typeof invalidateScheduleCache==='function') invalidateScheduleCache();
+  if(S.ai) S.ai.ver=(S.ai.ver||0)+1;
+  if(typeof _rvIdx!=='undefined'){ _rvIdx=null; _rvSig=''; }
+  if(typeof _realOn!=='undefined') _realOn.clear(); if(typeof _ghostRoutes!=='undefined') _ghostRoutes.clear();
+  airspacePruneRivals();
+  if(typeof drawRoutes==='function') drawRoutes(); if(typeof updateRival==='function') updateRival();
+  if(typeof G!=='undefined'&&G.viewer&&typeof drawGlobeRivals==='function') drawGlobeRivals();
+}
+function airspacePruneRivals(){
+  if(typeof S==='undefined'||!S) return 0;
+  let removed=0;
+  for(const R of S.rivals||[]){ const routes=Array.isArray(R.routes)?R.routes:[], kept=routes.filter(r=>!airspaceViolation(R.code,r.a,r.b)); R.routes=kept; if(kept.length!==routes.length){ removed+=routes.length-kept.length; R._v=(R._v||0)+1; } }
+  if(S.ai&&S.ai.extra) for(const [code,routes] of Object.entries(S.ai.extra)){ const old=Array.isArray(routes)?routes:[], kept=old.filter(k=>!airspaceViolation(code,k.slice(0,3),k.slice(3))); if(kept.length!==old.length){ removed+=old.length-kept.length; S.ai.extra[code]=kept; } }
+  if(removed){ if(S.ai){ S.ai.ver=(S.ai.ver||0)+1; if(typeof aiOpenRoutes==='function') for(const e of S.ai.list||[]) e.routes=aiOpenRoutes(e); } if(typeof _rvIdx!=='undefined'){ _rvIdx=null; _rvSig=''; } if(typeof _realOn!=='undefined') _realOn.clear(); if(typeof _ghostRoutes!=='undefined') _ghostRoutes.clear(); if(typeof aiNews==='function') aiNews(`⛔ ${removed} liaison(s) de compagnie non autorisée(s) retirée(s) des réseaux enregistrés.`,'warn'); }
+  return removed;
+}
 /* ---------- monde vivant : lignes ouvertes/fermées, compagnies disparues ---------- */
 let _aiVer=-1, _aiSrc=null, _cutSet=new Set(), _extraMap=new Map(), _deadSet=new Set();
 function aiIndexes(){
@@ -61,8 +271,8 @@ function carriersOn(a,b){
   const k=pairKey(a,b), base=realCarriers(a,b);
   if(!aiIndexes()) return base;
   const sp=S.ai.suspend, ca=AP(a).cc, cb=AP(b).cc, susp=sp&&((sp[ca]>S.time&&ca)||(sp[cb]>S.time&&cb));
-  const out=base.filter(c=>!_deadSet.has(c)&&!_cutSet.has(c+k)&&(!susp||homeOf(c)===susp));
-  for(const c of _extraMap.get(k)||[]) if(!out.includes(c)&&!_deadSet.has(c)) out.push(c);
+  const out=base.filter(c=>!_deadSet.has(c)&&!_cutSet.has(c+k)&&(!susp||homeOf(c)===susp)&&!airspaceViolation(c,a,b));
+  for(const c of _extraMap.get(k)||[]) if(!out.includes(c)&&!_deadSet.has(c)&&!airspaceViolation(c,a,b)) out.push(c);
   return out;
 }
 function airlinesOfCountry(cc, minPairs=3){
@@ -98,7 +308,7 @@ function ghostAirline(code){
   _ghost.set(code,R); return R;
 }
 function makeRealRival(code, local){
-  const a=AIRLINE_DB[code], pairs=airlinePairs(code).filter(([x,y])=>AP(x)&&AP(y));
+  const a=AIRLINE_DB[code], pairs=airlinePairs(code).filter(([x,y])=>AP(x)&&AP(y)&&!airspaceViolation(code,x,y));
   const scored=pairs.map(([x,y])=>({a:x,b:y,s:marketDemand(x,y)})).sort((p,q)=>q.s-p.s).slice(0, local?400:260);
   const fleet=realFleet(a[3],code);
   return { name:a[0], code, color:airlineColor(code), hub:a[2], local:!!local, real:true, cash:fleet*22e6, fleet,
@@ -120,11 +330,11 @@ function initRealRivals(){
 
 /* ---------- index des lignes concurrentes ---------- */
 let _rvIdx=null, _rvSig='';
-function rivalSig(){ return (S.rivals||[]).map(R=>R.code+R.routes.length+'.'+(R._v||0)).join(); }
+function rivalSig(){ return (S.rivals||[]).map(R=>R.code+R.routes.length+'.'+(R._v||0)).join()+'|p'+airspacePolicyRev(); }
 function rivalIndex(){
   const sig=rivalSig(); if(_rvIdx && sig===_rvSig && _rvIdx._S===S) return _rvIdx;
   const m=new Map(); m._S=S;
-  for(const R of S.rivals||[]) for(const r of R.routes){ const k=pairKey(r.a,r.b); (m.get(k)||m.set(k,[]).get(k)).push({R,freq:r.freq}); }
+  for(const R of S.rivals||[]) for(const r of R.routes){ if(airspaceViolation(R.code,r.a,r.b)) continue; const k=pairKey(r.a,r.b); (m.get(k)||m.set(k,[]).get(k)).push({R,freq:r.freq}); }
   _rvIdx=m; _rvSig=sig; return m;
 }
 const _realOn=new Map();

@@ -211,7 +211,16 @@ if(typeof DRC_TOWNS!=='undefined'){ const taken=new Set(Object.keys(AIRPORTS));
   for(const [city,prov,lat,lon,rw,popK] of DRC_TOWNS){ if(Object.values(AIRPORTS).some(a=>a.cc==='CD'&&a.city===city)) continue; const code=mkCode(city); if(!code) continue; taken.add(code);
     AIRPORTS[code]={code,icao:'',name:`Aérodrome de ${city}`,city,cc:'CD',prov,lat,lon,runway:rw,surface:'Latérite',cls:rw>=1200?1:1,traffic:+Math.max(0.002,popK/1e5).toFixed(3),drc:true,large:false,utc:lon<22?1:2,popK,extra:true}; } }
 if(typeof DRC_CITY_POP!=='undefined') for(const a of Object.values(AIRPORTS)) if(a.cc==='CD'&&a.popK===undefined&&DRC_CITY_POP[a.city]) a.popK=DRC_CITY_POP[a.city];
-if(typeof DRC_AIR!=='undefined') for(const a of Object.values(AIRPORTS)) if(a.cc==='CD'){ const t=DRC_AIR[a.city]?(a.cls>=3?DRC_AIR[a.city]:0):a.popK?a.popK/1000*DRC_AIR_RATE:0; if(t>a.traffic) a.traffic=+t.toFixed(3); }
+// Une seule porte principale par ville reçoit le plancher annuel afin de ne pas
+// compter deux fois les métropoles qui ont plusieurs aéroports (ex. Kinshasa).
+const DRC_CITY_MAIN_AIRPORT={};
+for(const a of Object.values(AIRPORTS)) if(a.cc==='CD'&&a.city){ const p=DRC_CITY_MAIN_AIRPORT[a.city]&&AIRPORTS[DRC_CITY_MAIN_AIRPORT[a.city]]; if(!p||a.traffic>p.traffic||(a.traffic===p.traffic&&a.cls>p.cls)) DRC_CITY_MAIN_AIRPORT[a.city]=a.code; }
+for(const a of Object.values(AIRPORTS)) if(a.cc==='CD'&&DRC_CITY_MAIN_AIRPORT[a.city]===a.code){
+  a.drcCityMain=true; const popK=a.popK||(typeof DRC_CITY_POP!=='undefined'&&DRC_CITY_POP[a.city])||0;
+  const floor=typeof DRC_AIR!=='undefined'&&DRC_AIR[a.city] ? DRC_AIR[a.city] : popK>=1000?20 : popK>=500?5 : popK>=100?2 : popK>0?0.1+Math.min(100,popK)*0.002 : 0.1;
+  if(popK>0&&popK<100) a.traffic=Math.min(0.3,Math.max(a.traffic||0,floor));
+  else if(floor>(a.traffic||0)) a.traffic=+floor.toFixed(3);
+}
 // 4) pistes réelles et altitude (OurAirports)
 if(typeof RUNWAY_DB!=='undefined') for(const [code,a] of Object.entries(AIRPORTS)){
   const rws=RUNWAY_DB[code]; if(ELEV_DB&&ELEV_DB[code]!==undefined) a.elev=ELEV_DB[code];
@@ -221,6 +230,7 @@ if(typeof RUNWAY_DB!=='undefined') for(const [code,a] of Object.entries(AIRPORTS
   a.surface= hard.length? 'Asphalte' : 'Latérite / herbe';
   a.cls = best<1200?1: best<1700?2: best<2400?3: best<3100?4: 5;
 }
+if(AIRPORTS.BKY){ AIRPORTS.BKY.runway=4200; AIRPORTS.BKY.surface='Asphalte'; AIRPORTS.BKY.cls=5; }
 // Scénario du jeu : Kinshasa commence avec une forte influence, distincte du trafic réel et du bonus de demande.
 if(AIRPORTS.FIH){ let mx=0; for(const [c,a] of Object.entries(AIRPORTS)) if(c!=='FIH'&&a.traffic>mx) mx=a.traffic; AIRPORTS.FIH.marketTraffic=Math.round(mx*1.06); AIRPORTS.FIH.influence=Math.round(mx*2.6); AIRPORTS.FIH.large=true; }
 const AIRPORT_CODES = Object.keys(AIRPORTS);

@@ -42,6 +42,16 @@ const ACTIONS = {
   focusHome:()=>{ if(UI.mobile) setTab('map'); focusCountry(homeCC()); },
   focusCountry:d=>{ if(UI.mobile) setTab('map'); focusCountry(d.cc); },
   country:d=>{ UI.country=d.cc; renderPanel(); },
+  toggleAirspaceBan:d=>{
+    const zone=d.zone, origin=d.origin;
+    if(zone!==homeCC()||!_airspacePolygons[zone]||!COUNTRIES[origin]||origin===zone) return err('Cette règle ne peut être modifiée que pour l’espace aérien cartographié de votre pays.');
+    if(airspaceDefaultBan(zone,origin)) return err('Cette interdiction est une règle géopolitique automatique et ne peut pas être retirée ici.');
+    S.airspaceBans=S.airspaceBans||{}; const set=new Set(Array.isArray(S.airspaceBans[zone])?S.airspaceBans[zone]:[]);
+    if(set.has(origin)) set.delete(origin); else set.add(origin);
+    if(set.size) S.airspaceBans[zone]=[...set].sort(); else delete S.airspaceBans[zone];
+    const denied=set.has(origin); airspacePolicyChanged(); save(); renderPanel(); renderTop();
+    toast(`${denied?'⛔ Survol interdit':'✅ Survol réautorisé'} pour les compagnies de ${COUNTRIES[origin][0]}.`,denied?'warn':'ok');
+  },
   focusWorld:()=>focusWorld(),
   focusHub:()=>{ if(UI.mobile) setTab('map'); focusAirport(S.company.hub); },
   apZoom:d=>{ closeModal(); if(UI.mobile) setTab('map'); focusAirport(d.c); },
@@ -293,11 +303,13 @@ function runCatchUp(pl){
   if(!small){ box=document.createElement('div'); box.id='catchup'; box.innerHTML=`<b>⏩ Rattrapage de votre absence</b><div class="cu-bar"><i></i></div><small></small><button class="btn sm">⏭️ Passer</button>`; document.body.appendChild(box);
     box.querySelector('button').onclick=()=>{ pl.left=0; }; }
   const step=()=>{ const t0=performance.now();
-    try{ UI.silent=true; while(pl.left>0&&performance.now()-t0<60){ const d=Math.min(pl.left,2*HOUR); advance(d); pl.left-=d; } }
+    // Cinq minutes simulées à la fois : advance() traite 24 pas internes par 2 h,
+    // ce qui pouvait monopoliser Safari sur une grande compagnie et rendre « Passer » inopérant.
+    try{ UI.silent=true; while(pl.left>0&&performance.now()-t0<20){ const d=Math.min(pl.left,5*MIN); advance(d); pl.left-=d; } }
     catch(e){ pl.left=0; UI.silent=false; setTimeout(()=>{ throw e; },0); }
     finally{ UI.silent=false; }
     if(box){ const f=1-pl.left/pl.total; box.querySelector('i').style.width=(f*100).toFixed(0)+'%'; box.querySelector('small').textContent=`${fmtDur(pl.total-pl.left)} de jeu sur ${fmtDur(pl.total)} · ${fmtDate(S.time)}`; }
-    if(pl.left>0){ setTimeout(step,0); return; }
+    if(pl.left>0){ setTimeout(step,16); return; }
     UI.catching=false; if(box) box.remove(); S.lastReal=Date.now();
     try{ renderTop(); if(typeof renderPanel==='function') renderPanel(); updatePlanes(); }catch(e){}
     try{ offlineReport(catchUpReport(pl)); }catch(e){ console.warn(e); } };
@@ -370,7 +382,7 @@ function boot(){
   window.addEventListener('beforeunload',save);
   document.addEventListener('visibilitychange',()=>{ if(document.hidden){ save(); try{ localStorage.setItem('se-lr',String(Date.now())); }catch(e){} } else wakeUp(); });
   window.addEventListener('pageshow',()=>wakeUp()); window.addEventListener('focus',()=>wakeUp());
-  function wakeUp(){ if(!S||S.paused) return; const wall=Date.now(), gap=wall-(UI.lastWall||wall); if(gap<=15000) return; UI.lastWall=wall; S.lastReal=wall-gap; UI.silent=true; const rep=catchUp(); UI.silent=false; if(rep){ try{ offlineReport(rep); }catch(e){} } renderTop(); }
+  function wakeUp(){ if(!S||S.paused||UI.catching) return; const wall=Date.now(), gap=wall-(UI.lastWall||wall); if(gap<=15000) return; UI.lastWall=wall; S.lastReal=wall-gap; let pl=null; try{ pl=catchUpPlan(); }catch(e){ console.warn(e); } if(pl) runCatchUp(pl); renderTop(); }
   setInterval(()=>{ try{ localStorage.setItem('se-lr',String(Date.now())); }catch(e){} },5000);
 }
 
