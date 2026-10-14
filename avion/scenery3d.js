@@ -220,7 +220,6 @@ const X3D={cells:new Map(), busy:false, fail:0, lmCity:new Map()};
 const X_COL={park:'#4f8f3c',garden:'#5a9a45',pitch:'#3f9d4a',playground:'#6aa84f',grass:'#5f9a4a',recreation_ground:'#5a9445',forest:'#2f6b2a',wood:'#2f6b2a',cemetery:'#6b8f5a',marketplace:'#a88a5c'};
 function cityExtrasTick(v,agl){
   if(agl>5000||X3D.busy||X3D.fail>=4||typeof OSM_CELL==='undefined') return;
-  if(GQ.mini){ try{ landmarksTick(v); }catch(e){} return; }   // Minimal : monuments seulement
   try{ landmarksTick(v); }catch(e){ console.warn(e); }
   const i=Math.floor(v.lat/OSM_CELL), j=Math.floor(v.lon/OSM_CELL), R=GQ.mob?0:1, want=[];
   for(let di=-R;di<=R;di++) for(let dj=-R;dj<=R;dj++) want.push([i+di,j+dj,di*di+dj*dj]);
@@ -271,6 +270,7 @@ async function extrasLoad(i,j,v){
       obj.push(new C.GeometryInstance({geometry:new C.EllipsoidGeometry({radii:palm?new C.Cartesian3(cr*1.2,cr*1.2,cr*0.45):new C.Cartesian3(cr,cr,cr*0.85),stackPartitions:5,slicePartitions:7,vertexFormat:VF}),modelMatrix:C.Matrix4.multiplyByTranslation(enu(la,lo,z),new C.Cartesian3(0,0,hgt*0.6+cr*0.4),new C.Matrix4()),attributes:colA(['#2f6b2a','#3a7d32','#4a8c3a','#2c5f2d'][Math.floor(rnd()*4)])})); }
   }
   const prims=X3D.cells.get(key);
+  try{ await poiLoad(bb,gs,prims,key); }catch(e){ console.warn(e); }
   if(ground.length) prims.push(V.scene.primitives.add(new C.GroundPrimitive({geometryInstances:ground, appearance:new C.PerInstanceColorAppearance({flat:true,translucent:false}), asynchronous:true})));
   if(obj.length) prims.push(V.scene.primitives.add(new C.Primitive({geometryInstances:obj, appearance:new C.PerInstanceColorAppearance({flat:false,closed:true,translucent:false}), asynchronous:true})));
 }
@@ -299,4 +299,41 @@ function landmarksTick(v){
     const prim=inst.length?V.scene.primitives.add(new C.Primitive({geometryInstances:inst, appearance:new C.PerInstanceColorAppearance({flat:false,closed:true,translucent:false}), asynchronous:true})):null;
     X3D.lmCity.set(city,{viewer:V,prim,ents});
   }
+}
+
+/* ---------- lieux de la ville : églises, mosquées, hôpitaux, écoles, stations, banques, hôtels ---------- */
+const POI_ICON={hospital:'🏥',clinic:'🏥',school:'🎓',university:'🎓',college:'🎓',fuel:'⛽',bank:'🏦',hotel:'🏨'};
+async function poiLoad(bb,gs,prims,key){
+  const q=`[out:json][timeout:25];(nwr["amenity"~"^(place_of_worship|hospital|clinic|school|university|college|fuel|bank)$"]${bb};nwr["tourism"="hotel"]${bb};);out center tags ${GQ.mob?150:500};`;
+  let js=null;
+  for(const ep of (typeof OSM_EP!=='undefined'?OSM_EP:['https://overpass-api.de/api/interpreter'])){ try{ const r=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}}); if(r.ok){ js=await r.json(); break; } }catch(err){} }
+  if(!js||!G||!G.viewer||!X3D.cells.has(key)) return;
+  const C=Cesium, V=G.viewer, VF=C.PerInstanceColorAppearance.VERTEX_FORMAT, inst=[], lab=new C.LabelCollection();
+  const capL=GQ.mini?15:GQ.mob?30:120, capT=GQ.mini?6:GQ.mob?15:60; let nL=0, nT=0;
+  const col=h=>({color:C.ColorGeometryInstanceAttribute.fromColor(C.Color.fromCssColorString(h))});
+  const at=(lat,lon,z,dz)=>C.Matrix4.multiplyByTranslation(C.Transforms.eastNorthUpToFixedFrame(C.Cartesian3.fromDegrees(lon,lat,z)),new C.Cartesian3(0,0,dz),new C.Matrix4());
+  const els=(js.elements||[]).map(e=>({t:e.tags||{},lat:e.lat!=null?e.lat:e.center&&e.center.lat,lon:e.lon!=null?e.lon:e.center&&e.center.lon})).filter(e=>e.lat!=null)
+    .sort((a,b)=>(!!b.t.name-!!a.t.name)||((b.t.amenity==='place_of_worship')-(a.t.amenity==='place_of_worship')));
+  for(const e of els){ const t=e.t, z=gs({lat:e.lat,lon:e.lon}), kind=t.amenity||(t.tourism==='hotel'?'hotel':''); let top=14;
+    if(kind==='place_of_worship'&&nT<capT){ nT++;
+      if(t.religion==='muslim'){   // minaret : fût blanc, balcon, flèche verte
+        inst.push(new C.GeometryInstance({geometry:new C.CylinderGeometry({length:28,topRadius:1.5,bottomRadius:1.9,slices:10,vertexFormat:VF}),modelMatrix:at(e.lat,e.lon,z,14),attributes:col('#f8fafc')}));
+        inst.push(new C.GeometryInstance({geometry:new C.CylinderGeometry({length:1.2,topRadius:2.6,bottomRadius:2.2,slices:10,vertexFormat:VF}),modelMatrix:at(e.lat,e.lon,z,22),attributes:col('#e2e8f0')}));
+        inst.push(new C.GeometryInstance({geometry:new C.CylinderGeometry({length:5,topRadius:0,bottomRadius:1.6,slices:10,vertexFormat:VF}),modelMatrix:at(e.lat,e.lon,z,30.5),attributes:col('#15803d')}));
+        top=34;
+      } else {   // clocher : tour, flèche, croix
+        inst.push(new C.GeometryInstance({geometry:C.BoxGeometry.fromDimensions({dimensions:new C.Cartesian3(5,5,20),vertexFormat:VF}),modelMatrix:at(e.lat,e.lon,z,10),attributes:col('#f1e9d8')}));
+        inst.push(new C.GeometryInstance({geometry:new C.CylinderGeometry({length:9,topRadius:0,bottomRadius:3.6,slices:4,vertexFormat:VF}),modelMatrix:C.Matrix4.multiply(at(e.lat,e.lon,z,24.5),C.Matrix4.fromRotationTranslation(C.Matrix3.fromRotationZ(Math.PI/4)),new C.Matrix4()),attributes:col('#7f1d1d')}));
+        inst.push(new C.GeometryInstance({geometry:C.BoxGeometry.fromDimensions({dimensions:new C.Cartesian3(0.35,0.35,3.2),vertexFormat:VF}),modelMatrix:at(e.lat,e.lon,z,30.6),attributes:col('#facc15')}));
+        inst.push(new C.GeometryInstance({geometry:C.BoxGeometry.fromDimensions({dimensions:new C.Cartesian3(1.8,0.3,0.3),vertexFormat:VF}),modelMatrix:at(e.lat,e.lon,z,31.4),attributes:col('#facc15')}));
+        top=33;
+      }
+    }
+    const ic=kind==='place_of_worship'?(t.religion==='muslim'?'🕌':'⛪'):POI_ICON[kind]; if(!ic||nL>=capL) continue;
+    if(!t.name&&!/fuel|bank|hotel|hospital/.test(kind)) continue;
+    nL++; const big=/hospital|university|hotel/.test(kind);
+    lab.add({position:C.Cartesian3.fromDegrees(e.lon,e.lat,z+top+6), text:ic+' '+(t.name?(t.name.length>30?t.name.slice(0,28)+'…':t.name):({fuel:'Station-service',bank:'Banque',hotel:'Hôtel',hospital:'Hôpital'})[kind]||''), font:'600 12px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, showBackground:true, backgroundColor:C.Color.fromCssColorString(kind==='place_of_worship'?'#7c2d12':/hospital|clinic/.test(kind)?'#b91c1c':/school|university|college/.test(kind)?'#1d4ed8':kind==='fuel'?'#a16207':kind==='bank'?'#166534':'#6b21a8').withAlpha(0.85), distanceDisplayCondition:new C.DistanceDisplayCondition(0,big?3000:1600), translucencyByDistance:new C.NearFarScalar(900,1,big?3000:1600,0.15), disableDepthTestDistance:700});
+  }
+  if(lab.length) prims.push(V.scene.primitives.add(lab)); else lab.destroy();
+  if(inst.length) prims.push(V.scene.primitives.add(new C.Primitive({geometryInstances:inst, appearance:new C.PerInstanceColorAppearance({flat:false,closed:true,translucent:false}), asynchronous:true})));
 }

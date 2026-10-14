@@ -6,7 +6,7 @@
    en nombre limité (moins en qualité Minimal).
    ========================================================= */
 'use strict';
-const RD={cells:new Map(), busy:false, fail:0, cars:[], roads:[], paths:[], viewer:null, last:0, models:null};
+const RD={cells:new Map(), busy:false, fail:0, cars:[], roads:[], paths:[], lamps:[], viewer:null, last:0, models:null};
 const RD_CELL=0.05, RD_KIND={motorway:[24,'#2b2e33',31],trunk:[20,'#30343a',25],primary:[15,'#3a3e44',17],secondary:[11,'#464a50',14],tertiary:[8,'#53575c',11]};   // asphalte (plus sombre = plus grande route)
 const RD_EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.nextgis.com/api/interpreter'];
 const RD_COLORS=['#f8fafc','#111827','#9ca3af','#b91c1c','#1d4ed8','#e5e7eb','#78716c','#facc15','#065f46'];
@@ -27,12 +27,14 @@ function rdCam(){ const c=G.viewer.camera.positionCartographic; return {lat:Cesi
 // point du sol au centre de l'écran (là où l'on regarde), sinon sous la caméra
 function rdView(cam){ try{ const V=G.viewer, cv=V.scene.canvas, p=V.camera.pickEllipsoid(new Cesium.Cartesian2(cv.clientWidth/2,cv.clientHeight*0.6)); if(p){ const c=Cesium.Cartographic.fromCartesian(p), lat=Cesium.Math.toDegrees(c.latitude), lon=Cesium.Math.toDegrees(c.longitude); if(gcDist({lat,lon},cam)<25) return {lat,lon}; } }catch(e){} return {lat:cam.lat,lon:cam.lon}; }
 const RD_MAJ=0.4;
+function rdNight(){ try{ return sunElev(-4.32,15.31,S.time)<-2; }catch(e){ return false; } }
 function rdTick(){
   if(!rdOn()) return;
   if(RD.viewer!==G.viewer){ rdReset(); RD.viewer=G.viewer; G.viewer.scene.preRender.addEventListener(rdFrame); }
   const cam=rdCam(), ground=typeof groundAt==='function'?groundAt(cam.lat,cam.lon):0, agl=cam.h-ground;
   try{ minimapUpdate(cam); }catch(e){}
   try{ riverWaterTick(cam); }catch(e){ console.warn(e); }
+  { const nt=rdNight(); for(const l of RD.lamps) l.show=nt; }
   try{ cityRingTick(cam,agl); }catch(e){ console.warn(e); }
   if(agl>9000||G.tiles){ for(const r of RD.roads) r.show=false; for(const c of RD.cars) c.e.show=false; return; }
   for(const r of RD.roads) r.show=true;
@@ -70,18 +72,19 @@ function cityRingTick(cam,agl){
     const prim=O.cells.get(far); if(prim&&prim.destroy) G.viewer.scene.primitives.remove(prim); O.cells.delete(far); if(fd<=R*R*2) break; }
 }
 // rives du fleuve : [nom, sud, ouest, nord, est, bâtiments max par case (ordinateur)]
-const RIVER_PIN=[['Kinshasa',-4.335,15.250,-4.295,15.365,2200],['Brazzaville',-4.290,15.230,-4.250,15.295,800]], PIN_CELL=0.03;
+const RIVER_PIN=[['Kinshasa',-4.335,15.250,-4.295,15.365,2200],['Brazzaville',-4.290,15.230,-4.250,15.295,800],['Ndjili',-4.405,15.330,-4.335,15.470,1800]], PIN_CELL=0.03;   // Ndjili : Limete, bd Lumumba, Masina, aéroport
 function pinCells(){ const out=[]; for(const [city,s0,w0,n0,e0,lim] of RIVER_PIN){ for(let i=Math.floor(s0/PIN_CELL);i<=Math.floor(n0/PIN_CELL);i++) for(let j=Math.floor(w0/PIN_CELL);j<=Math.floor(e0/PIN_CELL);j++){
     const s=Math.max(s0,i*PIN_CELL), w=Math.max(w0,j*PIN_CELL), n=Math.min(n0,(i+1)*PIN_CELL), e=Math.min(e0,(j+1)*PIN_CELL); if(n<=s||e<=w) continue; out.push({key:'P'+city[0]+i+','+j,city,s,w,n,e,lim}); } }
   return out; }
 // les bâtiments déjà chargés sur les rives ne sont pas redessinés par les grandes cases autour (pas de doublons)
 function osmSkip(lat,lon){ const P=G&&G.osmPin; if(!P) return false; for(const c of P.values()) if(c&&c.ok&&lat>=c.s&&lat<c.n&&lon>=c.w&&lon<c.e) return true; return false; }
 function riverPinTick(v,cam){
-  const near=gcDist(v,{lat:-4.30,lon:15.30})<35&&cam.h<12000; if(!G.osmPin) G.osmPin=new Map();
+  const near=gcDist(v,{lat:-4.33,lon:15.36})<40&&cam.h<12000; if(!G.osmPin) G.osmPin=new Map();
   if(!near){ if(G.osmPin.size){ for(const st of G.osmPin.values()) if(st&&st.prim) G.viewer.scene.primitives.remove(st.prim); G.osmPin.clear(); } return false; }
-  if(GQ.mini&&gcDist(v,{lat:-4.31,lon:15.31})>12) return false;
-  let cells=pinCells(); if(GQ.mini) cells=cells.filter(c=>c.city==='Kinshasa'&&c.w>=15.28&&c.e<=15.33&&c.s>=-4.32);
-  cells.sort((a,b)=>gcDist(v,{lat:(a.s+a.n)/2,lon:(a.w+a.e)/2})-gcDist(v,{lat:(b.s+b.n)/2,lon:(b.w+b.e)/2}));
+  // seules les cases proches de ce que l'on regarde restent chargées (mémoire du téléphone)
+  const rad=(GQ.mini?3:GQ.mob?5:18)*(typeof cityK==='function'?Math.max(0.5,cityK()):1), ctr=c=>({lat:(c.s+c.n)/2,lon:(c.w+c.e)/2});
+  for(const [k,st] of G.osmPin){ if(st&&st.ok&&gcDist(v,{lat:(st.s+st.n)/2,lon:(st.w+st.e)/2})>rad+3){ if(st.prim) G.viewer.scene.primitives.remove(st.prim); G.osmPin.delete(k); } }
+  const cells=pinCells().filter(c=>gcDist(v,ctr(c))<rad).sort((a,b)=>gcDist(v,ctr(a))-gcDist(v,ctr(b)));
   const c=cells.find(x=>!G.osmPin.has(x.key)); if(!c) return false;
   const k=GQ.mini?0.14:GQ.mob?0.16:1, lim=Math.max(40,Math.round(c.lim*k*(typeof cityK==='function'?cityK():1)));   // téléphone : ~350 bâtiments par case côté Kinshasa, ~130 côté Brazzaville
   G.osmPin.set(c.key,{s:c.s,w:c.w,n:c.n,e:c.e,ok:false}); pinLoad(c,lim); return true;
@@ -101,7 +104,7 @@ async function pinLoad(c,lim){
   let prim=null; try{ prim=typeof osmBuildCell==='function'?osmBuildCell(els,gb,true):null; }catch(e){ console.warn(e); }
   const st=G.osmPin.get(c.key); if(st){ st.prim=prim; st.ok=true; }
 }
-function rdReset(){ RD.cells.clear(); RD.roads=[]; RD.cars=[]; RD.paths=[]; RD.busy=false; RD.fail=0; }
+function rdReset(){ RD.cells.clear(); RD.roads=[]; RD.cars=[]; RD.paths=[]; RD.lamps=[]; RD.busy=false; RD.fail=0; }
 async function rdLoad(key,s,w,n,e,kinds,limit,major){
   RD.cells.set(key,{prims:[],cars:[],major,s,w,n,e}); RD.busy=true;
   const q=`[out:json][timeout:25];way["highway"~"^(${kinds})$"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});out geom ${limit};`;
@@ -127,12 +130,21 @@ async function rdLoad(key,s,w,n,e,kinds,limit,major){
   if(inst.length){ const prim=V.scene.primitives.add(new C.GroundPolylinePrimitive({geometryInstances:inst, appearance:new C.PolylineColorAppearance(), asynchronous:true})); cell.prims.push(prim);
   if(marks.length&&!GQ.mini){ const pm=V.scene.primitives.add(new C.GroundPolylinePrimitive({geometryInstances:marks, appearance:new C.PolylineMaterialAppearance({material:C.Material.fromType('PolylineDash',{color:C.Color.WHITE.withAlpha(0.85),dashLength:22})}), asynchronous:true})); cell.prims.push(pm); RD.roads.push(pm); } RD.roads.push(prim); }
   // chemins gardés pour les voitures (avec leur boîte englobante)
+  // lampadaires le long des avenues et boulevards (allumés la nuit seulement)
+  if(!major) try{ const gs=typeof cellGround==='function'?await cellGround(s,w,n,e,300):(()=>0);
+    if(RD.cells.has(key)){ const pc=new C.PointPrimitiveCollection(), capL=GQ.mini?150:GQ.mob?350:1500, both=!GQ.mob; let nL=0;
+      for(const p of paths){ if(p.v<14||nL>=capL) continue; const half=(p.v>=31?24:p.v>=25?20:p.v>=17?15:11)/2+1.5;
+        for(let d=20;d<p.len&&nL<capL;d+=GQ.mob?60:42){ let x=1; while(x<p.cum.length-1&&p.cum[x]<d) x++; const A=p.pts[x-1], B=p.pts[x], f=(d-p.cum[x-1])/Math.max(0.01,p.cum[x]-p.cum[x-1]);
+          const la=A.lat+(B.lat-A.lat)*f, lo=A.lon+(B.lon-A.lon)*f, hd=bearing(A,B);
+          for(const sd of both?[1,-1]:[(Math.round(d/60)%2)?1:-1]){ const q=destPt(la,lo,hd+90*sd,half/1000); nL++;
+            pc.add({position:C.Cartesian3.fromDegrees(q.lon,q.lat,gs(q)+9), color:C.Color.fromCssColorString('#ffd27a'), pixelSize:5, outlineColor:C.Color.fromCssColorString('#ffb347').withAlpha(0.35), outlineWidth:3, scaleByDistance:new C.NearFarScalar(150,1.8,5000,0.5)}); } } }
+      pc.show=rdNight(); V.scene.primitives.add(pc); cell.prims.push(pc); RD.lamps.push(pc); } }catch(err){ console.warn(err); }
   for(const p of paths){ p.key=key; p.s=Math.min(...p.pts.map(q=>q.lat)); p.n=Math.max(...p.pts.map(q=>q.lat)); p.w=Math.min(...p.pts.map(q=>q.lon)); p.e=Math.max(...p.pts.map(q=>q.lon)); RD.paths.push(p); }
   // ménage : 6 cases au plus
   const capMinor=GQ.mini?1:GQ.mob?3:10, minors=[...RD.cells.entries()].filter(([k,c])=>!c.major), majors=[...RD.cells.entries()].filter(([k,c])=>c.major);
   const evict=minors.length>capMinor?minors[0][0]:majors.length>2?majors[0][0]:null;
   if(evict){ const k0=evict, old=RD.cells.get(k0); RD.cells.delete(k0);
-    if(old){ for(const pr of old.prims){ V.scene.primitives.remove(pr); RD.roads=RD.roads.filter(x=>x!==pr); } RD.paths=RD.paths.filter(p=>p.key!==k0); for(const c of RD.cars) if(c.p&&c.p.key===k0) c.p=null; } }
+    if(old){ for(const pr of old.prims){ V.scene.primitives.remove(pr); RD.roads=RD.roads.filter(x=>x!==pr); RD.lamps=RD.lamps.filter(x=>x!==pr); } RD.paths=RD.paths.filter(p=>p.key!==k0); for(const c of RD.cars) if(c.p&&c.p.key===k0) c.p=null; } }
 }
 // parc de voitures fixe : celles qui sont loin du point regardé reviennent sur une route proche
 function rdCars(v,agl){
