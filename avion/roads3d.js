@@ -7,7 +7,7 @@
    ========================================================= */
 'use strict';
 const RD={cells:new Map(), busy:false, fail:0, cars:[], roads:[], paths:[], viewer:null, last:0, models:null};
-const RD_CELL=0.05, RD_KIND={motorway:[22,'#f59e0b',31],trunk:[18,'#fbbf24',25],primary:[14,'#e5e7eb',17],secondary:[11,'#d1d5db',14],tertiary:[8,'#cbd5e1',11]};
+const RD_CELL=0.05, RD_KIND={motorway:[24,'#2b2e33',31],trunk:[20,'#30343a',25],primary:[15,'#3a3e44',17],secondary:[11,'#464a50',14],tertiary:[8,'#53575c',11]};   // asphalte (plus sombre = plus grande route)
 const RD_EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
 const RD_COLORS=['#f8fafc','#111827','#9ca3af','#b91c1c','#1d4ed8','#e5e7eb','#78716c','#facc15','#065f46'];
 // voitures : carrosserie, vitres, phares, feux arrière, roues (longueur sur z : avant en +z)
@@ -74,16 +74,21 @@ async function rdLoad(key,s,w,n,e,kinds,limit,major){
   if(!js){ RD.fail++; RD.cells.delete(key); return; }
   RD.fail=0; if(!rdOn()) return;
   const C=Cesium, V=G.viewer, cell=RD.cells.get(key); if(!cell) return;
-  const inst=[], paths=[];
+  const inst=[], paths=[], marks=[], edges=[];
   for(const el of js.elements||[]){
     const g=el.geometry, hw=(el.tags||{}).highway, k=RD_KIND[hw]; if(!g||g.length<2||!k) continue;
     if(!major&&[...RD.cells.values()].some(c=>c.major&&g[0].lat>=c.s&&g[0].lat<=c.n&&g[0].lon>=c.w&&g[0].lon<=c.e)&&/motorway|trunk|primary/.test(hw)) continue;
+    const P3=C.Cartesian3.fromDegreesArray(g.flatMap(p=>[p.lon,p.lat]));
+    if(/motorway|trunk|primary|secondary/.test(hw)) try{ marks.push(new C.GeometryInstance({geometry:new C.GroundPolylineGeometry({positions:P3,width:hw==='secondary'?0.7:1.0})})); }catch(err){}   // ligne médiane
+    if(/motorway|trunk/.test(hw)) try{ edges.push(new C.GeometryInstance({geometry:new C.GroundPolylineGeometry({positions:P3,width:k[0]+3}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(C.Color.fromCssColorString('#d6d3c8').withAlpha(0.9))}})); }catch(err){}   // accotements clairs
     try{ inst.push(new C.GeometryInstance({geometry:new C.GroundPolylineGeometry({positions:C.Cartesian3.fromDegreesArray(g.flatMap(p=>[p.lon,p.lat])),width:k[0]}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(C.Color.fromCssColorString(k[1]).withAlpha(0.85))}})); }catch(err){}
     // chemin pour les voitures : distances cumulées
     const pts=g.map(p=>({lat:p.lat,lon:p.lon})), cum=[0]; for(let x=1;x<pts.length;x++) cum.push(cum[x-1]+gcDist(pts[x-1],pts[x])*1000);
     if(cum[cum.length-1]>150) paths.push({pts,cum,len:cum[cum.length-1],v:k[2],oneway:(el.tags||{}).oneway==='yes'||el.tags.highway==='motorway'});
   }
-  if(inst.length){ const prim=V.scene.primitives.add(new C.GroundPolylinePrimitive({geometryInstances:inst, appearance:new C.PolylineColorAppearance(), asynchronous:true})); cell.prims.push(prim); RD.roads.push(prim); }
+  if(edges.length){ const pe=V.scene.primitives.add(new C.GroundPolylinePrimitive({geometryInstances:edges, appearance:new C.PolylineColorAppearance(), asynchronous:true})); cell.prims.push(pe); RD.roads.push(pe); }
+  if(inst.length){ const prim=V.scene.primitives.add(new C.GroundPolylinePrimitive({geometryInstances:inst, appearance:new C.PolylineColorAppearance(), asynchronous:true})); cell.prims.push(prim);
+  if(marks.length&&!GQ.mini){ const pm=V.scene.primitives.add(new C.GroundPolylinePrimitive({geometryInstances:marks, appearance:new C.PolylineMaterialAppearance({material:C.Material.fromType('PolylineDash',{color:C.Color.WHITE.withAlpha(0.85),dashLength:22})}), asynchronous:true})); cell.prims.push(pm); RD.roads.push(pm); } RD.roads.push(prim); }
   // chemins gardés pour les voitures (avec leur boîte englobante)
   for(const p of paths){ p.key=key; p.s=Math.min(...p.pts.map(q=>q.lat)); p.n=Math.max(...p.pts.map(q=>q.lat)); p.w=Math.min(...p.pts.map(q=>q.lon)); p.e=Math.max(...p.pts.map(q=>q.lon)); RD.paths.push(p); }
   // ménage : 6 cases au plus
