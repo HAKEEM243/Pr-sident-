@@ -18,15 +18,15 @@ startProject=function(code,type){
   if(type.startsWith('xp')||type==='terminal'||type==='extend') (S.playerAirportBuilds=S.playerAirportBuilds||{})[code]=S.time;
   if(S.ai){ S.playerBuildRouteQueue=S.playerBuildRouteQueue||[]; S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>x.code!==code); S.playerBuildRouteQueue.push({code,type,t:S.time}); if(S.playerBuildRouteQueue.length>20) S.playerBuildRouteQueue.shift(); }
   logMsg(`🏗️ ${u.name} à ${a.city} : terminé (${fmtMoney(c)}).`,'drc');
-  if(S.ai&&typeof aiStartup==='function'&&a.cls>=2) aiStartup(null,0,code);
+  if(type.startsWith('xp')||type==='terminal'||type==='extend') logMsg(`🛡️ ${a.city} : vous avez 6 mois d’avance, aucune nouvelle compagnie ne peut s’y installer d’ici là.`,'ok');
   return null;
 };
 
 /* ---------- réactions espacées aux investissements du joueur ---------- */
 function hrPlayerBuildRouteTick(){
   if(!S.ai||!S.playerBuildRouteQueue||!S.playerBuildRouteQueue.length) return;
-  const now=S.time, interval=3*DAY;
-  S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>now-x.t<=60*DAY);
+  const now=S.time, interval=120*DAY;   // une seule compagnie, au plus tôt 4 mois après votre chantier
+  S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>now-x.t<=240*DAY);
   if(!S.playerBuildRouteQueue.length||now-(S.ai.lastPlayerBuildRouteAt??-Infinity)<interval) return;
   const task=S.playerBuildRouteQueue.find(x=>now-x.t>=interval); if(!task) return;
   if(now-(task.lastTry??-Infinity)<DAY) return; task.lastTry=now;
@@ -79,8 +79,8 @@ function aiImprove(e,lvl,isNat){
   const mineSet=new Set(S.routes.flatMap(r=>r.stops));
   const r=Math.random(), cc=e.cc||homeOf(e.code);
   if(r<0.35&&aiAirportMarketOpen(e.hub)){ // une destination que vous ne desservez pas
-    const cand=AIRPORT_CODES.filter(c=>c!==e.hub&&aiAirportMarketOpen(c)&&AP(c).cls>=1&&!mineSet.has(c)&&!carriersOn(e.hub,c).includes(e.code)&&!airspaceViolation(e.code,e.hub,c)&&dist(e.hub,c)>150&&dist(e.hub,c)<(e.fleet>=60?7000:isNat?2600:3500))
-      .sort((x,y)=>(AP(y).cc===cc)-(AP(x).cc===cc)||marketDemand(e.hub,y)-marketDemand(e.hub,x)).slice(0,12);
+    const cand=AIRPORT_CODES.filter(c=>c!==e.hub&&aiAirportMarketOpen(c)&&AP(c).cls>=1&&!mineSet.has(c)&&dist(e.hub,c)>150&&dist(e.hub,c)<(e.fleet>=60?7000:isNat?2600:3500)&&!carriersOn(e.hub,c).includes(e.code))
+      .sort((x,y)=>(AP(y).cc===cc)-(AP(x).cc===cc)||marketDemand(e.hub,y)-marketDemand(e.hub,x)).slice(0,30).filter(c=>!airspaceViolation(e.code,e.hub,c)).slice(0,12);
     if(cand.length){ const c=pick(cand); (S.ai.extra[e.code]=S.ai.extra[e.code]||[]).push(pairKey(e.hub,c)); e.routes++; S.ai.ver++;
       aiNews(`🆕 ${e.name} ouvre une nouvelle destination : ${keyCity(e.hub)} → ${keyCity(c)}.`,'rival',isNat); }
   } else if(r<0.55){ e.skill=clamp((e.skill||0)+0.04,-0.6,0.6); e.age=Math.max(2,(e.age||8)-1.5);

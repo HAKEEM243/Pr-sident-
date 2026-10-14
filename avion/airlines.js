@@ -70,11 +70,22 @@ function airspaceDefaultBan(zone,home){
 function airspaceReason(cc){
   return cc==='KP'?'La Corée du Nord n’autorise que les compagnies de Chine, Russie, RDC et Nigeria.':cc==='CD'?'La RDC interdit le survol aux compagnies rwandaises.':cc==='IR'?'L’Iran ferme son espace aérien aux compagnies américaines.':cc==='UA'?'L’Ukraine ferme son espace aérien aux compagnies russes.':'La compagnie n’est pas autorisée dans cet espace aérien.';
 }
+// cache : les zones interdites ne dépendent que du pays de la compagnie et des règles en vigueur
+let _azKey='', _azCache=new Map();
 function airspaceZonesFor(code){
-  const home=airlineHomeCountry(code), zones=[];
+  const k=airspacePolicyRev()+'|'+JSON.stringify((typeof S!=='undefined'&&S&&S.airspaceBans)||0).length+'|'+airspaceWarZones().join(','); if(k!==_azKey){ _azKey=k; _azCache.clear(); }
+  const home=airlineHomeCountry(code); let z=_azCache.get(home); if(!z){ z=airspaceZonesCalc(home); _azCache.set(home,z); } return z; }
+// pays en guerre (directeur du monde) : le ciel est fermé à toutes les compagnies étrangères
+let _awT=-1, _awZ=[];
+function airspaceWarZones(){ const W=typeof S!=='undefined'&&S&&S.wd; if(!W||!Array.isArray(W.wars)) return [];
+  const t=Math.floor(S.time/HOUR); if(t===_awT) return _awZ; _awT=t;
+  return _awZ=[...new Set(W.wars.filter(w=>w.stage==='war').flatMap(w=>w.ccs||[]))].filter(cc=>_airspacePolygons[cc]).sort(); }
+{ const _ar=airspaceReason; airspaceReason=function(cc){ return airspaceWarZones().includes(cc)?`⚔️ ${COUNTRIES[cc]?COUNTRIES[cc][0]:cc} est en guerre : son espace aérien est fermé aux compagnies étrangères.`:_ar(cc); }; }
+function airspaceZonesCalc(home){
+  const zones=airspaceWarZones().filter(cc=>cc!==home);
   for(const cc of Object.keys(_airspacePolygons)){
     const custom=typeof S!=='undefined'&&S&&S.airspaceBans&&S.airspaceBans[cc];
-    if(airspaceDefaultBan(cc,home)||(Array.isArray(custom)&&custom.includes(home))) zones.push(cc);
+    if(!zones.includes(cc)&&(airspaceDefaultBan(cc,home)||(Array.isArray(custom)&&custom.includes(home)))) zones.push(cc);
   }
   return zones;
 }
@@ -96,9 +107,22 @@ function airspaceContains(cc,lon,lat){ return (_airspacePolygons[cc]||[]).some(p
 function airspaceNear(cc,lon,lat,pad){
   return (_airspacePolygons[cc]||[]).some(poly=>lon>=poly.minX-pad&&lon<=poly.maxX+pad&&lat>=poly.minY-pad&&lat<=poly.maxY+pad);
 }
+// test rapide : distance du grand cercle a→b au cercle qui englobe la zone (la plupart des lignes passent très loin)
+function _asV(lat,lon){ const r=Math.PI/180, c=Math.cos(lat*r); return [c*Math.cos(lon*r),c*Math.sin(lon*r),Math.sin(lat*r)]; }
+function _asCircle(poly){ if(poly._c) return poly._c; const lat=(poly.minY+poly.maxY)/2, lon=(poly.minX+poly.maxX)/2;
+  const rad=Math.max(gcDist({lat,lon},{lat:poly.minY,lon:poly.minX}),gcDist({lat,lon},{lat:poly.maxY,lon:poly.maxX}),gcDist({lat,lon},{lat:poly.minY,lon:poly.maxX}),gcDist({lat,lon},{lat:poly.maxY,lon:poly.minX}));
+  return poly._c={v:_asV(lat,lon),lat,lon,rad:rad+60}; }
+function _asFar(poly,pa,pb){ const C=_asCircle(poly), a=_asV(pa.lat,pa.lon), b=_asV(pb.lat,pb.lon), c=C.v;
+  const n=[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]], nl=Math.hypot(n[0],n[1],n[2]);
+  const dEnd=Math.min(gcDist(pa,C),gcDist(pb,C)); if(nl<1e-9) return dEnd>C.rad;
+  const cn=(c[0]*n[0]+c[1]*n[1]+c[2]*n[2])/nl, ct=Math.abs(Math.asin(clamp(cn,-1,1)))*6371;
+  const ac=[a[1]*c[2]-a[2]*c[1],a[2]*c[0]-a[0]*c[2],a[0]*c[1]-a[1]*c[0]], cb=[c[1]*b[2]-c[2]*b[1],c[2]*b[0]-c[0]*b[2],c[0]*b[1]-c[1]*b[0]];
+  const within=(ac[0]*n[0]+ac[1]*n[1]+ac[2]*n[2])>0&&(cb[0]*n[0]+cb[1]*n[1]+cb[2]*n[2])>0;
+  return (within?ct:dEnd)>C.rad; }
 function airspaceSegmentCrosses(cc,pa,pb,onlyPoly){
   if(!_airspacePolygons[cc]) return false;
   if(!pa||!pb||!Number.isFinite(pa.lat)||!Number.isFinite(pa.lon)||!Number.isFinite(pb.lat)||!Number.isFinite(pb.lon)) return false;
+  if(onlyPoly?_asFar(onlyPoly,pa,pb):_airspacePolygons[cc].every(poly=>_asFar(poly,pa,pb))) return false;
   const rad=Math.PI/180,p1=pa.lat*rad,l1=pa.lon*rad,p2=pb.lat*rad,l2=pb.lon*rad;
   const v1=[Math.cos(p1)*Math.cos(l1),Math.cos(p1)*Math.sin(l1),Math.sin(p1)];
   const v2=[Math.cos(p2)*Math.cos(l2),Math.cos(p2)*Math.sin(l2),Math.sin(p2)];
@@ -112,7 +136,7 @@ function airspaceSegmentCrosses(cc,pa,pb,onlyPoly){
   const coarse=Math.max(1,Math.ceil(total/500)); let near=false;
   for(let i=0;i<=coarse;i++){ const p=pointAt(i/coarse); if(onlyPoly?(p[0]>=onlyPoly.minX-5&&p[0]<=onlyPoly.maxX+5&&p[1]>=onlyPoly.minY-5&&p[1]<=onlyPoly.maxY+5):airspaceNear(cc,p[0],p[1],5)){ near=true; break; } }
   if(!near) return false;
-  const steps=Math.max(1,Math.ceil(total/(cc==='PS'?2:10)));
+  const steps=Math.max(1,Math.ceil(total/(cc==='PS'?3:20)));
   for(let i=0;i<=steps;i++){
     const p=pointAt(i/steps); if(onlyPoly?airspaceContainsPoly(onlyPoly,p[0],p[1]):airspaceContains(cc,p[0],p[1])) return true;
   }
@@ -145,10 +169,12 @@ function airspaceDetourCandidates(poly){
   return groups;
 }
 function airspaceRoutePlan(code,a,b){
-  const home=airlineHomeCountry(code), key=`${home}:${code}:${a}>${b}:p${airspacePolicyRev()}`;
+  // le trajet ne dépend que des zones interdites : toutes les compagnies d'un même pays partagent le calcul
+  const zones=airspaceZonesFor(code), key=`${zones.join(',')}:${a}>${b}:p${airspacePolicyRev()}`;
   if(_airspaceRouteCache.has(key)) return _airspaceRouteCache.get(key);
   const A=AP(a),B=AP(b); if(!A||!B) return {points:[],distance:0,violation:null};
-  const zones=airspaceZonesFor(code), blocked=zones.find(cc=>A.cc===cc||B.cc===cc);
+  if(!zones.length){ const plan={points:[airspacePoint(A),airspacePoint(B)],distance:gcDist(A,B),violation:null}; _airspaceRouteCache.set(key,plan); return plan; }
+  const blocked=zones.find(cc=>A.cc===cc||B.cc===cc);
   if(blocked){ const plan={points:[airspacePoint(A),airspacePoint(B)],distance:gcDist(A,B),violation:{country:blocked,reason:airspaceReason(blocked)}}; _airspaceRouteCache.set(key,plan); return plan; }
   let points=[airspacePoint(A),airspacePoint(B)], failure=null;
   for(let pass=0;pass<Math.max(4,zones.length*3);pass++){
@@ -181,7 +207,7 @@ function airspaceRoutePlan(code,a,b){
   }
   if(!failure){ outer: for(let i=0;i<points.length-1;i++) for(const cc of zones) if(airspaceSegmentCrosses(cc,points[i],points[i+1])){ failure={country:cc,reason:`Aucun contournement sûr n’a été trouvé autour de ${COUNTRIES[cc]?.[0]||cc}.`}; break outer; } }
   const plan={points,distance:points.slice(1).reduce((sum,p,i)=>sum+gcDist(points[i],p),0),violation:failure};
-  if(_airspaceRouteCache.size>20000) _airspaceRouteCache.clear(); _airspaceRouteCache.set(key,plan); return plan;
+  if(_airspaceRouteCache.size>150000) _airspaceRouteCache.clear(); _airspaceRouteCache.set(key,plan); return plan;
 }
 function airspaceRouteDistance(code,a,b){ const p=airspaceRoutePlan(code,a,b); return p.distance||dist(a,b); }
 function airspacePathCoordinates(code,a,b,refLon){

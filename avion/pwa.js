@@ -1,5 +1,4 @@
-/* =========================================================
-   Sky Empire — application mobile (PWA)
+/* ==================================================   Sky Empire — application mobile (PWA)
    Installation sur l'écran d'accueil, plein écran, hors ligne,
    transfert de la partie entre Safari et l'application.
    ========================================================= */
@@ -66,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261124';
+const GAME_VER='20261125';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -81,6 +80,10 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['⚡ Le jeu ne se fige plus','Le calcul des espaces aériens fermés ralentissait tout le jeu (surtout avec beaucoup d’avions) : il est maintenant mis en cache, environ 10 fois plus rapide.'],
+  ['🛡️ 6 mois d’avance quand vous agrandissez','Après un chantier, aucune nouvelle compagnie ne s’installe dans cet aéroport pendant 6 mois, plus aucune compagnie créée exprès ; au plus une compagnie peut venir après 4 mois.'],
+  ['⚔️ Guerre = ciel fermé','Un pays en guerre ferme son espace aérien aux compagnies étrangères : vols vers ce pays interdits, et les lignes qui le survolent font un détour (visible sur la carte).'],
+  ['🛫 Les trajets de chaque compagnie','Fiche d’un aéroport : touchez une compagnie du classement (ou la vôtre) pour voir ses trajets depuis cet aéroport, ses vols et ses passagers par jour, et où elle est ⚔️ face à vous. Vos passagers ne font plus disparaître les autres compagnies des petits aéroports.'],
   ['🗺️ Détours d’espace aérien visibles','Une ligne qui traverse un espace fermé est maintenant détournée autour du territoire : durée, distance, avion rival et tracé vert suivent la route de contournement en 2D comme en 3D. Une liaison vers un aéroport interdit reste bloquée.'],
   ['🛂 Choisir qui survole votre pays','Dans la fiche Monde → votre pays → Espace aérien, interdisez le survol aux compagnies de certains pays. Le choix est sauvegardé ; les avions existants et futurs prennent le détour. Les interdictions géopolitiques déjà actives restent prioritaires.'],
   ['✈️ Détails des avions sur la carte','Touchez un avion concurrent pour voir sa ligne directe, sa position et sa progression, le modèle et la capacité estimés, la fréquence, la part de marché et les passagers estimés par vol. La fiche reste ouverte jusqu’au déplacement/zoom, au toucher d’un autre avion ou à un second toucher sur le même. Les passagers des concurrents sont une estimation de marché, pas un manifeste réel.'],

@@ -10,8 +10,8 @@ const AI_PREFIX=['Nova','Zenith','Aurora','Horizon','Atlas','Savane','Azur','Mer
 const AI_SUFFIX=['Air','Airways','Jet','Wings','Aviation','Express'];
 const keyCity=c=>AP(c)?AP(c).city:c;
 const _cAP={}; const cAirports=cc=>_cAP[cc]||(_cAP[cc]=AIRPORT_CODES.filter(c=>AP(c).cc===cc).sort((x,y)=>AP(y).traffic-AP(x).traffic));
-const AI_PLAYER_BUILD_GRACE=60*DAY;
-function aiAirportMarketOpen(code,buildReaction=false){ const built=S.playerAirportBuilds&&S.playerAirportBuilds[code], age=S.time-(+built); return built==null||!Number.isFinite(+built)||age>=AI_PLAYER_BUILD_GRACE||(buildReaction&&age>=3*DAY); }
+const AI_PLAYER_BUILD_GRACE=180*DAY;   // l'aéroport que vous agrandissez est à vous seul pendant 6 mois
+function aiAirportMarketOpen(code,buildReaction=false){ const built=S.playerAirportBuilds&&S.playerAirportBuilds[code], age=S.time-(+built); return built==null||!Number.isFinite(+built)||age>=AI_PLAYER_BUILD_GRACE||(buildReaction&&age>=120*DAY); }
 function aiAirlineMarketOpen(code){ const a=AIRLINE_DB[code]; return !!a&&aiAirportMarketOpen(a[2])&&!airlinePairs(code).some(([x,y])=>!aiAirportMarketOpen(x)||!aiAirportMarketOpen(y)); }
 const AI_POOR_COUNTRY_EXTRA=new Set(['CD','CG','PA','PS','SD']);
 function aiPoorCountryEligible(cc){ const lvl=typeof INCOME_LVL==='undefined'?undefined:INCOME_LVL[cc]; return !!COUNTRIES[cc]&&cAirports(cc).length>0&&(AI_POOR_COUNTRY_EXTRA.has(cc)||(lvl!==undefined&&lvl<=1)); }
@@ -152,16 +152,17 @@ function aiRoute(e, mode, target){
     const bukavuStartupHub=code==='KVA'&&origin==='BKY'&&S.time-(e.founded??S.time)>=3*DAY;
     const constructionStartupHub=!!e.buildStartupHub&&origin===e.buildStartupHub&&S.time-(e.founded??S.time)>=3*DAY;
     if((!aiAirportMarketOpen(origin)&&!bukavuStartupHub&&!constructionStartupHub)||shut[origin]>S.time) return false;
-    let best=null;
+    let best=null; const cands=[];
     for(const c of AIRPORT_CODES){
       const A=AP(c); if((target&&c!==target)||!aiAirportMarketOpen(c,!!target)||c===origin||A.cls<2||A.traffic<minT||shut[c]>S.time||[originCC,A.cc].some(cc=>suspended[cc]>S.time&&e.cc!==cc)) continue;
-      if(airspaceViolation(code,origin,c)) continue;
       const d=dist(origin,c); if(d<200||d>maxD) continue;
       const k=pairKey(origin,c); if(carriersOn(origin,c).includes(code)) continue;
       if(typeof runwayCheck==='function' && e.fleet<8 && A.cls<3) continue;
       const competition=carriersOn(origin,c).length, domestic=A.cc===AP(origin).cc?1.2:1, home=A.cc===e.cc?1.12:1, rivalry=touchesMe(origin,c)?1.08:1;
-      const s=marketDemand(origin,c)*domestic*home*rivalry/(1+competition*0.08); if(!best||s>best.s) best={c,k,s,d};
+      const s=marketDemand(origin,c)*domestic*home*rivalry/(1+competition*0.08); cands.push({c,k,s,d});
     }
+    // espace aérien testé seulement sur les meilleures lignes (le test géographique coûte cher)
+    cands.sort((x,y)=>y.s-x.s); best=cands.slice(0,12).find(x=>!airspaceViolation(code,origin,x.c))||null;
     if(!best) return false;
     const setupCost=e.fleet<8?0.55e6:e.fleet<30?1.5e6:3.5e6;
     if(e.cash<setupCost&&!e.startup) return false;
