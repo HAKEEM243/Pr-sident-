@@ -55,7 +55,9 @@ function cityRingTick(cam,agl){
   const O=G.osm; const v0=rdView(cam);
   try{ if(typeof cityExtrasTick==='function') cityExtrasTick(v0,agl); }catch(e){ console.warn(e); }
   if(O.busy||O.fail>=4) return;
-  const v=v0, R=GQ.mini?1:GQ.mob&&!GQ.hq?1:2, cap=GQ.mini?5:GQ.mob&&!GQ.hq?9:16; G.osmCap=cap;
+  // les deux rives du fleuve Congo (Kinshasa, Brazzaville) d'abord, en petites cases plus denses
+  try{ if(riverPinTick(v0,cam)) return; }catch(e){ console.warn(e); }
+  const v=v0, R=GQ.mini?1:GQ.mob&&!GQ.hq?1:2, cap=GQ.mini?4:GQ.mob&&!GQ.hq?6:14; G.osmCap=cap;
   const ci=Math.floor(v.lat/OSM_CELL), cj=Math.floor(v.lon/OSM_CELL), want=[];
   for(let di=-R;di<=R;di++) for(let dj=-R;dj<=R;dj++) want.push([ci+di,cj+dj,di*di+dj*dj]);
   want.sort((x,y)=>x[2]-y[2]);
@@ -65,6 +67,37 @@ function cityRingTick(cam,agl){
   // ménage : on retire les cases les plus éloignées du point regardé
   while(O.cells.size>cap){ let far=null, fd=-1; for(const k of O.cells.keys()){ const [i,j]=k.split(',').map(Number), d=(i-ci)**2+(j-cj)**2; if(d>fd){ fd=d; far=k; } }
     const prim=O.cells.get(far); if(prim&&prim.destroy) G.viewer.scene.primitives.remove(prim); O.cells.delete(far); if(fd<=R*R*2) break; }
+}
+// rives du fleuve : [nom, sud, ouest, nord, est, bâtiments max par case (ordinateur)]
+const RIVER_PIN=[['Kinshasa',-4.335,15.250,-4.295,15.365,2200],['Brazzaville',-4.290,15.230,-4.250,15.295,800]], PIN_CELL=0.03;
+function pinCells(){ const out=[]; for(const [city,s0,w0,n0,e0,lim] of RIVER_PIN){ for(let i=Math.floor(s0/PIN_CELL);i<=Math.floor(n0/PIN_CELL);i++) for(let j=Math.floor(w0/PIN_CELL);j<=Math.floor(e0/PIN_CELL);j++){
+    const s=Math.max(s0,i*PIN_CELL), w=Math.max(w0,j*PIN_CELL), n=Math.min(n0,(i+1)*PIN_CELL), e=Math.min(e0,(j+1)*PIN_CELL); if(n<=s||e<=w) continue; out.push({key:'P'+city[0]+i+','+j,city,s,w,n,e,lim}); } }
+  return out; }
+// les bâtiments déjà chargés sur les rives ne sont pas redessinés par les grandes cases autour (pas de doublons)
+function osmSkip(lat,lon){ const P=G&&G.osmPin; if(!P) return false; for(const c of P.values()) if(c&&c.ok&&lat>=c.s&&lat<c.n&&lon>=c.w&&lon<c.e) return true; return false; }
+function riverPinTick(v,cam){
+  const near=gcDist(v,{lat:-4.30,lon:15.30})<35&&cam.h<12000; if(!G.osmPin) G.osmPin=new Map();
+  if(!near){ if(G.osmPin.size){ for(const st of G.osmPin.values()) if(st&&st.prim) G.viewer.scene.primitives.remove(st.prim); G.osmPin.clear(); } return false; }
+  if(GQ.mini&&gcDist(v,{lat:-4.31,lon:15.31})>12) return false;
+  let cells=pinCells(); if(GQ.mini) cells=cells.filter(c=>c.city==='Kinshasa'&&c.w>=15.28&&c.e<=15.33);
+  cells.sort((a,b)=>gcDist(v,{lat:(a.s+a.n)/2,lon:(a.w+a.e)/2})-gcDist(v,{lat:(b.s+b.n)/2,lon:(b.w+b.e)/2}));
+  const c=cells.find(x=>!G.osmPin.has(x.key)); if(!c) return false;
+  const k=GQ.mini?0.4:GQ.mob&&!GQ.hq?0.55:1, lim=Math.round(c.lim*k);
+  G.osmPin.set(c.key,{s:c.s,w:c.w,n:c.n,e:c.e,ok:false}); pinLoad(c,lim); return true;
+}
+async function pinLoad(c,lim){
+  const O=G.osm; O.busy=true;
+  const q=`[out:json][timeout:25];way["building"](${c.s.toFixed(4)},${c.w.toFixed(4)},${c.n.toFixed(4)},${c.e.toFixed(4)});out geom ${lim};`;
+  let js=null;
+  for(const ep of (typeof OSM_EP!=='undefined'?OSM_EP:RD_EP)){ try{ const r=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}}); if(r.ok){ js=await r.json(); break; } }catch(err){} }
+  O.busy=false;
+  if(!js){ O.fail++; G.osmPin.delete(c.key); return; }
+  O.fail=0; if(!G||!G.viewer) return;
+  const e0=typeof groundAt==='function'?groundAt((c.s+c.n)/2,(c.w+c.e)/2):0, gb=p=>{ if(typeof TERRAIN==='undefined'||!TERRAIN.on) return 0; const h=groundAt(p.lat,p.lon); return h>0?h:e0; };
+  // un bâtiment n'appartient qu'à la case qui contient son premier point
+  const els=(js.elements||[]).filter(el=>el.geometry&&el.geometry.length&&el.geometry[0].lat>=c.s&&el.geometry[0].lat<c.n&&el.geometry[0].lon>=c.w&&el.geometry[0].lon<c.e);
+  let prim=null; try{ prim=typeof osmBuildCell==='function'?osmBuildCell(els,gb,true):null; }catch(e){ console.warn(e); }
+  const st=G.osmPin.get(c.key); if(st){ st.prim=prim; st.ok=true; }
 }
 function rdReset(){ RD.cells.clear(); RD.roads=[]; RD.cars=[]; RD.paths=[]; RD.busy=false; RD.fail=0; }
 async function rdLoad(key,s,w,n,e,kinds,limit,major){
