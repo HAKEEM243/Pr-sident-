@@ -580,6 +580,8 @@ async function loadOsmCell(i,j){
   if(!G||!js.elements||!js.elements.length) return;
   const e0=O.e0||0, gb=v=>{ if(typeof TERRAIN==='undefined'||!TERRAIN.on) return 0; const h=groundAt(v.lat,v.lon); return h>0?h:e0; };
   const C=Cesium, inst=[];
+  // bâtiments détaillés (façades, fenêtres, toits) : scenery3d.js ; sinon blocs simples
+  if(typeof osmBuildCell==='function'&&!G.noFacade){ try{ const prim=osmBuildCell(js.elements,gb); if(prim) O.cells.set(key,prim); return; }catch(err){ console.warn(err); } }
   for(const el of js.elements){
     const g=el.geometry; if(!g||g.length<4) continue;
     const t=el.tags||{}; let h=parseFloat(t.height)||(parseFloat(t['building:levels'])||0)*3.2;

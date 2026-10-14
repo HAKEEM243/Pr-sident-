@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261130';
+const GAME_VER='20261131';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏢 Vrais bâtiments en 3D','Les bâtiments ne sont plus des cubes : façades avec étages, fenêtres et vitrines, tours vitrées, maisons avec toits de tôle à 4 pans (rouille, gris, bleu, rouge) ; la nuit, une partie des fenêtres s’allume. Routes en asphalte avec ligne blanche, accotements clairs sur les autoroutes.'],
   ['🏙️ Kinshasa en grand, 3D plus nette','La ville se charge autour de ce que vous regardez (environ 20 × 20 km sur téléphone, 26 × 26 km sur ordinateur), plus seulement sous l’avion suivi ; bâtiments pleins avec toits. Autoroutes et nationales chargées sur ~45 km. Voitures, camions et bus plus gros et plus détaillés (vitres, phares, roues), toujours autour de vous. Image 3D plus nette en Minimal et Éco.'],
   ['🛣️ Routes, voitures et mini-carte en 3D','Près du sol, les vraies routes (autoroutes, nationales, avenues d’OpenStreetMap) apparaissent avec des voitures et des bus qui roulent. Une mini-carte en bas à droite montre où vous êtes et dans quelle direction vous regardez : ⤢ change sa taille, + / − zoome, 🎯 revient au zoom automatique, × la masque ; touchez-la pour y envoyer la caméra.'],
   ['🏙️ 3D plus vivante','Aéroports en 3D : hangars aux couleurs de votre compagnie, gare cargo et conteneurs, dépôt de carburant, parkings pleins de voitures, hôtels, route bordée d’arbres. Villes (bâtiments OpenStreetMap sous l’avion suivi) : tours au centre des grandes villes, toits de tôle, fenêtres allumées la nuit. Tout est dessiné en un seul bloc pour rester léger ; en qualité Minimal, voitures et arbres sont retirés.'],
