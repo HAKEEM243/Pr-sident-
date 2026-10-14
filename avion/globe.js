@@ -554,7 +554,7 @@ function timeTick(p){
 }
 
 // --- bâtiments OpenStreetMap (Overpass, sans clé) ---
-const OSM_CELL=0.06, OSM_EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+const OSM_CELL=0.06, OSM_EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.nextgis.com/api/interpreter'];
 function osmTick(p){
   if(!G.osm) G.osm={cells:new Map(), busy:false, fail:0};
   const O=G.osm; if(O.busy||O.fail>=4||p.h>4500||G.tiles) return;

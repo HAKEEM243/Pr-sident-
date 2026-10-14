@@ -8,7 +8,7 @@
 'use strict';
 const RD={cells:new Map(), busy:false, fail:0, cars:[], roads:[], paths:[], viewer:null, last:0, models:null};
 const RD_CELL=0.05, RD_KIND={motorway:[24,'#2b2e33',31],trunk:[20,'#30343a',25],primary:[15,'#3a3e44',17],secondary:[11,'#464a50',14],tertiary:[8,'#53575c',11]};   // asphalte (plus sombre = plus grande route)
-const RD_EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+const RD_EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.nextgis.com/api/interpreter'];
 const RD_COLORS=['#f8fafc','#111827','#9ca3af','#b91c1c','#1d4ed8','#e5e7eb','#78716c','#facc15','#065f46'];
 // voitures : carrosserie, vitres, phares, feux arrière, roues (longueur sur z : avant en +z)
 const M_CAR=c=>()=>{ const k=C3(c), gl=C3('#1f2a3a'), w=C3('#0b0f17'), hl=C3('#fff7d6'), tl=C3('#dc2626'), ch=C3('#cbd5e1');

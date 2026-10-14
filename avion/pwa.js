@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261132';
+const GAME_VER='20261133';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏙️ Gombe plus vrai','Testé sur les vraies données OpenStreetMap de Gombe : hauteurs plus réalistes (surtout des immeubles de quelques étages, peu de tours inventées), murs peints de couleurs variées (crème, beige, ocre, pastel), toits-terrasses en béton, et noms des bâtiments connus au-dessus des toits (hôtels, galeries, immeubles…). Serveur de carte de secours ajouté pour charger la ville plus souvent.'],
   ['🌳 Parcs, marchés et monuments','En 3D, les parcs, jardins, forêts et cimetières (OpenStreetMap) sont verts avec des arbres et des palmiers ; les marchés ont leurs étals sous bâches colorées. Monuments de Kinshasa modélisés avec leur nom : Stade des Martyrs, Palais du Peuple, Tour de l’Échangeur, cathédrale, gare, mausolée… (et ceux des autres grandes villes).'],
   ['🏢 Vrais bâtiments en 3D','Les bâtiments ne sont plus des cubes : façades avec étages, fenêtres et vitrines, tours vitrées, maisons avec toits de tôle à 4 pans (rouille, gris, bleu, rouge) ; la nuit, une partie des fenêtres s’allume. Routes en asphalte avec ligne blanche, accotements clairs sur les autoroutes.'],
   ['🏙️ Kinshasa en grand, 3D plus nette','La ville se charge autour de ce que vous regardez (environ 20 × 20 km sur téléphone, 26 × 26 km sur ordinateur), plus seulement sous l’avion suivi ; bâtiments pleins avec toits. Autoroutes et nationales chargées sur ~45 km. Voitures, camions et bus plus gros et plus détaillés (vitres, phares, roues), toujours autour de vous. Image 3D plus nette en Minimal et Éco.'],

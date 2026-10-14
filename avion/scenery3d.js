@@ -28,10 +28,12 @@ function sceneryHeight(el,g,t,h){
   if(!best||bd>14) return h;
   // aire au sol (m²) : les grandes emprises deviennent des immeubles, les petites restent basses
   let area=0; for(let i=0;i<g.length-1;i++){ area+=(g[i].lon*g[i+1].lat-g[i+1].lon*g[i].lat); } area=Math.abs(area/2)*111320*111320*Math.cos(p.lat*Math.PI/180);
-  const big=Math.min(1,area/1500), core=Math.max(0,1-bd/(2+Math.sqrt(best.pop)*1.2)), mid=Math.max(0,1-bd/9);
-  const maxH=40+Math.sqrt(best.pop)*35;   // Kinshasa (17 M) : tours jusqu'à ~180 m
-  if(core>0&&big>0.3&&r<0.55) return Math.max(h,12+maxH*core*(0.35+0.65*r)*big);
-  if(mid>0&&r<0.6) return Math.max(h,6+mid*22*(0.4+r)*(0.5+big));
+  // la plupart des immeubles font quelques étages ; seules quelques grandes emprises du centre montent haut
+  const big=Math.min(1,area/1500), core=Math.max(0,1-bd/(1.5+Math.sqrt(best.pop)*0.5)), mid=Math.max(0,1-bd/8);
+  const maxH=25+Math.sqrt(best.pop)*13;   // Kinshasa (17 M) : ~80 m au plus pour un bâtiment sans hauteur connue
+  if(core>0&&big>0.5&&r<0.3) return Math.max(h,10+maxH*core*(0.3+0.7*r)*big);
+  if(core>0&&r<0.7) return Math.max(h,6+core*18*(0.4+r));
+  if(mid>0&&r<0.5) return Math.max(h,5+mid*9*(0.4+r));
   return h;
 }
 function sceneryColor(el,t,h,col){
@@ -146,6 +148,8 @@ void main(){
     }
     color.rgb = mix(base, c, near);
     if (v_night > 0.5 && near < 1.0 && dens > 0.2) emis = max(emis, vec3(1.0, 0.82, 0.5) * 0.18 * dens * (1.0 - near));
+  } else {
+    color.rgb = mix(color.rgb, vec3(0.60, 0.60, 0.58), 0.55);   // toit-terrasse en béton
   }
   czm_materialInput materialInput;
   materialInput.normalEC = normalEC;
@@ -158,6 +162,7 @@ void main(){
 }`;
 let _facadeApp=null;
 function facadeAppearance(){ const C=Cesium; return new C.PerInstanceColorAppearance({flat:false, closed:true, translucent:false, vertexShaderSource:FACADE_VS, fragmentShaderSource:FACADE_FS}); }
+const WALLS=['#f3ead8','#e9dcc0','#f1e4c8','#e2d3b5','#d9c7a3','#efe7da','#e6e1d7','#d6d9dc','#cfd8e0','#f2d9c4','#e8cfa8','#dcc9a8','#f5f0e6','#c9b79c','#e5d8c8'];
 const ROOF_TIN=['#8b4a2b','#9a5634','#7c8288','#5d6b78','#3f5f86','#a33b2b','#6b7280','#b45309'];
 function osmBuildCell(elements,gb){
   const C=Cesium, V=G.viewer, inst=[], roofs=[], VF=C.PerInstanceColorAppearance.VERTEX_FORMAT, FL=C.ComponentDatatype.FLOAT;
@@ -173,6 +178,7 @@ function osmBuildCell(elements,gb){
     const shade=0.78+((el.id%13)/13)*0.16, tall=Math.min(1,h/80);
     let col=new C.Color(shade-0.1*tall,shade-0.06*tall,shade-0.02*tall+(b==='hangar'?0.05:0),1);
     try{ col=sceneryColor(el,t,h,col); }catch(err){}
+    if(h<=40){ const W=WALLS[(el.id*7)%WALLS.length]; col=C.Color.fromCssColorString(W); }   // murs peints (crème, beige, ocre, pastel…)
     const base=gb(g[0]), enc=C.EncodedCartesian3.fromCartesian(C.Cartesian3.fromDegrees(g[0].lon,g[0].lat,base-1));
     const indus=/hangar|industrial|warehouse|garage|shed|roof/.test(b), dens=indus?0.06:h>40?0.95:h>14?0.82:0.6;
     try{ inst.push(new C.GeometryInstance({id:'b'+el.id, geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(g.slice(0,-1).flatMap(v=>[v.lon,v.lat]))), height:base-1, extrudedHeight:base+h, vertexFormat:VF}),
@@ -188,6 +194,11 @@ function osmBuildCell(elements,gb){
   }
   if(!inst.length) return null;
   const col=new C.PrimitiveCollection();
+  // nom des bâtiments connus (hôtels, galeries, ministères…) au-dessus du toit
+  if(!GQ.mini){ const lab=col.add(new C.LabelCollection()); let nL=0;
+    for(const el of elements){ const t=el.tags||{}, g=el.geometry; if(!t.name||!g||nL>=40) continue; const lv=parseFloat(t['building:levels'])||0; if(lv<4&&!/hotel|commercial|office|public|government|hospital|church|cathedral|retail|civic/.test(t.building||'')&&!t.amenity) continue;
+      let la=0,lo=0; for(const q of g){ la+=q.lat; lo+=q.lon; } la/=g.length; lo/=g.length; const hh=parseFloat(t.height)||lv*3.2||14; nL++;
+      lab.add({position:C.Cartesian3.fromDegrees(lo,la,gb(g[0])+hh+8), text:t.name.length>34?t.name.slice(0,32)+'…':t.name, font:'600 12px system-ui', fillColor:C.Color.fromCssColorString('#fde68a'), outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, distanceDisplayCondition:new C.DistanceDisplayCondition(0,2200), translucencyByDistance:new C.NearFarScalar(800,1,2200,0)}); } }
   col.add(new C.Primitive({geometryInstances:inst, appearance:facadeAppearance(), asynchronous:true, shadows:C.ShadowMode.DISABLED}));
   if(roofs.length) col.add(new C.Primitive({geometryInstances:roofs, appearance:new C.PerInstanceColorAppearance({flat:false,closed:true,translucent:false}), asynchronous:true}));
   V.scene.primitives.add(col); return col;
