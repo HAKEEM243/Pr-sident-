@@ -106,10 +106,10 @@ const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} con
 function applyQuality(){ if(!G) return; const V=G.viewer, sc=V.scene; GQ.hq=GQ.mode==='h'||GQ.mode==='a'; GQ.mini=GQ.mode==='l'; if(GQ.mini) G.lite=true;
   try{ sc.msaaSamples=(GQ.hq&&!GQ.mob)?4:1; sc.postProcessStages.fxaa.enabled=true; }catch(e){}
   // Cesium dessine à (rapport de pixels de l'écran × resolutionScale) quand useBrowserRecommendedResolution est faux, et à 1 pixel CSS sinon (flou sur un écran rétina)
-  try{ const dpr=window.devicePixelRatio||1; V.useBrowserRecommendedResolution=false; G.resBase=Math.min(dpr,GQ.mob?1.6:2)/dpr; V.resolutionScale=GQ.hq?G.resBase:GQ.mini?1/dpr:Math.min(dpr,GQ.mob?1.15:1)/dpr; }catch(e){}
+  try{ const dpr=window.devicePixelRatio||1; V.useBrowserRecommendedResolution=false; G.resBase=Math.min(dpr,GQ.mob?1.6:2)/dpr; V.resolutionScale=GQ.hq?G.resBase:GQ.mini?Math.min(dpr,1.3)/dpr:Math.min(dpr,GQ.mob?1.45:1.25)/dpr; }catch(e){}   // Minimal et Éco plus nets (1 pixel CSS était flou sur iPhone)
   // relief : réglages d'origine (un sol plus grossier faisait traverser la piste à l'avion au décollage et à l'atterrissage)
   try{ sc.globe.tileCacheSize=GQ.mob?100:300; }catch(e){}
-  try{ sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4; sc.globe.showWaterEffect=!(GQ.mob&&!GQ.hq); sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=!(GQ.mob&&!GQ.hq)&&!GQ.mini; sc.fog.enabled=!GQ.mini; if(GQ.mini){ sc.globe.showWaterEffect=false; sc.globe.showGroundAtmosphere=false; sc.globe.tileCacheSize=60; } if(G3night) G3night.show=!GQ.mini; }catch(e){}
+  try{ sc.globe.maximumScreenSpaceError=GQ.hq?1.4:GQ.mini?2.0:1.8; sc.globe.showWaterEffect=!(GQ.mob&&!GQ.hq); sc.postProcessStages.fxaa.enabled=true; if(G.clouds) G.clouds.show=!(GQ.mob&&!GQ.hq)&&!GQ.mini; sc.fog.enabled=!GQ.mini; if(GQ.mini){ sc.globe.showWaterEffect=false; sc.globe.showGroundAtmosphere=false; sc.globe.tileCacheSize=60; } if(G3night) G3night.show=!GQ.mini; }catch(e){}
   // téléphone : 30 images/s max en Éco (moins de chauffe, donc moins de ralentissements au bout de quelques minutes)
   try{ V.targetFrameRate=(GQ.mob&&!GQ.hq)?30:undefined; }catch(e){}
   G.rivalCap=GQ.mini?6:undefined; G.rivAt=0; G.perf=null; }
@@ -181,7 +181,7 @@ function initGlobe(){
     else toast('⛔ La vue 3D rencontre un problème sur cet appareil','bad');
   });
   sc.globe.enableLighting=true; sc.globe.dynamicAtmosphereLighting=true; sc.skyAtmosphere.show=true; sc.fog.enabled=true; sc.fog.density=0.00012;
-  sc.globe.depthTestAgainstTerrain=false; sc.highDynamicRange=false; sc.globe.maximumScreenSpaceError=GQ.hq?1.6:2.4;
+  sc.globe.depthTestAgainstTerrain=false; sc.highDynamicRange=false; sc.globe.maximumScreenSpaceError=GQ.hq?1.4:GQ.mini?2.0:1.8;
   viewer.clock.shouldAnimate=false;
   G={viewer, baseKey:(BASE3D[(()=>{ try{ return localStorage.getItem('se-3dstyle'); }catch(e){ return null; } })()]?localStorage.getItem('se-3dstyle'):'hybrid'), planes:new Map(), rivals:[], routes:[], airports:[], follow:null, cam:{mode:'chase',h:0,p:-9,range:120}, lighting:true, tiles:null, simAt:performance.now(), simTime:S.time, att:new Map(), trail:[], hudAt:0, forceDay:(()=>{ try{ return localStorage.getItem('se-day')==='1'; }catch(e){ return false; } })()};
   G.forceNight=!G.forceDay&&(()=>{ try{ return localStorage.getItem('se-night')==='1'; }catch(e){ return false; } })();
@@ -566,12 +566,12 @@ function osmTick(p){
   O.e0=typeof gElev==='function'?gElev(p.st.frac<0.5?p.st.from:p.st.to):0;
   loadOsmCell(c[0],c[1]);
   // ménage : on garde les 8 cases les plus récentes
-  if(O.cells.size>8){ const k=O.cells.keys().next().value, prim=O.cells.get(k); if(prim&&prim.destroy) G.viewer.scene.primitives.remove(prim); O.cells.delete(k); }
+  if(O.cells.size>(G.osmCap||8)){ const k=O.cells.keys().next().value, prim=O.cells.get(k); if(prim&&prim.destroy) G.viewer.scene.primitives.remove(prim); O.cells.delete(k); }
 }
 async function loadOsmCell(i,j){
   const O=G.osm, key=i+','+j; O.cells.set(key,null); O.busy=true;
   const s=i*OSM_CELL, w=j*OSM_CELL, n=s+OSM_CELL, e=w+OSM_CELL;
-  const q=`[out:json][timeout:25];way["building"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});out geom ${GQ.hq?5000:2200};`;
+  const q=`[out:json][timeout:25];way["building"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});out geom ${GQ.hq?5000:GQ.mini?1200:1800};`;
   let js=null;
   for(const ep of OSM_EP){ try{ const r=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}}); if(r.ok){ js=await r.json(); break; } }catch(err){} }
   O.busy=false;
@@ -591,9 +591,11 @@ async function loadOsmCell(i,j){
     let col=new C.Color(shade-0.1*tall,shade-0.06*tall,shade-0.02*tall+(t.building==='hangar'?0.05:0),1);
     if(typeof sceneryColor==='function') try{ col=sceneryColor(el,t,h,col); }catch(err){}
     try{ inst.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(pos)), height:gb(g[0])-1, extrudedHeight:gb(g[0])+h, vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(col)}})); }catch(err){}
+    // toit distinct (dalle plus sombre, bord) sur les immeubles : moins « bloc »
+    if(h>=12&&!GQ.mini) try{ const rc=AP3D&&AP3D.night?new C.Color(0.08,0.09,0.12,1):new C.Color(col.red*0.72,col.green*0.72,col.blue*0.74,1); inst.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(pos)), height:gb(g[0])+h, extrudedHeight:gb(g[0])+h+1.2, vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(rc)}})); }catch(err){}
   }
   if(!inst.length) return;
-  const prim=new C.Primitive({geometryInstances:inst, appearance:new C.PerInstanceColorAppearance({flat:false, closed:true}), asynchronous:true, shadows:C.ShadowMode.DISABLED});
+  const prim=new C.Primitive({geometryInstances:inst, appearance:new C.PerInstanceColorAppearance({flat:false, closed:true, translucent:false}), asynchronous:true, shadows:C.ShadowMode.DISABLED});
   G.viewer.scene.primitives.add(prim); O.cells.set(key,prim);
 }
 
