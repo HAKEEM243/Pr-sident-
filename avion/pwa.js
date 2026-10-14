@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261128';
+const GAME_VER='20261129';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛣️ Routes, voitures et mini-carte en 3D','Près du sol, les vraies routes (autoroutes, nationales, avenues d’OpenStreetMap) apparaissent avec des voitures et des bus qui roulent. Une mini-carte en bas à droite montre où vous êtes et dans quelle direction vous regardez : ⤢ change sa taille, + / − zoome, 🎯 revient au zoom automatique, × la masque ; touchez-la pour y envoyer la caméra.'],
   ['🏙️ 3D plus vivante','Aéroports en 3D : hangars aux couleurs de votre compagnie, gare cargo et conteneurs, dépôt de carburant, parkings pleins de voitures, hôtels, route bordée d’arbres. Villes (bâtiments OpenStreetMap sous l’avion suivi) : tours au centre des grandes villes, toits de tôle, fenêtres allumées la nuit. Tout est dessiné en un seul bloc pour rester léger ; en qualité Minimal, voitures et arbres sont retirés.'],
   ['🚀 Grosses compagnies plus fluides','Avec des centaines d’avions et de lignes, la carte devenait trop lourde pour un téléphone : lignes dessinées sans animation au-delà de 25 lignes, seuls les avions à l’écran sont mis à jour, pas d’ombre sous les avions au-delà de 60 avions, objectifs et panneaux calculés une seule fois. Environ 3 fois plus d’images par seconde.'],
   ['⏩ Rattrapage d’absence débloqué','Au retour, le jeu simule votre absence en détail pendant au plus ~12 secondes, puis estime le reste d’après votre bénéfice moyen. Le bouton « Passer » marche tout de suite.'],
