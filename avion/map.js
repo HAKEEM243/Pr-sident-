@@ -133,7 +133,7 @@ function initMap(){
   drawNight();
   drawWeather(true);
   map.on('click',()=>{ selectPlane(null); });
-  let _mvT=0; map.on('moveend',()=>{ clearTimeout(_mvT); _mvT=setTimeout(()=>{ drawAirports(); updateRival(); },120); });
+  let _mvT=0; map.on('moveend',()=>{ clearTimeout(_mvT); _mvT=setTimeout(()=>{ drawAirports(); updateRival(); try{ updatePlanes(); }catch(e){} },120); });
   map.on('zoomend',()=>{ drawAirports(); for(const [,mk] of planeMarkers) L_planes.removeLayer(mk); planeMarkers.clear(); for(const [,mk] of parkedMarkers) L_planes.removeLayer(mk); parkedMarkers.clear(); updatePlanes(); updateRival(); drawWeather(); });
   initRivalCanvas();
   map.on('movestart zoomstart',()=>{ map._mv=true; }); map.on('moveend zoomend',()=>{ map._mv=false; });
@@ -244,10 +244,13 @@ function drawAirports(){
   for(const [code,mk] of airportMk) if(!want.has(code)){ L_airports.removeLayer(mk); airportMk.delete(code); }
 }
 
+let _routeCanvas=null;
 function drawRoutes(){
   if(!map) return;
   L_routes.clearLayers();
   if(!MAPOPT.routes) return;
+  // grand réseau : un seul canvas sans animation (des centaines de tracés SVG animés figeaient l'iPhone)
+  const big=S.routes.length>25, rnd=big?(_routeCanvas||(_routeCanvas=L.canvas({padding:0.3}))):undefined;
   for(const r of S.routes){
     const color = r.color || S.company.color;
     for(const off of [-360,0,360]){
@@ -258,8 +261,8 @@ function drawRoutes(){
         const raw=airspacePathCoordinates(S.company.code,A.code,B.code,ref); if(!raw.length) continue;
         const pts=raw.map(([la,lo])=>[la,lo+off]);
         ref=pts[pts.length-1][1]-off;
-        L.polyline(pts,{color:'#000', weight:5, opacity:0.35, interactive:false}).addTo(L_routes);
-        L.polyline(pts,{color, weight:2.6, opacity:0.95, className:'route-anim'}).addTo(L_routes)
+        if(!big) L.polyline(pts,{color:'#000', weight:5, opacity:0.35, interactive:false}).addTo(L_routes);
+        L.polyline(pts,big?{renderer:rnd, color, weight:2, opacity:0.8, dashArray:'8 6'}:{color, weight:2.6, opacity:0.95, className:'route-anim'}).addTo(L_routes)
           .bindTooltip(`${r.stops.join(' → ')}${plan.points.length>2?` · détour d’espace aérien (+${Math.max(0,Math.round(plan.distance-dist(A.code,B.code))).toLocaleString('fr-FR')} km)`:''}`,{sticky:true});
       }
       r.stops.slice(1,-1).forEach(c=>{
@@ -301,10 +304,12 @@ function drawNight(){
 function planeColor(ac){ const m=modelOf(ac); return m.color || S.company.color; }
 function updatePlanes(){
   if(!map) return;
-  const seen=new Set(), tNow=simNow();
+  document.body.classList.toggle('bigfleet',S.fleet.length>60);
+  const seen=new Set(), tNow=simNow(), cull=S.fleet.length>60?map.getBounds().pad(0.4):null;   // grande flotte : seulement les avions à l'écran
   for(const ac of S.fleet){
     if(ac.status!=='flight' || !ac.flight) continue;
     const st=flightState(ac, tNow); if(!st) continue;
+    if(cull&&ac.id!==selectedPlane&&!cull.contains([st.lat,st.lon])) continue;
     seen.add(ac.id);
     let mk=planeMarkers.get(ac.id);
     const pos=[st.lat,st.lon];

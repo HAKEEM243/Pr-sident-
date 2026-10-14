@@ -780,3 +780,5 @@ function airportHtml(code){
     ${true?`<h3>Investir dans l’aéroport${a.drc?' (partenariat RVA)':''}</h3>${projects.map(p=>`<div class="al">${UPGRADES[p.type].icon} ${UPGRADES[p.type].name} — fin le ${fmtDate(p.until)}</div>`).join('')}
       ${Object.entries(UPGRADES).filter(([k,u])=>u.can(a)&&!projects.some(p=>p.type===k)).map(([k,u])=>`<div class="card row"><div class="grow">${u.icon} <b>${u.name}</b> — ${fmtMoney(u.cost(a))} · immédiat<br><span class="small mut">${u.desc}</span></div><button class="btn sm gold" data-act="project" data-c="${code}" data-k="${k}">Lancer</button></div>`).join('')||'<div class="mut small">Aucun chantier disponible ici.</div>'}`:''}`;
 }
+// un rendu de panneau interroge souvent toutes les lignes : index des avions par ligne construit une seule fois
+{ const _rp=renderPanel; renderPanel=function(){ return typeof withRouteIndex==='function'?withRouteIndex(_rp):_rp(); }; }

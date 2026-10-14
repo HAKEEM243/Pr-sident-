@@ -252,7 +252,11 @@ function routeCycleHours(route, ac){
 }
 const MAX_WEEK_HOURS = 140; // heures de rotation programmables par avion et par semaine
 const CLASS_NAMES={y:'Économique',j:'Affaires',f:'Première',c:'Fret'};
-function routeAircraft(route){ return S.fleet.filter(ac=>(ac.plan||[]).some(p=>p.routeId===route.id)); }
+// index temporaire (pendant un calcul qui interroge beaucoup de lignes, ex. objectifs) : évite de parcourir toute la flotte pour chaque ligne
+let _raIdx=null;
+function withRouteIndex(fn){ if(_raIdx) return fn(); _raIdx=new Map(); for(const ac of S.fleet) for(const p of ac.plan||[]){ const l=_raIdx.get(p.routeId)||_raIdx.set(p.routeId,[]).get(p.routeId); if(!l.includes(ac)) l.push(ac); }
+  try{ return fn(); } finally{ _raIdx=null; } }
+function routeAircraft(route){ if(_raIdx) return (_raIdx.get(route.id)||[]).slice(); return S.fleet.filter(ac=>(ac.plan||[]).some(p=>p.routeId===route.id)); }
 function routeFreq(route){ // vols par jour et par sens, d'après le planning hebdomadaire
   let f=0; for(const ac of S.fleet) for(const p of ac.plan||[]) if(p.routeId===route.id) f+=p.weekly/7;
   return f;
@@ -1216,7 +1220,8 @@ const MISSIONS = [
   {id:'billion', name:'Milliardaire de l’aviation', desc:'Valeur nette de 1 milliard $', cash:0, rep:10, done:()=>netWorth()>=1e9},
 ];
 const missionAvail = m=>!m.cc || m.cc===homeCC();
-function checkMissions(){
+function checkMissions(){ return withRouteIndex(checkMissions0); }
+function checkMissions0(){
   S.missions=S.missions||[];
   for(const m of MISSIONS){
     if(S.missions.includes(m.id) || !missionAvail(m)) continue;
