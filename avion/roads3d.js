@@ -52,8 +52,10 @@ function rdTick(){
 function cityRingTick(cam,agl){
   if(typeof loadOsmCell!=='function'||typeof OSM_CELL==='undefined'||agl>6000||G.tiles) return;
   if(!G.osm) G.osm={cells:new Map(), busy:false, fail:0};
-  const O=G.osm; if(O.busy||O.fail>=4) return;
-  const v=rdView(cam), R=GQ.mini?1:GQ.mob&&!GQ.hq?1:2, cap=GQ.mini?5:GQ.mob&&!GQ.hq?9:16; G.osmCap=cap;
+  const O=G.osm; const v0=rdView(cam);
+  try{ if(typeof cityExtrasTick==='function') cityExtrasTick(v0,agl); }catch(e){ console.warn(e); }
+  if(O.busy||O.fail>=4) return;
+  const v=v0, R=GQ.mini?1:GQ.mob&&!GQ.hq?1:2, cap=GQ.mini?5:GQ.mob&&!GQ.hq?9:16; G.osmCap=cap;
   const ci=Math.floor(v.lat/OSM_CELL), cj=Math.floor(v.lon/OSM_CELL), want=[];
   for(let di=-R;di<=R;di++) for(let dj=-R;dj<=R;dj++) want.push([ci+di,cj+dj,di*di+dj*dj]);
   want.sort((x,y)=>x[2]-y[2]);
