@@ -85,3 +85,5 @@ function apMarketHtml(code){
     <div class="mut" style="margin-top:4px">Vos chiffres viennent de vos lignes ; ceux des autres compagnies sont des estimations (réseau réel, demande, fréquences, guerres et suspensions en cours).</div></div>`;
 }
 function registerApMarketActions(){ Object.assign(ACTIONS,{ apCo:d=>{ const v=d.c+'|'+d.k; UI.apCo=UI.apCo===v?null:v; if(typeof openAirport==='function') openAirport(d.c); }, apPil:d=>{ UI.apPil=d.c; if(typeof openAirport==='function') openAirport(d.c); }, apAll:d=>{ UI.apAll=UI.apAll===d.c?null:d.c; if(typeof openAirport==='function') openAirport(d.c); } }); }
+// beaucoup de lignes : un seul passage sur la flotte par calcul
+{ const _h=apMarketHtml; apMarketHtml=function(code){ return typeof withRouteIndex==='function'?withRouteIndex(()=>_h(code)):_h(code); }; }

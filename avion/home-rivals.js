@@ -218,3 +218,4 @@ function countryAirHtml(cc){
 function registerCityActions(){ ACTIONS.cityAll=()=>{ UI.cityAll=!UI.cityAll; renderPanel(); }; }
 { const _ap=apPopHtml; apPopHtml=function(code){ const h=_ap(code), A=AP(code); if(!A) return h; const p=cityPop(code), py=paxYear(code);
   return h+`<div class="small">✈️ ≈ <b>${fmtN(py)}</b> voyageurs par an dans cet aéroport${p?` (${(py/(p*1e6)).toFixed(2).replace('.',',')} passage par habitant de la ville)`:''}.</div>`; }; }
+{ const _c=countryAirHtml; countryAirHtml=function(cc){ return typeof withRouteIndex==='function'?withRouteIndex(()=>_c(cc)):_c(cc); }; }
