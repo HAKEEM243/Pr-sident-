@@ -299,20 +299,26 @@ Object.assign(INPUTS,{
 /* rattrapage d'une absence par petits morceaux : l'écran reste vivant (barre de progression, bouton Passer) */
 function runCatchUp(pl){
   if(UI.catching) return; UI.catching=true;
-  const small=pl.total<=6*HOUR; let box=null;
+  const small=pl.total<=6*HOUR; let box=null, skip=false; pl.cpu=0;
   if(!small){ box=document.createElement('div'); box.id='catchup'; box.innerHTML=`<b>⏩ Rattrapage de votre absence</b><div class="cu-bar"><i></i></div><small></small><button class="btn sm">⏭️ Passer</button>`; document.body.appendChild(box);
-    box.querySelector('button').onclick=()=>{ pl.left=0; }; }
-  const step=()=>{ const t0=performance.now();
-    // Cinq minutes simulées à la fois : advance() traite 24 pas internes par 2 h,
-    // ce qui pouvait monopoliser Safari sur une grande compagnie et rendre « Passer » inopérant.
-    try{ UI.silent=true; while(pl.left>0&&performance.now()-t0<20){ const d=Math.min(pl.left,5*MIN); advance(d); pl.left-=d; } }
-    catch(e){ pl.left=0; UI.silent=false; setTimeout(()=>{ throw e; },0); }
-    finally{ UI.silent=false; }
-    if(box){ const f=1-pl.left/pl.total; box.querySelector('i').style.width=(f*100).toFixed(0)+'%'; box.querySelector('small').textContent=`${fmtDur(pl.total-pl.left)} de jeu sur ${fmtDur(pl.total)} · ${fmtDate(S.time)}`; }
-    if(pl.left>0){ setTimeout(step,16); return; }
-    UI.catching=false; if(box) box.remove(); S.lastReal=Date.now();
+    box.querySelector('button').onclick=()=>{ skip=true; }; }
+  // fin du rattrapage : le temps qui n'a pas pu être simulé (bouton Passer, ou plus de 12 s de calcul sur un gros réseau)
+  // est compté en estimation, d'après le bénéfice moyen de la partie déjà simulée
+  const finish=()=>{ const done=pl.total-pl.left;
+    if(pl.left>0&&done>=3*HOUR){ const net=(S.cash-pl.before.cash)/done*pl.left; if(Number.isFinite(net)&&Math.abs(net)>0){ book(net>=0?'billets':'incidents',net); pl.est=net;
+      logMsg(`⏩ Absence : ${fmtDur(done)} simulés en détail, ${fmtDur(pl.left)} estimés (${net>=0?'+':''}${fmtMoney(net)}).`,net>=0?'ok':'bad'); } }
+    pl.left=0; UI.catching=false; if(box) box.remove(); S.lastReal=Date.now();
     try{ renderTop(); if(typeof renderPanel==='function') renderPanel(); updatePlanes(); }catch(e){}
     try{ offlineReport(catchUpReport(pl)); }catch(e){ console.warn(e); } };
+  const step=()=>{ const t0=performance.now();
+    // morceaux de 30 min, ~40 ms de calcul par image : l'écran et le bouton Passer restent vivants
+    try{ UI.silent=true; while(pl.left>0&&!skip&&performance.now()-t0<40){ const d=Math.min(pl.left,30*MIN); advance(d); pl.left-=d; } }
+    catch(e){ skip=true; UI.silent=false; setTimeout(()=>{ throw e; },0); }
+    finally{ UI.silent=false; }
+    pl.cpu+=performance.now()-t0;
+    if(box){ const f=1-pl.left/pl.total; box.querySelector('i').style.width=(f*100).toFixed(0)+'%'; box.querySelector('small').textContent=`${fmtDur(pl.total-pl.left)} de jeu sur ${fmtDur(pl.total)} · ${fmtDate(S.time)}`; }
+    if(pl.left>0&&!skip&&pl.cpu<12000){ setTimeout(step,16); return; }
+    finish(); };
   setTimeout(step,small?0:200);
 }
 function offlineReport(r){
