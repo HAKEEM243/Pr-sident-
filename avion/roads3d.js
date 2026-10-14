@@ -6,31 +6,68 @@
    en nombre limité (moins en qualité Minimal).
    ========================================================= */
 'use strict';
-const RD={cells:new Map(), busy:false, fail:0, cars:[], roads:[], viewer:null, last:0, models:null};
+const RD={cells:new Map(), busy:false, fail:0, cars:[], roads:[], paths:[], viewer:null, last:0, models:null};
 const RD_CELL=0.05, RD_KIND={motorway:[22,'#f59e0b',31],trunk:[18,'#fbbf24',25],primary:[14,'#e5e7eb',17],secondary:[11,'#d1d5db',14],tertiary:[8,'#cbd5e1',11]};
 const RD_EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
 const RD_COLORS=['#f8fafc','#111827','#9ca3af','#b91c1c','#1d4ed8','#e5e7eb','#78716c','#facc15','#065f46'];
-const M_CAR=c=>()=>{ const k=C3(c), g=C3('#1e293b'), w=C3('#0f172a'); return [[-0.9,0.9,0.3,1.0,-2.2,2.2,k],[-0.8,0.8,1.0,1.5,-1.1,1.0,g],[-0.95,-0.7,0,0.6,1.2,1.7,w],[0.7,0.95,0,0.6,1.2,1.7,w],[-0.95,-0.7,0,0.6,-1.7,-1.2,w],[0.7,0.95,0,0.6,-1.7,-1.2,w]]; };
-const M_BUS=()=>{ const k=C3('#eab308'), g=C3('#1e293b'); return [[-1.25,1.25,0.4,3.0,-5.5,5.5,k],[-1.27,1.27,1.6,2.5,-5.3,5.3,g]]; };
+// voitures : carrosserie, vitres, phares, feux arrière, roues (longueur sur z : avant en +z)
+const M_CAR=c=>()=>{ const k=C3(c), gl=C3('#1f2a3a'), w=C3('#0b0f17'), hl=C3('#fff7d6'), tl=C3('#dc2626'), ch=C3('#cbd5e1');
+  return [[-0.92,0.92,0.35,0.95,-2.25,2.25,k],[-0.82,0.82,0.95,1.48,-1.25,0.95,k],[-0.84,0.84,1.0,1.42,-1.15,0.85,gl],[-0.83,0.83,1.48,1.52,-1.2,0.9,k],
+    [-0.8,-0.45,0.62,0.82,2.25,2.3,hl],[0.45,0.8,0.62,0.82,2.25,2.3,hl],[-0.82,-0.5,0.62,0.82,-2.3,-2.25,tl],[0.5,0.82,0.62,0.82,-2.3,-2.25,tl],[-0.6,0.6,0.38,0.48,2.25,2.3,ch],
+    [-0.98,-0.72,0,0.66,1.15,1.75,w],[0.72,0.98,0,0.66,1.15,1.75,w],[-0.98,-0.72,0,0.66,-1.75,-1.15,w],[0.72,0.98,0,0.66,-1.75,-1.15,w]]; };
+const M_BUS=()=>{ const k=C3('#eab308'), g=C3('#1f2a3a'), w=C3('#0b0f17'), hl=C3('#fff7d6');
+  return [[-1.25,1.25,0.45,3.1,-5.6,5.6,k],[-1.27,1.27,1.6,2.6,-5.2,4.6,g],[-1.2,1.2,1.4,2.8,5.6,5.65,g],[-1.0,-0.6,0.7,0.95,5.6,5.66,hl],[0.6,1.0,0.7,0.95,5.6,5.66,hl],[-1.2,1.2,3.1,3.25,-5.4,5.4,C3('#f8fafc')],
+    [-1.32,-1.0,0,0.9,3.2,4.1,w],[1.0,1.32,0,0.9,3.2,4.1,w],[-1.32,-1.0,0,0.9,-4.1,-3.2,w],[1.0,1.32,0,0.9,-4.1,-3.2,w]]; };
+const M_TRUCK=()=>{ const cab=C3('#1d4ed8'), box=C3('#e5e7eb'), g=C3('#1f2a3a'), w=C3('#0b0f17');
+  return [[-1.2,1.2,0.5,2.7,2.6,4.6,cab],[-1.15,1.15,1.7,2.4,4.6,4.65,g],[-1.25,1.25,0.6,3.6,-4.6,2.4,box],[-1.3,-1.0,0,0.95,3.2,4.0,w],[1.0,1.3,0,0.95,3.2,4.0,w],[-1.3,-1.0,0,0.95,-3.8,-2.6,w],[1.0,1.3,0,0.95,-3.8,-2.6,w]]; };
+
 
 function rdOn(){ return typeof G!=='undefined'&&G&&G.viewer&&!document.getElementById('globe').hidden&&!window.SE_SAFE; }
 function rdCam(){ const c=G.viewer.camera.positionCartographic; return {lat:Cesium.Math.toDegrees(c.latitude), lon:Cesium.Math.toDegrees(c.longitude), h:c.height}; }
+// point du sol au centre de l'écran (là où l'on regarde), sinon sous la caméra
+function rdView(cam){ try{ const V=G.viewer, cv=V.scene.canvas, p=V.camera.pickEllipsoid(new Cesium.Cartesian2(cv.clientWidth/2,cv.clientHeight*0.6)); if(p){ const c=Cesium.Cartographic.fromCartesian(p), lat=Cesium.Math.toDegrees(c.latitude), lon=Cesium.Math.toDegrees(c.longitude); if(gcDist({lat,lon},cam)<25) return {lat,lon}; } }catch(e){} return {lat:cam.lat,lon:cam.lon}; }
+const RD_MAJ=0.4;
 function rdTick(){
   if(!rdOn()) return;
   if(RD.viewer!==G.viewer){ rdReset(); RD.viewer=G.viewer; G.viewer.scene.preRender.addEventListener(rdFrame); }
   const cam=rdCam(), ground=typeof groundAt==='function'?groundAt(cam.lat,cam.lon):0, agl=cam.h-ground;
   try{ minimapUpdate(cam); }catch(e){}
-  if(agl>6000||G.tiles){ for(const r of RD.roads) r.show=false; for(const c of RD.cars) c.e.show=false; return; }
+  try{ cityRingTick(cam,agl); }catch(e){ console.warn(e); }
+  if(agl>9000||G.tiles){ for(const r of RD.roads) r.show=false; for(const c of RD.cars) c.e.show=false; return; }
   for(const r of RD.roads) r.show=true;
+  const v=rdView(cam);
+  try{ rdCars(v,agl); }catch(e){ console.warn(e); }
   if(RD.busy||RD.fail>=4) return;
-  const i=Math.floor(cam.lat/RD_CELL), j=Math.floor(cam.lon/RD_CELL), key=i+','+j;
-  if(!RD.cells.has(key)) rdLoad(i,j,key);
+  // 1) grandes routes (autoroutes, nationales) sur ~45 km autour : elles partent loin
+  const mi=Math.floor(v.lat/RD_MAJ), mj=Math.floor(v.lon/RD_MAJ), mk='M'+mi+','+mj;
+  if(!RD.cells.has(mk)) return rdLoad(mk,mi*RD_MAJ,mj*RD_MAJ,(mi+1)*RD_MAJ,(mj+1)*RD_MAJ,'motorway|trunk|primary',GQ.mini?250:500,true);
+  if(agl>4000) return;
+  // 2) toutes les routes de quartier, sur plusieurs cases autour du point regardé
+  const R=GQ.mini?0:1, ci=Math.floor(v.lat/RD_CELL), cj=Math.floor(v.lon/RD_CELL), want=[];
+  for(let di=-R;di<=R;di++) for(let dj=-R;dj<=R;dj++) want.push([ci+di,cj+dj,di*di+dj*dj]);
+  want.sort((x,y)=>x[2]-y[2]);
+  for(const [i,j] of want){ const key=i+','+j; if(!RD.cells.has(key)) return rdLoad(key,i*RD_CELL,j*RD_CELL,(i+1)*RD_CELL,(j+1)*RD_CELL,'motorway|trunk|primary|secondary|tertiary',400,false); }
 }
-function rdReset(){ RD.cells.clear(); RD.roads=[]; RD.cars=[]; RD.busy=false; RD.fail=0; }
-async function rdLoad(i,j,key){
-  RD.cells.set(key,{prims:[],cars:[]}); RD.busy=true;
-  const s=i*RD_CELL, w=j*RD_CELL, n=s+RD_CELL, e=w+RD_CELL;
-  const q=`[out:json][timeout:20];way["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});out geom 400;`;
+// bâtiments OpenStreetMap autour du point regardé (et plus seulement sous l'avion suivi) : une grande partie de la ville en 3D
+function cityRingTick(cam,agl){
+  if(typeof loadOsmCell!=='function'||typeof OSM_CELL==='undefined'||agl>6000||G.tiles) return;
+  if(!G.osm) G.osm={cells:new Map(), busy:false, fail:0};
+  const O=G.osm; if(O.busy||O.fail>=4) return;
+  const v=rdView(cam), R=GQ.mini?1:GQ.mob&&!GQ.hq?1:2, cap=GQ.mini?5:GQ.mob&&!GQ.hq?9:16; G.osmCap=cap;
+  const ci=Math.floor(v.lat/OSM_CELL), cj=Math.floor(v.lon/OSM_CELL), want=[];
+  for(let di=-R;di<=R;di++) for(let dj=-R;dj<=R;dj++) want.push([ci+di,cj+dj,di*di+dj*dj]);
+  want.sort((x,y)=>x[2]-y[2]);
+  const c=want.slice(0,cap).find(([i,j])=>!O.cells.has(i+','+j)); if(!c) return;
+  O.e0=typeof groundAt==='function'?groundAt(v.lat,v.lon):0;
+  loadOsmCell(c[0],c[1]);
+  // ménage : on retire les cases les plus éloignées du point regardé
+  while(O.cells.size>cap){ let far=null, fd=-1; for(const k of O.cells.keys()){ const [i,j]=k.split(',').map(Number), d=(i-ci)**2+(j-cj)**2; if(d>fd){ fd=d; far=k; } }
+    const prim=O.cells.get(far); if(prim&&prim.destroy) G.viewer.scene.primitives.remove(prim); O.cells.delete(far); if(fd<=R*R*2) break; }
+}
+function rdReset(){ RD.cells.clear(); RD.roads=[]; RD.cars=[]; RD.paths=[]; RD.busy=false; RD.fail=0; }
+async function rdLoad(key,s,w,n,e,kinds,limit,major){
+  RD.cells.set(key,{prims:[],cars:[],major,s,w,n,e}); RD.busy=true;
+  const q=`[out:json][timeout:25];way["highway"~"^(${kinds})$"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});out geom ${limit};`;
   let js=null;
   for(const ep of RD_EP){ try{ const r=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}}); if(r.ok){ js=await r.json(); break; } }catch(err){} }
   RD.busy=false;
@@ -39,38 +76,50 @@ async function rdLoad(i,j,key){
   const C=Cesium, V=G.viewer, cell=RD.cells.get(key); if(!cell) return;
   const inst=[], paths=[];
   for(const el of js.elements||[]){
-    const g=el.geometry, k=RD_KIND[(el.tags||{}).highway]; if(!g||g.length<2||!k) continue;
+    const g=el.geometry, hw=(el.tags||{}).highway, k=RD_KIND[hw]; if(!g||g.length<2||!k) continue;
+    if(!major&&[...RD.cells.values()].some(c=>c.major&&g[0].lat>=c.s&&g[0].lat<=c.n&&g[0].lon>=c.w&&g[0].lon<=c.e)&&/motorway|trunk|primary/.test(hw)) continue;
     try{ inst.push(new C.GeometryInstance({geometry:new C.GroundPolylineGeometry({positions:C.Cartesian3.fromDegreesArray(g.flatMap(p=>[p.lon,p.lat])),width:k[0]}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(C.Color.fromCssColorString(k[1]).withAlpha(0.85))}})); }catch(err){}
     // chemin pour les voitures : distances cumulées
     const pts=g.map(p=>({lat:p.lat,lon:p.lon})), cum=[0]; for(let x=1;x<pts.length;x++) cum.push(cum[x-1]+gcDist(pts[x-1],pts[x])*1000);
     if(cum[cum.length-1]>150) paths.push({pts,cum,len:cum[cum.length-1],v:k[2],oneway:(el.tags||{}).oneway==='yes'||el.tags.highway==='motorway'});
   }
   if(inst.length){ const prim=V.scene.primitives.add(new C.GroundPolylinePrimitive({geometryInstances:inst, appearance:new C.PolylineColorAppearance(), asynchronous:true})); cell.prims.push(prim); RD.roads.push(prim); }
-  // voitures : réparties selon la longueur des routes, nombre plafonné
-  const cap=(GQ.mini?16:GQ.mob&&!GQ.hq?40:80), maxCars=Math.max(0,cap-RD.cars.length+Math.round(cap/3)), tot=paths.reduce((t,p)=>t+p.len,0);   // plafond pour toute la scène
-  if(!RD.models){ RD.models=RD_COLORS.map((c,x)=>apModel('car'+x,M_CAR(c))); RD.models.push(apModel('bus',M_BUS)); }
-  for(const p of paths){ const nC=Math.min(12,Math.round(maxCars*p.len/Math.max(1,tot))); for(let c=0;c<nC;c++){
-      const dir=p.oneway||Math.random()<0.5?1:-1, url=RD.models[Math.random()<0.06?RD.models.length-1:Math.floor(Math.random()*(RD.models.length-1))];
-      const ent=V.entities.add({position:C.Cartesian3.ZERO, model:{uri:url, minimumPixelSize:7, maximumScale:6, distanceDisplayCondition:new C.DistanceDisplayCondition(0,6000)}});
-      const car={e:ent,p,d:Math.random()*p.len,dir,v:p.v*(0.75+Math.random()*0.4)}; cell.cars.push(car); RD.cars.push(car); } }
+  // chemins gardés pour les voitures (avec leur boîte englobante)
+  for(const p of paths){ p.key=key; p.s=Math.min(...p.pts.map(q=>q.lat)); p.n=Math.max(...p.pts.map(q=>q.lat)); p.w=Math.min(...p.pts.map(q=>q.lon)); p.e=Math.max(...p.pts.map(q=>q.lon)); RD.paths.push(p); }
   // ménage : 6 cases au plus
-  if(RD.cells.size>6){ const k0=RD.cells.keys().next().value, old=RD.cells.get(k0); RD.cells.delete(k0);
-    if(old){ for(const pr of old.prims){ V.scene.primitives.remove(pr); RD.roads=RD.roads.filter(x=>x!==pr); } for(const c of old.cars){ V.entities.remove(c.e); } RD.cars=RD.cars.filter(c=>!old.cars.includes(c)); } }
+  const capMinor=GQ.mini?2:GQ.mob&&!GQ.hq?6:10, minors=[...RD.cells.entries()].filter(([k,c])=>!c.major), majors=[...RD.cells.entries()].filter(([k,c])=>c.major);
+  const evict=minors.length>capMinor?minors[0][0]:majors.length>2?majors[0][0]:null;
+  if(evict){ const k0=evict, old=RD.cells.get(k0); RD.cells.delete(k0);
+    if(old){ for(const pr of old.prims){ V.scene.primitives.remove(pr); RD.roads=RD.roads.filter(x=>x!==pr); } RD.paths=RD.paths.filter(p=>p.key!==k0); for(const c of RD.cars) if(c.p&&c.p.key===k0) c.p=null; } }
+}
+// parc de voitures fixe : celles qui sont loin du point regardé reviennent sur une route proche
+function rdCars(v,agl){
+  const C=Cesium, V=G.viewer, cap=GQ.mini?18:GQ.mob&&!GQ.hq?45:90, rad=Math.max(1.2,Math.min(4,agl/600));
+  if(!RD.models){ RD.models=RD_COLORS.map((c,x)=>apModel('car2'+x,M_CAR(c))); RD.models.push(apModel('truck',M_TRUCK),apModel('bus2',M_BUS)); }
+  const pad=rad/111, near=RD.paths.filter(p=>p.n>=v.lat-pad&&p.s<=v.lat+pad&&p.e>=v.lon-pad&&p.w<=v.lon+pad);
+  while(RD.cars.length<cap&&near.length){ const rr=Math.random(), url=RD.models[rr<0.05?RD.models.length-1:rr<0.13?RD.models.length-2:Math.floor(Math.random()*(RD.models.length-2))];
+    RD.cars.push({e:V.entities.add({position:C.Cartesian3.ZERO, show:false, model:{uri:url, scale:1.6, minimumPixelSize:16, maximumScale:40, distanceDisplayCondition:new C.DistanceDisplayCondition(0,9000)}}),p:null}); }
+  if(!near.length) return;
+  const wsum=near.reduce((t,p)=>t+p.v,0);   // plus de voitures sur les grandes routes
+  for(const c of RD.cars){
+    if(c.p&&c.lat!=null&&gcDist({lat:c.lat,lon:c.lon},v)<rad*1.3) continue;
+    let r=Math.random()*wsum, p=near[0]; for(const q of near){ r-=q.v; if(r<=0){ p=q; break; } }
+    let bi=0, bd=1e9; for(let x=0;x<p.pts.length;x++){ const d=Math.abs(p.pts[x].lat-v.lat)+Math.abs(p.pts[x].lon-v.lon); if(d<bd){ bd=d; bi=x; } }
+    c.p=p; c.d=clamp(p.cum[bi]+(Math.random()-0.5)*rad*1400,0,p.len); c.dir=p.oneway||Math.random()<0.5?1:-1; c.v=p.v*(0.75+Math.random()*0.4); c.seg=1; c.gh=null; c.lat=p.pts[bi].lat; c.lon=p.pts[bi].lon; }
 }
 function rdFrame(){
   if(!RD.cars.length||!rdOn()) return;
   const now=performance.now(), dt=Math.min(0.2,(now-(RD.last||now))/1000); RD.last=now;
   const C=Cesium, k=(typeof SPEEDS!=='undefined'&&S&&SPEEDS[S.speed]&&S.speed!=='realiste')?2:1;   // les voitures roulent en temps réel (un peu plus vite quand le jeu accélère)
-  const cam=rdCam(), near=c=>Math.abs(c.p.pts[0].lat-cam.lat)<0.12&&Math.abs(c.p.pts[0].lon-cam.lon)<0.12;
   for(const c of RD.cars){
-    if(!near(c)){ c.e.show=false; continue; } c.e.show=true;
-    c.d+=c.dir*c.v*dt*k; if(c.d>c.p.len) c.d-=c.p.len; if(c.d<0) c.d+=c.p.len;
+    if(!c.p){ c.e.show=false; continue; } c.e.show=true;
+    c.d+=c.dir*c.v*dt*k; if(c.d>c.p.len||c.d<0){ c.dir=-c.dir; c.d=clamp(c.d,0,c.p.len); }   // bout de la route : demi-tour
     const P=c.p, cum=P.cum; let x=c.seg||1; while(x<cum.length-1&&cum[x]<c.d) x++; while(x>1&&cum[x-1]>c.d) x--; c.seg=x;
     const a=P.pts[x-1], b=P.pts[x], f=(c.d-cum[x-1])/Math.max(0.01,cum[x]-cum[x-1]);
     const lat=a.lat+(b.lat-a.lat)*f, lon=a.lon+(b.lon-a.lon)*f, hd=bearing(a,b)+(c.dir<0?180:0), off=(P.oneway?2:3.2)/111320;
     const lt=lat+Math.cos(toRad(hd+90))*off, ln=lon+Math.sin(toRad(hd+90))*off/Math.max(0.2,Math.cos(toRad(lat)));
     if(c.gx!==x||c.gh==null){ c.gx=x; c.gh=typeof groundAt==='function'?groundAt(lt,ln):0; }   // hauteur du sol : une fois par tronçon
-    const pos=C.Cartesian3.fromDegrees(ln,lt,c.gh+0.3);
+    c.lat=lt; c.lon=ln; const pos=C.Cartesian3.fromDegrees(ln,lt,c.gh+0.3);
     c.e.position=pos; c.e.orientation=C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(hd-90),0,0));
   }
 }

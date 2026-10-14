@@ -80,7 +80,7 @@ function airportScenery(code,N){
   // arbres le long de la route
   if(!lite) for(let x=-span/2-250;x<span/2+250;x+=28){ const z=_scRnd(Math.round(x)+code.charCodeAt(1)); cyl(a0+x,land(312)+s*(z*6),0.8,5,'#78350f'); cyl(a0+x,land(312)+s*(z*6),6+z*3,10+z*5,z<0.5?'#166534':'#15803d',0.5,4); }
   if(!inst.length) return;
-  const prim=V.scene.primitives.add(new C.Primitive({geometryInstances:inst, appearance:new C.PerInstanceColorAppearance({flat:false,closed:true}), asynchronous:true, shadows:GQ.hq?C.ShadowMode.ENABLED:C.ShadowMode.DISABLED}));
+  const prim=V.scene.primitives.add(new C.Primitive({geometryInstances:inst, appearance:new C.PerInstanceColorAppearance({flat:false,closed:true,translucent:false}), asynchronous:true, shadows:GQ.hq?C.ShadowMode.ENABLED:C.ShadowMode.DISABLED}));
   N.rwy.push(prim);
 }
 if(typeof airportProps==='function'){ const _ap=airportProps; airportProps=function(code,N){ _ap(code,N); try{ if(!window.SE_SAFE) airportScenery(code,N); }catch(e){ console.warn(e); } }; }
