@@ -561,7 +561,7 @@ function timeTick(p){
 const OSM_CELL=0.06, OSM_EP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.nextgis.com/api/interpreter'];
 function osmTick(p){
   if(!G.osm) G.osm={cells:new Map(), busy:false, fail:0};
-  const O=G.osm; if(O.busy||O.fail>=4||p.h>4500||G.tiles) return;
+  const O=G.osm; if(O.busy||(O.fail>=4&&Date.now()-(O.failT||0)<45000)||p.h>4500||G.tiles) return;
   const ci=Math.floor(p.st.lat/OSM_CELL), cj=Math.floor(p.st.lon/OSM_CELL);
   // la case sous l'avion, puis celle devant lui
   const ahead=destPt(p.st.lat,p.st.lon,p.st.hdg,4);
@@ -579,7 +579,7 @@ async function loadOsmCell(i,j){
   let js=null;
   for(const ep of OSM_EP){ try{ const r=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}}); if(r.ok){ js=await r.json(); break; } }catch(err){} }
   O.busy=false;
-  if(!js){ O.fail++; O.cells.delete(key); return; }
+  if(!js){ O.fail++; O.failT=Date.now(); O.cells.delete(key); return; }
   O.fail=0;
   if(!G||!js.elements||!js.elements.length) return;
   // altitude lue dans les tuiles de relief (pas seulement là où le globe est déjà affiché)
@@ -659,6 +659,7 @@ function worldClear(){
   if(!G) return; const V=G.viewer;
   if(G.osm){ for(const prim of G.osm.cells.values()) if(prim) V.scene.primitives.remove(prim); G.osm.cells.clear(); }
   if(G.osmPin){ for(const st of G.osmPin.values()) if(st&&st.prim) V.scene.primitives.remove(st.prim); G.osmPin.clear(); }
+  if(G.osmFill){ for(const st of G.osmFill.values()) if(st&&st.prim) V.scene.primitives.remove(st.prim); G.osmFill.clear(); }
   if(G.apNear){ for(const e of G.apNear.ents) V.entities.remove(e); G.apNear.lights.removeAll(); for(const e of G.apNear.rwy) V.scene.primitives.remove(e); V.scene.primitives.remove(G.apNear.lights); G.apNear=null; }
   if(G.tm){ if(G.tm.auto&&G.tm.prev&&S.speed!==G.tm.prev){ S.speed=G.tm.prev; if(typeof renderTop==='function') renderTop(); } G.tm=null; }
 }
