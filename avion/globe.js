@@ -46,6 +46,9 @@ function log3D(ev,msg){ try{ const L=JSON.parse(localStorage.getItem('se-3d-log'
 function fail3D(why){ log3D('fermeture',why);
   showModal('⚠️ La vue 3D s’est fermée',`<p>${esc(why)}</p><p class="small">Le mode <b>Minimal</b> est activé pour la prochaine ouverture. Fermer les autres onglets et applis libère de la mémoire.</p>
     <div class="btns"><button class="btn gold" data-act="open3D">🔁 Réessayer la 3D</button><button class="btn" data-act="city3DFallback">🏙️ Voir les avions en Ville 3D (plus léger)</button><button class="btn" data-act="diag3D">🩺 Diagnostic</button></div>`); }
+// ville 3D allégée après un plantage (page tuée par manque de mémoire, ou contexte graphique perdu) : 1 = normal, 0.5, 0.25
+function cityLiteBump(){ try{ const k=Math.max(0.25,(+localStorage.getItem('se-city-k')||1)/2); localStorage.setItem('se-city-k',String(k)); }catch(e){} }
+function cityK(){ try{ return +localStorage.getItem('se-city-k')||1; }catch(e){ return 1; } }
 function live3D(on){ try{ if(on&&!$('#globe').hidden&&!document.hidden) localStorage.setItem('se-3d-live','1'); else localStorage.removeItem('se-3d-live'); }catch(e){} }
 document.addEventListener('visibilitychange',()=>{ live3D(!document.hidden); if(!document.hidden&&G&&G.snowOn) snowStart3D(); });
 window.addEventListener('pagehide',()=>live3D(false));
@@ -99,6 +102,7 @@ function patchCesium(C){
 // qualité graphique : « Éco » par défaut sur téléphone (fluide), « Haute » sur ordinateur
 const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); let crashed=false; try{ crashed=localStorage.getItem('se-3d-live')==='1'; localStorage.removeItem('se-3d-live'); }catch(e){}
   // la page s'est fermée brutalement pendant la vue 3D (mémoire du téléphone saturée) : on repasse en Éco
+  if(crashed) try{ const k=Math.max(0.25,(+localStorage.getItem('se-city-k')||1)/2); localStorage.setItem('se-city-k',String(k)); }catch(e){}
   if(crashed&&v!=='l'){ v=mob?'l':'e'; try{ localStorage.setItem('se-q',v); }catch(e){} }
   // une fois : les téléphones passent en Minimal (la 3D coupait sur iPhone) ; on peut remonter la qualité avec ⚙️
   let mig=false; try{ if(mob&&localStorage.getItem('se-q-v2')!=='1'){ localStorage.setItem('se-q-v2','1'); if(v!=='l'){ v='l'; mig=true; localStorage.setItem('se-q','l'); } } }catch(e){}
@@ -157,7 +161,7 @@ function initGlobe(){
   try{ sc.globe.showGroundAtmosphere=true; sc.globe.atmosphereLightIntensity=12; sc.skyAtmosphere.atmosphereLightIntensity=40; }catch(e){}
   // filet de sécurité : si le rendu plante, on retire les décors optionnels et on redémarre
   viewer.showRenderLoopErrors=false;
-  sc.canvas.addEventListener('webglcontextlost',ev=>{ ev.preventDefault(); log3D('contexte graphique perdu',GQ.mode);
+  sc.canvas.addEventListener('webglcontextlost',ev=>{ ev.preventDefault(); log3D('contexte graphique perdu',GQ.mode); cityLiteBump();
     const again=Date.now()-(window._se3dLost||0)<30000; window._se3dLost=Date.now();
     GQ.mode='l'; GQ.mini=true; GQ.hq=false; try{ localStorage.setItem('se-q','l'); }catch(e){}
     const g=G, fol=g&&g.follow; G=null; setTimeout(()=>{ try{ clearInterval(g.loop); g.viewer.destroy(); }catch(e){} },0);
@@ -571,7 +575,7 @@ function osmTick(p){
 async function loadOsmCell(i,j){
   const O=G.osm, key=i+','+j; O.cells.set(key,null); O.busy=true;
   const s=i*OSM_CELL, w=j*OSM_CELL, n=s+OSM_CELL, e=w+OSM_CELL;
-  const q=`[out:json][timeout:25];way["building"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});out geom ${GQ.hq?5000:GQ.mini?1200:1800};`;
+  const q=`[out:json][timeout:25];way["building"](${s.toFixed(4)},${w.toFixed(4)},${n.toFixed(4)},${e.toFixed(4)});out geom ${Math.round((GQ.mini?350:GQ.mob?600:GQ.hq?5000:1800)*cityK())};`;
   let js=null;
   for(const ep of OSM_EP){ try{ const r=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}}); if(r.ok){ js=await r.json(); break; } }catch(err){} }
   O.busy=false;

@@ -44,21 +44,21 @@ function rdTick(){
   if(!RD.cells.has(mk)) return rdLoad(mk,mi*RD_MAJ,mj*RD_MAJ,(mi+1)*RD_MAJ,(mj+1)*RD_MAJ,'motorway|trunk|primary',GQ.mini?250:500,true);
   if(agl>4000) return;
   // 2) toutes les routes de quartier, sur plusieurs cases autour du point regardé
-  const R=GQ.mini?0:1, ci=Math.floor(v.lat/RD_CELL), cj=Math.floor(v.lon/RD_CELL), want=[];
+  const R=GQ.mob?0:1, ci=Math.floor(v.lat/RD_CELL), cj=Math.floor(v.lon/RD_CELL), want=[];
   for(let di=-R;di<=R;di++) for(let dj=-R;dj<=R;dj++) want.push([ci+di,cj+dj,di*di+dj*dj]);
   want.sort((x,y)=>x[2]-y[2]);
   for(const [i,j] of want){ const key=i+','+j; if(!RD.cells.has(key)) return rdLoad(key,i*RD_CELL,j*RD_CELL,(i+1)*RD_CELL,(j+1)*RD_CELL,'motorway|trunk|primary|secondary|tertiary',400,false); }
 }
 // bâtiments OpenStreetMap autour du point regardé (et plus seulement sous l'avion suivi) : une grande partie de la ville en 3D
 function cityRingTick(cam,agl){
-  if(typeof loadOsmCell!=='function'||typeof OSM_CELL==='undefined'||agl>6000||G.tiles) return;
+  if(typeof loadOsmCell!=='function'||typeof OSM_CELL==='undefined'||agl>(GQ.mob?3500:6000)||G.tiles) return;
   if(!G.osm) G.osm={cells:new Map(), busy:false, fail:0};
   const O=G.osm; const v0=rdView(cam);
   try{ if(typeof cityExtrasTick==='function') cityExtrasTick(v0,agl); }catch(e){ console.warn(e); }
   if(O.busy||O.fail>=4) return;
   // les deux rives du fleuve Congo (Kinshasa, Brazzaville) d'abord, en petites cases plus denses
   try{ if(riverPinTick(v0,cam)) return; }catch(e){ console.warn(e); }
-  const v=v0, R=GQ.mini?1:GQ.mob&&!GQ.hq?1:2, cap=GQ.mini?4:GQ.mob&&!GQ.hq?6:14; G.osmCap=cap;
+  const v=v0, R=GQ.mob?1:2, cap=Math.max(1,Math.round((GQ.mini?2:GQ.mob?3:14)*(typeof cityK==='function'?Math.max(0.5,cityK()):1))); G.osmCap=cap;   // téléphone : 2 à 3 cases seulement (mémoire)
   const ci=Math.floor(v.lat/OSM_CELL), cj=Math.floor(v.lon/OSM_CELL), want=[];
   for(let di=-R;di<=R;di++) for(let dj=-R;dj<=R;dj++) want.push([ci+di,cj+dj,di*di+dj*dj]);
   want.sort((x,y)=>x[2]-y[2]);
@@ -80,10 +80,10 @@ function riverPinTick(v,cam){
   const near=gcDist(v,{lat:-4.30,lon:15.30})<35&&cam.h<12000; if(!G.osmPin) G.osmPin=new Map();
   if(!near){ if(G.osmPin.size){ for(const st of G.osmPin.values()) if(st&&st.prim) G.viewer.scene.primitives.remove(st.prim); G.osmPin.clear(); } return false; }
   if(GQ.mini&&gcDist(v,{lat:-4.31,lon:15.31})>12) return false;
-  let cells=pinCells(); if(GQ.mini) cells=cells.filter(c=>c.city==='Kinshasa'&&c.w>=15.28&&c.e<=15.33);
+  let cells=pinCells(); if(GQ.mini) cells=cells.filter(c=>c.city==='Kinshasa'&&c.w>=15.28&&c.e<=15.33&&c.s>=-4.32);
   cells.sort((a,b)=>gcDist(v,{lat:(a.s+a.n)/2,lon:(a.w+a.e)/2})-gcDist(v,{lat:(b.s+b.n)/2,lon:(b.w+b.e)/2}));
   const c=cells.find(x=>!G.osmPin.has(x.key)); if(!c) return false;
-  const k=GQ.mini?0.4:GQ.mob&&!GQ.hq?0.55:1, lim=Math.round(c.lim*k);
+  const k=GQ.mini?0.14:GQ.mob?0.16:1, lim=Math.max(40,Math.round(c.lim*k*(typeof cityK==='function'?cityK():1)));   // téléphone : ~350 bâtiments par case côté Kinshasa, ~130 côté Brazzaville
   G.osmPin.set(c.key,{s:c.s,w:c.w,n:c.n,e:c.e,ok:false}); pinLoad(c,lim); return true;
 }
 async function pinLoad(c,lim){
@@ -129,14 +129,14 @@ async function rdLoad(key,s,w,n,e,kinds,limit,major){
   // chemins gardés pour les voitures (avec leur boîte englobante)
   for(const p of paths){ p.key=key; p.s=Math.min(...p.pts.map(q=>q.lat)); p.n=Math.max(...p.pts.map(q=>q.lat)); p.w=Math.min(...p.pts.map(q=>q.lon)); p.e=Math.max(...p.pts.map(q=>q.lon)); RD.paths.push(p); }
   // ménage : 6 cases au plus
-  const capMinor=GQ.mini?2:GQ.mob&&!GQ.hq?6:10, minors=[...RD.cells.entries()].filter(([k,c])=>!c.major), majors=[...RD.cells.entries()].filter(([k,c])=>c.major);
+  const capMinor=GQ.mini?1:GQ.mob?3:10, minors=[...RD.cells.entries()].filter(([k,c])=>!c.major), majors=[...RD.cells.entries()].filter(([k,c])=>c.major);
   const evict=minors.length>capMinor?minors[0][0]:majors.length>2?majors[0][0]:null;
   if(evict){ const k0=evict, old=RD.cells.get(k0); RD.cells.delete(k0);
     if(old){ for(const pr of old.prims){ V.scene.primitives.remove(pr); RD.roads=RD.roads.filter(x=>x!==pr); } RD.paths=RD.paths.filter(p=>p.key!==k0); for(const c of RD.cars) if(c.p&&c.p.key===k0) c.p=null; } }
 }
 // parc de voitures fixe : celles qui sont loin du point regardé reviennent sur une route proche
 function rdCars(v,agl){
-  const C=Cesium, V=G.viewer, cap=GQ.mini?18:GQ.mob&&!GQ.hq?45:90, rad=Math.max(1.2,Math.min(4,agl/600));
+  const C=Cesium, V=G.viewer, cap=GQ.mini?8:GQ.mob?22:90, rad=Math.max(1.2,Math.min(4,agl/600));
   if(!RD.models){ RD.models=RD_COLORS.map((c,x)=>apModel('car2'+x,M_CAR(c))); RD.models.push(apModel('truck',M_TRUCK),apModel('bus2',M_BUS)); }
   const pad=rad/111, near=RD.paths.filter(p=>p.n>=v.lat-pad&&p.s<=v.lat+pad&&p.e>=v.lon-pad&&p.w<=v.lon+pad);
   while(RD.cars.length<cap&&near.length){ const rr=Math.random(), url=RD.models[rr<0.05?RD.models.length-1:rr<0.13?RD.models.length-2:Math.floor(Math.random()*(RD.models.length-2))];
@@ -209,13 +209,17 @@ const RW={viewer:null, prim:null};
 function riverWaterTick(cam){
   if(typeof CONGO_RIVER==='undefined') return;
   const near=gcDist(cam,{lat:-4.30,lon:15.33})<150;
-  if(!near){ if(RW.prim&&RW.viewer===G.viewer){ G.viewer.scene.primitives.remove(RW.prim); } RW.prim=null; RW.viewer=null; return; }
+  if(!near){ if(RW.prim&&RW.prim!==true&&RW.viewer===G.viewer){ G.viewer.scene.primitives.remove(RW.prim); } RW.prim=null; RW.viewer=null; return; }
   if(RW.viewer===G.viewer&&RW.prim) return;
   const C=Cesium, V=G.viewer; RW.viewer=V;
   const ring=r=>C.Cartesian3.fromDegreesArray(r.flat());
   const inst=CONGO_RIVER.map(rings=>new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(ring(rings[0]),rings.slice(1).map(h=>new C.PolygonHierarchy(ring(h)))), vertexFormat:C.EllipsoidSurfaceAppearance.VERTEX_FORMAT})}));
   // eau brune et verte du Congo, petites vagues animées et reflet du soleil
   const mat=C.Material.fromType('Water',{baseWaterColor:new C.Color(0.36,0.31,0.21,0.97), blendColor:new C.Color(0.26,0.25,0.19,1), normalMap:C.buildModuleUrl('Assets/Textures/waterNormals.jpg'), frequency:GQ.mob?6000:9000, animationSpeed:0.012, amplitude:5, specularIntensity:0.6, fadeFactor:1});
-  try{ RW.prim=V.scene.primitives.add(new C.GroundPrimitive({geometryInstances:inst, appearance:new C.EllipsoidSurfaceAppearance({material:mat, aboveGround:false}), asynchronous:true})); }
-  catch(e){ console.warn(e); RW.prim=null; }
+  RW.prim=true;   // en cours
+  // niveau de l'eau (≈ 272 m au Pool Malebo) lu dans le relief, puis une surface plate : bien plus léger qu'une forme drapée sur le sol
+  const lvl=typeof terrElevAsync==='function'?terrElevAsync(-4.30,15.42).catch(()=>null):Promise.resolve(0);
+  lvl.then(h=>{ if(RW.viewer!==V) return; const z=(typeof TERRAIN!=='undefined'&&TERRAIN.on)?(h!=null?h+0.8:272):0;
+    const geo=CONGO_RIVER.map(rings=>new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(ring(rings[0]),rings.slice(1).map(q=>new C.PolygonHierarchy(ring(q)))), height:z, vertexFormat:C.EllipsoidSurfaceAppearance.VERTEX_FORMAT, granularity:C.Math.RADIANS_PER_DEGREE/(GQ.mob?20:60)})}));
+    try{ RW.prim=V.scene.primitives.add(new C.Primitive({geometryInstances:geo, appearance:new C.EllipsoidSurfaceAppearance({material:mat, aboveGround:false}), asynchronous:true})); }catch(e){ console.warn(e); RW.prim=null; } });
 }
