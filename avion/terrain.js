@@ -99,3 +99,28 @@ function terrainApply(){
 }
 // sol réel sous un point (tuiles chargées) — pour ne jamais traverser une montagne
 function groundAt(lat,lon){ if(!TERRAIN.on||!G) return 0; const h=G.viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(lon,lat)); return (h===undefined||h<-450||h>9000)?0:h; }
+
+/* ---------- altitude lue directement dans les tuiles de relief ----------
+   (globe.getHeight ne répond que pour les zones déjà affichées : ailleurs il renvoie 0
+   et les bâtiments se retrouvaient enterrés ~300 m sous Kinshasa) */
+const TERR_DEC=new Map(), TERR_Z=13;
+function _terrTileXY(lat,lon,z){ const n=1<<z, x=(lon+180)/360*n, r=lat*Math.PI/180, y=(1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n; return {x,y}; }
+function _terrSample(h,fx,fy){ const px=Math.max(0,Math.min(255,fx*256-0.5)), py=Math.max(0,Math.min(255,fy*256-0.5)), x0=Math.floor(px), y0=Math.floor(py), x1=Math.min(255,x0+1), y1=Math.min(255,y0+1), ax=px-x0, ay=py-y0;
+  return h[y0*256+x0]*(1-ax)*(1-ay)+h[y0*256+x1]*ax*(1-ay)+h[y1*256+x0]*(1-ax)*ay+h[y1*256+x1]*ax*ay; }
+// version immédiate : réponse si la tuile est déjà décodée, sinon null (et on la demande)
+function terrElevSync(lat,lon){ if(!TERRAIN.on) return 0; const t=_terrTileXY(lat,lon,TERR_Z), tx=Math.floor(t.x), ty=Math.floor(t.y), k=tx+'/'+ty, h=TERR_DEC.get(k);
+  if(h) return _terrSample(h,t.x-tx,t.y-ty);
+  if(h===undefined){ TERR_DEC.set(k,null); terrTile(TERR_Z,tx,ty).then(d=>{ if(d) TERR_DEC.set(k,d); else TERR_DEC.delete(k); if(TERR_DEC.size>80) TERR_DEC.delete(TERR_DEC.keys().next().value); }); }
+  return null; }
+function terrElevAsync(lat,lon){ if(!TERRAIN.on) return Promise.resolve(0); const t=_terrTileXY(lat,lon,TERR_Z), tx=Math.floor(t.x), ty=Math.floor(t.y), k=tx+'/'+ty;
+  return terrTile(TERR_Z,tx,ty).then(d=>{ if(!d) return null; TERR_DEC.set(k,d); return _terrSample(d,t.x-tx,t.y-ty); }); }
+// grille d'altitudes sur une zone (s,w,n,e) → fonction p=>altitude (interpolation) ; repli : altitude moyenne connue
+async function cellGround(s,w,n,e,fallback){
+  if(!TERRAIN.on) return ()=>0;
+  const N=5, pts=[]; for(let j=0;j<N;j++) for(let i=0;i<N;i++) pts.push([s+(n-s)*j/(N-1), w+(e-w)*i/(N-1)]);
+  const hs=await Promise.all(pts.map(([la,lo])=>terrElevAsync(la,lo).catch(()=>null)));
+  const ok=hs.filter(v=>v!=null); const avg=ok.length?ok.reduce((a,b)=>a+b,0)/ok.length:(fallback||0);
+  const H=hs.map(v=>v==null?avg:v);
+  return p=>{ const fy=Math.max(0,Math.min(N-1,(p.lat-s)/(n-s||1)*(N-1))), fx=Math.max(0,Math.min(N-1,(p.lon-w)/(e-w||1)*(N-1))), x0=Math.min(N-2,Math.floor(fx)), y0=Math.min(N-2,Math.floor(fy)), ax=fx-x0, ay=fy-y0;
+    return H[y0*N+x0]*(1-ax)*(1-ay)+H[y0*N+x0+1]*ax*(1-ay)+H[(y0+1)*N+x0]*(1-ax)*ay+H[(y0+1)*N+x0+1]*ax*ay; };
+}

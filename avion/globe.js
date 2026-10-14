@@ -578,7 +578,9 @@ async function loadOsmCell(i,j){
   if(!js){ O.fail++; O.cells.delete(key); return; }
   O.fail=0;
   if(!G||!js.elements||!js.elements.length) return;
-  const e0=O.e0||0, gb=v=>{ if(typeof TERRAIN==='undefined'||!TERRAIN.on) return 0; const h=groundAt(v.lat,v.lon); return h>0?h:e0; };
+  // altitude lue dans les tuiles de relief (pas seulement là où le globe est déjà affiché)
+  let gb=v=>0; try{ if(typeof cellGround==='function') gb=await cellGround(s,w,n,e,O.e0||0); else { const e0=O.e0||0; gb=v=>{ if(typeof TERRAIN==='undefined'||!TERRAIN.on) return 0; const h=groundAt(v.lat,v.lon); return h>0?h:e0; }; } }catch(err){ console.warn(err); }
+  if(!G||!G.viewer||!O.cells.has(key)) return;
   const C=Cesium, inst=[];
   // bâtiments détaillés (façades, fenêtres, toits) : scenery3d.js ; sinon blocs simples
   if(typeof osmBuildCell==='function'&&!G.noFacade){ try{ const prim=osmBuildCell(js.elements,gb); if(prim) O.cells.set(key,prim); return; }catch(err){ console.warn(err); } }

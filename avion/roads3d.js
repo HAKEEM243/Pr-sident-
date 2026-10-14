@@ -32,6 +32,7 @@ function rdTick(){
   if(RD.viewer!==G.viewer){ rdReset(); RD.viewer=G.viewer; G.viewer.scene.preRender.addEventListener(rdFrame); }
   const cam=rdCam(), ground=typeof groundAt==='function'?groundAt(cam.lat,cam.lon):0, agl=cam.h-ground;
   try{ minimapUpdate(cam); }catch(e){}
+  try{ riverWaterTick(cam); }catch(e){ console.warn(e); }
   try{ cityRingTick(cam,agl); }catch(e){ console.warn(e); }
   if(agl>9000||G.tiles){ for(const r of RD.roads) r.show=false; for(const c of RD.cars) c.e.show=false; return; }
   for(const r of RD.roads) r.show=true;
@@ -93,7 +94,8 @@ async function pinLoad(c,lim){
   O.busy=false;
   if(!js){ O.fail++; G.osmPin.delete(c.key); return; }
   O.fail=0; if(!G||!G.viewer) return;
-  const e0=typeof groundAt==='function'?groundAt((c.s+c.n)/2,(c.w+c.e)/2):0, gb=p=>{ if(typeof TERRAIN==='undefined'||!TERRAIN.on) return 0; const h=groundAt(p.lat,p.lon); return h>0?h:e0; };
+  let gb=p=>0; try{ gb=await cellGround(c.s,c.w,c.n,c.e,300); }catch(err){ console.warn(err); }
+  if(!G||!G.viewer||!G.osmPin.has(c.key)) return;
   // un bâtiment n'appartient qu'à la case qui contient son premier point
   const els=(js.elements||[]).filter(el=>el.geometry&&el.geometry.length&&el.geometry[0].lat>=c.s&&el.geometry[0].lat<c.n&&el.geometry[0].lon>=c.w&&el.geometry[0].lon<c.e);
   let prim=null; try{ prim=typeof osmBuildCell==='function'?osmBuildCell(els,gb,true):null; }catch(e){ console.warn(e); }
@@ -158,7 +160,7 @@ function rdFrame(){
     const a=P.pts[x-1], b=P.pts[x], f=(c.d-cum[x-1])/Math.max(0.01,cum[x]-cum[x-1]);
     const lat=a.lat+(b.lat-a.lat)*f, lon=a.lon+(b.lon-a.lon)*f, hd=bearing(a,b)+(c.dir<0?180:0), off=(P.oneway?2:3.2)/111320;
     const lt=lat+Math.cos(toRad(hd+90))*off, ln=lon+Math.sin(toRad(hd+90))*off/Math.max(0.2,Math.cos(toRad(lat)));
-    if(c.gx!==x||c.gh==null){ c.gx=x; c.gh=typeof groundAt==='function'?groundAt(lt,ln):0; }   // hauteur du sol : une fois par tronçon
+    if(c.gx!==x||c.gh==null){ const t=typeof terrElevSync==='function'?terrElevSync(lt,ln):null; if(t!=null||c.gh==null){ c.gx=t!=null?x:-1; c.gh=t!=null?t:(typeof groundAt==='function'?groundAt(lt,ln):0); } }   // hauteur du sol : une fois par tronçon
     c.lat=lt; c.lon=ln; const pos=C.Cartesian3.fromDegrees(ln,lt,c.gh+0.3);
     c.e.position=pos; c.e.orientation=C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(hd-90),0,0));
   }
@@ -201,3 +203,19 @@ function minimapUpdate(cam){
   MM.cone.setLatLngs([ll,[p1.lat,p1.lon],[p2.lat,p2.lon]]);
 }
 setInterval(()=>{ try{ rdTick(); }catch(e){ console.warn(e); } },1000);
+
+/* ---------- l'eau du fleuve Congo (Pool Malebo, rapides) : vagues animées et reflets ---------- */
+const RW={viewer:null, prim:null};
+function riverWaterTick(cam){
+  if(typeof CONGO_RIVER==='undefined') return;
+  const near=gcDist(cam,{lat:-4.30,lon:15.33})<150;
+  if(!near){ if(RW.prim&&RW.viewer===G.viewer){ G.viewer.scene.primitives.remove(RW.prim); } RW.prim=null; RW.viewer=null; return; }
+  if(RW.viewer===G.viewer&&RW.prim) return;
+  const C=Cesium, V=G.viewer; RW.viewer=V;
+  const ring=r=>C.Cartesian3.fromDegreesArray(r.flat());
+  const inst=CONGO_RIVER.map(rings=>new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(ring(rings[0]),rings.slice(1).map(h=>new C.PolygonHierarchy(ring(h)))), vertexFormat:C.EllipsoidSurfaceAppearance.VERTEX_FORMAT})}));
+  // eau brune et verte du Congo, petites vagues animées et reflet du soleil
+  const mat=C.Material.fromType('Water',{baseWaterColor:new C.Color(0.36,0.31,0.21,0.97), blendColor:new C.Color(0.26,0.25,0.19,1), normalMap:C.buildModuleUrl('Assets/Textures/waterNormals.jpg'), frequency:GQ.mob?6000:9000, animationSpeed:0.012, amplitude:5, specularIntensity:0.6, fadeFactor:1});
+  try{ RW.prim=V.scene.primitives.add(new C.GroundPrimitive({geometryInstances:inst, appearance:new C.EllipsoidSurfaceAppearance({material:mat, aboveGround:false}), asynchronous:true})); }
+  catch(e){ console.warn(e); RW.prim=null; }
+}
