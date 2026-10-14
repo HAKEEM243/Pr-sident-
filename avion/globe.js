@@ -584,10 +584,12 @@ async function loadOsmCell(i,j){
     const g=el.geometry; if(!g||g.length<4) continue;
     const t=el.tags||{}; let h=parseFloat(t.height)||(parseFloat(t['building:levels'])||0)*3.2;
     if(!h){ const b=t.building; h=b==='house'||b==='residential'||b==='detached'?6:b==='hangar'||b==='industrial'||b==='warehouse'?11:b==='terminal'||b==='transportation'?16:b==='apartments'?15:b==='commercial'||b==='office'?18:4+((el.id%7)); }
+    if(!t.height&&!t['building:levels']&&typeof sceneryHeight==='function') h=sceneryHeight(el,g,t,h);   // centre-ville : immeubles et tours
     h=Math.min(h,450);
     const pos=g.slice(0,-1).flatMap(v=>[v.lon,v.lat]);
     const shade=0.78+((el.id%13)/13)*0.16, tall=Math.min(1,h/80);
-    const col=new C.Color(shade-0.1*tall,shade-0.06*tall,shade-0.02*tall+(t.building==='hangar'?0.05:0),1);
+    let col=new C.Color(shade-0.1*tall,shade-0.06*tall,shade-0.02*tall+(t.building==='hangar'?0.05:0),1);
+    if(typeof sceneryColor==='function') try{ col=sceneryColor(el,t,h,col); }catch(err){}
     try{ inst.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(pos)), height:gb(g[0])-1, extrudedHeight:gb(g[0])+h, vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(col)}})); }catch(err){}
   }
   if(!inst.length) return;

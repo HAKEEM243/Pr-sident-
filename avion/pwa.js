@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261127';
+const GAME_VER='20261128';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏙️ 3D plus vivante','Aéroports en 3D : hangars aux couleurs de votre compagnie, gare cargo et conteneurs, dépôt de carburant, parkings pleins de voitures, hôtels, route bordée d’arbres. Villes (bâtiments OpenStreetMap sous l’avion suivi) : tours au centre des grandes villes, toits de tôle, fenêtres allumées la nuit. Tout est dessiné en un seul bloc pour rester léger ; en qualité Minimal, voitures et arbres sont retirés.'],
   ['🚀 Grosses compagnies plus fluides','Avec des centaines d’avions et de lignes, la carte devenait trop lourde pour un téléphone : lignes dessinées sans animation au-delà de 25 lignes, seuls les avions à l’écran sont mis à jour, pas d’ombre sous les avions au-delà de 60 avions, objectifs et panneaux calculés une seule fois. Environ 3 fois plus d’images par seconde.'],
   ['⏩ Rattrapage d’absence débloqué','Au retour, le jeu simule votre absence en détail pendant au plus ~12 secondes, puis estime le reste d’après votre bénéfice moyen. Le bouton « Passer » marche tout de suite.'],
   ['⚡ Le jeu ne se fige plus','Le calcul des espaces aériens fermés ralentissait tout le jeu (surtout avec beaucoup d’avions) : il est maintenant mis en cache, environ 10 fois plus rapide.'],
