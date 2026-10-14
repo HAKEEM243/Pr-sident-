@@ -182,7 +182,7 @@ function osmBuildCell(elements,gb,pinned){
     if(h<=40){ const W=WALLS[(el.id*7)%WALLS.length]; col=C.Color.fromCssColorString(W); }   // murs peints (crème, beige, ocre, pastel…)
     const base=gb(g[0]), enc=C.EncodedCartesian3.fromCartesian(C.Cartesian3.fromDegrees(g[0].lon,g[0].lat,base-1));
     const indus=/hangar|industrial|warehouse|garage|shed|roof/.test(b), dens=indus?0.06:h>40?0.95:h>14?0.82:0.6;
-    try{ inst.push(new C.GeometryInstance({id:'b'+el.id, geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(g.slice(0,-1).flatMap(v=>[v.lon,v.lat]))), height:base-1, extrudedHeight:base+h, vertexFormat:VF}),
+    try{ inst.push(new C.GeometryInstance({id:'b'+el.id, geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(g.slice(0,-1).flatMap(v=>[v.lon,v.lat]))), height:base-6, extrudedHeight:base+h, vertexFormat:VF}),
       attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(col), orgh:attr([enc.high.x,enc.high.y,enc.high.z]), orgl:attr([enc.low.x,enc.low.y,enc.low.z]), sty:attr([h>40?3.7:3.1, dens, (el.id%997)/7.3])}})); }catch(err){ continue; }
     // toit à 4 pans sur les maisons rectangulaires (tôle de couleur)
     if(h<=9&&!GQ.mini&&g.length>=5&&g.length<=8) try{ const r=_roofFrame(g); if(r&&r.L*r.W<450&&r.fill>0.78){
@@ -239,8 +239,9 @@ async function extrasLoad(i,j,v){
   X3D.busy=false;
   if(!js){ X3D.fail++; X3D.cells.delete(key); return; }
   X3D.fail=0; if(!G||!G.viewer||!X3D.cells.has(key)) return;
-  const C=Cesium, V=G.viewer, ground=[], obj=[], VF=C.PerInstanceColorAppearance.VERTEX_FORMAT, e0=typeof groundAt==='function'?groundAt(v.lat,v.lon):0;
-  const gh=(lat,lon)=>{ const h=typeof groundAt==='function'?groundAt(lat,lon):0; return h>0?h:e0; };
+  let gs=p=>0; try{ gs=await cellGround(s,w,n,e,300); }catch(err){}
+  if(!G||!G.viewer||!X3D.cells.has(key)) return;
+  const C=Cesium, V=G.viewer, ground=[], obj=[], VF=C.PerInstanceColorAppearance.VERTEX_FORMAT, gh=(lat,lon)=>gs({lat,lon});
   const treeCap=GQ.mini?0:GQ.mob&&!GQ.hq?350:1000, stallCap=GQ.mini?0:GQ.mob&&!GQ.hq?250:600; let trees=0, stalls=0;
   const enu=(lat,lon,z,rot)=>{ let m=C.Transforms.eastNorthUpToFixedFrame(C.Cartesian3.fromDegrees(lon,lat,z)); if(rot) m=C.Matrix4.multiply(m,C.Matrix4.fromRotationTranslation(C.Matrix3.fromRotationZ(rot)),new C.Matrix4()); return m; };
   const colA=(h,a)=>({color:C.ColorGeometryInstanceAttribute.fromColor(C.Color.fromCssColorString(h).withAlpha(a==null?1:a))});
@@ -278,9 +279,11 @@ function landmarksTick(v){
   const C=Cesium, V=G.viewer;
   for(const [k,st] of X3D.lmCity){ if(st.viewer!==V) X3D.lmCity.delete(k); }
   for(const L of LANDMARKS){ const city=L[1]; if(X3D.lmCity.has(city)) continue; if(Math.abs(L[2]-v.lat)>0.35||Math.abs(L[3]-v.lon)>0.35) continue;
+    // attendre que l'altitude de chaque monument soit connue (sinon ils seraient enterrés)
+    if(typeof terrElevSync==='function'&&TERRAIN.on&&LANDMARKS.some(M=>M[1]===city&&terrElevSync(M[2],M[3])==null)) continue;
     const inst=[], ents=[], VF=C.PerInstanceColorAppearance.VERTEX_FORMAT;
     for(const [name,c2,lat,lon,parts,color] of LANDMARKS){ if(c2!==city) continue;
-      const z0=typeof groundAt==='function'?Math.max(0,groundAt(lat,lon)):0, base=C.Transforms.eastNorthUpToFixedFrame(C.Cartesian3.fromDegrees(lon,lat,z0)), col={color:C.ColorGeometryInstanceAttribute.fromColor(C.Color.fromCssColorString(color))};
+      const z0=(typeof terrElevSync==='function'?terrElevSync(lat,lon):null)??(typeof groundAt==='function'?Math.max(0,groundAt(lat,lon)):0), base=C.Transforms.eastNorthUpToFixedFrame(C.Cartesian3.fromDegrees(lon,lat,z0)), col={color:C.ColorGeometryInstanceAttribute.fromColor(C.Color.fromCssColorString(color))};
       const at=(dx,dy,dz)=>C.Matrix4.multiplyByTranslation(base,new C.Cartesian3(dx,dy,dz),new C.Matrix4());
       for(const [sh,w,b,t,dx=0,dy=0,l] of parts){ const H=t-b;
         if(sh==='s') inst.push(new C.GeometryInstance({geometry:C.BoxGeometry.fromDimensions({dimensions:new C.Cartesian3(2*w,2*(l||w),H),vertexFormat:VF}),modelMatrix:at(dx,dy,b+H/2),attributes:col}));

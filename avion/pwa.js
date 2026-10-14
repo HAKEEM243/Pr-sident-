@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261134';
+const GAME_VER='20261135';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🌊 Le fleuve et la ville enfin visibles','Correction : avec le relief activé, les bâtiments, arbres, monuments et voitures étaient posés à 0 m, donc enterrés sous Kinshasa (≈ 300 m d’altitude) — la ville ne s’affichait pas. L’altitude est maintenant lue dans les tuiles de relief. Et le fleuve Congo (Pool Malebo, rapides de Kintambo) est dessiné en vraie eau animée avec reflets, entre Kinshasa et Brazzaville.'],
   ['🌊 Les deux rives du fleuve','Près de Kinshasa en 3D, les quartiers au bord du fleuve Congo se chargent en priorité et restent affichés : Kinshasa en détail (Gombe, Kintambo, Lingwala, Barumbu…) et la rive de Brazzaville en face (Plateau, Poto-Poto, Bacongo, Tour Nabemba). Le reste de la ville se charge autour de ce que vous regardez, sans doublons.'],
   ['🏙️ Gombe plus vrai','Testé sur les vraies données OpenStreetMap de Gombe : hauteurs plus réalistes (surtout des immeubles de quelques étages, peu de tours inventées), murs peints de couleurs variées (crème, beige, ocre, pastel), toits-terrasses en béton, et noms des bâtiments connus au-dessus des toits (hôtels, galeries, immeubles…). Serveur de carte de secours ajouté pour charger la ville plus souvent.'],
   ['🌳 Parcs, marchés et monuments','En 3D, les parcs, jardins, forêts et cimetières (OpenStreetMap) sont verts avec des arbres et des palmiers ; les marchés ont leurs étals sous bâches colorées. Monuments de Kinshasa modélisés avec leur nom : Stade des Martyrs, Palais du Peuple, Tour de l’Échangeur, cathédrale, gare, mausolée… (et ceux des autres grandes villes).'],
