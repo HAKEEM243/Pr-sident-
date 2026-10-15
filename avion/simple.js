@@ -55,11 +55,19 @@ function autoManage(){
 
 /* ---------- tutoriel court ---------- */
 const SIMPLE_GUIDE = [
-  {t:'Ouvrez votre première ligne', d:'Touchez « Montre-moi », puis « Ouvrir la ligne » : votre avion sera programmé tout seul.', done:()=>S.routes.length>0,
+  {t:'Ouvrez votre première ligne', d:'Une ligne relie votre hub à une autre ville : c’est ainsi que vous gagnez de l’argent. Touchez « Montre-moi », puis « Ouvrir la ligne » : un avion est programmé tout seul.', done:()=>S.routes.length>0,
    go:()=>GUIDE[0].go()},
-  {t:'Regardez voler votre avion', d:'Ouvrez « 🛫 Mes vols » sur la carte et touchez votre avion pour le suivre.', done:()=>S.stats.flights>0||UI.followed,
+  {t:'Regardez voler votre avion', d:'Sur la carte, touchez « 🛫 Mes vols » puis votre avion pour le suivre. Le bouton 3D montre le vol comme si vous y étiez.', done:()=>S.stats.flights>0||UI.followed,
    go:()=>{ S.speed='rapide'; setTab('map'); const ac=S.fleet.find(a=>a.status==='flight'); if(ac){ selectPlane(ac.id); followPlane=true; UI.followed=true; } else { UI.fl=true; renderFlightList(); } }},
-  {t:'Achetez un deuxième avion', d:'Onglet « Acheter » : le nouvel avion rejoint automatiquement une ligne.', done:()=>S.fleet.length>=(START_PACKS[S.packId||'regional']?START_PACKS[S.packId||'regional'].fleet.length+1:3),
+  {t:'Découvrez votre compagnie', d:'L’onglet « 🏢 Compagnie » rassemble tout : le résumé, ce que vous pouvez améliorer, vos clients, vos concurrents et votre espace aérien. Le résumé vous dit quoi faire ensuite.', done:()=>S.seen&&S.seen.co,
+   go:()=>{ UI.coTab='home'; setTab('company'); }},
+  {t:'Écoutez vos clients', d:'Dans « 👥 Clients » : leurs notes, ce qui les fâche (retards, prix, bagages…) et les clients qui vous ont écrit. Un client content fait monter votre image.', done:()=>S.seen&&S.seen.pax,
+   go:()=>{ UI.coTab='pax'; setTab('company'); }},
+  {t:'Améliorez votre compagnie', d:'Dans « ✨ Améliorer » : montez le service à bord, lancez le programme de fidélité ou construisez un salon VIP. Faites-en au moins un.', done:()=>S.service>=4||!!S.loyalty||S.hubs.some(h=>AP(h).lounge)||(S.campaigns||[]).length>0,
+   go:()=>{ UI.coTab='up'; setTab('company'); }},
+  {t:'Surveillez vos concurrents', d:'Dans « ⚔️ Concurrents » : les compagnies dirigées par l’ordinateur, celles qui volent sur vos lignes, leur fiche. Vous pouvez signer un partage de codes ou racheter leurs actions.', done:()=>S.seen&&S.seen.rivals,
+   go:()=>{ UI.coTab='rivals'; setTab('company'); }},
+  {t:'Achetez un deuxième avion', d:'Onglet « Acheter » : choisissez un avion adapté à vos pistes. Il rejoint automatiquement une ligne. Plus d’avions = plus de passagers.', done:()=>S.fleet.length>=(START_PACKS[S.packId||'regional']?START_PACKS[S.packId||'regional'].fleet.length+1:3),
    go:()=>setTab('shop')},
 ];
 
@@ -102,7 +110,8 @@ function pMore(){
     ${item('shop','🛒','Acheter','Avions neufs et occasion')}
     ${item('staff','👥','Personnel','Géré automatiquement')}
     ${item('fuel','⛽','Carburant','Géré automatiquement')}
-    ${item('company','📣','Compagnie','Prix, publicité, alliances')}
+    ${item('company','🏢','Ma compagnie','Améliorer, clients, VIP, concurrents, espace aérien')}
+    ${item('news','📰','Actualités','Monde, présidents, classement, avis')}
     ${item('bourse','📈','Bourse','Actions et rachats')}
   </div>
   <label class="tog"><input type="checkbox" data-in="simple" ${S.simple?'checked':''}> <b>Mode simple</b> : personnel, carburant, maintenance et programmation automatiques</label>
@@ -115,7 +124,7 @@ function pMore(){
   <h3>🌍 Vue 3D</h3><div class="small mut">Si la 3D se ferme ou rame sur votre téléphone : mode Minimal, ou diagnostic à envoyer.</div><div class="btns"><button class="btn sm" data-act="q3Mini">🪶 Mode Minimal</button><button class="btn sm" data-act="diag3D">🩺 Diagnostic 3D</button>${window.SE_SAFE?'<button class="btn sm gold" data-act="safeOff">✅ Quitter le mode sans échec</button>':''}</div>
   <div class="btns"><button class="btn" data-act="whatsNew">🆕 Nouveautés · version ${typeof GAME_VER!=='undefined'?GAME_VER:''}</button><button class="btn gold" data-act="install">📲 Application${typeof isStandalone==='function'&&isStandalone()?' (installée)':' : installer sur mon téléphone'}</button></div>
   <div class="btns"><button class="btn gold" data-act="saves">💾 Sauvegardes : sauvegarder, charger, exporter, importer</button></div>
-  <div class="btns"><button class="btn" data-act="guideReset">🎓 Revoir le tutoriel</button><button class="btn" data-act="mapStyle">🗺️ Fond de carte</button></div>
+  <div class="btns"><button class="btn gold" data-act="manual">📖 Guide du jeu</button><button class="btn" data-act="guideReset">🎓 Recommencer le tutoriel</button><button class="btn" data-act="mapStyle">🗺️ Fond de carte</button></div>
   <div class="btns"><button class="btn" data-tab="admin">🛠️ Outils de test</button></div>`;
 }
 
@@ -160,7 +169,7 @@ if(typeof registerWorldActions==='function') registerWorldActions();
 if(typeof registerXpActions==='function') registerXpActions();
 if(typeof registerApMarketActions==='function') registerApMarketActions();
 if(typeof registerCityActions==='function') registerCityActions();
-if(typeof registerCityActions==='function') registerCityActions();
+if(typeof registerCompanyActions==='function') registerCompanyActions();
 if(typeof registerInboxActions==='function') registerInboxActions();
 if(typeof registerPwaActions==='function') registerPwaActions();
 if(typeof registerProgressActions==='function') registerProgressActions();

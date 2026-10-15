@@ -244,7 +244,7 @@ function airspacePolicyChanged(){
   if(typeof _realOn!=='undefined') _realOn.clear(); if(typeof _ghostRoutes!=='undefined') _ghostRoutes.clear();
   airspacePruneRivals();
   if(typeof drawRoutes==='function') drawRoutes(); if(typeof updateRival==='function') updateRival();
-  if(typeof G!=='undefined'&&G.viewer&&typeof drawGlobeRivals==='function') drawGlobeRivals();
+  if(typeof G!=='undefined'&&G&&G.viewer&&typeof drawGlobeRivals==='function') try{ drawGlobeRivals(); }catch(e){ console.warn(e); }
 }
 function airspacePruneRivals(){
   if(typeof S==='undefined'||!S) return 0;

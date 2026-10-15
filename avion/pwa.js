@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261138';
+const GAME_VER='20261139';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,8 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏢 Nouvel onglet « Compagnie »','Tout ce qui concerne votre compagnie est rangé au même endroit, en 7 parties expliquées : Résumé (ce qui va bien, quoi faire ensuite), Améliorer (service à bord, programme de fidélité, salons VIP, terminaux et équipements de chaque hub), Clients (notes, raisons des mécontentements, VIP qui vous écrivent), Concurrents (toutes les compagnies IA, celles présentes sur vos lignes, partage de codes, rachat), Espace aérien (fermer votre ciel à toutes les compagnies étrangères ou pays par pays, fermetures dans le monde), Partenaires et Réglages.'],
+  ['🎓 Tutoriel refait','Un écran de bienvenue, puis 7 étapes expliquées (9 en mode expert) qui font découvrir les lignes, les vols, la compagnie, les clients, les améliorations et les concurrents. Touchez le texte du bandeau pour lire toute l’explication. Nouveau 📖 Guide du jeu complet, dans « Plus ». Correction : fermer l’espace aérien plantait si la 3D n’avait pas été ouverte.'],
   ['🏙️ Tout Kinshasa en 3D','La ville est maintenant rangée dans le jeu : environ 45 000 vrais bâtiments, les grandes routes, parcs, marchés, églises, écoles et hôpitaux de toute la ville (Gombe, Lemba, Masina, Kintambo, Ndjili…), sans attendre les serveurs publics souvent en panne. Les quartiers se remplissent de maisons basses à la densité réelle de chaque quartier (comptée dans OpenStreetMap ; leurs formes exactes sont simplifiées). Données © contributeurs OpenStreetMap, licence ODbL.'],
   ['⛪ Kinshasa jusqu’à l’aéroport','En 3D, la ville détaillée va maintenant du fleuve jusqu’à N’djili (Limete, boulevard Lumumba, Masina). Églises avec clocher, mosquées avec minaret, hôpitaux et écoles avec leur nom, icônes des stations-service, banques et hôtels (données OpenStreetMap). La nuit, les lampadaires s’allument le long des avenues et boulevards. Sur téléphone, seuls les quartiers proches de ce que vous regardez restent chargés.'],
   ['🛟 3D allégée sur téléphone','La ville en 3D faisait planter l’iPhone (trop de bâtiments en mémoire). Sur téléphone : environ 4 fois moins de bâtiments (surtout au bord du fleuve), pas de toits en pente, moins d’arbres et de voitures, fleuve dessiné plus simplement. Si la 3D plante quand même, le jeu le détecte et allège encore la ville au lancement suivant.'],

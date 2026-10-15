@@ -157,9 +157,10 @@ const ACTIONS = {
   export:()=>{ const b=new Blob([JSON.stringify(S)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=`sauvegarde-${S.company.code}-${fmtDate(S.time).replace(/ /g,'-')}.json`; a.click(); },
   import:()=>{ const i=document.createElement('input'); i.type='file'; i.accept='.json,application/json'; i.onchange=()=>{ const f=i.files[0]; if(!f) return; f.text().then(t=>{ try{ const o=JSON.parse(t); if(!o.fleet||!o.company) throw 0; S=o; save(); location.reload(); }catch(e){ err('Fichier de sauvegarde invalide'); } }); }; i.click(); },
   reset:()=>{ if(confirm('Effacer la partie et recommencer ? (une copie de secours reste dans 💾 Sauvegardes)')){ booted=false; window._svNoUnloadSave=true; localStorage.removeItem(SAVE_KEY); const go=()=>location.reload(); if(typeof svDel==='function') svDel('main').then(go,go); else go(); } },
-  guideReset:()=>{ S.tuto=0; renderGuide(); toast('Tutoriel relancé','ok'); },
-  guideGo:()=>{ const st=guideSteps()[S.tuto]; if(st) st.go(); },
-  guideSkip:()=>{ S.tuto=99; renderGuide(); },
+  guideReset:()=>{ guideMigrate(); S.tutoS=S.tutoE=0; S.seen={}; closeModal(); renderGuide(); toast('🎓 Tutoriel relancé : suivez le bandeau en bas','ok'); },
+  guideGo:()=>{ const st=guideSteps()[S[guideKey()]]; if(st) st.go(); },
+  guideMore:()=>{ const g=$('#guide'); if(g) g.classList.toggle('open'); },
+  guideSkip:()=>{ if(!confirm('Passer le tutoriel ? Vous pourrez le relancer dans « Plus » ou dans 🏢 Compagnie → Réglages.')) return; S.tutoS=S.tutoE=99; renderGuide(); },
 
   // admin
   adCash:d=>{ book('admin',+d.v); renderTop(); renderPanel(); },
@@ -228,19 +229,30 @@ const GUIDE = [
    go:()=>setTab('fuel')},
   {t:'Pilotez vous-même un vol', d:'Prenez les commandes d’un de vos avions et posez-le en douceur.', done:()=>(S.stats.manual||0)>0,
    go:()=>{ const ac=S.fleet.find(a=>a.status==='idle')||S.fleet[0]; openM('pilot',ac.id); }},
+  {t:'Découvrez votre compagnie', d:'Onglet « 🏢 Compagnie » : résumé, améliorations (service, VIP, terminaux), clients, concurrents, espace aérien et partenaires. Chaque partie s’explique elle-même.', done:()=>S.seen&&S.seen.co,
+   go:()=>{ UI.coTab='home'; setTab('company'); }},
+  {t:'Écoutez vos clients', d:'« 👥 Clients » : notes, réclamations, VIP qui vous écrivent. Leurs avis font votre image.', done:()=>S.seen&&S.seen.pax,
+   go:()=>{ UI.coTab='pax'; setTab('company'); }},
+  {t:'Surveillez vos concurrents', d:'« ⚔️ Concurrents » : qui vole sur vos lignes, leur agressivité, partages de codes, rachats.', done:()=>S.seen&&S.seen.rivals,
+   go:()=>{ UI.coTab='rivals'; setTab('company'); }},
   {t:'Agrandissez votre flotte', d:'Achetez ou louez un nouvel avion dans la boutique.', done:()=>S.fleet.length+(S.orders||[]).length>=(START_PACKS[S.packId||'regional']?START_PACKS[S.packId||'regional'].fleet.length+1:3),
    go:()=>setTab('shop')},
 ];
 const guideSteps=()=>isSimple()&&typeof SIMPLE_GUIDE!=='undefined'?SIMPLE_GUIDE:GUIDE;
+// progression séparée pour le mode simple et le mode expert (les étapes ne sont pas les mêmes)
+const guideKey=()=>isSimple()&&typeof SIMPLE_GUIDE!=='undefined'?'tutoS':'tutoE';
+function guideMigrate(){ if(S.tutoS!==undefined) return; const old=S.tuto===undefined?0:S.tuto; const fresh=!S.stats||!S.stats.flights;
+  // anciennes parties : le tutoriel est considéré comme fait (on peut le relancer) ; nouvelles parties : il commence
+  S.tutoS=S.tutoE=(old===0&&fresh)?0:99; }
 function renderGuide(){
   const box=$('#guide'); if(!box||!S) return;
-  if(S.tuto===undefined) S.tuto=0;
-  const G=guideSteps();
-  while(S.tuto<G.length && G[S.tuto].done()){ S.tuto++; if(S.tuto<G.length) toast(`🎓 Étape réussie ! Suivante : ${G[S.tuto].t}`,'ok'); }
-  const st=G[S.tuto];
+  guideMigrate(); const K=guideKey(), G=guideSteps();
+  if(!S.welcomed&&S[K]===0&&!S.stats.flights&&!UI.modal&&MODALS.welcome){ S.welcomed=true; setTimeout(()=>openM('welcome'),400); }
+  while(S[K]<G.length && G[S[K]].done()){ S[K]++; if(S[K]<G.length) toast(`🎓 Étape réussie ! Suivante : ${G[S[K]].t}`,'ok'); else toast('🎓 Tutoriel terminé : bravo ! Le 📖 Guide du jeu reste dans « Plus ».','ok'); }
+  const st=G[S[K]];
   if(!st || document.body.classList.contains('piloting')){ box.hidden=true; return; }
   box.hidden=false;
-  box.innerHTML=`<div class="g-step">🎓 ${S.tuto+1}/${G.length}</div><div class="g-txt"><b>${st.t}</b><span>${st.d}</span></div><button class="btn sm gold" data-act="guideGo">Montre-moi</button><button class="x" data-act="guideSkip" title="Passer le tutoriel">×</button>`;
+  box.innerHTML=`<div class="g-step">🎓 ${S[K]+1}/${G.length}</div><div class="g-txt" data-act="guideMore" title="Lire toute l’explication"><b>${st.t}</b><span>${st.d}</span></div><button class="btn sm gold" data-act="guideGo">Montre-moi</button><button class="btn sm" data-act="manual" title="Guide du jeu">📖</button><button class="x" data-act="guideSkip" title="Passer le tutoriel">×</button>`;
 }
 
 /* ---------- démarrage ---------- */
