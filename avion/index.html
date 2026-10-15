@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fr">
 <head>
-<meta name="se-ver" content="20261164">
+<meta name="se-ver" content="20261165">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Sky Empire</title>
@@ -435,9 +435,12 @@ body.voyage2d #instBar,body.voyage2d #guide{display:none!important}
 #vdHud .vdBar div{height:100%;background:var(--gold);border-radius:3px}
 #vdHud .vdBar i{position:absolute;top:-3px;width:4px;height:12px;margin-left:-2px;background:#fff;border-radius:2px;box-shadow:0 0 3px #000}
 #vdHud .vdBtns{display:flex;gap:4px;flex-wrap:wrap;pointer-events:auto}
-#vdHud .vdBtns .chip{padding:4px 8px;font-size:12px;background:rgba(15,23,42,.8);color:#fff}
+#vdHud .vdBtns{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}#vdHud .vdBtns::-webkit-scrollbar{display:none}
+#vdHud .vdBtns .chip{padding:4px 7px;font-size:12px;flex:0 0 auto;background:rgba(15,23,42,.8);color:#fff}
 #vdHud .vdBtns .chip.on{background:var(--gold);color:#111}
 #vdHud .vdEnd{pointer-events:auto}
+#vdHud .vdAsk{pointer-events:auto}#vdHud .vdAsk .vdDone{margin-top:6px;font-size:13px}#vdHud .vdAsk .btns{justify-content:center;margin-top:8px}
+#vdHud .vdInfo{align-self:flex-start;background:rgba(15,23,42,.7);border-radius:10px;padding:2px 9px;font-size:11.5px}#vdHud .vdInfo:empty{display:none}#vdHud .vdInfo.low{background:rgba(185,28,28,.85)}
 #vdHud .vdTip{align-self:center;background:rgba(15,23,42,.7);border-radius:10px;padding:3px 10px;font-size:11.5px;animation:vdTip 2.4s ease-in-out infinite}@keyframes vdTip{50%{opacity:.45}}
 #vdHud .vdDone{background:rgba(15,23,42,.92);border:1px solid var(--gold);border-radius:14px;padding:12px;text-align:center;font-size:14px;line-height:1.5;margin-top:30px}
 #vyHud{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 70px);z-index:1300;background:rgba(15,23,42,.82);border:1px solid var(--gold);border-radius:12px;padding:5px 10px;color:#fff;font-size:11.5px;line-height:1.3;max-width:calc(100% - 20px);text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.5)} #vyHud .vybtns{display:flex;gap:4px;justify-content:center;flex-wrap:nowrap;margin-top:4px} #vyHud .chip{padding:3px 8px;font-size:11.5px} body.voyage #globeHud,body.voyage #guide,body.voyage #minimap{display:none!important}
@@ -723,64 +726,64 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 })();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="airports-db.js?v=20261164"></script>
-<script src="runways-db.js?v=20261164"></script>
-<script src="congo-towns.js?v=20261164"></script>
-<script src="data.js?v=20261164"></script>
-<script src="sim.js?v=20261164"></script>
-<script src="realism.js?v=20261164"></script>
-<script src="airport-expand.js?v=20261164"></script>
-<script src="atc.js?v=20261164"></script>
-<script src="saves.js?v=20261164"></script>
-<script src="airlines-db.js?v=20261164"></script>
-<script src="airspace-zones.js?v=20261164"></script>
-<script src="airlines.js?v=20261164"></script>
-<script src="airport-market.js?v=20261164"></script>
-<script src="world-ai.js?v=20261164"></script>
-<script src="ai-brain.js?v=20261164"></script>
-<script src="ai-challenge.js?v=20261164"></script>
-<script src="ai-duel.js?v=20261164"></script>
-<script src="gameplay2.js?v=20261164"></script>
-<script src="world-director.js?v=20261164"></script>
-<script src="home-rivals.js?v=20261164"></script>
-<script src="passengers.js?v=20261164"></script>
-<script src="pulse.js?v=20261164"></script>
-<script src="business.js?v=20261164"></script>
-<script src="map.js?v=20261164"></script>
-<script src="ui.js?v=20261164"></script>
-<script src="pilot.js?v=20261164"></script>
-<script src="actions.js?v=20261164"></script>
-<script src="aircraft3d.js?v=20261164"></script>
-<script src="globe.js?v=20261164"></script>
-<script src="vision3d.js?v=20261164"></script>
-<script src="live-data.js?v=20261164"></script>
-<script src="terrain.js?v=20261164"></script>
-<script src="airport3d.js?v=20261164"></script>
-<script src="scenery3d.js?v=20261164"></script>
-<script src="kin-local.js?v=20261164"></script>
-<script src="congo-river.js?v=20261164"></script>
-<script src="roads3d.js?v=20261164"></script>
-<script src="boats3d.js?v=20261164"></script>
-<script src="runway3d.js?v=20261164"></script>
-<script src="globe-fx.js?v=20261164"></script>
-<script src="city3d.js?v=20261164"></script>
-<script src="ui-biz.js?v=20261164"></script>
-<script src="company-hq.js?v=20261164"></script>
-<script src="progress.js?v=20261164"></script>
-<script src="studio.js?v=20261164"></script>
-<script src="calendar.js?v=20261164"></script>
-<script src="paxcases.js?v=20261164"></script>
-<script src="inbox.js?v=20261164"></script>
-<script src="crew.js?v=20261164"></script>
-<script src="country-dev.js?v=20261164"></script>
-<script src="transport.js?v=20261164"></script>
-<script src="missions.js?v=20261164"></script>
-<script src="live-events.js?v=20261164"></script>
-<script src="trucks3d.js?v=20261164"></script>
-<script src="friends.js?v=20261164"></script>
-<script src="voyage3d.js?v=20261164"></script>
-<script src="voyage2d.js?v=20261164"></script>
-<script src="pwa.js?v=20261164"></script>
-<script src="simple.js?v=20261164"></script>
+<script src="airports-db.js?v=20261165"></script>
+<script src="runways-db.js?v=20261165"></script>
+<script src="congo-towns.js?v=20261165"></script>
+<script src="data.js?v=20261165"></script>
+<script src="sim.js?v=20261165"></script>
+<script src="realism.js?v=20261165"></script>
+<script src="airport-expand.js?v=20261165"></script>
+<script src="atc.js?v=20261165"></script>
+<script src="saves.js?v=20261165"></script>
+<script src="airlines-db.js?v=20261165"></script>
+<script src="airspace-zones.js?v=20261165"></script>
+<script src="airlines.js?v=20261165"></script>
+<script src="airport-market.js?v=20261165"></script>
+<script src="world-ai.js?v=20261165"></script>
+<script src="ai-brain.js?v=20261165"></script>
+<script src="ai-challenge.js?v=20261165"></script>
+<script src="ai-duel.js?v=20261165"></script>
+<script src="gameplay2.js?v=20261165"></script>
+<script src="world-director.js?v=20261165"></script>
+<script src="home-rivals.js?v=20261165"></script>
+<script src="passengers.js?v=20261165"></script>
+<script src="pulse.js?v=20261165"></script>
+<script src="business.js?v=20261165"></script>
+<script src="map.js?v=20261165"></script>
+<script src="ui.js?v=20261165"></script>
+<script src="pilot.js?v=20261165"></script>
+<script src="actions.js?v=20261165"></script>
+<script src="aircraft3d.js?v=20261165"></script>
+<script src="globe.js?v=20261165"></script>
+<script src="vision3d.js?v=20261165"></script>
+<script src="live-data.js?v=20261165"></script>
+<script src="terrain.js?v=20261165"></script>
+<script src="airport3d.js?v=20261165"></script>
+<script src="scenery3d.js?v=20261165"></script>
+<script src="kin-local.js?v=20261165"></script>
+<script src="congo-river.js?v=20261165"></script>
+<script src="roads3d.js?v=20261165"></script>
+<script src="boats3d.js?v=20261165"></script>
+<script src="runway3d.js?v=20261165"></script>
+<script src="globe-fx.js?v=20261165"></script>
+<script src="city3d.js?v=20261165"></script>
+<script src="ui-biz.js?v=20261165"></script>
+<script src="company-hq.js?v=20261165"></script>
+<script src="progress.js?v=20261165"></script>
+<script src="studio.js?v=20261165"></script>
+<script src="calendar.js?v=20261165"></script>
+<script src="paxcases.js?v=20261165"></script>
+<script src="inbox.js?v=20261165"></script>
+<script src="crew.js?v=20261165"></script>
+<script src="country-dev.js?v=20261165"></script>
+<script src="transport.js?v=20261165"></script>
+<script src="missions.js?v=20261165"></script>
+<script src="live-events.js?v=20261165"></script>
+<script src="trucks3d.js?v=20261165"></script>
+<script src="friends.js?v=20261165"></script>
+<script src="voyage3d.js?v=20261165"></script>
+<script src="voyage2d.js?v=20261165"></script>
+<script src="pwa.js?v=20261165"></script>
+<script src="simple.js?v=20261165"></script>
 </body>
 </html>
