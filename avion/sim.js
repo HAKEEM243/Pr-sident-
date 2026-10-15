@@ -483,9 +483,14 @@ function qualifiedPilots(fam){ // mis en cache : avec des milliers de pilotes, o
   if(_qp.t!==S.time||_qp.n!==S.pilots.length){ _qp={t:S.time,n:S.pilots.length,m:{}}; }
   return _qp.m[fam]!==undefined? _qp.m[fam] : (_qp.m[fam]=S.pilots.filter(p=>p.quals.includes(fam)&&!p.training).length);
 }
-function activeOfFamily(fam, except){ return S.fleet.filter(a=>a!==except && a.status==='flight' && modelOf(a)?.fam===fam).length; }
+// avions en vol par famille et besoin en PNC : comptés une fois par pas de simulation (grosses flottes)
+let _crw={t:-1,n:-1,fam:{},cab:0};
+function crewCounts(){ let n=0; for(const a of S.fleet) if(a.status==='flight'){ if(a._h===undefined){ let h=7; for(const ch of String(a.id)) h=(h*31+ch.charCodeAt(0))|0; a._h=h; } n^=a._h; }   // empreinte de l’ensemble des avions en vol
+  if(_crw.t!==S.time||_crw.n!==n){ const fam={}; let cab=0; for(const a of S.fleet) if(a.status==='flight'){ const m=modelOf(a); if(!m) continue; fam[m.fam]=(fam[m.fam]||0)+1; cab+=cabinNeed(m); } _crw={t:S.time,n,fam,cab}; }
+  return _crw; }
+function activeOfFamily(fam, except){ const c=crewCounts(); let k=c.fam[fam]||0; if(except&&except.status==='flight'&&modelOf(except)?.fam===fam) k--; return k; }
 const cabinNeed = m=>isCargo(m)?0:Math.max(1,Math.ceil(m.seats/50));
-function cabinBusy(except){ return S.fleet.filter(a=>a!==except&&a.status==='flight').reduce((s,a)=>s+cabinNeed(modelOf(a)),0); }
+function cabinBusy(except){ const c=crewCounts(); return c.cab-(except&&except.status==='flight'?cabinNeed(modelOf(except)):0); }
 function crewCheck(ac){
   const m=modelOf(ac);
   if(qualifiedPilots(m.fam) < 2*(activeOfFamily(m.fam,ac)+1)) return `Pas assez de pilotes qualifiés ${m.fam} (2 par avion en vol)`;
@@ -1142,7 +1147,9 @@ const num0=v=>Math.round(v).toLocaleString('fr-FR');
 
 /* ---------- personnel ---------- */
 const STAFF_CATS={ pil:['Pilotes',0], pnc:['Personnel navigant (PNC)',2400], meca:['Mécaniciens',3200], sol:['Personnel au sol',1400] };
-function staffNeed(){
+let _sn={k:''};
+function staffNeed(){ const key=S.time+'|'+S.fleet.length+'|'+S.hubs.length; if(_sn.k===key) return _sn.v; _sn={k:key,v:staffNeed0()}; return _sn.v; }   // mis en cache : appelé à chaque départ
+function staffNeed0(){
   const pnc=S.fleet.reduce((s,a)=>s+cabinNeed(modelOf(a)),0);
   const meca=S.fleet.reduce((s,a)=>s+(modelOf(a).fam==='TURBO'?2:3),0);
   const sol=S.hubs.length*12+S.fleet.length*3;
@@ -1152,7 +1159,8 @@ function staffNeed(){
 // Recrutement libre (en masse possible)
 function hireQuota(k){ return {max:Infinity, used:0, left:1e9}; }   // plus de limite : recrutez autant que vous voulez
 function useHire(k,n){}
-function staffCount(k){ return k==='pil'? S.pilots.filter(p=>!p.training).length : S.staff[k]; }
+let _scp={k:''};
+function staffCount(k){ if(k!=='pil') return S.staff[k]; const key=S.time+'|'+S.pilots.length; if(_scp.k!==key) _scp={k:key,v:S.pilots.filter(p=>!p.training).length}; return _scp.v; }
 function staffShortage(k){ const need=staffNeed()[k]; return need? clamp((need-staffCount(k))/need,0,1) : 0; }
 function monthlyPayroll(){
   const sal=S.staff.sal;
