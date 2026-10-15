@@ -111,7 +111,7 @@ function pMore(){
     ${item('staff','👥','Personnel','Géré automatiquement')}
     ${item('fuel','⛽','Carburant','Géré automatiquement')}
     ${item('company','🏢','Ma compagnie','Améliorer, clients, VIP, concurrents, espace aérien')}
-    <button data-act="coGo" data-k="trans">🚚 <b>Transport : camions et bateaux</b><small>Filiales de fret dans tout le Congo</small></button>
+    <button data-act="coGo" data-k="trans">🚚 <b>Transport : camions, bateaux, trains</b><small>Filiales de fret dans tout le Congo</small></button>
     ${item('news','📰','Actualités','Monde, présidents, classement, avis')}
     ${item('bourse','📈','Bourse','Actions et rachats')}
   </div>
