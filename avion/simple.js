@@ -171,6 +171,7 @@ if(typeof registerApMarketActions==='function') registerApMarketActions();
 if(typeof registerCityActions==='function') registerCityActions();
 if(typeof registerCompanyActions==='function') registerCompanyActions();
 if(typeof registerCrewActions==='function') registerCrewActions();
+if(typeof registerDevActions==='function') registerDevActions();
 if(typeof registerInboxActions==='function') registerInboxActions();
 if(typeof registerPwaActions==='function') registerPwaActions();
 if(typeof registerProgressActions==='function') registerProgressActions();

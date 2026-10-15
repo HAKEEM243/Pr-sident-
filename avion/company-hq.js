@@ -6,14 +6,14 @@
    Concurrents (compagnies IA) · Espace aérien · Partenaires · Réglages
    ========================================================= */
 'use strict';
-const CO_TABS=[['home','🏢','Résumé'],['up','✨','Améliorer'],['pax','👥','Clients'],['crew','👨‍✈️','Équipages'],['rivals','⚔️','Concurrents'],['air','🛂','Espace aérien'],['deals','🤝','Partenaires'],['set','⚙️','Réglages']];
+const CO_TABS=[['home','🏢','Résumé'],['up','✨','Améliorer'],['pax','👥','Clients'],['crew','👨‍✈️','Équipages'],['land','🏛️','Mon pays'],['rivals','⚔️','Concurrents'],['air','🛂','Espace aérien'],['deals','🤝','Partenaires'],['set','⚙️','Réglages']];
 const coHelp=(t)=>`<div class="simplehelp">💡 ${t}</div>`;
 const coSeen=k=>{ S.seen=S.seen||{}; if(!S.seen[k]){ S.seen[k]=1; setTimeout(()=>{ try{ renderGuide(); }catch(e){} },0); } };
 
 function pCompany(){
   const t=CO_TABS.some(x=>x[0]===UI.coTab)?UI.coTab:'home'; coSeen('co'); coSeen(t);
   const bar=`<div class="chips cotabs">${CO_TABS.map(([k,i,l])=>`<button class="chip ${k===t?'on':''}" data-act="coTab" data-k="${k}">${i} ${l}</button>`).join('')}</div>`;
-  const fn={crew:coCrew, home:coHome, up:coUpgrade, pax:coClients, rivals:coRivals, air:coAirspace, deals:coDeals, set:coSettings}[t];
+  const fn={land:()=>typeof devHtml==='function'?devHtml():'', crew:coCrew, home:coHome, up:coUpgrade, pax:coClients, rivals:coRivals, air:coAirspace, deals:coDeals, set:coSettings}[t];
   return bar+fn();
 }
 
@@ -32,6 +32,7 @@ function coTodo(){
   if(typeof crewEligible==='function'){ const el=S.pilots.filter(p=>crewInit(p)&&crewEligible(p)).length, rk=S.pilots.filter(p=>crewRisk(p)).length;
     if(el>=3) out.push(['🎖️',`${el} pilotes attendent une promotion`,'Une promotion qui tarde fait baisser leur moral.','coGo','crew']);
     if(rk>=3) out.push(['🚪',`${rk} pilotes risquent de partir`,'Les concurrents débauchent les pilotes mécontents.','coGo','crew']); }
+  if(typeof devTier==='function'&&S.dev&&S.dev.rel){ const cc=homeCC(), r=S.dev.rel[cc]; if(r!==undefined&&r<40) out.push(['🏛️','Le gouvernement vous voit d’un mauvais œil','Taxe spéciale chaque mois : voyez comment regagner sa confiance.','coGo','land']); }
   const thr=coThreats(); if(thr.size) out.push(['⚔️',`${thr.size} compagnie(s) vous concurrencent sur vos lignes`,'Voyez qui, et comment répondre.','coGo','rivals']);
   return out.slice(0,4);
 }
@@ -194,6 +195,7 @@ const MANUAL=[
   ['👑','VIP et service','Le <b>service à bord</b> (1★ à 5★) coûte plus cher mais attire. Le <b>programme de fidélité</b> fait revenir les clients. Les <b>salons VIP</b> attirent la clientèle Affaires et Première, la plus rentable. Tout est dans <b>🏢 Compagnie → ✨ Améliorer</b>.'],
   ['🏗️','Aéroports et terminaux','Dans votre pays, vous pouvez agrandir vos aéroports en 7 étapes : terminal agrandi, jetée, deuxième piste, Terminal 2, ville aéroportuaire, Terminal 3, Terminal 4. Plus de voyageurs, plus de portes, plus gros avions : et c’est visible en 2D et en 3D.'],
   ['👨‍✈️','Les équipages','Chaque pilote a un nom, un grade (copilote, commandant, instructeur, chef pilote), des heures de vol et un moral. Promouvez ceux qui le méritent ; sinon, les concurrents les débauchent (un message 📬 vous permet de les retenir). Si le moral général est trop bas, le syndicat menace de faire grève. Voir <b>🏢 Compagnie → 👨‍✈️ Équipages</b>.'],
+  ['🏛️','Votre pays','Chaque passager que vous transportez vers une ville de votre pays la fait grandir : plus d’habitants, plus de voyageurs. Par paliers, l’État bitume ou allonge sa piste, agrandit son terminal, puis vous verse une prime. Chaque mois, le gouvernement juge votre compagnie (villes desservies, petites villes, pilotes du pays, sécurité, grèves, ponctualité) : subvention si vous êtes bien vu, taxe spéciale sinon. Voir <b>🏢 Compagnie → 🏛️ Mon pays</b>.'],
   ['⚔️','Les concurrents','Les autres compagnies sont jouées par l’ordinateur : elles viennent sur vos lignes, baissent leurs prix, peuvent faire faillite. Leurs patrons vous écrivent parfois (menaces, propositions). Vous pouvez signer un partage de codes ou racheter leurs actions (51 % = la compagnie est à vous). Voir <b>🏢 Compagnie → ⚔️ Concurrents</b>.'],
   ['🛂','L’espace aérien','Vous pouvez interdire le ciel de votre pays aux compagnies d’autres pays : elles ne peuvent plus y atterrir et font un détour. Les guerres ferment aussi des espaces aériens. Voir <b>🏢 Compagnie → 🛂 Espace aérien</b>.'],
   ['💰','L’argent','Recettes : billets, options payantes, fret. Dépenses : kérosène, salaires, entretien, location, aéroports. Si l’argent manque, un prêt est possible (onglet Finances). Une compagnie en négatif trop longtemps fait faillite.'],
