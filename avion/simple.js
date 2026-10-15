@@ -181,6 +181,7 @@ if(typeof registerLiveEventActions==='function') registerLiveEventActions();
 if(typeof registerTruck3dActions==='function') registerTruck3dActions();
 if(typeof registerFriendActions==='function') registerFriendActions();
 if(typeof registerVoyageActions==='function') registerVoyageActions();
+if(typeof registerVoyage2dActions==='function') registerVoyage2dActions();
 if(typeof registerInboxActions==='function') registerInboxActions();
 if(typeof registerPwaActions==='function') registerPwaActions();
 if(typeof registerProgressActions==='function') registerProgressActions();
