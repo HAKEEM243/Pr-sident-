@@ -49,6 +49,11 @@ function fail3D(why){ log3D('fermeture',why);
 // ville 3D allégée après un plantage (page tuée par manque de mémoire, ou contexte graphique perdu) : 1 = normal, 0.5, 0.25
 function cityLiteBump(){ try{ const k=Math.max(0.25,(+localStorage.getItem('se-city-k')||1)/2); localStorage.setItem('se-city-k',String(k)); }catch(e){} }
 function cityK(){ try{ return +localStorage.getItem('se-city-k')||1; }catch(e){ return 1; } }
+// boîte noire : toutes les 15 s pendant la 3D, on note ce qui est chargé (si le téléphone coupe la page, on saura quoi)
+setInterval(()=>{ try{ if(typeof G==='undefined'||!G||!G.viewer||$('#globe').hidden) return; const c=G.viewer.camera.positionCartographic, sc=G.viewer.scene;
+  let fh=0; if(G.osmFill) for(const st of G.osmFill.values()) fh+=st.cnt||0;
+  G.bbT=G.bbT||Date.now(); const m=performance.memory?' · mém '+Math.round(performance.memory.usedJSHeapSize/1e6)+' Mo':'';
+  localStorage.setItem('se-3d-bb',`après ${Math.round((Date.now()-G.bbT)/1000)} s · ${GQ.mode} · ville×${(typeof cityK==='function'?cityK():1).toFixed(2)} · ${Cesium.Math.toDegrees(c.latitude).toFixed(3)},${Cesium.Math.toDegrees(c.longitude).toFixed(3)} à ${Math.round(c.height)} m · quartiers ${G.osmPin?G.osmPin.size:0} · maisons ${fh} · cases ${G.osm?G.osm.cells.size:0} · routes ${typeof RD!=='undefined'?RD.roads.length:0} · voitures ${typeof RD!=='undefined'?RD.cars.length:0} · objets ${sc.primitives.length} · entités ${G.viewer.entities.values.length}${G.follow?' · suit un avion':''}${G.tiles?' · Google 3D':''}${m}`); }catch(e){} },15000);
 function live3D(on){ try{ if(on&&!$('#globe').hidden&&!document.hidden) localStorage.setItem('se-3d-live','1'); else localStorage.removeItem('se-3d-live'); }catch(e){} }
 document.addEventListener('visibilitychange',()=>{ live3D(!document.hidden); if(!document.hidden&&G&&G.snowOn) snowStart3D(); });
 window.addEventListener('pagehide',()=>live3D(false));
@@ -103,6 +108,8 @@ function patchCesium(C){
 const GQ=(()=>{ let v=null; try{ v=localStorage.getItem('se-q'); }catch(e){} const mob=/iphone|ipad|android|mobile/i.test(navigator.userAgent)||(window.matchMedia&&matchMedia('(pointer:coarse)').matches); let crashed=false; try{ crashed=localStorage.getItem('se-3d-live')==='1'; localStorage.removeItem('se-3d-live'); }catch(e){}
   // la page s'est fermée brutalement pendant la vue 3D (mémoire du téléphone saturée) : on repasse en Éco
   if(crashed) try{ const k=Math.max(0.25,(+localStorage.getItem('se-city-k')||1)/2); localStorage.setItem('se-city-k',String(k)); }catch(e){}
+  // boîte noire : ce que la 3D affichait juste avant le plantage (visible dans 🩺 Diagnostic)
+  if(crashed) try{ const bb=localStorage.getItem('se-3d-bb'); if(bb) log3D('plantage',bb); }catch(e){}
   if(crashed&&v!=='l'){ v=mob?'l':'e'; try{ localStorage.setItem('se-q',v); }catch(e){} }
   // une fois : les téléphones passent en Minimal (la 3D coupait sur iPhone) ; on peut remonter la qualité avec ⚙️
   let mig=false; try{ if(mob&&localStorage.getItem('se-q-v2')!=='1'){ localStorage.setItem('se-q-v2','1'); if(v!=='l'){ v='l'; mig=true; localStorage.setItem('se-q','l'); } } }catch(e){}

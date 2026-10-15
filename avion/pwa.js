@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261139';
+const GAME_VER='20261140';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛟 3D plus légère sur iPhone','Kinshasa en 3D charge moins de maisons et de quartiers à la fois sur téléphone (la ville se remplit autour de l’endroit regardé). Nouvelle « boîte noire » : si la 3D s’arrête, le 🩺 Diagnostic 3D (dans Plus) indique ce qui était affiché juste avant. Envoyez-en une capture pour aider à corriger.'],
   ['🏢 Nouvel onglet « Compagnie »','Tout ce qui concerne votre compagnie est rangé au même endroit, en 7 parties expliquées : Résumé (ce qui va bien, quoi faire ensuite), Améliorer (service à bord, programme de fidélité, salons VIP, terminaux et équipements de chaque hub), Clients (notes, raisons des mécontentements, VIP qui vous écrivent), Concurrents (toutes les compagnies IA, celles présentes sur vos lignes, partage de codes, rachat), Espace aérien (fermer votre ciel à toutes les compagnies étrangères ou pays par pays, fermetures dans le monde), Partenaires et Réglages.'],
   ['🎓 Tutoriel refait','Un écran de bienvenue, puis 7 étapes expliquées (9 en mode expert) qui font découvrir les lignes, les vols, la compagnie, les clients, les améliorations et les concurrents. Touchez le texte du bandeau pour lire toute l’explication. Nouveau 📖 Guide du jeu complet, dans « Plus ». Correction : fermer l’espace aérien plantait si la 3D n’avait pas été ouverte.'],
   ['🏙️ Tout Kinshasa en 3D','La ville est maintenant rangée dans le jeu : environ 45 000 vrais bâtiments, les grandes routes, parcs, marchés, églises, écoles et hôpitaux de toute la ville (Gombe, Lemba, Masina, Kintambo, Ndjili…), sans attendre les serveurs publics souvent en panne. Les quartiers se remplissent de maisons basses à la densité réelle de chaque quartier (comptée dans OpenStreetMap ; leurs formes exactes sont simplifiées). Données © contributeurs OpenStreetMap, licence ODbL.'],
