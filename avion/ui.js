@@ -11,10 +11,10 @@ const apName = c=>`${AP(c).city} (${c})`;
 const flag = c=>COUNTRIES[AP(c).cc][2];
 const bar = (v,cls='')=>`<div class="pbar ${cls}"><i style="width:${clamp(v,0,1)*100}%"></i></div>`;
 
-const TABS_SIMPLE = [['map','🗺️','Carte'],['network','🧭','Lignes'],['fleet','✈️','Flotte'],['shop','🛒','Acheter'],['news','📰','Actus'],['more','⋯','Plus']];
+const TABS_SIMPLE = [['map','🗺️','Carte'],['network','🧭','Lignes'],['fleet','✈️','Flotte'],['shop','🛒','Acheter'],['company','🏢','Compagnie'],['more','⋯','Plus']];
 const TABS_ALL = [
   ['map','🗺️','Carte'],['dash','🏠','Accueil'],['news','📰','Actus'],['pax','🛂','Passagers'],['network','🌍','Réseau'],['fleet','✈️','Flotte'],['shop','🛒','Achats'],
-  ['staff','👥','Personnel'],['fuel','⛽','Carburant'],['finance','💰','Finances'],['bourse','📈','Bourse'],['company','📣','Compagnie'],['world','🌐','Monde'],['admin','🛠️','Admin'],
+  ['staff','👥','Personnel'],['fuel','⛽','Carburant'],['finance','💰','Finances'],['bourse','📈','Bourse'],['company','🏢','Compagnie'],['world','🌐','Monde'],['admin','🛠️','Admin'],
 ];
 const TABS = TABS_ALL;
 const isSimple=()=>!!(typeof S!=='undefined'&&S&&S.simple!==false);
