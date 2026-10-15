@@ -178,7 +178,9 @@ function initGlobe(){
     setTimeout(()=>{ if($('#globe').hidden) return; try{ initGlobe(); globeSync(true); if(fol&&S.fleet.some(a=>a.id===fol)) globeFollow(fol); renderGlobeHud(); log3D('relance minimale','ok'); }
       catch(e){ log3D('relance impossible',String(e&&e.message||e)); try{ close3D(); }catch(_){} toast('⛔ La 3D ne peut pas redémarrer sur cet appareil','bad'); } },700); },false);
   sc.renderError.addEventListener((scene,err)=>{
-    console.warn('rendu 3D',err); log3D('erreur de rendu',String(err&&err.message||err)); G.safe=(G.safe||0)+1; if(GQ.mode!=='e'&&GQ.mode!=='l'){ GQ.mode='e'; try{ localStorage.setItem('se-q','e'); }catch(e){} try{ applyQuality(); }catch(e){} }
+    console.warn('rendu 3D',err); log3D('erreur de rendu',String(err&&err.message||err)); G.safe=(G.safe||0)+1;
+    // on compte les erreurs rapprochées : quelques erreurs isolées sur une longue session ne doivent pas figer la 3D
+    const now=Date.now(); G.errT=(G.errT||[]).filter(t=>now-t<30000); G.errT.push(now); const burst=G.errT.length; if(GQ.mode!=='e'&&GQ.mode!=='l'){ GQ.mode='e'; try{ localStorage.setItem('se-q','e'); }catch(e){} try{ applyQuality(); }catch(e){} }
     try{ if(G.clouds){ sc.primitives.remove(G.clouds); G.clouds=null; } }catch(e){}
     if(G.safe===1){
       try{ viewer.useBrowserRecommendedResolution=false; viewer.resolutionScale=Math.min(viewer.resolutionScale||1,0.68); sc.msaaSamples=1; sc.globe.showWaterEffect=false; G.rivalCap=8; G.rivAt=0; }
@@ -188,8 +190,8 @@ function initGlobe(){
     // 2e erreur : aéroport allégé (pistes, terminal, tour, passerelles) au lieu de tout supprimer ; 4e : plus de décor
     if(G.safe>=2&&!G.lite){ G.lite=true; try{ worldClear(); sc.globe.showWaterEffect=false; }catch(e){} toast('⚙️ Aéroport 3D allégé pour cet appareil (décollages et atterrissages toujours visibles)','info'); }
     if(G.safe>=4){ try{ worldClear(); }catch(e){} G.noWorld=true; }
-    if(G.safe<=4) setTimeout(()=>{ try{ viewer.useDefaultRenderLoop=true; }catch(e){} },300);
-    else toast('⛔ La vue 3D rencontre un problème sur cet appareil','bad');
+    if(burst<6) setTimeout(()=>{ try{ viewer.useDefaultRenderLoop=true; }catch(e){} },300);   // on relance toujours le rendu…
+    else { log3D('fermeture','trop d’erreurs de rendu en 30 s'); try{ close3D(); }catch(e){} fail3D('La 3D a rencontré trop d’erreurs d’affichage d’affilée sur cet appareil. Elle est passée en mode Minimal : réessayez.'); }   // …sauf si les erreurs s'enchaînent : on ferme proprement au lieu de figer l'écran
   });
   sc.globe.enableLighting=true; sc.globe.dynamicAtmosphereLighting=true; sc.skyAtmosphere.show=true; sc.fog.enabled=true; sc.fog.density=0.00012;
   sc.globe.depthTestAgainstTerrain=false; sc.highDynamicRange=false; sc.globe.maximumScreenSpaceError=GQ.hq?1.4:GQ.mini?2.0:1.8;

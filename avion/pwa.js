@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261146';
+const GAME_VER='20261147';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛟 3D : fini l’écran figé','Correction importante : après quelques petites erreurs d’affichage sur une longue session, la 3D pouvait s’arrêter de bouger. Maintenant, une erreur isolée est corrigée toute seule et la 3D continue ; si les erreurs s’enchaînent, la 3D se ferme proprement avec une explication (et le 🩺 Diagnostic garde la trace).'],
   ['🚢 Bateaux sur le fleuve en 3D','À Kinshasa, la 3D montre maintenant la vie sur le fleuve : pirogues, bateaux de passagers entre Kinshasa et Brazzaville, convois de barges qui remontent le Pool Malebo. Si votre filiale 🚢 a des barges sur le fleuve, elles apparaissent aussi, avec des conteneurs à la couleur de votre compagnie.'],
   ['⚡ Jeu 2 fois plus rapide avec une grosse flotte','Avec près de 300 avions, la simulation tourne environ 2 fois plus vite : le rattrapage au retour dans le jeu est plus court et le téléphone chauffe moins. (Les comptes d’équipages et de personnel sont calculés une seule fois par instant, et les avis de passagers sont tirés plus intelligemment.)'],
   ['🚆 Filiale trains','Troisième filiale : des trains sur le vrai réseau ferré congolais. Matadi–Kinshasa, le réseau du Katanga et du Kasaï (Lubumbashi, Likasi, Kolwezi, Kamina, Kananga, Ilebo, Kabalo, Kalemie, Kindu), Kisangani–Ubundu, et les sorties vers Lobito (Angola) et Ndola (Zambie). Le cuivre et le cobalt du Katanga doublent la demande. Trains de marchandises, trains miniers et trains rapides. Les voies sont vieilles : lentes et déraillements possibles ; « Réhabiliter la voie » rend la ligne 70 % plus rapide et bien plus sûre.'],
