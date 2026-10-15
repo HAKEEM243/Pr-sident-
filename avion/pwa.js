@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261143';
+const GAME_VER='20261144';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🚆 Filiale trains','Troisième filiale : des trains sur le vrai réseau ferré congolais. Matadi–Kinshasa, le réseau du Katanga et du Kasaï (Lubumbashi, Likasi, Kolwezi, Kamina, Kananga, Ilebo, Kabalo, Kalemie, Kindu), Kisangani–Ubundu, et les sorties vers Lobito (Angola) et Ndola (Zambie). Le cuivre et le cobalt du Katanga doublent la demande. Trains de marchandises, trains miniers et trains rapides. Les voies sont vieilles : lentes et déraillements possibles ; « Réhabiliter la voie » rend la ligne 70 % plus rapide et bien plus sûre.'],
   ['🚚🚢 Filiales camions et bateaux','Votre compagnie devient un groupe de transport. 🚚 Camions : du fret vers toutes les villes de la RDC (routes goudronnées rapides Kinshasa–Matadi–Kikwit, Katanga, Goma–Bukavu ; pistes lentes, coupées par les pluies ; barrières et risques dans l’Est). 🚢 Bateaux : barges sur le fleuve Congo et le Kasaï (Kinshasa ⇄ Mbandaka, Kisangani, Ilebo, Bangui, Brazzaville), bateaux sur les lacs Kivu et Tanganyika, caboteurs de Matadi vers Anvers, Lagos, Durban, Dubaï, Shanghai… Ouvrez des dépôts et des ports, achetez des véhicules, ouvrez des lignes : la liste propose les plus rentables. Les lignes et les véhicules se voient sur la carte. Dans 🏢 Compagnie → 🚚 Transport (ou Plus).'],
   ['🏛️ Vos vols font grandir le pays','Chaque passager transporté vers une ville de votre pays la fait grandir : plus d’habitants et plus de voyageurs. Par paliers (5 000, 25 000, 100 000, 400 000 passagers), l’État bitume ou allonge la piste, agrandit le terminal, puis vous verse une prime. Chaque mois, le gouvernement juge votre compagnie (villes desservies, petites villes, pilotes du pays, ponctualité, accidents, grèves) : subvention et taxes réduites si vous êtes bien vu, taxe spéciale sinon. Tout est dans 🏢 Compagnie → 🏛️ Mon pays, avec la liste des villes et un bouton pour y ouvrir une ligne.'],
   ['👨‍✈️ Vos pilotes sont des personnes','Chaque pilote a un grade (copilote, commandant, instructeur, chef pilote), des heures de vol qui montent quand il vole, et son propre moral. Promouvez ceux qui le méritent, nommez un chef pilote. Un pilote expérimenté et mécontent peut être débauché par un concurrent : un message 📬 vous permet de le retenir. Si le moral est trop bas, le syndicat envoie un préavis de grève (augmentation, prime ou refus). Parfois, un pilote réalise un exploit. Tout est dans 🏢 Compagnie → 👨‍✈️ Équipages. En mode simple, les promotions se font toutes seules.'],
