@@ -76,7 +76,7 @@ function registerTruck3dActions(){
 }
 // carte 2D : les camions se touchent aussi
 { const _md=typeof trMapDraw==='function'?trMapDraw:null; if(_md){ trMapDraw=function(){ _md(); try{ if(typeof L_trans!=='undefined'&&L_trans&&L_trans._mov) for(const m of L_trans._mov){ if(m._tk||m.mode!=='truck') continue; m._tk=1; const el=m.mk.getElement&&m.mk.getElement(); if(el){ el.style.pointerEvents='auto'; el.style.cursor='pointer'; }
-    m.mk.on('click',()=>{ const X=S.tr.truck, Ln=X.lines.find(l=>{ const p=trPath('truck',l.a,l.b); return p&&p.pts[0].lat===m.ll[0][0]&&p.pts[0].lon===m.ll[0][1]&&p.pts[1].lat===m.ll[1][0]; }); if(!Ln) return; const vs=X.fleet.filter(v=>v.line===Ln.id); const veh=vs[Math.floor(m.off*vs.length)]||vs[0]; if(!veh) return;
+    m.mk.on('click',()=>{ const X=S.tr.truck, Ln=X.lines.find(l=>{ const p=trLinePath('truck',l); return p&&p.pts[0].lat===m.ll[0][0]&&p.pts[0].lon===m.ll[0][1]&&p.pts[1].lat===m.ll[1][0]; }); if(!Ln) return; const vs=X.fleet.filter(v=>v.line===Ln.id); const veh=vs[Math.floor(m.off*vs.length)]||vs[0]; if(!veh) return;
       const V0=trVeh('truck',veh.k), h=tkHash(veh.id), pool2=tkPool();
       tkInfo({info:{veh,L:Ln,model:V0.n,cargo:TK_GOODS[h%TK_GOODS.length],tons:Math.round(V0.cap*(0.6+(h%40)/100)),driver:`${pool2[0][h%pool2[0].length]} ${pool2[1][(h>>3)%pool2[1].length]}`}}); }); } }catch(e){} }; } }
 setInterval(()=>{ try{ tkTick(); }catch(e){ console.warn('trucks3d',e); } },1500);
