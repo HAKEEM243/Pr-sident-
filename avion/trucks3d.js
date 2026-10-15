@@ -62,7 +62,7 @@ function tkFrame(){
 function tkInfoHtml(t){ const I=t.info, L=I.L, A=trNode('truck',L.a), B=trNode('truck',L.b), cond=Math.round(I.veh.cond??100);
   return `<div class="card"><div class="row"><div class="biglogo" style="background:${S.company.color}">${esc(S.company.logo)}</div><div class="grow"><b>${esc(S.company.name)} ${TR_MODES.truck.name}</b><br><span class="small mut">${esc(I.model)}</span></div></div></div>
   <div class="card small">👷 Chauffeur : <b>${esc(I.driver)}</b><br>📦 Chargement : <b>${num(I.tons)} t de ${esc(I.cargo)}</b><br>🛣️ Ligne : <b>${esc(A.name)} → ${esc(B.name)}</b>${L.last?`<br>📈 Semaine dernière sur la ligne : ${num(L.last.tons)} t livrées · ${L.last.rev-L.last.cost>=0?'+':''}${fmtMoney(L.last.rev-L.last.cost)}`:''}<br>🔧 État du camion : ${bar(cond/100,cond<40?'bad':cond<60?'warn':'')} <b>${cond} %</b>${I.veh.down>0?' · en panne cette semaine':''}</div>
-  <div class="btns">${t.e?`<button class="btn gold" data-act="tkFollow">🎥 Suivre en 3D</button>`:''}<button class="btn" data-act="tkLine">🚚 Gérer la ligne</button></div>`; }
+  <div class="btns">${t.e?`<button class="btn gold" data-act="tkFollow">🎥 Suivre en 3D</button>`:''}<button class="btn gold" data-act="vyGo" data-m="truck" data-id="${L.id}" data-k="${I.veh.k}">🎬 Faire tout le voyage</button><button class="btn" data-act="tkLine">🚚 Gérer la ligne</button></div>`; }
 function tkInfo(t){ TK.sel=t; showModal('🚚 Votre camion', tkInfoHtml(t)); }
 function tkUnfollow(){ TK.follow=null; try{ G.viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY); }catch(e){} const b=document.getElementById('tkStop'); if(b) b.remove(); }
 function registerTruck3dActions(){
