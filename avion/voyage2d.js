@@ -817,28 +817,45 @@ function vdFront(g,W,H,fy){ const k=1.5, s=VD.sc*k, d=VD.d, T=15, off=d*1.5, x0=
   lay(fy+H*0.17,vdDk(base,0.3),4,2); }
 
 /* ---------- événements de la route : contrôles, péages, travaux, gares ---------- */
-const VD_EVT={police:{stop:3.5,msg:'👮 Contrôle de police : le chauffeur montre les papiers'},peage:{stop:2.5,msg:'🎫 Péage : le chauffeur paie le passage'},works:{slow:0.3,msg:'🚧 Travaux : on roule doucement'},panne:{msg:'⚠️ Un camion en panne sur le bas-côté (branches sur la route pour prévenir)'},cross:{msg:'🚸 Passage à niveau : la locomotive klaxonne'},halt:{stop:5},douane:{stop:4.5,msg:'🛂 Frontière : contrôle des passeports et de la marchandise à la douane'},peche:{msg:'🎣 Des pêcheurs en pirogue viennent vendre du poisson'},feu:{stop:3.2,msg:'🚦 Feu rouge : on attend le vert'}};
+const VD_EVT={police:{stop:3.5,msg:'👮 Contrôle de police : le chauffeur montre les papiers'},peage:{stop:2.5,msg:'🎫 Péage : le chauffeur paie le passage'},works:{slow:0.3,msg:'🚧 Travaux : on roule doucement'},panne:{msg:'⚠️ Un camion en panne sur le bas-côté (branches sur la route pour prévenir)'},cross:{msg:'🚸 Passage à niveau : la locomotive klaxonne'},halt:{stop:5},carbu:{stop:1,msg:'⛽ Station-service'},boue:{stop:1,msg:'🟫 Bourbier sur la piste'},sable:{stop:1,msg:'🏝️ Banc de sable devant'},douane:{stop:4.5,msg:'🛂 Frontière : contrôle des passeports et de la marchandise à la douane'},peche:{msg:'🎣 Des pêcheurs en pirogue viennent vendre du poisson'},feu:{stop:3.2,msg:'🚦 Feu rouge : on attend le vert'}};
 function vdEvents(w0,w1){ const out=[], tr=VD.mode==='train', C=tr?20000:30000;
   if(VD.mode==='boat'){ for(let c=Math.max(1,Math.floor(w0/25000)-1);c<=Math.floor(w1/25000);c++){ const w=c*25000+5000+vdRnd(c,212)*15000; if(w<w0-80||w>w1+80||w>VD.len-4000||VD.oceanOnly) continue; if(vdRnd(c,211)<0.5) out.push({id:'p'+c,t:'peche',w}); }
-    for(let i=1;i<VD.stops.length-1;i++){ const st=VD.stops[i]; if(st.d>w0-80&&st.d<w1+80) out.push({id:'h'+i,t:'halt',w:st.d,name:st.name}); } return out; }
+    for(let i=1;i<VD.stops.length-1;i++){ const st=VD.stops[i]; if(st.d>w0-80&&st.d<w1+80) out.push({id:'h'+i,t:'halt',w:st.d,name:st.name}); }
+    if(VD.path.kind==='river') for(let c=Math.max(1,Math.floor(w0/60000)-1);c<=Math.floor(w1/60000);c++){ const w=c*60000+15000+vdRnd(c,221)*30000; if(w<w0-80||w>w1+80||w>VD.len-5000||vdRnd(c,222)>0.45) continue; if(VD.stops.some(st=>Math.abs(st.d-w)<4000)) continue; out.push({id:'s'+c,t:'sable',w}); }
+    return out; }
   for(let c=Math.max(1,Math.floor(w0/C)-1);c<=Math.floor(w1/C);c++){ const w=c*C+6000+vdRnd(c,202)*(C-12000), r=vdRnd(c,201); if(w<w0-80||w>w1+80||w>VD.len-4000) continue;
     if(vdZone(w).t==='town'||vdRivers(w-90,w+90).some(bx=>Math.abs(bx-w)<90)) continue;
     const t=tr?(r<0.6?'cross':null):(r<0.32?'police':r<0.47&&vdRoadType(w)!=='dirt'?'peage':r<0.62?'works':r<0.8?'panne':null); if(t) out.push({id:t+c,t,w}); }
   for(let i=1;i<VD.stops.length-1;i++){ const st=VD.stops[i]; if(st.d>w0-80&&st.d<w1+80) out.push({id:'h'+i,t:'halt',w:st.d,name:st.name}); }
+  if(!tr){ for(let c=Math.max(0,Math.floor(w0/120000)-1);c<=Math.floor(w1/120000);c++){ const w=c*120000+45000+vdRnd(c,231)*45000; if(w<w0-80||w>w1+80||w>VD.len-8000) continue; if(vdZone(w).t==='town'||vdRivers(w-120,w+120).some(bx=>Math.abs(bx-w)<120)) continue; out.push({id:'c'+c,t:'carbu',w}); }
+    for(let c=Math.max(1,Math.floor(w0/35000)-1);c<=Math.floor(w1/35000);c++){ const w=c*35000+9000+vdRnd(c,241)*17000; if(w<w0-80||w>w1+80||w>VD.len-6000||vdRnd(c,242)>0.4||vdRoadType(w)!=='dirt'||vdZone(w).t!=='wild') continue; out.push({id:'m'+c,t:'boue',w}); } }
   for(let i=1;i<VD.stops.length;i++){ const A=VD.stops[i-1], B=VD.stops[i]; if(A.cc===B.cc) continue; const w=(A.d+B.d)/2; if(w>w0-80&&w<w1+80) out.push({id:'b'+i,t:'douane',w,from:A.cc,to:B.cc}); }
   if(!tr) for(const st of VD.stops){ const R=VD_TR(st), sd=Math.round(st.d)%99991; if(st.d+R<w0-80||st.d-R>w1+80) continue;
     for(let k=-5;k<=5;k++){ const w=st.d+k*600+vdRnd(k+50,sd)*120; if(Math.abs(w-st.d)<250||Math.abs(w-st.d)>R-150||w<40||w>VD.len-40||w<w0-80||w>w1+80) continue; if(vdRnd(k+77,sd)<0.25) continue;
       out.push({id:'f'+sd+'_'+k,t:'feu',w,ph:vdRnd(k+99,sd)*14}); } }
   return out; }
+/* ---------- petites décisions du chauffeur : elles coûtent ou rapportent vraiment ---------- */
+const VD_ASK={
+  police:{q:'👮 Contrôle de police. Le policier fait traîner : « Il faut un petit quelque chose pour le thé… »',o:[['💵 Payer 20 $',()=>vdCost(20,1,'Payé 20 $ : on repart vite.')],['🗣️ Discuter, nos papiers sont en règle',()=>Math.random()<0.6?vdCost(0,3,'Le policier laisse passer : rien payé !'):vdCost(100,6,'Amende de 100 $ pour « gilet manquant »… et du temps perdu.')]],d:0},
+  carbu:{q:()=>`⛽ Station-service. Réservoir à ${Math.round(VD.fuel*100)} %. On fait le plein ?`,o:[['⛽ Faire le plein',()=>{ const c=Math.round((1-VD.fuel)*(VD.paxV?350:420)*1.3); VD.fuel=1; return vdCost(c,2,`Plein fait : ${c} $.`); }],['➡️ Continuer',()=>vdCost(0,0,VD.fuel<0.35?'Attention, le réservoir est presque vide !':'On continue.')]],d:()=>VD.fuel<0.5?0:1},
+  boue:{q:'🟫 Un bourbier coupe la piste. Des jeunes du village proposent de pousser.',o:[['🤝 Payer 15 $ aux jeunes',()=>vdCost(15,2,'Les jeunes poussent : on passe !')],['⏳ Attendre que ça sèche',()=>vdCost(0,9,'Deux heures d’attente au soleil…')]],d:0},
+  sable:{q:'🏝️ Banc de sable : le convoi risque de s’échouer.',o:[['⚓ Alléger : décharger un peu sur une pirogue (60 $)',()=>vdCost(60,3,'On passe le banc de sable.')],['⏳ Attendre que l’eau monte',()=>vdCost(0,10,'Une demi-journée d’attente…')]],d:0},
+};
+function vdCost(c,hold,msg){ if(c>0){ VD.fees=(VD.fees||0)+c; try{ book('transportFrais',-c); renderTop&&renderTop(); }catch(e){} } VD.hold=Math.max(VD.hold,hold); VD.holdMsg=msg; VD.delay=(VD.delay||0)+hold*10; if(hold>=6) VD.late=true; return msg; }
+function vdAsk(e){ if(e.t==='peage'){ vdCost(10,2.5,'🎫 Péage : 10 $ payés, la barrière se lève.'); return true; } const A=VD_ASK[e.t]; if(!A) return false; if(e.t==='police'&&VD.mode==='train') return false;
+  VD.ask={t:e.t,q:typeof A.q==='function'?A.q():A.q,o:A.o,def:typeof A.d==='function'?A.d():A.d,until:performance.now()+12000}; VD.vf=0; vaBrake(); vdHud(); return true; }
+function vdAnswer(i){ const a=VD.ask; if(!a) return; VD.ask=null; const m=a.o[i]&&a.o[i][1](); VD.msg=m||''; vdHud(); }
 // cycle d'un feu (pour notre route) : vert 7 s, orange 1,5 s, rouge 5,5 s ; la rue qui croise a l'inverse
 function vdFeuState(e){ const t=(VD.tt+e.ph)%14; return t<7?'green':t<8.5?'orange':'red'; }
 function vdControl(dt){ const front=VD.mode==='train'?19:VD.mode==='boat'?(VD.front||40):9.5, look=VD.d+front; let tgt=1, msg='', maxStep=1e9;
+  if(VD.ask){ VD.vf=0; VD.brk=true; VD.msg='⏸️ À vous de décider'; if(performance.now()>VD.ask.until) vdAnswer(VD.ask.def); return 0; }
+  if(VD.fuel!=null&&VD.fuel<=0&&!VD.dry){ VD.dry=true; VD.fuel=0.25; vdCost(150,8,'🛢️ Panne sèche ! Un motard apporte des bidons d’essence : 150 $ et beaucoup de retard.'); vaBrake(); }
   if(VD.feuWait){ const e=VD.feuWait; VD.vf=0; VD.brk=true; VD.msg=vdFeuState(e)==='orange'?'🟠 Feu orange : on s’arrête':'🔴 Feu rouge : on attend le vert, les piétons traversent'; if(vdFeuState(e)==='green'){ VD.feuWait=null; VD.done.add(e.id); } return 0; }
   if(VD.hold>0){ VD.hold-=dt*Math.max(1,VD.sp/10); VD.vf=0; VD.msg=VD.holdMsg; if(VD.hold<=0){ VD.hold=0; VD.lastGo=performance.now(); } return 0; }
   for(const e of vdEvents(VD.d-80,look+200)){ const E=VD_EVT[e.t], dist=e.w-2-look;
     if(e.t==='feu'){ if(!VD.done.has(e.id)&&dist>-1){ const st=vdFeuState(e); if(st==='green'){ if(dist<4) VD.done.add(e.id); else if(dist<150) msg='🟢 Feu vert : on passe'; }
         else { if(dist<=0.6){ VD.feuWait=e; VD.vf=0; vaBrake(); return 0; } maxStep=Math.min(maxStep,dist); if(dist<80) tgt=Math.min(tgt,Math.max(0.2,dist/80)); if(dist<150) msg=st==='orange'?'🟠 Feu orange : on ralentit':'🔴 Feu rouge devant'; } } continue; }
-    if(E.stop&&!VD.done.has(e.id)&&dist>-1){ if(dist<=0.6){ VD.done.add(e.id); VD.hold=E.stop; VD.holdMsg=e.t==='douane'?`🛂 Frontière ${(COUNTRIES[e.from]||[])[2]||''} → ${(COUNTRIES[e.to]||[])[2]||''} : passage à la douane`:e.t==='halt'&&VD.paxV?(VD.mode==='train'?`🚉 Gare de ${e.name} : des voyageurs descendent, d’autres montent`:`🚏 Arrêt à ${e.name} : des passagers descendent et montent`):e.t==='halt'?(VD.mode==='boat'?`⚓ Escale au port de ${e.name} : on charge et on décharge`:VD.mode==='train'?`🚉 Arrêt en gare de ${e.name} : on charge et on décharge`:`📦 Arrêt à ${e.name} : livraison et pause du chauffeur`):E.msg; VD.vf=0; vaBrake(); VD.msg=VD.holdMsg; return 0; }
+    if(E.stop&&!VD.done.has(e.id)&&dist>-1){ if(dist<=0.6){ VD.done.add(e.id); if(vdAsk(e)) return 0; VD.hold=E.stop; VD.holdMsg=e.t==='douane'?`🛂 Frontière ${(COUNTRIES[e.from]||[])[2]||''} → ${(COUNTRIES[e.to]||[])[2]||''} : passage à la douane`:e.t==='halt'&&VD.paxV?(VD.mode==='train'?`🚉 Gare de ${e.name} : des voyageurs descendent, d’autres montent`:`🚏 Arrêt à ${e.name} : des passagers descendent et montent`):e.t==='halt'?(VD.mode==='boat'?`⚓ Escale au port de ${e.name} : on charge et on décharge`:VD.mode==='train'?`🚉 Arrêt en gare de ${e.name} : on charge et on décharge`:`📦 Arrêt à ${e.name} : livraison et pause du chauffeur`):E.msg; VD.vf=0; vaBrake(); VD.msg=VD.holdMsg; return 0; }
       maxStep=Math.min(maxStep,dist); if(dist<80) tgt=Math.min(tgt,Math.max(0.2,dist/80)); if(dist<150) msg=e.t==='halt'?'':E.msg; }
     if(E.slow&&Math.abs(e.w-VD.d)<45){ tgt=Math.min(tgt,E.slow); msg=E.msg; }
     if(!E.stop&&!E.slow&&Math.abs(e.w-VD.d)<70) msg=E.msg;
@@ -884,6 +901,10 @@ function vdCarFront(g,x,y,s,col,rear){ g.fillStyle='rgba(0,0,0,.25)'; g.fillRect
   g.fillStyle='#111827'; g.fillRect(x-2.6*s,y-0.7*s,1.2*s,0.9*s); g.fillRect(x+1.4*s,y-0.7*s,1.2*s,0.9*s); }
 function vdDrawEvents(g){ const s=VD.sc, d=VD.d, W=VD.W;
   for(const e of vdEvents(d-VD.vx/s-60,d+(W-VD.vx)/s+60)){ const X=VD.vx+(e.w-d)*s, open=VD.done.has(e.id)&&!(VD.hold>0&&VD.holdMsg===VD_EVT[e.t].msg);
+    if(e.t==='carbu'){ vdStation(g,X-6*s,VD.gy,s); continue; }
+    if(e.t==='boue'){ g.fillStyle='#5b3a1f'; g.beginPath(); g.ellipse(X,(VD.rt+VD.rb)/2,16*s,(VD.rb-VD.rt)*0.48,0,0,7); g.fill(); g.fillStyle='rgba(120,150,170,.45)'; g.beginPath(); g.ellipse(X-3*s,(VD.rt+VD.rb)/2+s,8*s,s*1.2,0,0,7); g.ellipse(X+6*s,(VD.rt+VD.rb)/2-s,5*s,s*0.9,0,0,7); g.fill();
+      for(let j=0;j<4;j++) vdPerson(g,X+18*s+j*2.2*s,VD.gy+s*0.2,2*s,VD_CLO[(j*2+1)%9],VD.tt*3+j,j===3?'kid':'homme',j+20); continue; }
+    if(e.t==='sable'){ const X2=VD.vx+(e.w-d)*s; g.fillStyle='#e9d29a'; g.beginPath(); g.ellipse(X2,VD.wl-2*s,30*s,3*s,0,Math.PI,0); g.fill(); g.fillStyle='#d4b876'; g.beginPath(); g.ellipse(X2+6*s,VD.wl-2*s,16*s,1.6*s,0,Math.PI,0); g.fill(); for(let j=0;j<3;j++) vdPerson(g,X2-10*s+j*9*s,VD.wl-4*s,1.8*s,VD_CLO[j*3%9],VD.tt*2+j,'homme',j+30); continue; }
     if(e.t==='peche'){ for(let j=0;j<2;j++) vdSmallBoat(g,VD.vx+(e.w-d)*s+j*14*s,VD.wl-3*s+j*2*s,s*0.9,0,j+3,-1); continue; }
     if(e.t==='douane'){ const fl=c=>(COUNTRIES[c]&&COUNTRIES[c][2])||''; vdBooth(g,X+3*s,VD.gy,s,'DOUANE','#065f46'); g.font=`${Math.max(10,2.2*s)}px sans-serif`; g.textAlign='center'; g.fillText(fl(e.from),X-4*s,VD.gy-9*s); g.fillText(fl(e.to),X+12*s,VD.gy-9*s);
       g.fillStyle='#4b5563'; g.fillRect(X-4.2*s,VD.gy-8*s,s*0.3,8*s); g.fillRect(X+11.8*s,VD.gy-8*s,s*0.3,8*s); if(VD.mode!=='train'){ vdPerson(g,X+1.5*s,VD.oppY,2.1*s,'#065f46',0,'police',5); vdBarrier(g,X,s,open); } continue; }
@@ -954,11 +975,11 @@ function vdDraw(){
   vdBack(g,W,H);
   for(const bx of VD.riv) vdRiver(g,bx);
   // plan moyen : villages et arbres au loin, puis voile de brume
-  const yM=VD.hz+(VD.gy-VD.hz)*0.5, kM=0.5; if(!boat||VD.showBank){ vdGroundTex(g,VD.hz+(VD.gy-VD.hz)*0.42,VD.gy); vdDrawObjs(g,vdGen({f:0.5,k:kM,T:8,seed:991}),s*kM,yM,false); }
+  const yM=VD.hz+(VD.gy-VD.hz)*0.5, kM=0.5; if(!boat||VD.showBank){ if(!VD.lite) vdGroundTex(g,VD.hz+(VD.gy-VD.hz)*0.42,VD.gy); vdDrawObjs(g,vdGen({f:0.5,k:kM,T:8,seed:991}),s*kM,yM,false); }
   { const hg=g.createLinearGradient(0,yM-30*s*kM,0,yM); hg.addColorStop(0,'rgba(0,0,0,0)'); const hc=vdHex(vdPre(VD.skyH)); hg.addColorStop(1,`rgba(${hc.join(',')},0.14)`); g.fillStyle=hg; g.fillRect(0,yM-30*s*kM,W,30*s*kM); }
-  if(!boat||VD.showBank){ const yM2=yM+(VD.gy-yM)*0.55, kM2=0.74; vdDrawObjs(g,vdGen({f:0.74,k:kM2,T:12,seed:577}),s*kM2,yM2,false);
+  if((!boat||VD.showBank)&&!VD.lite){ const yM2=yM+(VD.gy-yM)*0.55, kM2=0.74; vdDrawObjs(g,vdGen({f:0.74,k:kM2,T:12,seed:577}),s*kM2,yM2,false);
     const hg2=g.createLinearGradient(0,yM2-26*s*kM2,0,yM2); hg2.addColorStop(0,'rgba(0,0,0,0)'); const hc2=vdHex(vdPre(VD.skyH)); hg2.addColorStop(1,`rgba(${hc2.join(',')},0.07)`); g.fillStyle=hg2; g.fillRect(0,yM2-26*s*kM2,W,26*s*kM2); }
-  if(VD.h>4.8&&VD.h<8.6&&!VD.rain&&(!boat||VD.showBank)){ const a=Math.max(0,1-Math.abs(VD.h-6.6)/2)*0.55; if(a>0.02){ for(const [fy,sp] of [[0.25,0.4],[0.62,0.7]]){ const y=VD.hz+(VD.gy-VD.hz)*fy+(VD.gy-VD.hz)*0.25;
+  if(!VD.lite&&VD.h>4.8&&VD.h<8.6&&!VD.rain&&(!boat||VD.showBank)){ const a=Math.max(0,1-Math.abs(VD.h-6.6)/2)*0.55; if(a>0.02){ for(const [fy,sp] of [[0.25,0.4],[0.62,0.7]]){ const y=VD.hz+(VD.gy-VD.hz)*fy+(VD.gy-VD.hz)*0.25;
       const fg=g.createLinearGradient(0,y-14*s,0,y+4*s); fg.addColorStop(0,'rgba(255,252,245,0)'); fg.addColorStop(0.6,`rgba(255,252,245,${a})`); fg.addColorStop(1,'rgba(255,252,245,0)'); g.fillStyle=fg; g.fillRect(0,y-14*s,W,18*s);
       g.fillStyle=`rgba(255,252,245,${a*0.5})`; g.beginPath(); for(let k=0;k<6;k++){ const x=((vdRnd(k,121)*W*1.5-VD.d*s*sp*0.05-VD.tt*3)%(W*1.5)+W*1.5)%(W*1.5)-W*0.25, w=(20+vdRnd(k,122)*30)*s; g.moveTo(x+w,y-4*s); g.ellipse(x,y-4*s,w,3*s,0,0,7); } g.fill(); } } }
   const town=vdZone(VD.d).t==='town'?vdZone(VD.d).st:null;
@@ -997,7 +1018,7 @@ function vdDraw(){
   if(VD.rain>0.05){ g.fillStyle=`rgba(40,50,70,${0.18*VD.rain})`; g.fillRect(0,0,W,H); g.strokeStyle=`rgba(220,228,240,${0.7*VD.rain})`; g.lineWidth=1.3; g.beginPath(); const n=Math.round(220*VD.rain);
     for(let k=0;k<n;k++){ const x=((vdRnd(k,81)*W*1.3-VD.tt*60*(0.8+vdRnd(k,84)*0.4))%(W*1.3)+W*1.3)%(W*1.3), y=((vdRnd(k,82)*H+VD.tt*700*(0.8+vdRnd(k,83)*0.4))%H); g.moveTo(x,y); g.lineTo(x-6,y+22); }
     g.stroke(); if(VD.mode!=='boat'){ g.strokeStyle=`rgba(230,235,245,${0.5*VD.rain})`; g.beginPath(); for(let k=0;k<40;k++){ const x=vdRnd(k,85)*W, y=VD.rt+(VD.rb-VD.rt)*vdRnd(k,86), p=(VD.tt*3+vdRnd(k,87))%1; g.moveTo(x-p*6,y); g.ellipse(x,y,p*6,p*1.8,0,0,7); } g.stroke(); } }
-  if(VD.sun&&VD.gold>0.15&&!VD.rain){ const {x,y}=VD.sun; g.globalCompositeOperation='lighter'; for(let k=0;k<7;k++){ const a=Math.PI*0.25+k*Math.PI*0.08+Math.sin(VD.tt*0.1+k)*0.02, L=Math.max(W,H)*1.1; const gr=g.createLinearGradient(x,y,x+Math.cos(a)*L,y+Math.sin(a)*L); gr.addColorStop(0,`rgba(255,200,120,${0.07*VD.gold})`); gr.addColorStop(0.45,`rgba(255,200,120,${0.025*VD.gold})`); gr.addColorStop(1,'rgba(255,200,120,0)'); g.fillStyle=gr;
+  if(VD.sun&&VD.gold>0.15&&!VD.rain&&!VD.lite){ const {x,y}=VD.sun; g.globalCompositeOperation='lighter'; for(let k=0;k<7;k++){ const a=Math.PI*0.25+k*Math.PI*0.08+Math.sin(VD.tt*0.1+k)*0.02, L=Math.max(W,H)*1.1; const gr=g.createLinearGradient(x,y,x+Math.cos(a)*L,y+Math.sin(a)*L); gr.addColorStop(0,`rgba(255,200,120,${0.07*VD.gold})`); gr.addColorStop(0.45,`rgba(255,200,120,${0.025*VD.gold})`); gr.addColorStop(1,'rgba(255,200,120,0)'); g.fillStyle=gr;
       g.beginPath(); g.moveTo(x,y); g.lineTo(x+Math.cos(a-0.03)*L,y+Math.sin(a-0.03)*L); g.lineTo(x+Math.cos(a+0.03)*L,y+Math.sin(a+0.03)*L); g.fill(); } g.globalCompositeOperation='source-over'; }
   if(VD.dark>0.4&&VD.hl&&VD.mode!=='boat'){ g.globalCompositeOperation='lighter'; const [hx]=VD.hl, ly=VD.laneY, rg=g.createRadialGradient(hx+16*s,ly,0,hx+16*s,ly,16*s); rg.addColorStop(0,'rgba(255,236,190,.22)'); rg.addColorStop(1,'rgba(255,236,190,0)'); g.fillStyle=rg; g.save(); g.translate(0,ly); g.scale(1,0.25); g.translate(0,-ly); g.fillRect(hx,ly-16*s,32*s,32*s); g.restore(); g.globalCompositeOperation='source-over'; }
   if(VD.sp*(VD.vf||0)>=40){ g.strokeStyle='rgba(255,255,255,.18)'; g.lineWidth=1.5; g.beginPath(); for(let k=0;k<14;k++){ const y=VD.rb+(H-VD.rb)*vdRnd(k,91), x=((vdRnd(k,92)*W*2-VD.tt*900)%(W*2)+W*2)%(W*2)-W*0.5, L=40+vdRnd(k,93)*80; g.moveTo(x,y); g.lineTo(x+L,y); } g.stroke(); }
@@ -1014,14 +1035,19 @@ function vdHud(town){ const el=document.getElementById('vdHud'); if(!el) return;
   const amb=[VD.msg||'', VD.stops.some(st=>st.cc!=='CD')?flag+' '+((COUNTRIES[cc]&&COUNTRIES[cc][0])||''):'', VD.rainbow?'🌈 arc-en-ciel':'', VD.rain>0.3?'🌧️ pluie':'', VD.dust>0.3?'🌫️ harmattan (vent de sable)':'', VD.mode==='truck'?(VD_ROADNAME[VD.surf]||''):VD.mode==='boat'?({river:'🌊 sur le fleuve',lake:'🏞️ sur le lac',sea:'🌊 en mer'}[VD.path.kind]||''):'', VD.R&&!VD.oceanOnly?VD.R.n:'', town?'📍 '+esc(town.name):(vdZone(VD.d).t==='village'?'🏘️ village':'')].filter(Boolean).join(' · ');
   el.querySelector('.vdTop').innerHTML=`<b>${VD.mode==='train'?'🚆':VD.mode==='boat'?'🚢':'🚚'} ${esc(A.name)} → ${esc(B.name)}</b><span>${km} / ${tot} km · 🕒 ${String(Math.floor(h)).padStart(2,'0')}:${String(Math.floor(h%1*60)).padStart(2,'0')}</span><span class="vdAmb">${amb}</span>`;
   el.querySelector('.vdBar').innerHTML=`<div style="width:${VD.d/VD.len*100}%"></div>${marks}`;
+  const info=[VD.fuel!=null?`⛽ ${Math.round(VD.fuel*100)} %`:'', VD.fees?`🧾 frais ${fmtMoney(VD.fees)}`:'', VD.delay?`⏱️ retard ${VD.delay>=60?Math.floor(VD.delay/60)+' h '+String(VD.delay%60).padStart(2,'0'):VD.delay+' min'}`:''].filter(Boolean).join(' · ');
+  const ie=el.querySelector('.vdInfo'); if(ie){ ie.innerHTML=info; ie.classList.toggle('low',VD.fuel!=null&&VD.fuel<0.2); }
+  const ak=el.querySelector('.vdAsk'); if(ak){ if(VD.ask){ if(ak.dataset.q!==VD.ask.q){ ak.dataset.q=VD.ask.q; ak.innerHTML=`<div class="vdDone"><b>${VD.ask.q}</b><div class="btns">${VD.ask.o.map((o,i)=>`<button class="btn ${i===0?'gold':''}" data-act="vdAns" data-o="${i}">${o[0]}</button>`).join('')}</div><div class="small mut">Sans réponse, le chauffeur choisit lui-même.</div></div>`; } } else if(ak.innerHTML){ ak.innerHTML=''; ak.dataset.q=''; } }
+  { const lb=el.querySelector('[data-act="vdLite"]'); if(lb) lb.classList.toggle('on',!!VD.lite); }
   el.querySelectorAll('[data-k]').forEach(b=>b.classList.toggle('on',+b.dataset.k===VD.sp)); const sb=el.querySelector('[data-act="vdSnd"]'); if(sb) sb.textContent=vaPref()?'🔊':'🔇'; const zb=el.querySelector('[data-act="vdZoom"]'); if(zb) zb.classList.toggle('on',VD.zoom>1); }
 /* ---------- boucle ---------- */
 function vdLoop(t){
   if(!VD.on) return; const dt=Math.min(0.1,(t-(VD.last||t))/1000); VD.last=t;
-  VD.dtLast=dt; const base=VD.mode==='train'?13:VD.mode==='boat'?12:18, vf=vdControl(dt); VD.d=Math.min(VD.len,VD.d+Math.min(base*VD.sp*dt*vf,Math.max(0,VD.maxStep==null?1e9:VD.maxStep))); VD.od=(VD.od||0)+base*VD.sp*dt; VD.tt+=dt*Math.min(VD.sp,10); VD.maxStep=null; vaTick();
+  VD.dtLast=dt; const base=VD.mode==='train'?13:VD.mode==='boat'?12:18, vf=vdControl(dt); const d0=VD.d; VD.d=Math.min(VD.len,VD.d+Math.min(base*VD.sp*dt*vf,Math.max(0,VD.maxStep==null?1e9:VD.maxStep))); if(VD.fuel!=null) VD.fuel=Math.max(0,VD.fuel-(VD.d-d0)/(VD.paxV?600e3:520e3)); VD.od=(VD.od||0)+base*VD.sp*dt; VD.tt+=dt*Math.min(VD.sp,10); VD.maxStep=null; vaTick();
   const s=VD.sc, rel=base*Math.min(VD.sp,10)*s*(VD.vf||0);
   for(const p of VD.smoke){ p.x-=(p.dust?rel*0.25:rel*0.6+12)*dt; p.y-=(p.dust?4:14)*dt; p.r+=(p.dust?s*1.5:9)*dt; p.a-=(p.dust?0.45:0.35)*dt; } VD.smoke=VD.smoke.filter(p=>p.a>0).slice(-60);
   const town=vdDraw(); if(t-(VD.hudT||0)>250){ VD.hudT=t; vdHud(town); }
+  if(!VD.lite&&!VD.liteAsked){ VD.fpsN=(VD.fpsN||0)+1; VD.fpsT=(VD.fpsT||0)+dt; if(VD.fpsT>5){ const fps=VD.fpsN/VD.fpsT; VD.fpsN=0; VD.fpsT=0; if(fps<24){ VD.lite=true; VD.liteAsked=true; toast('🪶 Décor allégé activé pour que le voyage reste fluide (bouton 🪶 pour revenir au décor complet)','info'); } } }
   if(VD.d>=VD.len){ vdArrive(); return; }
   VD.raf=requestAnimationFrame(vdLoop);
 }
@@ -1032,27 +1058,39 @@ function vdResize(){ const cv=VD.cv; if(!cv) return; const dpr=Math.min(2,window
   const vg=VD.ctx.createRadialGradient(W/2,H*0.55,Math.min(W,H)*0.45,W/2,H*0.55,Math.max(W,H)*0.85); vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.32)'); VD.vig=vg; }
 const V0s=()=>{ const v=VD.line&&trVeh(VD.mode,VD.vk); return v&&v.seats?Math.round(v.seats*0.85):0; };
 function vdArrive(){ const B=VD.stops[VD.stops.length-1], L=VD.line, info=VD.cargo;
-  const el=document.getElementById('vdHud'); if(el) el.querySelector('.vdEnd').innerHTML=`<div class="vdDone">🏁 <b>Arrivée à ${esc(B.name)} !</b><br>${VD.paxV&&V0s()?`🧍 ${num(V0s())} voyageurs à bon port.`:info?`📦 ${num(info.tons)} t de ${esc(info.cargo)} livrées.`:''}${L&&L.last?`<br>Cette ligne a rapporté ${fmtMoney(L.last.rev-L.last.cost)} la semaine dernière.`:''}<div class="btns"><button class="btn gold" data-act="vdAgain">🔁 Refaire le voyage</button><button class="btn" data-act="vdClose">Fermer</button></div></div>`; }
+  let bonusTxt=''; if(!VD.paid){ VD.paid=true; const onTime=(VD.delay||0)<=60&&!VD.dry, bonus=onTime?Math.round(Math.min(20000,Math.max(300,(L&&L.last?L.last.rev:10000)*0.03))/10)*10:0;
+    if(bonus){ try{ book('transport',bonus); renderTop&&renderTop(); }catch(e){} }
+    bonusTxt=`<div class="small" style="margin-top:6px">🧾 Frais de route : <b>${fmtMoney(VD.fees||0)}</b> · ⏱️ retard : <b>${VD.delay||0} min</b><br>${onTime?`⭐ Livré à l’heure : prime de ponctualité <b class="pos">+${fmtMoney(bonus)}</b>`:'😕 Trop de retard : pas de prime de ponctualité cette fois.'}</div>`; VD.bonusTxt=bonusTxt; } else bonusTxt=VD.bonusTxt||'';
+  const el=document.getElementById('vdHud'); if(el) el.querySelector('.vdEnd').innerHTML=`<div class="vdDone">🏁 <b>Arrivée à ${esc(B.name)} !</b><br>${VD.paxV&&V0s()?`🧍 ${num(V0s())} voyageurs à bon port.`:info?`📦 ${num(info.tons)} t de ${esc(info.cargo)} livrées.`:''}${L&&L.last?`<br>Cette ligne a rapporté ${fmtMoney(L.last.rev-L.last.cost)} la semaine dernière.`:''}${bonusTxt}<div class="btns"><button class="btn gold" data-act="vdAgain">🔁 Refaire le voyage</button><button class="btn" data-act="vdClose">Fermer</button></div></div>`; }
 function vdStart(mode,lineId,vk){
   const X=S.tr&&S.tr[mode], line=X&&X.lines.find(l=>String(l.id)===String(lineId)); if(!line) return err('Ligne introuvable'); const path=vdBuild(mode,line); if(!path) return err('Route introuvable');
   closeModal(); if(typeof close3D==='function'&&!$('#globe').hidden) try{ close3D(); }catch(e){}
   const vsl=X.fleet.filter(v=>String(v.line)===String(line.id)), veh=(vk&&vsl.find(v=>v.k===vk))||vsl[0], V0=veh&&trVeh(mode,veh.k), hsh=veh&&typeof tkHash==='function'?tkHash(veh.id):7;
-  let zoom=1; try{ zoom=+(localStorage.getItem('se-vd-zoom')||1)||1; }catch(e){}
-  Object.assign(VD,{on:true,mode,line,path,len:path.len,stops:path.stops,d:0,tt:0,done:new Set(),hold:0,vf:0,od:0,msg:'',zoom,honkR:0,sp:VD.sp||10,last:0,smoke:[],cars:mode==='train'?(vdMob()?6:9):0,h0:((S.time/3600e3)%24+24)%24,
+  let zoom=1, lite=false; try{ zoom=+(localStorage.getItem('se-vd-zoom')||1)||1; lite=localStorage.getItem('se-vd-lite')==='1'; }catch(e){}
+  Object.assign(VD,{on:true,mode,line,path,len:path.len,stops:path.stops,d:0,tt:0,done:new Set(),hold:0,vf:0,od:0,lite,liteAsked:lite,ask:null,fees:0,delay:0,late:false,dry:false,paid:false,feuWait:null,fuel:mode==='truck'?0.55+Math.random()*0.3:null,msg:'',zoom,honkR:0,sp:VD.sp||10,last:0,smoke:[],cars:mode==='train'?(vdMob()?6:9):0,h0:((S.time/3600e3)%24+24)%24,
     dirtP:path.kind==='piste'?0.75:path.kind==='paved'?0.04:(path.len>800e3?0.6:0.2), vk:veh?veh.k:(mode==='boat'?'push':''), paxV:!!(veh&&trVeh(mode,veh.k)&&trVeh(mode,veh.k).seats), rg:null, front:null,
     seedL:(()=>{ let h=7; for(const ch of String(line.id)+line.a+line.b) h=(h*31+ch.charCodeAt(0))|0; return Math.abs(h)%997; })(),
     cargo:V0?{tons:Math.round(V0.cap*(mode==='train'?0.85:0.75)),cargo:typeof TK_GOODS!=='undefined'?TK_GOODS[hsh%TK_GOODS.length]:'marchandises'}:null});
   let ov=document.getElementById('vdOv'); if(ov) ov.remove(); ov=document.createElement('div'); ov.id='vdOv';
-  ov.innerHTML=`<canvas id="vdCv"></canvas><div id="vdHud"><div class="vdTop"></div><div class="vdBar"></div><div class="vdBtns">${[1,10,50,200].map(x=>`<button class="chip" data-act="vdSp" data-k="${x}">×${x}</button>`).join('')}<button class="chip" data-act="vdZoom" title="Zoom">🔍</button><button class="chip" data-act="vdPhoto" title="Photo">📸</button><button class="chip" data-act="vdSnd" title="Son">🔊</button><button class="chip" data-act="vdClose">✖</button></div><div class="vdEnd"></div><div class="vdTip">👆 Touchez l’écran pour klaxonner</div></div>`;
+  ov.innerHTML=`<canvas id="vdCv"></canvas><div id="vdHud"><div class="vdTop"></div><div class="vdBar"></div><div class="vdBtns"><button class="chip" data-act="vdClose">✖</button>${[1,10,50,200].map(x=>`<button class="chip" data-act="vdSp" data-k="${x}">×${x}</button>`).join('')}<button class="chip" data-act="vdSkip" title="Étape suivante">⏭️</button><button class="chip" data-act="vdZoom" title="Zoom">🔍</button><button class="chip" data-act="vdLite" title="Décor allégé">🪶</button><button class="chip" data-act="vdPhoto" title="Photo">📸</button><button class="chip" data-act="vdSnd" title="Son">🔊</button></div><div class="vdInfo"></div><div class="vdAsk"></div><div class="vdEnd"></div><div class="vdTip">👆 Touchez l’écran pour klaxonner</div></div>`;
   document.body.appendChild(ov); document.body.classList.add('voyage2d'); VD.cv=ov.querySelector('canvas'); vdResize(); window.addEventListener('resize',vdResize);
   VD.cv.addEventListener('pointerdown',()=>{ vaStart(); vdHorn(); const tp=ov.querySelector('.vdTip'); if(tp) tp.remove(); }); vaStart();
   cancelAnimationFrame(VD.raf); VD.raf=requestAnimationFrame(vdLoop);
 }
+function vdSkip(){ if(!VD.on) return; if(VD.ask) return; const front=VD.mode==='train'?19:VD.mode==='boat'?(VD.front||40):9.5;
+  const ev=vdEvents(VD.d+front+5,VD.d+2e6).filter(e=>VD_EVT[e.t]&&VD_EVT[e.t].stop&&e.t!=='feu'&&!VD.done.has(e.id)&&e.w>VD.d+front+75).map(e=>e.w);
+  const st=VD.stops.filter(x=>x.d-300>VD.d+front+75).map(x=>x.d-300);
+  const tgt=Math.min(VD.len,...ev,...st); VD.feuWait=null; VD.hold=0;
+  if(VD.fuel!=null){ VD.fuel=Math.max(0,VD.fuel-(Math.max(0,tgt-front-60-VD.d))/(VD.paxV?600e3:520e3)); }
+  VD.d=Math.max(VD.d,tgt-front-60); VD.vf=0.4; VD.camZ=1; }
 function vdClose(){ vaStop(); VD.on=false; cancelAnimationFrame(VD.raf); window.removeEventListener('resize',vdResize); const ov=document.getElementById('vdOv'); if(ov) ov.remove(); document.body.classList.remove('voyage2d'); }
 function registerVoyage2dActions(){
   Object.assign(ACTIONS,{
     vyGo:d=>vdStart(d.m,d.id,d.k),   // le voyage est maintenant illustré (2D)
     vdSp:d=>{ VD.sp=+d.k; },
+    vdSkip:()=>vdSkip(),
+    vdAns:d=>vdAnswer(+d.o),
+    vdLite:()=>{ VD.lite=!VD.lite; VD.liteAsked=true; try{ localStorage.setItem('se-vd-lite',VD.lite?'1':'0'); }catch(e){} vdHud(); },
     vdClose:()=>vdClose(),
     vdZoom:()=>{ VD.zoom=VD.zoom>1?1:1.4; try{ localStorage.setItem('se-vd-zoom',VD.zoom); }catch(e){} vdResize(); },
     vdPhoto:()=>vdPhoto(),
