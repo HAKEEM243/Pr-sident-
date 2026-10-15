@@ -519,12 +519,7 @@ function pStaff(){
   <table class="tbl"><tr><th>Famille</th><th>Qualifiés</th><th>Requis</th><th>En formation</th></tr>
   ${fams.map(f=>{ const q=qualifiedPilots(f), nd=2*S.fleet.filter(a=>modelOf(a).fam===f).length, tr=S.pilots.filter(p=>p.training&&p.training.fam===f).length;
     if(!q&&!nd&&!tr) return ''; return `<tr><td>${f}</td><td>${num(q)}</td><td class="${q<nd?'neg':''}">${nd}</td><td>${tr?tr+' ⏳':'—'}</td></tr>`;}).join('')}</table>
-  <h3>Pilotes (${num(S.pilots.length)})</h3>
-  ${S.pilots.slice(0,MAXP).map(p=>`<div class="card pilot"><div class="grow"><b>${esc(p.name)}</b> ${COUNTRIES[p.nat]?COUNTRIES[p.nat][2]:'🌍'} <span class="mut small">${num(p.hours)} h · ${fmtMoney(p.salary)}/mois</span><br>
-    ${p.quals.map(q=>`<span class="chip">${q}</span>`).join('')}
-    ${p.training?`<div class="small">⏳ Formation ${p.training.fam} — fin le ${fmtDate(p.training.until)} ${bar((S.time-p.training.start)/(p.training.until-p.training.start))}</div>`:''}</div>
-    <div class="btns sm col"><button class="btn sm" data-act="train" data-id="${p.id}" ${p.training?'disabled':''}>🎓 Former</button><button class="btn sm danger" data-act="fire" data-id="${p.id}">Licencier</button></div></div>`).join('')}
-  ${S.pilots.length>MAXP?`<div class="small mut">… et ${num(S.pilots.length-MAXP)} autres pilotes (affichage limité aux ${MAXP} premiers).</div>`:''}
+  ${typeof crewHtml==='function'?crewHtml():''}
   <h3>Candidats pilotes (renouvelés chaque semaine)</h3>
   ${S.candidates.map(p=>`<div class="card pilot"><div class="grow"><b>${esc(p.name)}</b> ${COUNTRIES[p.nat]?COUNTRIES[p.nat][2]:'🌍'} <span class="mut small">${num(p.hours)} h · ${fmtMoney(p.salary)}/mois</span><br>${p.quals.map(q=>`<span class="chip">${q}</span>`).join('')}</div>
     <button class="btn sm gold" data-act="hire" data-id="${p.id}">Recruter</button></div>`).join('')}`;
