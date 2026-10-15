@@ -51,11 +51,16 @@ function trTowns(){ if(_trTowns) return _trTowns; const best={};
   return _trTowns=Object.values(best).map(x=>x.id); }
 function trNode(mode,id){
   if(mode==='boat'){ const P=TR_PORTS.find(p=>p[0]===id); return P?{id,name:P[1],lat:P[2],lon:P[3],net:P[4],cc:P[5],popK:P[6]}:null; }
-  if(mode==='train'){ const P=TR_STATIONS.find(p=>p[0]===id); return P?{id,name:P[1],lat:P[2],lon:P[3],cc:P[4],popK:P[5]}:null; }
+  if(mode==='train'){ if(String(id).startsWith('c:')){ const n=trNode('truck',id.slice(2)); return n?{...n,id}:null; } const P=TR_STATIONS.find(p=>p[0]===id); return P?{id,name:P[1],lat:P[2],lon:P[3],cc:P[4],popK:P[5]}:null; }
   const A=AP(id); if(!A) return null; const pm=typeof cityPop==='function'?cityPop(id):null;
   return {id,name:A.city,lat:A.lat,lon:A.lon,cc:A.cc,popK:pm?pm*1000:(A.popK||Math.max(20,(A.traffic||0)*400))};
 }
-const trNodes=mode=>mode==='boat'?TR_PORTS.map(p=>p[0]):mode==='train'?TR_STATIONS.map(p=>p[0]):trTowns();
+const trRails=()=>(S&&S.tr&&S.tr.train&&S.tr.train.rails)||[];
+const trNodes=mode=>mode==='boat'?TR_PORTS.map(p=>p[0]):mode==='train'?[...TR_STATIONS.map(p=>p[0]),...new Set(trRails().flat().filter(x=>String(x).startsWith('c:')))]:trTowns();
+// villes que le train peut atteindre en construisant une voie (toutes les villes de la RDC qui n'ont pas déjà une gare)
+function trRailCandidates(){ const st=new Set(TR_STATIONS.map(p=>p[1])), net=new Set(trNodes('train')); return trTowns().filter(c=>!st.has(AP(c).city)&&!net.has('c:'+c)); }
+function trRailNearest(cityId){ const A=trNode('truck',cityId); let best=null,bd=1e9; for(const id of trNodes('train')){ const n=trNode('train',id); const d=trGc(A,n); if(d<bd){ bd=d; best=id; } } return {from:best,km:Math.round(bd*1.15)}; }
+const TR_RAIL_KM=350e3;   // coût d’un kilomètre de voie neuve
 const trGc=(a,b)=>{ const R=6371, r=Math.PI/180, dLa=(b.lat-a.lat)*r, dLo=(b.lon-a.lon)*r; const h=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
 // routes goudronnées : Kinshasa–Matadi–Kikwit (Ouest), le Katanga minier, Goma–Bukavu
 const TR_PAVED=[[-6.3,12.2,-4.0,19.0],[-12.6,25.2,-10.2,28.2],[-2.7,28.6,-1.4,29.5]];
@@ -65,7 +70,7 @@ function trRainy(lat){ const m=new Date(S.time).getUTCMonth(); return lat<0? (m>
 function trPath(mode,a,b){
   const A=trNode(mode,a), B=trNode(mode,b); if(!A||!B||a===b) return null;
   if(mode==='truck'){ const km=Math.round(trGc(A,B)*1.35); return {km,pts:[A,B],kind:trPaved(A,B)?'paved':'piste'}; }
-  const graph=mode==='train'?TR_RAIL:(A.net===B.net&&A.net==='riv'?TR_RIVER:null);
+  const graph=mode==='train'?TR_RAIL.concat(trRails()):(A.net===B.net&&A.net==='riv'?TR_RIVER:null);
   if(mode==='boat'&&A.net!==B.net) return null;
   if(graph){ const adj={}; for(const [x,y] of graph){ (adj[x]=adj[x]||[]).push(y); (adj[y]=adj[y]||[]).push(x); }
     const prev={[a]:null}, q=[a]; while(q.length){ const x=q.shift(); if(x===b) break; for(const y of adj[x]||[]) if(!(y in prev)){ prev[y]=x; q.push(y); } }
@@ -156,7 +161,7 @@ function trAssign(mode,lineId,delta){ const X=trS()[mode], L=X.lines.find(x=>x.i
 /* ---------- aperçu : meilleures destinations depuis un dépôt ---------- */
 function trSuggest(mode,from,all){
   const X=trS()[mode], vk=mode==='boat'?null:mode==='train'?'freight':'semi';
-  const out=[]; for(const id of trNodes(mode)){ if(id===from||X.lines.some(L=>(L.a===from&&L.b===id)||(L.a===id&&L.b===from))) continue; const p=trPath(mode,from,id); if(!p||(mode==='truck'&&p.km>2200)) continue;
+  const out=[]; for(const id of trNodes(mode)){ if(id===from||X.lines.some(L=>(L.a===from&&L.b===id)||(L.a===id&&L.b===from))) continue; const p=trPath(mode,from,id); if(!p) continue;
     let v=vk?trVeh(mode,vk):TR_MODES.boat.vehicles.find(x=>x.net.includes(p.kind==='river'?'riv':p.kind==='sea'?'sea':trNode('boat',from).net)); if(!v) continue;
     const r=trLineCalc(mode,{a:from,b:id},[{k:v.k,cond:100}]); if(!r) continue; out.push({id,p,r,v,per:r.rev-r.cost}); }
   return all?out.sort((x,y)=>trNode(mode,x.id).name.localeCompare(trNode(mode,y.id).name)):out.sort((x,y)=>y.per-x.per).slice(0,15); }
@@ -185,7 +190,10 @@ function trHtml(){
     ${sug.map(s=>{ const B=trNode(mode,s.id); return `<div class="row" style="padding:5px 0;border-top:1px solid rgba(255,255,255,.06)"><div class="grow small"><b>${esc(B.name)}</b> ${B.cc!=='CD'&&COUNTRIES[B.cc]?COUNTRIES[B.cc][2]:''} · ${num(s.p.km)} km · ${({paved:'goudron',piste:'piste',river:'fleuve',sea:'mer',lake:'lac',rail:'rail'})[s.p.kind]}<br><span class="mut">demande ${num(s.r.dem)} t/sem · 1 ${esc(s.v.n.toLowerCase())} ≈ <span class="${s.per>=0?'pos':'neg'}">${s.per>=0?'+':''}${fmtMoney(s.per)}/sem</span></span></div><button class="btn sm gold" data-act="trOpen" data-a="${from}" data-b="${s.id}">Ouvrir</button></div>`; }).join('')||'<div class="mut small">Aucune destination possible depuis ce '+M.depot+'.</div>'}</div>`:''}
   <h3>🏭 ${M.depot[0].toUpperCase()+M.depot.slice(1)}s</h3>
   <div class="chips">${X.depots.map(d=>`<span class="chip on">${esc(trNode(mode,d).name)}</span>`).join('')}</div>
-  <div class="row"><select id="trDepSel" class="grow">${trNodes(mode).filter(id=>!X.depots.includes(id)).map(id=>trNode(mode,id)).sort((a,b)=>b.popK-a.popK).slice(0,mode==='boat'?40:120).map(n=>`<option value="${n.id}">${esc(n.name)}${n.cc!=='CD'&&COUNTRIES[n.cc]?' '+COUNTRIES[n.cc][2]:''}${mode==='boat'?' · '+TR_NET[n.net]:''}</option>`).join('')}</select><button class="btn sm gold" data-act="trDepot">Ouvrir · ${fmtMoney(M.depotCost)}</button></div>
+  <div class="row"><select id="trDepSel" class="grow">${trNodes(mode).filter(id=>!X.depots.includes(id)).map(id=>trNode(mode,id)).sort((a,b)=>b.popK-a.popK).map(n=>`<option value="${n.id}">${esc(n.name)}${n.cc!=='CD'&&COUNTRIES[n.cc]?' '+COUNTRIES[n.cc][2]:''}${mode==='boat'?' · '+TR_NET[n.net]:''}</option>`).join('')}</select><button class="btn sm gold" data-act="trDepot">Ouvrir · ${fmtMoney(M.depotCost)}</button></div>
+  ${mode==='train'?(()=>{ const cand=trRailCandidates().map(c=>({c,n:trNode('truck',c),r:trRailNearest(c)})).sort((a,b)=>b.n.popK-a.n.popK); const sel=cand.find(x=>x.c===UI.trRailTo)||cand[0];
+    return `<h3>🛤️ Construire une nouvelle voie ferrée</h3><div class="small mut">Le train peut aller dans <b>toutes les villes</b> de la RDC : construisez une voie neuve depuis la gare la plus proche (${fmtMoney(TR_RAIL_KM)} par km). Une voie neuve est rapide et sûre ; la ville devient une gare de votre réseau.</div>
+    ${cand.length?`<div class="row"><select class="grow" data-in="trRailTo">${cand.map(x=>`<option value="${x.c}" ${sel&&x.c===sel.c?'selected':''}>${esc(x.n.name)} · ${num(x.r.km)} km depuis ${esc(trNode('train',x.r.from).name)}</option>`).join('')}</select><button class="btn sm gold" data-act="trRailBuild" data-k="${sel?sel.c:''}">Construire · ${fmtMoney(sel?sel.r.km*TR_RAIL_KM:0)}</button></div>`:'<div class="mut small">Toutes les villes sont déjà reliées !</div>'}`; })():''}
   <h3>🛒 Acheter des ${M.unit}s</h3>
   ${M.vehicles.map(v=>{ const own=X.fleet.filter(x=>x.k===v.k); return `<div class="card row"><div class="grow"><b>${esc(v.n)}</b> <span class="mut small">· vous en avez ${own.length}</span><br><span class="small mut">${num(v.cap)} t · ${v.kmh?v.kmh+' km/h':(v.spd>=1.1?'rapide':v.spd>=1?'normal':'lent')} · ${fmtMoney(v.cost)}${v.net?' · '+v.net.map(n=>TR_NET[n]).join(', '):''}${v.fuel?' · livre le kérosène des aéroports de l’intérieur':''}</span></div><div class="btns sm"><button class="btn sm gold" data-act="trBuy" data-k="${v.k}" data-n="1">+1</button><button class="btn sm" data-act="trBuy" data-k="${v.k}" data-n="5">+5</button></div></div>`; }).join('')}
   <div class="card small">${free?`${free} ${M.unit}(s) sans ligne (équipage payé quand même). `:''}${down?`${down} en panne cette semaine. `:''}État moyen : ${X.fleet.length?Math.round(X.fleet.reduce((s,v)=>s+(v.cond??100),0)/X.fleet.length):100} %.
@@ -228,10 +236,14 @@ function registerTransportActions(){
       for(let i=1;i<p.pts.length;i++){ const e=trEdge(p.pts[i-1].id,p.pts[i].id); if(!X.rehab[e]){ ed.push(e); c+=trGc(p.pts[i-1],p.pts[i])*1.15*15e3; } } c=Math.round(c/1e5)*1e5;
       if(!ed.length) return; if(S.cash<c) return err('Trésorerie insuffisante'); if(!confirm(`Réhabiliter ${ed.length} tronçon(s) de voie pour ${fmtMoney(c)} ? Les trains iront 70 % plus vite et dérailleront beaucoup moins.`)) return;
       book('investissements',-c); for(const e of ed) X.rehab[e]=true; trLog(`🛤️ Voie réhabilitée entre ${p.pts[0].name} et ${p.pts[p.pts.length-1].name} (${fmtMoney(c)}).`,'ok'); renderTop(); renderPanel(); },
+    trRailBuild:d=>{ const c=UI.trRailTo||d.k; if(!c) return; const r=trRailNearest(c), cost=r.km*TR_RAIL_KM, n=trNode('truck',c);
+      if(S.cash<cost) return err('Trésorerie insuffisante'); if(!confirm(`Construire ${num(r.km)} km de voie ferrée de ${trNode('train',r.from).name} à ${n.name} pour ${fmtMoney(cost)} ?`)) return;
+      const X=trS().train; X.rails=X.rails||[]; X.rehab=X.rehab||{}; const id='c:'+c; X.rails.push([r.from,id]); X.rehab[trEdge(r.from,id)]=true; book('investissements',-cost);
+      if(!X.depots.includes(id)) X.depots.push(id); UI.trRailTo=null; trLog(`🛤️ Nouvelle voie ferrée : ${trNode('train',r.from).name} → ${n.name} (${num(r.km)} km, ${fmtMoney(cost)}). ${n.name} a sa gare.`,'ok'); renderTop(); renderPanel(); },
     trDepot:()=>{ const mode=UI.trM||'truck', X=trS()[mode], M=TR_MODES[mode], id=(document.getElementById('trDepSel')||{}).value; if(!id) return; if(S.cash<M.depotCost) return err('Trésorerie insuffisante');
       book('investissements',-M.depotCost); X.depots.push(id); UI.trFrom=id; trLog(`🏭 ${M.dNew} à ${trNode(mode,id).name}.`,'ok'); renderTop(); renderPanel(); },
   });
-  if(typeof INPUTS!=='undefined') Object.assign(INPUTS,{ trAuto:el=>{ trS()[el.dataset.k].auto=el.checked; } });
+  if(typeof INPUTS!=='undefined') Object.assign(INPUTS,{ trAuto:el=>{ trS()[el.dataset.k].auto=el.checked; }, trRailTo:el=>{ UI.trRailTo=el.value; renderPanel(); } });
 }
 LED_CATS.transport=['Filiales transport (recettes)',1]; LED_CATS.transportFrais=['Filiales transport (frais)',-1];
 { const _w=weeklyTick; weeklyTick=function(){ const r=_w.apply(this,arguments); try{ trWeekly(); }catch(e){ console.warn('transport',e); } return r; }; }

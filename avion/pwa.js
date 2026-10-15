@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261150';
+const GAME_VER='20261151';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛤️ Camions et trains dans toutes les villes','Les camions peuvent aller dans toutes les villes de la RDC desservies par avion (plus de limite de distance) ; on peut ouvrir un dépôt dans n’importe laquelle. Les trains aussi : « Construire une nouvelle voie ferrée » relie n’importe quelle ville à la gare la plus proche (350 000 $ par km) ; la ville devient une gare de votre réseau, avec une voie neuve rapide et sûre.'],
   ['⚔️ Duels sur vos lignes','En haut de 🏢 Compagnie → ⚔️ Concurrents : pour chaque ligne disputée, votre part de marché, vos prix, et ce que fait chaque concurrent (il aligne ses prix, ajoute des vols, casse ses prix, remonte ses tarifs…). Ripostez en un geste : prix −10 %, +10 %, ou gérez la ligne.'],
   ['⚡ Événements en vol : à vous de décider','De temps en temps, un de vos avions en vol vous pose un problème : alarme moteur, orage sur la route, passager malade, ministre qui veut réquisitionner l’avion, célébrité qui veut un surclassement. Le jeu se met en pause et vous choisissez ; chaque choix a ses conséquences (argent, image, retards, gouvernement). Bouton « Voir l’avion ». Sans réponse en 90 s, le commandant prend la décision prudente. Fréquence réglable (désactivés, rares, normaux, fréquents) dans 🏢 Compagnie → ⚙️ Réglages.'],
   ['🎯 Campagne de missions','12 missions vous guident de petite compagnie à géant du continent : premières lignes, désenclaver le pays, clients contents, salon VIP, équipage d’élite, ami du gouvernement, une ville qui grandit, groupe de transport, toutes les provinces, le fleuve, top 50 mondial, première compagnie du continent. Chaque mission réussie rapporte de l’argent et de l’image (à récupérer). Bouton « Comment ? » pour savoir où aller. Dans 🏢 Compagnie → 🎯 Missions (ou Plus).'],
