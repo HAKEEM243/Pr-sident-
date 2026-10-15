@@ -90,11 +90,11 @@ function riverPinTick(v,cam){
   const near=gcDist(v,{lat:-4.33,lon:15.36})<40&&cam.h<12000; if(!G.osmPin) G.osmPin=new Map(); if(typeof kinIndex==='function'&&!KIN.idx) kinIndex();
   if(!near){ if(G.osmPin.size){ for(const st of G.osmPin.values()) if(st&&st.prim) G.viewer.scene.primitives.remove(st.prim); G.osmPin.clear(); } fillClear(); return false; }
   // seules les cases proches de ce que l'on regarde restent chargées (mémoire du téléphone)
-  const rad=(GQ.mini?4:GQ.mob?6:18)*(typeof cityK==='function'?Math.max(0.5,cityK()):1), ctr=c=>({lat:(c.s+c.n)/2,lon:(c.w+c.e)/2});
+  const rad=(GQ.mini?3:GQ.mob?5:18)*(typeof cityK==='function'?Math.max(0.5,cityK()):1), ctr=c=>({lat:(c.s+c.n)/2,lon:(c.w+c.e)/2});
   for(const [k,st] of G.osmPin){ if(st&&st.ok&&gcDist(v,{lat:(st.s+st.n)/2,lon:(st.w+st.e)/2})>rad+3){ if(st.prim) G.viewer.scene.primitives.remove(st.prim); G.osmPin.delete(k); } }
   const cells=pinCells().filter(c=>gcDist(v,ctr(c))<rad).sort((a,b)=>gcDist(v,ctr(a))-gcDist(v,ctr(b)));
   const c=cells.find(x=>!G.osmPin.has(x.key)); if(!c) return fillTick(v);
-  const k=GQ.mini?0.22:GQ.mob?0.26:1, lim=Math.max(40,Math.round(c.lim*k*(typeof cityK==='function'?cityK():1)));   // téléphone : ~350 bâtiments par case côté Kinshasa, ~130 côté Brazzaville
+  const k=GQ.mini?0.18:GQ.mob?0.24:1, lim=Math.max(40,Math.round(c.lim*k*(typeof cityK==='function'?cityK():1)));   // téléphone : ~350 bâtiments par case côté Kinshasa, ~130 côté Brazzaville
   G.osmPin.set(c.key,{s:c.s,w:c.w,n:c.n,e:c.e,ok:false}); pinLoad(c,lim); return true;
 }
 async function pinLoad(c,lim){
@@ -118,7 +118,7 @@ const FILL_CELL=0.0075;   // ≈ 830 m : les maisons sont bâties par petites ca
 function fillTick(v){
   if(typeof kinFill!=='function'||typeof KIN==='undefined'||!KIN.idx||!KIN.idx.d) return false;
   if(!G.osmFill) G.osmFill=new Map(); if(G.osmFillBusy) return false;
-  const k=typeof cityK==='function'?cityK():1, rad=(GQ.mini?1.1:GQ.mob?1.4:2.6)*Math.max(0.5,k), budget=Math.round((GQ.mini?260:GQ.mob?300:800)*k);
+  const k=typeof cityK==='function'?cityK():1, rad=(GQ.mini?0.8:GQ.mob?1.2:2.6)*Math.max(0.5,k), budget=Math.round((GQ.mini?200:GQ.mob?280:800)*k);   // téléphone : ~800 à 1 500 maisons autour de la vue
   const F=FILL_CELL, ctr=c=>({lat:(c.s+c.n)/2,lon:(c.w+c.e)/2});
   for(const [key,st] of G.osmFill){ if(st&&st.ok&&gcDist(v,ctr(st))>rad+1.2){ if(st.prim) G.viewer.scene.primitives.remove(st.prim); G.osmFill.delete(key); } }
   const B=KIN.box, ci=Math.floor(v.lat/F), cj=Math.floor(v.lon/F), R=Math.ceil(rad/0.83)+1, want=[];
