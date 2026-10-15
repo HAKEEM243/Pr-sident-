@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261154';
+const GAME_VER='20261155';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🎨 Le voyage en camion ou en train devient un beau dessin','Fini les cubes : le bouton « 🎬 Voyage illustré » (sur chaque ligne de camion ou de train, et dans la fiche d’un camion) ouvre maintenant une vue de côté dessinée, comme un jeu mobile. Le ciel suit l’heure (lever du soleil, plein jour, coucher, nuit étoilée avec la lune), collines au loin, forêt équatoriale près de l’équateur et savane avec acacias et baobabs ailleurs, villages aux toits de tôle avec église et marché, petits kiosques, jardins publics avec bancs et lampadaires, immeubles dans les grandes villes, silhouette de la ville qui approche, panneau « Bienvenue à … », ponts sur les rivières, circulation en face. Votre camion ou votre train porte les couleurs de votre compagnie, phares allumés la nuit. Vitesse ×1 à ×200, et un résumé à l’arrivée.'],
   ['🎬 Voyage en 3D en camion ou en train','Nouveau bouton « 🎬 Voyage en 3D » sur chaque ligne de camion ou de train (et dans la fiche d’un camion) : la caméra suit votre véhicule sur toute la route, de la ville de départ à la ville d’arrivée. Le décor se construit au fil du voyage : route goudronnée avec marquage ou voie ferrée, palmiers, manguiers, acacias, poteaux électriques, villages avec maisons à toit de tôle, église, marché au bord de la route, terrain de foot, champs, petites villes aux arrêts, et la circulation en face. Vitesse ×1, ×10, ×50 et 4 caméras (derrière, côté, drone, devant). Près de Kinshasa, la vraie ville 3D apparaît en plus.'],
   ['👥 Jouer entre amis','Nouveau dans 🏢 Compagnie → 👥 Amis : partagez votre carte de score par WhatsApp ou SMS (un code SKY1-…), collez celui de vos amis, et comparez-vous dans un classement entre amis. Chaque semaine, un défi est le même pour tout le monde (passagers, vols, fret, bénéfice, nouvelles lignes) : qui fera le plus depuis lundi ? Sans compte ni serveur.'],
   ['🚚 Vos camions en 3D, à toucher','En 3D, près d’une ville de vos lignes de camions (Kinshasa, Matadi, Lubumbashi…), vos camions roulent sur les vraies routes, aux couleurs de votre compagnie. Touchez-en un : chauffeur, chargement, ligne, résultats, état du camion. « 🎥 Suivre en 3D » : la caméra roule derrière lui sur la route congolaise. Sur la carte 2D aussi, touchez un 🚚 pour voir sa fiche.'],
