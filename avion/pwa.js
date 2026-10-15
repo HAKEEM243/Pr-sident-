@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261141';
+const GAME_VER='20261142';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏛️ Vos vols font grandir le pays','Chaque passager transporté vers une ville de votre pays la fait grandir : plus d’habitants et plus de voyageurs. Par paliers (5 000, 25 000, 100 000, 400 000 passagers), l’État bitume ou allonge la piste, agrandit le terminal, puis vous verse une prime. Chaque mois, le gouvernement juge votre compagnie (villes desservies, petites villes, pilotes du pays, ponctualité, accidents, grèves) : subvention et taxes réduites si vous êtes bien vu, taxe spéciale sinon. Tout est dans 🏢 Compagnie → 🏛️ Mon pays, avec la liste des villes et un bouton pour y ouvrir une ligne.'],
   ['👨‍✈️ Vos pilotes sont des personnes','Chaque pilote a un grade (copilote, commandant, instructeur, chef pilote), des heures de vol qui montent quand il vole, et son propre moral. Promouvez ceux qui le méritent, nommez un chef pilote. Un pilote expérimenté et mécontent peut être débauché par un concurrent : un message 📬 vous permet de le retenir. Si le moral est trop bas, le syndicat envoie un préavis de grève (augmentation, prime ou refus). Parfois, un pilote réalise un exploit. Tout est dans 🏢 Compagnie → 👨‍✈️ Équipages. En mode simple, les promotions se font toutes seules.'],
   ['🛟 3D plus légère sur iPhone','Kinshasa en 3D charge moins de maisons et de quartiers à la fois sur téléphone (la ville se remplit autour de l’endroit regardé). Nouvelle « boîte noire » : si la 3D s’arrête, le 🩺 Diagnostic 3D (dans Plus) indique ce qui était affiché juste avant. Envoyez-en une capture pour aider à corriger.'],
   ['🏢 Nouvel onglet « Compagnie »','Tout ce qui concerne votre compagnie est rangé au même endroit, en 7 parties expliquées : Résumé (ce qui va bien, quoi faire ensuite), Améliorer (service à bord, programme de fidélité, salons VIP, terminaux et équipements de chaque hub), Clients (notes, raisons des mécontentements, VIP qui vous écrivent), Concurrents (toutes les compagnies IA, celles présentes sur vos lignes, partage de codes, rachat), Espace aérien (fermer votre ciel à toutes les compagnies étrangères ou pays par pays, fermetures dans le monde), Partenaires et Réglages.'],
