@@ -120,6 +120,22 @@ function coCrew(){ const st=S.staff, strike=(st.strikeUntil||0)>S.time;
 function coThreats(){ const m=new Map(); if(typeof carriersOn!=='function') return m;
   for(const r of S.routes||[]){ const a=r.stops[0], b=r.stops[r.stops.length-1]; for(const code of carriersOn(a,b)||[]) if(code!==S.company.code) m.set(code,(m.get(code)||0)+1); }
   return m; }
+// ⚔️ duels ligne par ligne : votre part, vos prix, et ce que fait chaque concurrent
+function coDuels(){
+  if(typeof rivalsOn!=='function'||typeof legMarket!=='function') return '';
+  const seen=new Set(), rows=[];
+  for(const r of S.routes){ if(typeof routeAircraft==='function'&&!routeAircraft(r).length) continue; const a=r.stops[0], b=r.stops[r.stops.length-1], key=a<b?a+b:b+a; if(seen.has(key)) continue; seen.add(key);
+    let xs=[]; try{ xs=rivalsOn(a,b)||[]; }catch(e){} if(!xs.length) continue; rows.push({r,a,b,xs}); }
+  rows.sort((x,y)=>y.xs.length-x.xs.length);
+  if(!rows.length) return '<h3>⚔️ Duels sur vos lignes</h3><div class="mut small">Aucun concurrent sur vos lignes pour l’instant.</div>';
+  return `<h3>⚔️ Duels sur vos lignes</h3><div class="small mut">Chaque semaine, les concurrents regardent votre prix et vos vols : si vous dominez, ils baissent leurs prix ou ajoutent des vols ; s’ils dominent, ils remontent leurs tarifs. À vous de riposter.</div>
+  ${rows.slice(0,12).map(({r,a,b,xs})=>{ let mk=null; try{ mk=legMarket(r,a,b); }catch(e){} const sh=mk&&mk.y?mk.y.share:0, fair=1/(xs.length+1), pm=r.pm&&r.pm.y||1;
+    const verdict=sh>fair*1.35?'<span class="pos">vous dominez</span>':sh<fair*0.6?'<span class="neg">vous êtes dominé</span>':'match serré';
+    return `<div class="card"><div class="row"><div class="grow"><b>${esc(AP(a).city)} – ${esc(AP(b).city)}</b><br><span class="small">Votre part : <b>${Math.round(sh*100)} %</b> · vos prix ${pm>1.005?'+':pm<0.995?'−':''}${pm!==1?Math.abs(Math.round((pm-1)*100))+' %':'normaux'} · ${verdict}</span></div></div>
+      ${xs.slice(0,4).map(x=>{ const code=x.R&&x.R.code, d=typeof duelOf==='function'&&code?duelOf(code,a,b):null; const nm=(x.R&&x.R.name)||code||'?';
+        return `<div class="small" style="padding:2px 0">• <b>${esc(nm)}</b> · ${num(Math.round((x.freq||0)+(d?d.fq:0)))} vols/j${d?` · prix ${d.px<0.995?'−'+Math.round((1-d.px)*100)+' %':d.px>1.005?'+'+Math.round((d.px-1)*100)+' %':'normaux'} — ${typeof DUEL_TXT!=='undefined'?DUEL_TXT[d.mode]||'':''}`:''}</div>`; }).join('')}
+      <div class="btns sm"><button class="btn sm" data-act="coPx" data-id="${r.id}" data-d="-0.1">📉 Mes prix −10 %</button><button class="btn sm" data-act="coPx" data-id="${r.id}" data-d="0.1">📈 +10 %</button><button class="btn sm gold" data-act="line" data-id="${r.id}">🗓️ Gérer la ligne</button></div></div>`; }).join('')}`;
+}
 function coRivals(){
   const rows=typeof aiRows==='function'?aiRows():[], me=rows.find(r=>r.me), thr=coThreats(), hc=homeCC();
   const F=UI.coRf||(thr.size?'lines':'home'), cont=COUNTRIES[hc][1];
@@ -127,6 +143,7 @@ function coRivals(){
   const list=rows.filter(r=>!r.me&&filt(r)).slice(0,40);
   const drive=S.rivalDrive===undefined?3:S.rivalDrive;
   return `${coHelp('Les autres compagnies du jeu sont dirigées par l’ordinateur. Elles ouvrent des lignes, achètent des avions, baissent leurs prix pour vous prendre des clients, s’allient entre elles et peuvent faire faillite. Vous pouvez les surveiller, signer un <b>partage de codes</b> avec les grandes, ou <b>racheter leurs actions</b> (à 51 %, la compagnie est à vous).')}
+  ${coDuels()}
   <div class="card">Votre rang : <b>${me?me.rank:'—'}ᵉ</b> sur ${rows.length} compagnies · ${thr.size} concurrent(s) sur vos lignes.</div>
   <div class="small" style="margin:8px 0 2px"><b>⚔️ Agressivité des concurrents</b> <span class="mut">(à quel point ils cherchent à vous dépasser)</span></div>
   <div class="btns">${(typeof RIVAL_DRIVES!=='undefined'?RIVAL_DRIVES:[]).map(([l,v])=>`<button class="btn sm ${drive===v?'gold':''}" data-act="rivalDrive" data-k="${v}">${l}</button>`).join('')}</div>
@@ -223,6 +240,7 @@ function registerCompanyActions(){
     coTab:d=>{ UI.coTab=d.k; renderPanel(); const b=$('#panelBody'); if(b) b.scrollTop=0; },
     coGo:d=>{ UI.coTab=d.k; if(UI.tab!=='company') setTab('company'); else { renderPanel(); const b=$('#panelBody'); if(b) b.scrollTop=0; } },
     coRf:d=>{ UI.coRf=d.k; renderPanel(); },
+    coPx:d=>{ const r=(S.routes||[]).find(x=>x.id===d.id); if(!r) return; r.pm=r.pm||{y:1,j:1,f:1,c:1}; for(const k of ['y','j','f']) r.pm[k]=clamp(+(((r.pm[k]??1)*(1+(+d.d))).toFixed(3)),0.3,3); toast(`${+d.d<0?'📉':'📈'} Prix de ${esc(AP(r.stops[0]).city)} – ${esc(AP(r.stops[r.stops.length-1]).city)} ${+d.d<0?'baissés':'montés'} de 10 %`,'info'); renderPanel(); },
     coLoyalty:()=>{ if(S.loyalty) return; if(S.cash<3e6) return err('Il faut 3 M$ pour lancer le programme.'); book('marketing',-3e6); S.loyalty=true; S.reputation=clamp(S.reputation+3,0,100); logMsg('💳 Programme de fidélité lancé !','ok'); toast('💳 Programme de fidélité lancé : +6 % d’attractivité','ok'); renderTop(); renderPanel(); },
     coAirAll:d=>{ const cc=homeCC(); if(typeof _airspacePolygons==='undefined'||!_airspacePolygons[cc]) return err('Réglage indisponible pour votre pays.');
       S.airspaceBans=S.airspaceBans||{};
