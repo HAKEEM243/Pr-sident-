@@ -6,14 +6,14 @@
    Concurrents (compagnies IA) · Espace aérien · Partenaires · Réglages
    ========================================================= */
 'use strict';
-const CO_TABS=[['home','🏢','Résumé'],['up','✨','Améliorer'],['pax','👥','Clients'],['rivals','⚔️','Concurrents'],['air','🛂','Espace aérien'],['deals','🤝','Partenaires'],['set','⚙️','Réglages']];
+const CO_TABS=[['home','🏢','Résumé'],['up','✨','Améliorer'],['pax','👥','Clients'],['crew','👨‍✈️','Équipages'],['rivals','⚔️','Concurrents'],['air','🛂','Espace aérien'],['deals','🤝','Partenaires'],['set','⚙️','Réglages']];
 const coHelp=(t)=>`<div class="simplehelp">💡 ${t}</div>`;
 const coSeen=k=>{ S.seen=S.seen||{}; if(!S.seen[k]){ S.seen[k]=1; setTimeout(()=>{ try{ renderGuide(); }catch(e){} },0); } };
 
 function pCompany(){
   const t=CO_TABS.some(x=>x[0]===UI.coTab)?UI.coTab:'home'; coSeen('co'); coSeen(t);
   const bar=`<div class="chips cotabs">${CO_TABS.map(([k,i,l])=>`<button class="chip ${k===t?'on':''}" data-act="coTab" data-k="${k}">${i} ${l}</button>`).join('')}</div>`;
-  const fn={home:coHome, up:coUpgrade, pax:coClients, rivals:coRivals, air:coAirspace, deals:coDeals, set:coSettings}[t];
+  const fn={crew:coCrew, home:coHome, up:coUpgrade, pax:coClients, rivals:coRivals, air:coAirspace, deals:coDeals, set:coSettings}[t];
   return bar+fn();
 }
 
@@ -29,6 +29,9 @@ function coTodo(){
   const noLounge=S.hubs.filter(h=>UPGRADES.lounge.can(AP(h)));
   if(noLounge.length&&S.cash>UPGRADES.lounge.cost(AP(noLounge[0]))*2) out.push(['🥂',`Construisez un salon VIP à ${AP(noLounge[0]).city}`,'Plus de passagers en Affaires et en Première.','coGo','up']);
   if(!S.loyalty&&S.cash>9e6) out.push(['💳','Lancez votre programme de fidélité','+6 % d’attractivité sur tout le réseau.','coGo','up']);
+  if(typeof crewEligible==='function'){ const el=S.pilots.filter(p=>crewInit(p)&&crewEligible(p)).length, rk=S.pilots.filter(p=>crewRisk(p)).length;
+    if(el>=3) out.push(['🎖️',`${el} pilotes attendent une promotion`,'Une promotion qui tarde fait baisser leur moral.','coGo','crew']);
+    if(rk>=3) out.push(['🚪',`${rk} pilotes risquent de partir`,'Les concurrents débauchent les pilotes mécontents.','coGo','crew']); }
   const thr=coThreats(); if(thr.size) out.push(['⚔️',`${thr.size} compagnie(s) vous concurrencent sur vos lignes`,'Voyez qui, et comment répondre.','coGo','rivals']);
   return out.slice(0,4);
 }
@@ -104,6 +107,11 @@ function coClients(){
   ${typeof reviewsHtml==='function'?reviewsHtml():''}
   <div class="btns"><button class="btn" data-tab="pax">🛂 Statistiques détaillées des voyageurs (pays, richesse, motifs)</button></div>`;
 }
+
+/* ---------- 👨‍✈️ Équipages ---------- */
+function coCrew(){ const st=S.staff, strike=(st.strikeUntil||0)>S.time;
+  return `${strike?`<div class="al bad">✊ <b>Grève des pilotes</b> jusqu’au ${fmtDate(st.strikeUntil)} : aucun départ depuis vos hubs.</div>`:''}${typeof crewHtml==='function'?crewHtml():''}
+  <div class="btns"><button class="btn" data-tab="staff">👥 Tout le personnel (hôtesses, mécaniciens, sol), salaires et recrutement</button></div>`; }
 
 /* ---------- ⚔️ Concurrents ---------- */
 function coThreats(){ const m=new Map(); if(typeof carriersOn!=='function') return m;
@@ -185,6 +193,7 @@ const MANUAL=[
   ['👥','Les clients','Chaque passager a une classe (Économique, Premium, Affaires, Première), une nationalité, un motif de voyage. Après le vol, certains laissent un <b>avis</b>. Les avis font l’<b>image</b> de la compagnie. Les clients en difficulté (bagage perdu, malade, VIP) vous écrivent dans 📬 : votre réponse compte. Tout est dans <b>🏢 Compagnie → 👥 Clients</b>.'],
   ['👑','VIP et service','Le <b>service à bord</b> (1★ à 5★) coûte plus cher mais attire. Le <b>programme de fidélité</b> fait revenir les clients. Les <b>salons VIP</b> attirent la clientèle Affaires et Première, la plus rentable. Tout est dans <b>🏢 Compagnie → ✨ Améliorer</b>.'],
   ['🏗️','Aéroports et terminaux','Dans votre pays, vous pouvez agrandir vos aéroports en 7 étapes : terminal agrandi, jetée, deuxième piste, Terminal 2, ville aéroportuaire, Terminal 3, Terminal 4. Plus de voyageurs, plus de portes, plus gros avions : et c’est visible en 2D et en 3D.'],
+  ['👨‍✈️','Les équipages','Chaque pilote a un nom, un grade (copilote, commandant, instructeur, chef pilote), des heures de vol et un moral. Promouvez ceux qui le méritent ; sinon, les concurrents les débauchent (un message 📬 vous permet de les retenir). Si le moral général est trop bas, le syndicat menace de faire grève. Voir <b>🏢 Compagnie → 👨‍✈️ Équipages</b>.'],
   ['⚔️','Les concurrents','Les autres compagnies sont jouées par l’ordinateur : elles viennent sur vos lignes, baissent leurs prix, peuvent faire faillite. Leurs patrons vous écrivent parfois (menaces, propositions). Vous pouvez signer un partage de codes ou racheter leurs actions (51 % = la compagnie est à vous). Voir <b>🏢 Compagnie → ⚔️ Concurrents</b>.'],
   ['🛂','L’espace aérien','Vous pouvez interdire le ciel de votre pays aux compagnies d’autres pays : elles ne peuvent plus y atterrir et font un détour. Les guerres ferment aussi des espaces aériens. Voir <b>🏢 Compagnie → 🛂 Espace aérien</b>.'],
   ['💰','L’argent','Recettes : billets, options payantes, fret. Dépenses : kérosène, salaires, entretien, location, aéroports. Si l’argent manque, un prêt est possible (onglet Finances). Une compagnie en négatif trop longtemps fait faillite.'],
