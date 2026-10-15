@@ -191,7 +191,7 @@ function tripStory(p,rnd,A,B,o){
     default: return `Mission humanitaire à ${city} : ${pick2(rnd,HUM_WHY)}.`;
   }
 }
-function flightManifest(ac){
+function flightManifest(ac,maxN){
   const fl=ac&&ac.flight; if(!fl) return null;
   const leg=fl.legs[fl.li]; if(!leg) return null;
   const pax=leg.pax; if(!pax) return {leg, cargo:true};
@@ -199,7 +199,7 @@ function flightManifest(ac){
   const pr=paxProfile(leg.from,leg.to), rnd=seeded(hashS(ac.id+'|'+leg.dep+'|'+leg.from+leg.to));
   const A=AP(leg.from), B=AP(leg.to), rt=ac.flight.routeId&&S.routes.find(r=>r.id===ac.flight.routeId);
   const pm=(rt&&rt.pm)||{};
-  const rows=[], N=Math.min(total,60), classSeq=[]; for(const [k,n] of [['f',pax.f],['j',pax.j],['w',pax.w],['y',pax.y]]) for(let i=0;i<n;i++) classSeq.push(k);
+  const rows=[], N=Math.min(total,maxN||60), classSeq=[]; for(const [k,n] of [['f',pax.f],['j',pax.j],['w',pax.w],['y',pax.y]]) for(let i=0;i<n;i++) classSeq.push(k);
   const pool=cc=>NAME_POOLS[cc]||NAME_POOLS[COUNTRIES[cc]&&COUNTRIES[cc][1]]||NAME_POOLS.EU;
   const seatRow={f:1,j:4,w:12,y:20}; const used={};
   for(let i=0;i<N;i++){
@@ -462,15 +462,16 @@ const REV_MID=['Correct sans plus.','Vol sans histoire mais service moyen.','Pri
 const REV_BAD=['Retard de {d} min sans aucune explication.','Siège inconfortable et repas froid.','Bagage arrivé le lendemain, personne pour m’aider.','Prix trop élevé pour ce service.','Avion vieillissant, cabine fatiguée.','Équipage débordé, attente interminable.'];
 function onFlightDone(ac,leg,info){
   try{
-    if(!leg.pax||!info||info.paxCount<=0||Math.random()>0.25) return;
-    const m=flightManifest(ac); if(!m||!m.rows||!m.rows.length) return;
+    const rp=0.25*Math.min(1,40/Math.max(1,S.fleet.length));   // grosses flottes : on tire moins d’avis (chacun compte plus), même effet sur l’image
+    if(!leg.pax||!info||info.paxCount<=0||Math.random()>rp) return;
+    const m=flightManifest(ac,8); if(!m||!m.rows||!m.rows.length) return;   // 8 passagers suffisent pour choisir l’auteur de l’avis (la liste complète coûte cher)
     const r=pick(m.rows), route=info.route, ratio=route&&route.pm?(route.pm[r.cls==='w'?'y':r.cls]??1):1;
     let sc=3.5+(S.service-3)*0.4+(ac.condition-80)/60-Math.min(2,info.delay/40)-(ratio-1)*1.3+currentPaxPolicy().review+(r.cls==='f'||r.cls==='j'?0.25:0)+(r.mood==='énervé(e)'?-0.8:r.mood==='ravi(e)'?0.7:0)+rnd(-0.6,0.6);
     const stars=clamp(Math.round(sc),1,5), d=Math.round(info.delay);
     const text=stars>=4?pick(REV_GOOD):stars===3?pick(REV_MID):pick(REV_BAD).replace('{d}',Math.max(10,d||rndi(20,90)));
     (S.reviews=S.reviews||[]).unshift({t:S.time,stars,name:r.first+' '+r.last.charAt(0)+'.',nat:r.nat,route:leg.from+'→'+leg.to,cls:r.cls,text,job:r.job});
     if(S.reviews.length>80) S.reviews.length=80;
-    S.reputation=clamp(S.reputation+(stars-3)*0.04,0,100);
+    S.reputation=clamp(S.reputation+(stars-3)*0.04*Math.min(6,0.25/rp),0,100);
     if(Math.random()<0.3&&typeof tickerPush==='function') tickerPush(`✈️ ${S.company.code}${flightNumber(ac)} est arrivé à ${AP(leg.to).city} avec ${info.paxCount} passagers.`,'ok');
     if(stars===1||stars===5) logMsg(`${'★'.repeat(stars)}${'☆'.repeat(5-stars)} Avis de ${r.first} (${leg.from}→${leg.to}) : « ${text} »`, stars===5?'ok':'warn');
   }catch(e){}
