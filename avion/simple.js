@@ -111,6 +111,7 @@ function pMore(){
     ${item('staff','👥','Personnel','Géré automatiquement')}
     ${item('fuel','⛽','Carburant','Géré automatiquement')}
     ${item('company','🏢','Ma compagnie','Améliorer, clients, VIP, concurrents, espace aérien')}
+    <button data-act="coGo" data-k="ms">🎯 <b>Missions de la campagne</b><small>Objectifs et récompenses</small></button>
     <button data-act="coGo" data-k="trans">🚚 <b>Transport : camions, bateaux, trains</b><small>Filiales de fret dans tout le Congo</small></button>
     ${item('news','📰','Actualités','Monde, présidents, classement, avis')}
     ${item('bourse','📈','Bourse','Actions et rachats')}
@@ -174,6 +175,7 @@ if(typeof registerCompanyActions==='function') registerCompanyActions();
 if(typeof registerCrewActions==='function') registerCrewActions();
 if(typeof registerDevActions==='function') registerDevActions();
 if(typeof registerTransportActions==='function') registerTransportActions();
+if(typeof registerMissionActions==='function') registerMissionActions();
 if(typeof registerInboxActions==='function') registerInboxActions();
 if(typeof registerPwaActions==='function') registerPwaActions();
 if(typeof registerProgressActions==='function') registerProgressActions();

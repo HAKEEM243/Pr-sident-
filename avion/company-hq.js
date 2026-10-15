@@ -6,14 +6,14 @@
    Concurrents (compagnies IA) · Espace aérien · Partenaires · Réglages
    ========================================================= */
 'use strict';
-const CO_TABS=[['home','🏢','Résumé'],['up','✨','Améliorer'],['pax','👥','Clients'],['crew','👨‍✈️','Équipages'],['land','🏛️','Mon pays'],['trans','🚚','Transport'],['rivals','⚔️','Concurrents'],['air','🛂','Espace aérien'],['deals','🤝','Partenaires'],['set','⚙️','Réglages']];
+const CO_TABS=[['home','🏢','Résumé'],['ms','🎯','Missions'],['up','✨','Améliorer'],['pax','👥','Clients'],['crew','👨‍✈️','Équipages'],['land','🏛️','Mon pays'],['trans','🚚','Transport'],['rivals','⚔️','Concurrents'],['air','🛂','Espace aérien'],['deals','🤝','Partenaires'],['set','⚙️','Réglages']];
 const coHelp=(t)=>`<div class="simplehelp">💡 ${t}</div>`;
 const coSeen=k=>{ S.seen=S.seen||{}; if(!S.seen[k]){ S.seen[k]=1; setTimeout(()=>{ try{ renderGuide(); }catch(e){} },0); } };
 
 function pCompany(){
   const t=CO_TABS.some(x=>x[0]===UI.coTab)?UI.coTab:'home'; coSeen('co'); coSeen(t);
   const bar=`<div class="chips cotabs">${CO_TABS.map(([k,i,l])=>`<button class="chip ${k===t?'on':''}" data-act="coTab" data-k="${k}">${i} ${l}</button>`).join('')}</div>`;
-  const fn={trans:()=>typeof trHtml==='function'?trHtml():'', land:()=>typeof devHtml==='function'?devHtml():'', crew:coCrew, home:coHome, up:coUpgrade, pax:coClients, rivals:coRivals, air:coAirspace, deals:coDeals, set:coSettings}[t];
+  const fn={ms:()=>typeof msHtml==='function'?msHtml():'', trans:()=>typeof trHtml==='function'?trHtml():'', land:()=>typeof devHtml==='function'?devHtml():'', crew:coCrew, home:coHome, up:coUpgrade, pax:coClients, rivals:coRivals, air:coAirspace, deals:coDeals, set:coSettings}[t];
   return bar+fn();
 }
 
@@ -22,7 +22,8 @@ function coReviewAvg(){ const L=S.reviews||[]; return L.length? L.reduce((s,x)=>
 function coLoadFactor(){ let p=0,se=0; for(const r of S.routes){ p+=r.stats.pax; se+=r.stats.seats; } return se? p/se : null; }
 function coLounges(){ return S.hubs.filter(h=>AP(h).lounge); }
 function coTodo(){
-  const out=[], sat=satisfaction(), open=(S.inbox||[]).filter(m=>m.st==='new'&&m.kind&&m.kind.startsWith('pax')).length;
+  const out=[], cl=typeof msClaimable==='function'?msClaimable():0; if(cl) out.push(['🎁',`${cl} récompense(s) de mission à récupérer`,'Vos missions réussies vous attendent.','coGo','ms']);
+  const  sat=satisfaction(), open=(S.inbox||[]).filter(m=>m.st==='new'&&m.kind&&m.kind.startsWith('pax')).length;
   if(!S.routes.length) out.push(['🧭','Ouvrez une première ligne','Sans ligne, aucun client ne voyage.','openLine','']);
   if(open) out.push(['📬',`${open} client(s) attendent une réponse`,'Un client bien traité améliore l’image de la compagnie.','coGo','pax']);
   if(sat<55) out.push(['⭐','Vos clients sont peu satisfaits','Montez le service à bord ou réduisez les retards.','coGo','up']);
@@ -189,7 +190,7 @@ function coSettings(){
 
 /* ---------- 📖 Guide du jeu (manuel complet) ---------- */
 const MANUAL=[
-  ['🚀','Le but du jeu','Vous dirigez une compagnie aérienne. Elle gagne de l’argent en transportant des passagers (et du fret) sur des <b>lignes</b> entre deux villes. Plus elle est appréciée, plus elle attire de clients. Objectif : devenir la première compagnie du monde.'],
+  ['🚀','Le but du jeu','Vous dirigez une compagnie aérienne. La <b>campagne de missions</b> (🏢 Compagnie → 🎯 Missions) vous guide pas à pas, avec des récompenses. Elle gagne de l’argent en transportant des passagers (et du fret) sur des <b>lignes</b> entre deux villes. Plus elle est appréciée, plus elle attire de clients. Objectif : devenir la première compagnie du monde.'],
   ['🧭','Les lignes','Onglet <b>Lignes</b> → « Ouvrir une ligne » : choisissez une ville. Un avion libre y est programmé (en mode simple, automatiquement). Une bonne ligne relie deux grandes villes, à une distance adaptée à l’avion. Le <b>remplissage</b> indique la part de sièges vendus : au-dessus de 90 %, montez les prix ou ajoutez des vols ; en dessous de 50 %, baissez les prix.'],
   ['✈️','Les avions','Onglet <b>Acheter</b> : neuf, d’occasion ou en location. Un petit avion (ATR 72) va sur des lignes courtes ; un gros (A320, 787…) demande une piste plus longue. Chaque avion s’use : l’entretien est automatique en mode simple. Un avion âgé déçoit les clients.'],
   ['👥','Les clients','Chaque passager a une classe (Économique, Premium, Affaires, Première), une nationalité, un motif de voyage. Après le vol, certains laissent un <b>avis</b>. Les avis font l’<b>image</b> de la compagnie. Les clients en difficulté (bagage perdu, malade, VIP) vous écrivent dans 📬 : votre réponse compte. Tout est dans <b>🏢 Compagnie → 👥 Clients</b>.'],
