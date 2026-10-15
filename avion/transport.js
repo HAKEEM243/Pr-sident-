@@ -213,7 +213,7 @@ function trMapDraw(){
       for(const Ln of X.lines){ const p=trPath(mode,Ln.a,Ln.b); if(!p) continue; const ll=p.pts.map(n=>[n.lat,n.lon]);
         L.polyline(ll,{color:mode==='truck'?(p.kind==='paved'?'#f59e0b':'#b45309'):mode==='train'?'#c084fc':'#38bdf8',weight:3,opacity:0.75,dashArray:mode==='truck'?'2 7':mode==='train'?'12 4':'8 6',interactive:false}).addTo(L_trans);
         const n=Math.min(3,X.fleet.filter(v=>v.line===Ln.id).length);
-        for(let i=0;i<n;i++){ const mk=L.marker(ll[0],{icon:L.divIcon({className:'trmk',html:TR_MODES[mode].icon,iconSize:[18,18]}),interactive:false,keyboard:false}).addTo(L_trans); L_trans._mov.push({mk,ll,km:p.km,off:i/n,mode}); } } } }
+        for(let i=0;i<n;i++){ const mk=L.marker(ll[0],{icon:L.divIcon({className:'trmk',html:TR_MODES[mode].icon,iconSize:mode==='truck'?[26,26]:[18,18]}),interactive:mode==='truck',keyboard:false}).addTo(L_trans); L_trans._mov.push({mk,ll,km:p.km,off:i/n,mode}); } } } }
   // position : aller-retour continu, vitesse accélérée pour qu'on les voie bouger
   const t=(S.time/3600e3);
   for(const m of L_trans._mov||[]){ const per=Math.max(6,m.km/(m.mode==='truck'?35:m.mode==='train'?22:10)); let f=((t/per)+m.off)%2; if(f>1) f=2-f;
