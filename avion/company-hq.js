@@ -33,6 +33,7 @@ function coTodo(){
     if(el>=3) out.push(['🎖️',`${el} pilotes attendent une promotion`,'Une promotion qui tarde fait baisser leur moral.','coGo','crew']);
     if(rk>=3) out.push(['🚪',`${rk} pilotes risquent de partir`,'Les concurrents débauchent les pilotes mécontents.','coGo','crew']); }
   if(typeof devTier==='function'&&S.dev&&S.dev.rel){ const cc=homeCC(), r=S.dev.rel[cc]; if(r!==undefined&&r<40) out.push(['🏛️','Le gouvernement vous voit d’un mauvais œil','Taxe spéciale chaque mois : voyez comment regagner sa confiance.','coGo','land']); }
+  if(typeof TR_MODES!=='undefined'&&!(S.tr&&(S.tr.truck.on||S.tr.boat.on||(S.tr.train&&S.tr.train.on)))&&S.cash>40e6&&S.fleet.length>=4) out.push(['🚚','Créez une filiale de transport','Camions, bateaux ou trains : du fret dans tout le Congo, en plus de vos avions.','coGo','trans']);
   const thr=coThreats(); if(thr.size) out.push(['⚔️',`${thr.size} compagnie(s) vous concurrencent sur vos lignes`,'Voyez qui, et comment répondre.','coGo','rivals']);
   return out.slice(0,4);
 }
