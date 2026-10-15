@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261153';
+const GAME_VER='20261154';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🎬 Voyage en 3D en camion ou en train','Nouveau bouton « 🎬 Voyage en 3D » sur chaque ligne de camion ou de train (et dans la fiche d’un camion) : la caméra suit votre véhicule sur toute la route, de la ville de départ à la ville d’arrivée. Le décor se construit au fil du voyage : route goudronnée avec marquage ou voie ferrée, palmiers, manguiers, acacias, poteaux électriques, villages avec maisons à toit de tôle, église, marché au bord de la route, terrain de foot, champs, petites villes aux arrêts, et la circulation en face. Vitesse ×1, ×10, ×50 et 4 caméras (derrière, côté, drone, devant). Près de Kinshasa, la vraie ville 3D apparaît en plus.'],
   ['👥 Jouer entre amis','Nouveau dans 🏢 Compagnie → 👥 Amis : partagez votre carte de score par WhatsApp ou SMS (un code SKY1-…), collez celui de vos amis, et comparez-vous dans un classement entre amis. Chaque semaine, un défi est le même pour tout le monde (passagers, vols, fret, bénéfice, nouvelles lignes) : qui fera le plus depuis lundi ? Sans compte ni serveur.'],
   ['🚚 Vos camions en 3D, à toucher','En 3D, près d’une ville de vos lignes de camions (Kinshasa, Matadi, Lubumbashi…), vos camions roulent sur les vraies routes, aux couleurs de votre compagnie. Touchez-en un : chauffeur, chargement, ligne, résultats, état du camion. « 🎥 Suivre en 3D » : la caméra roule derrière lui sur la route congolaise. Sur la carte 2D aussi, touchez un 🚚 pour voir sa fiche.'],
   ['🛤️ Camions et trains dans toutes les villes','Les camions peuvent aller dans toutes les villes de la RDC desservies par avion (plus de limite de distance) ; on peut ouvrir un dépôt dans n’importe laquelle. Les trains aussi : « Construire une nouvelle voie ferrée » relie n’importe quelle ville à la gare la plus proche (350 000 $ par km) ; la ville devient une gare de votre réseau, avec une voie neuve rapide et sûre.'],
