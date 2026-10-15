@@ -185,6 +185,10 @@ function coSettings(){
     <div class="mut small">Réaliste = temps réel. Standard : 1 s = 1 min. Rapide : 1 s = 10 min. Le jeu continue quand la page est fermée (jusqu’à 30 jours rattrapés).</div>
     <label class="tog"><input type="checkbox" data-in="simple" ${S.simple?'checked':''}> <b>Mode simple</b> : personnel, carburant, maintenance et programmation automatiques</label>
     <label class="tog"><input type="checkbox" data-in="notif" ${S.notifications?'checked':''}> Notifications du navigateur</label></div>
+  <h3>⚡ Événements en vol</h3>
+  <div class="small mut">Panne, orage, passager malade, ministre, célébrité : le jeu se met en pause et vous décidez. Sans réponse en 90 s, le commandant choisit la solution prudente.</div>
+  <div class="chips">${typeof LV_FREQ!=='undefined'?Object.entries(LV_FREQ).map(([k,[l]])=>`<button class="chip ${(S.lvFreq||'normal')===k?'on':''}" data-act="lvFreq" data-k="${k}">${l}</button>`).join(''):''}</div>
+  ${(S.lvLog||[]).slice(0,5).map(l=>`<div class="small"><span class="mut">${fmtDate(l.t)}</span> ${l.txt}</div>`).join('')}
   <div class="btns"><button class="btn sm" data-act="guideReset">🎓 Recommencer le tutoriel</button><button class="btn sm" data-act="manual">📖 Guide du jeu</button><button class="btn sm" data-act="saves">💾 Sauvegardes</button><button class="btn sm danger" data-act="reset">Nouvelle partie</button></div>`;
 }
 
@@ -201,6 +205,7 @@ const MANUAL=[
   ['🚚','Camions et bateaux','Créez des filiales de fret. 🚆 <b>Trains</b> : le vrai réseau ferré (Matadi–Kinshasa, Katanga, Kasaï, vers Lobito et la Zambie), avec le cuivre et le cobalt ; réhabilitez les voies. 🚚 <b>Camions</b> : vers toutes les villes de la RDC (routes goudronnées rapides, pistes lentes et coupées par les pluies). 🚢 <b>Bateaux</b> : barges sur le fleuve Congo et le Kasaï, bateaux sur les lacs Kivu et Tanganyika, caboteurs de Matadi vers les ports du monde. Ouvrez un dépôt ou un port, achetez des véhicules, ouvrez des lignes : chaque semaine ils livrent et rapportent. Voir <b>🏢 Compagnie → 🚚 Transport</b>.'],
   ['⚔️','Les concurrents','Les autres compagnies sont jouées par l’ordinateur : elles viennent sur vos lignes, baissent leurs prix, peuvent faire faillite. Leurs patrons vous écrivent parfois (menaces, propositions). Vous pouvez signer un partage de codes ou racheter leurs actions (51 % = la compagnie est à vous). Voir <b>🏢 Compagnie → ⚔️ Concurrents</b>.'],
   ['🛂','L’espace aérien','Vous pouvez interdire le ciel de votre pays aux compagnies d’autres pays : elles ne peuvent plus y atterrir et font un détour. Les guerres ferment aussi des espaces aériens. Voir <b>🏢 Compagnie → 🛂 Espace aérien</b>.'],
+  ['⚡','Les événements en vol','De temps en temps, un de vos avions en vol vous pose un problème (panne, orage, passager malade, ministre qui veut l’avion, célébrité à bord). Le jeu se met en pause : choisissez ! Chaque choix a ses conséquences sur l’argent, l’image ou le gouvernement. La fréquence se règle dans 🏢 Compagnie → ⚙️ Réglages.'],
   ['💰','L’argent','Recettes : billets, options payantes, fret. Dépenses : kérosène, salaires, entretien, location, aéroports. Si l’argent manque, un prêt est possible (onglet Finances). Une compagnie en négatif trop longtemps fait faillite.'],
   ['⏱️','Le temps','Choisissez la vitesse en haut (Réaliste, Standard, Rapide…). Le jeu continue même téléphone fermé : à votre retour, les jours passés sont rattrapés.'],
 ];
