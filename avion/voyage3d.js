@@ -15,7 +15,7 @@ const vyHash=(a,b)=>{ let h=(a*374761393+b*668265263)|0; h=Math.imul(h^(h>>>13),
 
 /* ---------- le tracé : la vraie route entre les villes, avec des courbes ---------- */
 function vyBuildPath(mode,line){
-  const p=trPath(mode,line.a,line.b); if(!p) return null;
+  const p=typeof trLinePath==='function'?trLinePath(mode,line):trPath(mode,line.a,line.b); if(!p) return null;
   const nodes=p.pts, out=[], seed=vyHash(line.a.length*97+line.b.charCodeAt(0),line.b.length*31+line.a.charCodeAt(0));
   const amp=mode==='train'?180:420;
   for(let k=1;k<nodes.length;k++){ const A=nodes[k-1], B=nodes[k], D=trGc(A,B)*1000, n=Math.max(2,Math.ceil(D/200)), cl=Math.cos(A.lat*Math.PI/180);

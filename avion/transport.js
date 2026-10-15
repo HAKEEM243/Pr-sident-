@@ -33,9 +33,9 @@ const trEdge=(a,b)=>a<b?a+'-'+b:b+'-'+a;
 const TR_NET={riv:'fleuve Congo et Kasaï',sea:'mer',kiv:'lac Kivu',tan:'lac Tanganyika'};
 const TR_MODES={
   truck:{name:'Camions', icon:'🚚', unit:'camion', depot:'dépôt', d1:'d’un dépôt', dNew:'Nouveau dépôt', unlock:5e6, depotCost:8e5, crew:150,
-    vehicles:[{k:'van',n:'Camionnette 3,5 t',cap:3.5,spd:1.15,cost:45e3,run:0.35},{k:'rigid',n:'Porteur 12 t',cap:12,spd:1,cost:95e3,run:0.55},{k:'semi',n:'Semi-remorque 30 t',cap:30,spd:0.9,cost:150e3,run:0.8},{k:'tank',n:'Citerne 25 000 L',cap:22,spd:0.9,cost:170e3,run:0.85,fuel:true}]},
+    vehicles:[{k:'van',n:'Camionnette 3,5 t',cap:3.5,spd:1.15,cost:45e3,run:0.35},{k:'rigid',n:'Porteur 12 t',cap:12,spd:1,cost:95e3,run:0.55},{k:'semi',n:'Semi-remorque 30 t',cap:30,spd:0.9,cost:150e3,run:0.8},{k:'tank',n:'Citerne 25 000 L',cap:22,spd:0.9,cost:170e3,run:0.85,fuel:true},{k:'minibus',n:'Minibus 18 places (voyageurs)',cap:0,seats:18,spd:1.15,cost:40e3,run:0.3},{k:'bus',n:'Autocar 60 places (voyageurs)',cap:0,seats:60,spd:1,cost:130e3,run:0.6}]},
   train:{name:'Trains', icon:'🚆', unit:'train', depot:'gare', d1:'d’une gare', dNew:'Nouvelle gare', unlock:20e6, depotCost:3e6, crew:0,
-    vehicles:[{k:'freight',n:'Train de marchandises 1 000 t',cap:1000,kmh:25,cost:4e6,run:12,crew:1200},{k:'mine',n:'Train minier 2 500 t (cuivre, cobalt)',cap:2500,kmh:20,cost:9e6,run:22,crew:1500},{k:'fast',n:'Train rapide 600 t',cap:600,kmh:40,cost:5e6,run:14,crew:1300}]},
+    vehicles:[{k:'freight',n:'Train de marchandises 1 000 t',cap:1000,kmh:25,cost:4e6,run:12,crew:1200},{k:'mine',n:'Train minier 2 500 t (cuivre, cobalt)',cap:2500,kmh:20,cost:9e6,run:22,crew:1500},{k:'fast',n:'Train rapide 600 t',cap:600,kmh:40,cost:5e6,run:14,crew:1300},{k:'pax',n:'Train de voyageurs 600 places',cap:0,seats:600,kmh:35,cost:6e6,run:13,crew:1600}]},
   boat:{name:'Bateaux', icon:'🚢', unit:'bateau', depot:'port', d1:'d’un port', dNew:'Nouveau port', unlock:12e6, depotCost:2e6, crew:0,
     vehicles:[{k:'barge',n:'Barge fluviale 200 t',cap:200,kmh:10,cost:6e5,run:3,crew:600,net:['riv','kiv','tan']},{k:'push',n:'Pousseur + 4 barges 800 t',cap:800,kmh:8,cost:2e6,run:7,crew:1500,net:['riv']},{k:'lake',n:'Bateau de lac 150 t',cap:150,kmh:16,cost:7e5,run:3,crew:500,net:['kiv','tan']},{k:'coaster',n:'Caboteur maritime 3 000 t',cap:3000,kmh:22,cost:6e6,run:18,crew:4000,net:['sea']}]},
 };
@@ -45,9 +45,11 @@ const trLog=(t,kind)=>{ const T=trS(); T.log.unshift({t:S.time,txt:t}); if(T.log
 
 /* ---------- les lieux ---------- */
 let _trTowns=null;
+const TR_ISLANDS=['MG','MU','SC','KM','CV','ST','RE','YT','SH'];   // pas de route vers les îles
+const trLand=cc=>cc==='CD'||(COUNTRIES[cc]&&COUNTRIES[cc][1]==='AF'&&!TR_ISLANDS.includes(cc));
 function trTowns(){ if(_trTowns) return _trTowns; const best={};
-  for(const c of AIRPORT_CODES){ const A=AP(c); if(!A||A.cc!=='CD') continue; const k=A.city; const p=A.popK||Math.round((A.traffic||0)*400);
-    if(!best[k]||p>best[k].p) best[k]={id:c,p}; }
+  for(const c of AIRPORT_CODES){ const A=AP(c); if(!A||!trLand(A.cc)) continue; const k=A.city; const p=A.popK||Math.round((A.traffic||0)*400);
+    const key=A.cc+'|'+k; if(!best[key]||p>best[key].p) best[key]={id:c,p}; }
   return _trTowns=Object.values(best).map(x=>x.id); }
 function trNode(mode,id){
   if(mode==='boat'){ const P=TR_PORTS.find(p=>p[0]===id); return P?{id,name:P[1],lat:P[2],lon:P[3],net:P[4],cc:P[5],popK:P[6]}:null; }
@@ -69,7 +71,7 @@ function trRainy(lat){ const m=new Date(S.time).getUTCMonth(); return lat<0? (m>
 // chemin : les camions vont tout droit (× détours), les bateaux suivent le fleuve ou la mer
 function trPath(mode,a,b){
   const A=trNode(mode,a), B=trNode(mode,b); if(!A||!B||a===b) return null;
-  if(mode==='truck'){ const km=Math.round(trGc(A,B)*1.35); return {km,pts:[A,B],kind:trPaved(A,B)?'paved':'piste'}; }
+  if(mode==='truck'){ const km=Math.round(trGc(A,B)*1.35); return {km,pts:[A,B],kind:trPaved(A,B)||(A.cc!=='CD'&&B.cc!=='CD')?'paved':'piste'}; }
   const graph=mode==='train'?TR_RAIL.concat(trRails()):(A.net===B.net&&A.net==='riv'?TR_RIVER:null);
   if(mode==='boat'&&A.net!==B.net) return null;
   if(graph){ const adj={}; for(const [x,y] of graph){ (adj[x]=adj[x]||[]).push(y); (adj[y]=adj[y]||[]).push(x); }
@@ -79,6 +81,12 @@ function trPath(mode,a,b){
   const f=A.net==='sea'?((A.lon>25)!==(B.lon>25)?1.75:1.25):1.15;   // vers l'océan Indien depuis l'Atlantique : on contourne le cap
   return {km:Math.round(trGc(A,B)*f),pts:[A,B],kind:A.net==='sea'?'sea':'lake'};
 }
+// une ligne peut avoir des escales : A → escale 1 → escale 2 → B (fret et voyageurs montent et descendent à chaque arrêt)
+function trLinePath(mode,L){ const ids=[L.a,...(L.via||[]),L.b]; const stops=ids.map(id=>trNode(mode,id)); if(stops.some(x=>!x)) return null;
+  if(ids.length===2){ const p=trPath(mode,L.a,L.b); return p&&{...p,stops,stopKm:[0,p.km]}; }
+  let pts=[], km=0; const kinds=new Set(), stopKm=[0];
+  for(let i=1;i<ids.length;i++){ const p=trPath(mode,ids[i-1],ids[i]); if(!p) return null; km+=p.km; stopKm.push(km); kinds.add(p.kind); pts=pts.length?pts.concat(p.pts.slice(1)):p.pts.slice(); }
+  return {km,pts,kind:kinds.has('piste')?'piste':[...kinds][0],stops,stopKm}; }
 const trCanUse=(mode,v,path)=>mode!=='boat'||!v.net||v.net.includes(path.kind==='river'?'riv':path.kind==='sea'?'sea':trNode('boat',path.pts[0].id).net);
 
 /* ---------- le calcul d'une ligne ---------- */
@@ -90,40 +98,48 @@ function trSpeed(mode,v,path){
   return (path.kind==='paved'?55:22*(rainy?0.7:1))*v.spd;
 }
 const trDryRiver=()=>{ const m=new Date(S.time).getUTCMonth(); return m>=6&&m<=8; };   // basses eaux de juillet à septembre
-function trDemand(mode,line){ const p=trPath(mode,line.a,line.b); if(!p) return 0; const A=p.pts[0], B=p.pts[p.pts.length-1];
+function trPairDem(mode,A,B,km,p){ const g=Math.sqrt(Math.max(10,A.popK)*Math.max(10,B.popK));
   const hubBoost=(S.hubs||[]).some(h=>{ const H=AP(h); return H&&[A,B].some(n=>trGc(H,n)<40); })?1.25:1;   // le fret aérien de vos hubs continue par la route ou le fleuve
-  const g=Math.sqrt(Math.max(10,A.popK)*Math.max(10,B.popK));
-  let d=mode==='truck'?1.2*g/(1+p.km/500):mode==='train'?2*g/(1+p.km/1500):p.kind==='sea'?3*g/(1+p.km/8000):1.6*g/(1+p.km/1500);
-  if(mode==='train'){ const ids=p.pts.map(x=>x.id); if(ids.some(i=>TR_MINES.includes(i))) d*=2; if([A.id,B.id].some(i=>TR_EXPORT.includes(i))) d*=1.5; }   // cuivre et cobalt du Katanga vers les ports
-  return Math.round(d*hubBoost); }
+  let d=mode==='truck'?1.2*g/(1+km/500):mode==='train'?2*g/(1+km/1500):p.kind==='sea'?3*g/(1+km/8000):1.6*g/(1+km/1500);
+  if(A.cc!==B.cc) d*=0.8;   // la frontière freine un peu les échanges
+  return d*hubBoost; }
+function trPairPax(mode,A,B,km){ const g=Math.sqrt(Math.max(10,A.popK)*Math.max(10,B.popK)); return (mode==='train'?4*g/(1+km/800):3*g/(1+km/300))*(A.cc!==B.cc?0.7:1); }
+// demande d'une ligne : chaque couple d'arrêts échange du fret et des voyageurs (les escales ajoutent des marchés)
+function trDemandAll(mode,line,p){ p=p||trLinePath(mode,line); if(!p) return {dem:0,km:0,pax:0,pkm:0}; const N=p.stops||[p.pts[0],p.pts[p.pts.length-1]], K=p.stopKm||[0,p.km]; let dem=0, dk=0, pax=0, pk=0;
+  for(let i=0;i<N.length;i++) for(let j=i+1;j<N.length;j++){ const km=Math.max(20,K[j]-K[i]), w=(i===0&&j===N.length-1)?1:0.7, d=trPairDem(mode,N[i],N[j],km,p)*w, q=trPairPax(mode,N[i],N[j],km)*w; dem+=d; dk+=d*km; pax+=q; pk+=q*km; }
+  if(mode==='train'){ const ids=p.pts.map(x=>x.id); if(ids.some(i=>TR_MINES.includes(i))) dem*=2, dk*=2; if(N.some(n=>TR_EXPORT.includes(n.id))) dem*=1.5, dk*=1.5; }   // cuivre et cobalt du Katanga vers les ports
+  return {dem:Math.round(dem),km:dem?dk/dem:p.km,pax:Math.round(pax*2),pkm:pax?pk/pax:p.km}; }
+function trDemand(mode,line){ return trDemandAll(mode,line).dem; }
 const trShare=mode=>mode==='truck'?0.45:mode==='train'?0.7:0.6;
 function trRate(mode,p){ return mode==='train'?0.06:mode==='truck'?(p.kind==='paved'?0.09:0.15):p.kind==='sea'?0.03:0.07; }
 function trLineCalc(mode,line,vs){
-  const p=trPath(mode,line.a,line.b); if(!p) return null;
-  let cap=0, run=0, crew=0; const load=mode==='truck'?10:mode==='train'?24:p.kind==='sea'?72:36;
-  for(const x of vs){ const v=trVeh(mode,x.k); if(!v||x.down>0) continue; const trip=2*p.km/trSpeed(mode,v,p)+load, trips=(168*(mode==='truck'?0.8:0.9))/trip;
-    cap+=v.cap*trips*(x.cond>=40?1:0.7); run+=trips*2*p.km*v.run; crew+=(v.crew||TR_MODES[mode].crew); }
-  const dem=trDemand(mode,line)*trShare(mode)*(line.block?0:1), tons=Math.min(cap,dem), fill=cap?tons/cap:0;
-  const rev=tons*(p.km*trRate(mode,p)+(mode==='truck'?20:10)), cost=run*(0.35+0.65*fill)+crew;   // un véhicule à moitié vide consomme moins
-  return {p,cap:Math.round(cap),dem:Math.round(dem),tons:Math.round(tons),rev:Math.round(rev),cost:Math.round(cost)};
+  const p=line.id?trLinePath(mode,line):trPath(mode,line.a,line.b); if(!p) return null; const nst=(p.stops||[0,0]).length-2;
+  let cap=0, seats=0, run=0, runP=0, crew=0; const load=(mode==='truck'?10:mode==='train'?24:p.kind==='sea'?72:36)+nst*(mode==='truck'?3:6);
+  for(const x of vs){ const v=trVeh(mode,x.k); if(!v||x.down>0) continue; const pax=!!v.seats, trip=2*p.km/trSpeed(mode,v,p)+(pax?2+nst:load), trips=(168*(mode==='truck'?0.8:0.9))/trip, ok=x.cond>=40?1:0.7;
+    if(pax){ seats+=v.seats*trips*2*ok; runP+=trips*2*p.km*v.run; } else { cap+=v.cap*trips*ok; run+=trips*2*p.km*v.run; } crew+=(v.crew||TR_MODES[mode].crew); }
+  const D=trDemandAll(mode,line,p), blk=line.block?0:1, dem=D.dem*trShare(mode)*blk, tons=Math.min(cap,dem), fill=cap?tons/cap:0;
+  const pdem=D.pax*(mode==='train'?0.6:0.35)*blk, pax=Math.min(seats,pdem), pfill=seats?pax/seats:0;
+  const fare=mode==='train'?D.pkm*0.03+4:D.pkm*0.04+3;
+  const rev=tons*(D.km*trRate(mode,p)+(mode==='truck'?20:10))+pax*fare, cost=run*(0.35+0.65*fill)+runP*(0.6+0.4*pfill)+crew;   // un véhicule à moitié vide consomme moins
+  return {p,cap:Math.round(cap),dem:Math.round(dem),tons:Math.round(tons),seats:Math.round(seats),pdem:Math.round(pdem),pax:Math.round(pax),rev:Math.round(rev),cost:Math.round(cost)};
 }
 
 /* ---------- chaque semaine ---------- */
 function trWeekly(){
   const T=trS(); let totR=0,totC=0;
-  for(const [mode,M] of Object.entries(TR_MODES)){ const X=T[mode]; if(!X.on) continue; let R=0,C=0,t=0;
+  for(const [mode,M] of Object.entries(TR_MODES)){ const X=T[mode]; if(!X.on) continue; let R=0,C=0,t=0,px=0;
     // événements
     for(const L of X.lines) L.block=0;
     const ev=Math.random();
-    if(mode==='truck'&&X.lines.length){ const L=pick(X.lines), p=trPath(mode,L.a,L.b);
+    if(mode==='truck'&&X.lines.length){ const L=pick(X.lines), p=trLinePath(mode,L);
       if(p&&p.kind==='piste'&&trRainy(p.pts[0].lat)&&ev<0.12){ L.block=1; trLog(`🌧️ Piste coupée par les pluies entre ${p.pts[0].name} et ${p.pts[1].name} : pas de livraison cette semaine.`,'warn'); }
       else if(ev<0.22&&ev>=0.12){ const k=Math.round(rnd(1e3,4e3)/100)*100; C+=k; trLog(`🚧 Barrières et contrôles sur la route ${p?p.pts[0].name+' – '+p.pts[1].name:''} : ${fmtMoney(k)} de frais.`,'warn'); }
       else if(ev<0.25&&ev>=0.22&&p&&[p.pts[0],p.pts[1]].some(n=>n.lat>-3.5&&n.lon>27)){ const k=Math.round(rnd(1e4,4e4)/100)*100; C+=k; trLog(`⚠️ Un convoi a été attaqué dans l’Est (${p.pts[1].name}) : marchandise perdue, ${fmtMoney(k)}.`,'bad'); } }
-    if(mode==='train'&&X.lines.length){ const L=pick(X.lines), p=trPath(mode,L.a,L.b); if(p){ const ed=[]; for(let i=1;i<p.pts.length;i++) ed.push(trEdge(p.pts[i-1].id,p.pts[i].id)); const ok=ed.filter(e=>X.rehab&&X.rehab[e]).length/ed.length;
+    if(mode==='train'&&X.lines.length){ const L=pick(X.lines), p=trLinePath(mode,L); if(p){ const ed=[]; for(let i=1;i<p.pts.length;i++) ed.push(trEdge(p.pts[i-1].id,p.pts[i].id)); const ok=ed.filter(e=>X.rehab&&X.rehab[e]).length/ed.length;
       if(ev<0.08*(1-0.8*ok)){ L.block=1; const k=Math.round(rnd(5e4,3e5)/1e3)*1e3; C+=k; trLog(`🚧 Déraillement entre ${p.pts[0].name} et ${p.pts[p.pts.length-1].name} : ligne bloquée une semaine, ${fmtMoney(k)} de réparations. Réhabiliter la voie limite ces accidents.`,'bad'); } } }
     if(mode==='boat'&&X.lines.length&&trDryRiver()&&ev<0.3) trLog('🏞️ Basses eaux sur le fleuve : les barges naviguent plus lentement.','warn');
     // lignes
-    for(const L of X.lines){ const vs=X.fleet.filter(v=>v.line===L.id), r=trLineCalc(mode,L,vs); if(!r){ L.last=null; continue; } L.last={tons:r.tons,rev:r.rev,cost:r.cost,cap:r.cap,dem:r.dem}; R+=r.rev; C+=r.cost; t+=r.tons;
+    for(const L of X.lines){ const vs=X.fleet.filter(v=>v.line===L.id), r=trLineCalc(mode,L,vs); if(!r){ L.last=null; continue; } L.last={tons:r.tons,rev:r.rev,cost:r.cost,cap:r.cap,dem:r.dem,pax:r.pax}; R+=r.rev; C+=r.cost; t+=r.tons; px+=r.pax||0; L.totPax=(L.totPax||0)+(r.pax||0);
       L.tot=(L.tot||0)+r.tons;
       for(const v of vs){ const wear=mode==='truck'?(r.p.kind==='paved'?0.6:1.6):mode==='train'?0.8:0.4; v.cond=Math.max(0,(v.cond??100)-wear*rnd(0.7,1.3)); } }
     // pannes et entretien
@@ -132,7 +148,7 @@ function trWeekly(){
       if(v.line&&Math.random()<(100-v.cond)/400){ v.down=1; C+=V.cost*0.05; trLog(`🔧 ${M.unit[0].toUpperCase()+M.unit.slice(1)} ${v.name||V.n} en panne : réparé, immobilisé une semaine.`,'warn'); } }
     // les véhicules sans ligne coûtent quand même leur équipage
     for(const v of X.fleet) if(!v.line){ const V=trVeh(mode,v.k); C+=(V&&V.crew||M.crew)*0.5; }
-    X.wk={t:S.time,rev:Math.round(R),cost:Math.round(C),tons:Math.round(t)}; X.hist=X.hist||[]; X.hist.push([S.time,Math.round(R-C)]); if(X.hist.length>26) X.hist.shift();
+    X.wk={t:S.time,rev:Math.round(R),cost:Math.round(C),tons:Math.round(t),pax:Math.round(px)}; X.hist=X.hist||[]; X.hist.push([S.time,Math.round(R-C)]); if(X.hist.length>26) X.hist.shift();
     totR+=R; totC+=C; }
   if(totR) book('transport',Math.round(totR)); if(totC) book('transportFrais',-Math.round(totC));
 }
@@ -154,9 +170,15 @@ function trOpenLine(mode,a,b){ const X=trS()[mode]; if(!X.depots.includes(a)){ e
   // on y met tout de suite les véhicules libres qui peuvent y aller
   const free=X.fleet.filter(v=>!v.line&&trCanUse(mode,trVeh(mode,v.k),p)); for(const v of free.slice(0,mode==='truck'?3:2)) v.line=L.id;
   toast(`${TR_MODES[mode].icon} Ligne ${esc(trNode(mode,a).name)} → ${esc(trNode(mode,b).name)} ouverte`,'ok'); return L; }
-function trAssign(mode,lineId,delta){ const X=trS()[mode], L=X.lines.find(x=>x.id===lineId); if(!L) return; const p=trPath(mode,L.a,L.b);
+function trAssign(mode,lineId,delta){ const X=trS()[mode], L=X.lines.find(x=>x.id===lineId); if(!L) return; const p=trLinePath(mode,L);
   if(delta>0){ const v=X.fleet.filter(v=>!v.line&&trCanUse(mode,trVeh(mode,v.k),p)).sort((x,y)=>trVeh(mode,y.k).cap-trVeh(mode,x.k).cap)[0]; if(!v) return err('Aucun '+TR_MODES[mode].unit+' libre adapté : achetez-en un.'); v.line=L.id; }
   else { const v=X.fleet.filter(v=>v.line===L.id).sort((x,y)=>trVeh(mode,x.k).cap-trVeh(mode,y.k).cap)[0]; if(v) v.line=null; } }
+// escales possibles : villes qui allongent peu le trajet, triées par détour
+function trViaCands(mode,L){ const p=trLinePath(mode,L); if(!p) return []; const used=new Set([L.a,L.b,...(L.via||[])]), out=[];
+  for(const id of trNodes(mode)){ if(used.has(id)) continue; let best=null;
+    for(let i=0;i<=(L.via||[]).length;i++){ const via=(L.via||[]).slice(); via.splice(i,0,id); const q=trLinePath(mode,{...L,via}); if(q&&(!best||q.km<best.km)) best={km:q.km,i}; }
+    if(best&&best.km<p.km*1.6+150) out.push({id,extra:best.km-p.km,i:best.i}); }
+  return out.sort((a,b)=>a.extra-b.extra).slice(0,30); }
 
 /* ---------- aperçu : meilleures destinations depuis un dépôt ---------- */
 function trSuggest(mode,from,all){
@@ -170,19 +192,23 @@ function trSuggest(mode,from,all){
 function trHtml(){
   const T=trS(), mode=TR_MODES[UI.trM]?UI.trM:'truck', M=TR_MODES[mode], X=T[mode];
   const tabs=`<div class="chips">${Object.entries(TR_MODES).map(([k,m])=>`<button class="chip ${k===mode?'on':''}" data-act="trM" data-k="${k}">${m.icon} ${m.name}${T[k].on?'':' 🔒'}</button>`).join('')}</div>`;
-  const help=`<div class="simplehelp">💡 Votre compagnie peut transporter du <b>fret</b> sans avions : ${mode==='train'?'des trains sur le vrai réseau ferré : Matadi–Kinshasa, le réseau du Katanga et du Kasaï (Lubumbashi, Kolwezi, Kamina, Kananga, Ilebo, Kalemie, Kindu) et les sorties vers les ports de Lobito (Angola) et Ndola (Zambie). Le cuivre et le cobalt du Katanga remplissent les trains. Les voies sont vieilles : les trains sont lents et déraillent parfois ; réhabiliter une voie la rend plus rapide et plus sûre.':''}${mode==='truck'?'des camions vers toutes les villes de la RDC. Les routes goudronnées (Kinshasa–Matadi–Kikwit, Katanga, Goma–Bukavu) sont rapides ; les pistes sont lentes, s’usent vite et coupent parfois à la saison des pluies.':''}${mode==='boat'?'des barges sur le fleuve Congo et le Kasaï (Kinshasa ⇄ Kisangani, Ilebo, Bangui), des bateaux sur les lacs Kivu et Tanganyika, et des caboteurs de Matadi vers les ports d’Afrique, d’Europe et d’Asie.':''} Une ligne part ${M.d1} ; mettez-y des ${M.unit}s ; chaque semaine, ils livrent, encaissent et s’usent. Le fret de vos hubs aériens continue par la route ou le fleuve (+25 % de demande).</div>`;
+  const help=`<div class="simplehelp">💡 Votre compagnie peut transporter du <b>fret</b> sans avions : ${mode==='train'?'des trains sur le vrai réseau ferré : Matadi–Kinshasa, le réseau du Katanga et du Kasaï (Lubumbashi, Kolwezi, Kamina, Kananga, Ilebo, Kalemie, Kindu) et les sorties vers les ports de Lobito (Angola) et Ndola (Zambie). Le cuivre et le cobalt du Katanga remplissent les trains. Les voies sont vieilles : les trains sont lents et déraillent parfois ; réhabiliter une voie la rend plus rapide et plus sûre.':''}${mode==='truck'?'des camions et des autocars vers toutes les villes d’Afrique où vont vos avions (sauf les îles), avec des escales si vous voulez. Les routes goudronnées (Kinshasa–Matadi–Kikwit, Katanga, Goma–Bukavu) sont rapides ; les pistes sont lentes, s’usent vite et coupent parfois à la saison des pluies.':''}${mode==='boat'?'des barges sur le fleuve Congo et le Kasaï (Kinshasa ⇄ Kisangani, Ilebo, Bangui), des bateaux sur les lacs Kivu et Tanganyika, et des caboteurs de Matadi vers les ports d’Afrique, d’Europe et d’Asie.':''} ${mode!=='boat'?' Le train aussi peut aller partout en Afrique : construisez une voie neuve. Ajoutez des <b>escales</b> à une ligne pour prendre du fret et des voyageurs en route. ':''}Une ligne part ${M.d1} ; mettez-y des ${M.unit}s ; chaque semaine, ils livrent, encaissent et s’usent. Le fret de vos hubs aériens continue par la route ou le fleuve (+25 % de demande).</div>`;
   if(!X.on) return tabs+help+`<div class="card"><b>${M.icon} Créer « ${esc(S.company.name)} ${M.name} »</b><br><span class="small mut">Coût ${fmtMoney(M.unlock)} · ${mode==='boat'?'port de départ : Kinshasa · 2 barges offertes':mode==='train'?'gare de départ : Kinshasa (ou Lubumbashi si c’est votre hub) · 2 trains de marchandises offerts':'dépôt de départ : votre ville hub · 2 porteurs offerts'}.</span><div class="btns"><button class="btn gold" data-act="trCreate" data-k="${mode}">Créer la filiale · ${fmtMoney(M.unlock)}</button></div></div>`;
   const wk=X.wk, free=X.fleet.filter(v=>!v.line).length, down=X.fleet.filter(v=>v.down>0).length;
   const kpi=(l,v,c='')=>`<div class="kpi"><div class="kl">${l}</div><div class="kv ${c}">${v}</div></div>`;
   const from=X.depots.includes(UI.trFrom)?UI.trFrom:X.depots[0], sug=UI.trAdd?trSuggest(mode,from,UI.trAll):[];
-  return tabs+help+`<div class="kpis">${kpi(M.name,`${X.fleet.length}${free?` <span class="small mut">(${free} libres)</span>`:''}`)}${kpi('Lignes',X.lines.length)}${kpi('Tonnes / semaine',wk?num(wk.tons):'—')}${kpi('Résultat semaine',wk?(wk.rev-wk.cost>=0?'+':'')+fmtMoney(wk.rev-wk.cost):'—',wk&&wk.rev-wk.cost<0?'neg':'pos')}</div>
+  return tabs+help+`<div class="kpis">${kpi(M.name,`${X.fleet.length}${free?` <span class="small mut">(${free} libres)</span>`:''}`)}${kpi('Lignes',X.lines.length)}${kpi('Tonnes / semaine',wk?num(wk.tons):'—')}${mode!=='boat'?kpi('Voyageurs / semaine',wk?num(wk.pax||0):'—'):''}${kpi('Résultat semaine',wk?(wk.rev-wk.cost>=0?'+':'')+fmtMoney(wk.rev-wk.cost):'—',wk&&wk.rev-wk.cost<0?'neg':'pos')}</div>
   <h3>${M.icon} Lignes</h3>
-  ${X.lines.map(L=>{ const p=trPath(mode,L.a,L.b), n=X.fleet.filter(v=>v.line===L.id).length, l=L.last, A=trNode(mode,L.a), B=trNode(mode,L.b), kind={paved:'🛣️ route goudronnée',piste:'🟫 piste',river:'🌊 fleuve',sea:'🌍 mer',lake:'🏞️ lac',rail:'🛤️ voie ferrée'}[p&&p.kind]||'';
+  ${X.lines.map(L=>{ const p=trLinePath(mode,L), n=X.fleet.filter(v=>v.line===L.id).length, l=L.last, A=trNode(mode,L.a), B=trNode(mode,L.b), kind={paved:'🛣️ route goudronnée',piste:'🟫 piste',river:'🌊 fleuve',sea:'🌍 mer',lake:'🏞️ lac',rail:'🛤️ voie ferrée'}[p&&p.kind]||'';
     const est=trLineCalc(mode,L,X.fleet.filter(v=>v.line===L.id));
-    return `<div class="card"><div class="row"><div class="grow"><b>${esc(A.name)} → ${esc(B.name)}</b> ${B.cc!=='CD'&&COUNTRIES[B.cc]?COUNTRIES[B.cc][2]:''}<br><span class="small mut">${num(p?p.km:0)} km · ${kind}${p&&p.pts.length>2?' · via '+p.pts.slice(1,-1).map(x=>x.name).join(', '):''}</span></div>
+    const via=(L.via||[]).map(id=>trNode(mode,id)).filter(Boolean), cands=mode!=='boat'&&UI.trVia===L.id?trViaCands(mode,L):[];
+    return `<div class="card"><div class="row"><div class="grow"><b>${esc(A.name)} → ${esc(B.name)}</b> ${B.cc!=='CD'&&COUNTRIES[B.cc]?COUNTRIES[B.cc][2]:''}<br><span class="small mut">${num(p?p.km:0)} km · ${kind}${!via.length&&p&&p.pts.length>2?' · via '+p.pts.slice(1,-1).map(x=>x.name).join(', '):''}</span></div>
       <div class="btns sm"><button class="btn sm" data-act="trAs" data-id="${L.id}" data-d="-1">−</button><b style="padding:0 6px">${n} ${M.icon}</b><button class="btn sm gold" data-act="trAs" data-id="${L.id}" data-d="1">+</button></div></div>
+      ${mode!=='boat'?`<div class="small">🚏 Escales : ${via.length?via.map((v,i)=>`<span class="chip on" style="padding:2px 8px">${esc(v.name)}${v.cc!=='CD'&&COUNTRIES[v.cc]?' '+COUNTRIES[v.cc][2]:''} <a data-act="trViaDel" data-id="${L.id}" data-k="${i}" style="cursor:pointer">✖</a></span>`).join(' '):'<span class="mut">aucune (trajet direct)</span>'} <button class="btn sm" data-act="trViaOpen" data-id="${L.id}">➕ Ajouter une escale</button></div>
+      ${cands.length?`<div class="row"><select class="grow" id="trViaSel">${cands.map(c=>{ const n=trNode(mode,c.id); return `<option value="${c.id}">${esc(n.name)}${n.cc!=='CD'&&COUNTRIES[n.cc]?' '+COUNTRIES[n.cc][2]:''} · +${num(Math.round(c.extra))} km</option>`; }).join('')}</select><button class="btn sm gold" data-act="trViaAdd" data-id="${L.id}">Ajouter</button></div><div class="small mut">À chaque escale, le ${M.unit} s’arrête : on décharge et on charge de la marchandise, des voyageurs descendent et montent. Plus d’arrêts = plus de clients, mais un trajet plus long.</div>`:''}`:''}
       <div class="small">Demande ${num(est?est.dem:0)} t/sem · capacité ${num(est?est.cap:0)} t/sem${est&&est.cap>est.dem*1.15?' <span class="warnt">(trop de '+M.unit+'s)</span>':est&&est.cap<est.dem*0.6?' <span class="pos">(ajoutez des '+M.unit+'s)</span>':''}</div>
-      <div class="small">${l?`Semaine dernière : <b>${num(l.tons)} t</b> · recettes ${fmtMoney(l.rev)} · frais ${fmtMoney(l.cost)} · <b class="${l.rev-l.cost>=0?'pos':'neg'}">${l.rev-l.cost>=0?'+':''}${fmtMoney(l.rev-l.cost)}</b>`:'<span class="mut">Premiers résultats à la fin de la semaine.</span>'}${L.block?' · 🌧️ coupée cette semaine':''}</div>
+      ${est&&(est.seats||mode!=='boat')?`<div class="small">🧍 Voyageurs : demande ${num(est.pdem)} / sem · places ${num(est.seats)} / sem${!est.seats&&mode!=='boat'?' <span class="mut">(achetez un '+(mode==='train'?'train de voyageurs':'autocar ou minibus')+' pour les transporter)</span>':''}</div>`:''}
+      <div class="small">${l?`Semaine dernière : <b>${num(l.tons)} t</b>${l.pax?` · <b>${num(l.pax)} voyageurs</b>`:''} · recettes ${fmtMoney(l.rev)} · frais ${fmtMoney(l.cost)} · <b class="${l.rev-l.cost>=0?'pos':'neg'}">${l.rev-l.cost>=0?'+':''}${fmtMoney(l.rev-l.cost)}</b>`:'<span class="mut">Premiers résultats à la fin de la semaine.</span>'}${L.block?' · 🌧️ coupée cette semaine':''}</div>
       <div class="btns sm">${mode==='train'&&p?(()=>{ const ed=[]; for(let i=1;i<p.pts.length;i++) ed.push([p.pts[i-1],p.pts[i]]); const todo=ed.filter(([x,y])=>!(X.rehab&&X.rehab[trEdge(x.id,y.id)])); const c=Math.round(todo.reduce((s,[x,y])=>s+trGc(x,y)*1.15*15e3,0)/1e5)*1e5; return todo.length?`<button class="btn sm gold" data-act="trRehab" data-id="${L.id}">🛠️ Réhabiliter la voie · ${fmtMoney(c)}</button>`:'<span class="badge ok">🛤️ voie réhabilitée</span>'; })():''}${n?`<button class="btn sm gold" data-act="vyGo" data-m="${mode}" data-id="${L.id}" data-k="${(X.fleet.find(v=>v.line===L.id)||{}).k||''}">🎬 Voyage illustré</button>`:''}<button class="btn sm danger" data-act="trClose" data-id="${L.id}">Fermer la ligne</button></div></div>`; }).join('')||'<div class="mut small">Pas encore de ligne : ouvrez-en une ci-dessous.</div>'}
   <div class="btns"><button class="btn ${UI.trAdd?'':'gold'}" data-act="trAdd">${UI.trAdd?'✖ Fermer':'➕ Ouvrir une ligne'}</button></div>
   ${UI.trAdd?`<div class="card"><div class="small">Départ (vos ${M.depot}s) :</div><div class="chips">${X.depots.map(d=>`<button class="chip ${d===from?'on':''}" data-act="trFrom" data-k="${d}">${esc(trNode(mode,d).name)}</button>`).join('')}</div>
@@ -192,10 +218,10 @@ function trHtml(){
   <div class="chips">${X.depots.map(d=>`<span class="chip on">${esc(trNode(mode,d).name)}</span>`).join('')}</div>
   <div class="row"><select id="trDepSel" class="grow">${trNodes(mode).filter(id=>!X.depots.includes(id)).map(id=>trNode(mode,id)).sort((a,b)=>b.popK-a.popK).map(n=>`<option value="${n.id}">${esc(n.name)}${n.cc!=='CD'&&COUNTRIES[n.cc]?' '+COUNTRIES[n.cc][2]:''}${mode==='boat'?' · '+TR_NET[n.net]:''}</option>`).join('')}</select><button class="btn sm gold" data-act="trDepot">Ouvrir · ${fmtMoney(M.depotCost)}</button></div>
   ${mode==='train'?(()=>{ const cand=trRailCandidates().map(c=>({c,n:trNode('truck',c),r:trRailNearest(c)})).sort((a,b)=>b.n.popK-a.n.popK); const sel=cand.find(x=>x.c===UI.trRailTo)||cand[0];
-    return `<h3>🛤️ Construire une nouvelle voie ferrée</h3><div class="small mut">Le train peut aller dans <b>toutes les villes</b> de la RDC : construisez une voie neuve depuis la gare la plus proche (${fmtMoney(TR_RAIL_KM)} par km). Une voie neuve est rapide et sûre ; la ville devient une gare de votre réseau.</div>
+    return `<h3>🛤️ Construire une nouvelle voie ferrée</h3><div class="small mut">Le train peut aller dans <b>toutes les villes d’Afrique</b> où vont vos avions : construisez une voie neuve depuis la gare la plus proche (${fmtMoney(TR_RAIL_KM)} par km). Une voie neuve est rapide et sûre ; la ville devient une gare de votre réseau.</div>
     ${cand.length?`<div class="row"><select class="grow" data-in="trRailTo">${cand.map(x=>`<option value="${x.c}" ${sel&&x.c===sel.c?'selected':''}>${esc(x.n.name)} · ${num(x.r.km)} km depuis ${esc(trNode('train',x.r.from).name)}</option>`).join('')}</select><button class="btn sm gold" data-act="trRailBuild" data-k="${sel?sel.c:''}">Construire · ${fmtMoney(sel?sel.r.km*TR_RAIL_KM:0)}</button></div>`:'<div class="mut small">Toutes les villes sont déjà reliées !</div>'}`; })():''}
   <h3>🛒 Acheter des ${M.unit}s</h3>
-  ${M.vehicles.map(v=>{ const own=X.fleet.filter(x=>x.k===v.k); return `<div class="card row"><div class="grow"><b>${esc(v.n)}</b> <span class="mut small">· vous en avez ${own.length}</span><br><span class="small mut">${num(v.cap)} t · ${v.kmh?v.kmh+' km/h':(v.spd>=1.1?'rapide':v.spd>=1?'normal':'lent')} · ${fmtMoney(v.cost)}${v.net?' · '+v.net.map(n=>TR_NET[n]).join(', '):''}${v.fuel?' · livre le kérosène des aéroports de l’intérieur':''}</span></div><div class="btns sm"><button class="btn sm gold" data-act="trBuy" data-k="${v.k}" data-n="1">+1</button><button class="btn sm" data-act="trBuy" data-k="${v.k}" data-n="5">+5</button></div></div>`; }).join('')}
+  ${M.vehicles.map(v=>{ const own=X.fleet.filter(x=>x.k===v.k); return `<div class="card row"><div class="grow"><b>${esc(v.n)}</b> <span class="mut small">· vous en avez ${own.length}</span><br><span class="small mut">${v.seats?num(v.seats)+' places':num(v.cap)+' t'} · ${v.kmh?v.kmh+' km/h':(v.spd>=1.1?'rapide':v.spd>=1?'normal':'lent')} · ${fmtMoney(v.cost)}${v.net?' · '+v.net.map(n=>TR_NET[n]).join(', '):''}${v.fuel?' · livre le kérosène des aéroports de l’intérieur':''}</span></div><div class="btns sm"><button class="btn sm gold" data-act="trBuy" data-k="${v.k}" data-n="1">+1</button><button class="btn sm" data-act="trBuy" data-k="${v.k}" data-n="5">+5</button></div></div>`; }).join('')}
   <div class="card small">${free?`${free} ${M.unit}(s) sans ligne (équipage payé quand même). `:''}${down?`${down} en panne cette semaine. `:''}État moyen : ${X.fleet.length?Math.round(X.fleet.reduce((s,v)=>s+(v.cond??100),0)/X.fleet.length):100} %.
     <label class="tog"><input type="checkbox" data-in="trAuto" data-k="${mode}" ${X.auto?'checked':''}> Entretien automatique (révision à 55 % d’usure : moins de pannes)</label></div>
   <h3>📜 Journal</h3>${T.log.slice(0,8).map(l=>`<div class="small"><span class="mut">${fmtDate(l.t)}</span> ${l.txt}</div>`).join('')||'<div class="mut small">Rien pour l’instant.</div>'}`;
@@ -210,7 +236,7 @@ function trMapDraw(){
   function X0(x,l){ return x.fleet.filter(v=>v.line===l.id).length; }
   if(sig!==_trDraw){ _trDraw=sig; L_trans.clearLayers(); L_trans._mov=[];
     for(const mode of Object.keys(TR_MODES)){ const X=S.tr[mode]; if(!X||!X.on) continue;
-      for(const Ln of X.lines){ const p=trPath(mode,Ln.a,Ln.b); if(!p) continue; const ll=p.pts.map(n=>[n.lat,n.lon]);
+      for(const Ln of X.lines){ const p=trLinePath(mode,Ln); if(!p) continue; const ll=p.pts.map(n=>[n.lat,n.lon]);
         L.polyline(ll,{color:mode==='truck'?(p.kind==='paved'?'#f59e0b':'#b45309'):mode==='train'?'#c084fc':'#38bdf8',weight:3,opacity:0.75,dashArray:mode==='truck'?'2 7':mode==='train'?'12 4':'8 6',interactive:false}).addTo(L_trans);
         const n=Math.min(3,X.fleet.filter(v=>v.line===Ln.id).length);
         for(let i=0;i<n;i++){ const mk=L.marker(ll[0],{icon:L.divIcon({className:'trmk',html:TR_MODES[mode].icon,iconSize:mode==='truck'?[26,26]:[18,18]}),interactive:mode==='truck',keyboard:false}).addTo(L_trans); L_trans._mov.push({mk,ll,km:p.km,off:i/n,mode}); } } } }
@@ -231,8 +257,12 @@ function registerTransportActions(){
     trAll:d=>{ UI.trAll=d.k==='1'; renderPanel(); },
     trOpen:d=>{ if(trOpenLine(UI.trM||'truck',d.a,d.b)){ UI.trAdd=false; renderPanel(); } },
     trAs:d=>{ trAssign(UI.trM||'truck',d.id,+d.d); renderPanel(); },
+    trViaOpen:d=>{ UI.trVia=UI.trVia===d.id?null:d.id; renderPanel(); },
+    trViaAdd:d=>{ const mode=UI.trM||'truck', X=trS()[mode], L=X.lines.find(x=>x.id===d.id), id=(document.getElementById('trViaSel')||{}).value; if(!L||!id) return; const c=trViaCands(mode,L).find(x=>x.id===id); if(!c) return;
+      L.via=(L.via||[]).slice(); L.via.splice(c.i,0,id); UI.trVia=null; trLog(`🚏 Nouvelle escale à ${trNode(mode,id).name} sur la ligne ${trNode(mode,L.a).name} → ${trNode(mode,L.b).name}.`,'ok'); renderPanel(); },
+    trViaDel:d=>{ const mode=UI.trM||'truck', L=trS()[mode].lines.find(x=>x.id===d.id); if(!L||!L.via) return; L.via.splice(+d.k,1); renderPanel(); },
     trClose:d=>{ if(!confirm('Fermer cette ligne ? Les véhicules deviennent libres.')) return; const X=trS()[UI.trM||'truck']; X.lines=X.lines.filter(L=>L.id!==d.id); for(const v of X.fleet) if(v.line===d.id) v.line=null; renderPanel(); },
-    trRehab:d=>{ const X=trS().train, L=X.lines.find(x=>x.id===d.id); if(!L) return; const p=trPath('train',L.a,L.b); X.rehab=X.rehab||{}; let c=0; const ed=[];
+    trRehab:d=>{ const X=trS().train, L=X.lines.find(x=>x.id===d.id); if(!L) return; const p=trLinePath('train',L); X.rehab=X.rehab||{}; let c=0; const ed=[];
       for(let i=1;i<p.pts.length;i++){ const e=trEdge(p.pts[i-1].id,p.pts[i].id); if(!X.rehab[e]){ ed.push(e); c+=trGc(p.pts[i-1],p.pts[i])*1.15*15e3; } } c=Math.round(c/1e5)*1e5;
       if(!ed.length) return; if(S.cash<c) return err('Trésorerie insuffisante'); if(!confirm(`Réhabiliter ${ed.length} tronçon(s) de voie pour ${fmtMoney(c)} ? Les trains iront 70 % plus vite et dérailleront beaucoup moins.`)) return;
       book('investissements',-c); for(const e of ed) X.rehab[e]=true; trLog(`🛤️ Voie réhabilitée entre ${p.pts[0].name} et ${p.pts[p.pts.length-1].name} (${fmtMoney(c)}).`,'ok'); renderTop(); renderPanel(); },
