@@ -177,6 +177,7 @@ if(typeof registerDevActions==='function') registerDevActions();
 if(typeof registerTransportActions==='function') registerTransportActions();
 if(typeof registerMissionActions==='function') registerMissionActions();
 if(typeof registerLiveEventActions==='function') registerLiveEventActions();
+if(typeof registerTruck3dActions==='function') registerTruck3dActions();
 if(typeof registerInboxActions==='function') registerInboxActions();
 if(typeof registerPwaActions==='function') registerPwaActions();
 if(typeof registerProgressActions==='function') registerProgressActions();
