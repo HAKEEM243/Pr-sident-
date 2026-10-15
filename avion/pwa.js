@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261147';
+const GAME_VER='20261148';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🎯 Campagne de missions','12 missions vous guident de petite compagnie à géant du continent : premières lignes, désenclaver le pays, clients contents, salon VIP, équipage d’élite, ami du gouvernement, une ville qui grandit, groupe de transport, toutes les provinces, le fleuve, top 50 mondial, première compagnie du continent. Chaque mission réussie rapporte de l’argent et de l’image (à récupérer). Bouton « Comment ? » pour savoir où aller. Dans 🏢 Compagnie → 🎯 Missions (ou Plus).'],
   ['🛟 3D : fini l’écran figé','Correction importante : après quelques petites erreurs d’affichage sur une longue session, la 3D pouvait s’arrêter de bouger. Maintenant, une erreur isolée est corrigée toute seule et la 3D continue ; si les erreurs s’enchaînent, la 3D se ferme proprement avec une explication (et le 🩺 Diagnostic garde la trace).'],
   ['🚢 Bateaux sur le fleuve en 3D','À Kinshasa, la 3D montre maintenant la vie sur le fleuve : pirogues, bateaux de passagers entre Kinshasa et Brazzaville, convois de barges qui remontent le Pool Malebo. Si votre filiale 🚢 a des barges sur le fleuve, elles apparaissent aussi, avec des conteneurs à la couleur de votre compagnie.'],
   ['⚡ Jeu 2 fois plus rapide avec une grosse flotte','Avec près de 300 avions, la simulation tourne environ 2 fois plus vite : le rattrapage au retour dans le jeu est plus court et le téléphone chauffe moins. (Les comptes d’équipages et de personnel sont calculés une seule fois par instant, et les avis de passagers sont tirés plus intelligemment.)'],
