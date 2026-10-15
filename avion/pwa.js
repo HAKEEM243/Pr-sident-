@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261152';
+const GAME_VER='20261153';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['👥 Jouer entre amis','Nouveau dans 🏢 Compagnie → 👥 Amis : partagez votre carte de score par WhatsApp ou SMS (un code SKY1-…), collez celui de vos amis, et comparez-vous dans un classement entre amis. Chaque semaine, un défi est le même pour tout le monde (passagers, vols, fret, bénéfice, nouvelles lignes) : qui fera le plus depuis lundi ? Sans compte ni serveur.'],
   ['🚚 Vos camions en 3D, à toucher','En 3D, près d’une ville de vos lignes de camions (Kinshasa, Matadi, Lubumbashi…), vos camions roulent sur les vraies routes, aux couleurs de votre compagnie. Touchez-en un : chauffeur, chargement, ligne, résultats, état du camion. « 🎥 Suivre en 3D » : la caméra roule derrière lui sur la route congolaise. Sur la carte 2D aussi, touchez un 🚚 pour voir sa fiche.'],
   ['🛤️ Camions et trains dans toutes les villes','Les camions peuvent aller dans toutes les villes de la RDC desservies par avion (plus de limite de distance) ; on peut ouvrir un dépôt dans n’importe laquelle. Les trains aussi : « Construire une nouvelle voie ferrée » relie n’importe quelle ville à la gare la plus proche (350 000 $ par km) ; la ville devient une gare de votre réseau, avec une voie neuve rapide et sûre.'],
   ['⚔️ Duels sur vos lignes','En haut de 🏢 Compagnie → ⚔️ Concurrents : pour chaque ligne disputée, votre part de marché, vos prix, et ce que fait chaque concurrent (il aligne ses prix, ajoute des vols, casse ses prix, remonte ses tarifs…). Ripostez en un geste : prix −10 %, +10 %, ou gérez la ligne.'],
