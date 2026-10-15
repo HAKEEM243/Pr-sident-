@@ -6,14 +6,14 @@
    Concurrents (compagnies IA) · Espace aérien · Partenaires · Réglages
    ========================================================= */
 'use strict';
-const CO_TABS=[['home','🏢','Résumé'],['ms','🎯','Missions'],['up','✨','Améliorer'],['pax','👥','Clients'],['crew','👨‍✈️','Équipages'],['land','🏛️','Mon pays'],['trans','🚚','Transport'],['rivals','⚔️','Concurrents'],['air','🛂','Espace aérien'],['deals','🤝','Partenaires'],['set','⚙️','Réglages']];
+const CO_TABS=[['home','🏢','Résumé'],['ms','🎯','Missions'],['friends','👥','Amis'],['up','✨','Améliorer'],['pax','👥','Clients'],['crew','👨‍✈️','Équipages'],['land','🏛️','Mon pays'],['trans','🚚','Transport'],['rivals','⚔️','Concurrents'],['air','🛂','Espace aérien'],['deals','🤝','Partenaires'],['set','⚙️','Réglages']];
 const coHelp=(t)=>`<div class="simplehelp">💡 ${t}</div>`;
 const coSeen=k=>{ S.seen=S.seen||{}; if(!S.seen[k]){ S.seen[k]=1; setTimeout(()=>{ try{ renderGuide(); }catch(e){} },0); } };
 
 function pCompany(){
   const t=CO_TABS.some(x=>x[0]===UI.coTab)?UI.coTab:'home'; coSeen('co'); coSeen(t);
   const bar=`<div class="chips cotabs">${CO_TABS.map(([k,i,l])=>`<button class="chip ${k===t?'on':''}" data-act="coTab" data-k="${k}">${i} ${l}</button>`).join('')}</div>`;
-  const fn={ms:()=>typeof msHtml==='function'?msHtml():'', trans:()=>typeof trHtml==='function'?trHtml():'', land:()=>typeof devHtml==='function'?devHtml():'', crew:coCrew, home:coHome, up:coUpgrade, pax:coClients, rivals:coRivals, air:coAirspace, deals:coDeals, set:coSettings}[t];
+  const fn={friends:()=>typeof frHtml==='function'?frHtml():'', ms:()=>typeof msHtml==='function'?msHtml():'', trans:()=>typeof trHtml==='function'?trHtml():'', land:()=>typeof devHtml==='function'?devHtml():'', crew:coCrew, home:coHome, up:coUpgrade, pax:coClients, rivals:coRivals, air:coAirspace, deals:coDeals, set:coSettings}[t];
   return bar+fn();
 }
 
@@ -223,6 +223,7 @@ const MANUAL=[
   ['⚔️','Les concurrents','Les autres compagnies sont jouées par l’ordinateur : elles viennent sur vos lignes, baissent leurs prix, peuvent faire faillite. Leurs patrons vous écrivent parfois (menaces, propositions). Vous pouvez signer un partage de codes ou racheter leurs actions (51 % = la compagnie est à vous). Voir <b>🏢 Compagnie → ⚔️ Concurrents</b>.'],
   ['🛂','L’espace aérien','Vous pouvez interdire le ciel de votre pays aux compagnies d’autres pays : elles ne peuvent plus y atterrir et font un détour. Les guerres ferment aussi des espaces aériens. Voir <b>🏢 Compagnie → 🛂 Espace aérien</b>.'],
   ['⚡','Les événements en vol','De temps en temps, un de vos avions en vol vous pose un problème (panne, orage, passager malade, ministre qui veut l’avion, célébrité à bord). Le jeu se met en pause : choisissez ! Chaque choix a ses conséquences sur l’argent, l’image ou le gouvernement. La fréquence se règle dans 🏢 Compagnie → ⚙️ Réglages.'],
+  ['👥','Jouer entre amis','Dans 🏢 Compagnie → 👥 Amis : partagez votre carte de score (WhatsApp, SMS) ; collez le code de vos amis ; comparez la valeur de vos compagnies et le défi de la semaine (le même pour tout le monde, il change chaque lundi).'],
   ['💰','L’argent','Recettes : billets, options payantes, fret. Dépenses : kérosène, salaires, entretien, location, aéroports. Si l’argent manque, un prêt est possible (onglet Finances). Une compagnie en négatif trop longtemps fait faillite.'],
   ['⏱️','Le temps','Choisissez la vitesse en haut (Réaliste, Standard, Rapide…). Le jeu continue même téléphone fermé : à votre retour, les jours passés sont rattrapés.'],
 ];
