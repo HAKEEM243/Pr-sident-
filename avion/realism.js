@@ -156,15 +156,31 @@ function apronOf(code){
   return _apron[code]={g, rw:main, side:f.x>=0?1:-1, a:f.a, x:f.x};
 }
 // Poste de stationnement n° k (rangée parallèle à la piste, nez vers l'aérogare)
-function slotPt(code,k){
+function slotPt0(code,k){
   const ap=apronOf(code), off=((k%2)?1:-1)*Math.ceil(k/2)*85;
   if(!ap.rw) return {lat:ap.g.lat, lon:ap.g.lon+off/(M_DEG*Math.cos(toRad(ap.g.lat))), hdg:0};
   return {...fromRw(ap.rw, ap.a+off, ap.x), hdg:(ap.rw.hdg+90*ap.side+360)%360};
 }
+// portes de tous les terminaux (T1 puis T2, T3, T4 construits par le joueur)
+function slotPt(code,k){ const g=typeof apGates==='function'?apGates(code):null; return g&&g.length? {...g[((k%g.length)+g.length)%g.length]} : slotPt0(code,k); }
 const acSlotHash=id=>{ let h=7; for(const c of id) h=(h*31+c.charCodeAt(0))%9973; return h; };
-function gateSlot(code, ac){ return slotPt(code, 8+acSlotHash(ac.id)%14); }
+const legIntl=l=>!!(l&&AP(l.from)&&AP(l.to)&&AP(l.from).cc!==AP(l.to).cc);
+// vol international → T2/T4 s'ils existent ; vol intérieur → T1/T3
+function gateIdx(code, ac, intl){
+  const g=typeof apGates==='function'?apGates(code):null, h0=acSlotHash(ac.id), h=(Math.imul(h0+1,2654435761)>>>8)%100003;
+  if(!g||!g.length) return 8+h0%14;
+  const terms=[...new Set(g.map(x=>x.t))], want=intl?['T2','T4']:['T1','T3'];
+  let pool=terms.filter(t=>want.includes(t)); if(!pool.length) pool=terms;
+  const t=pool[h%pool.length], idx=[]; g.forEach((x,i)=>{ if(x.t===t) idx.push(i); });
+  const free=t==='T1'&&idx.length>8? idx.slice(6) : idx;     // T1 : les 6 premières portes servent aux autres compagnies
+  return free[Math.floor(h/7)%free.length];
+}
+function gateSlot(code, ac, intl){ return slotPt(code, gateIdx(code, ac, intl===undefined?!!ac.gIntl:intl)); }
+// porte de départ : celle où l'avion est garé (fixée par son dernier vol arrivé)
+const depIntl=(ac,fl)=>fl&&fl.li>0? legIntl(fl.legs[fl.li-1]) : !!ac.gIntl;
 // Roulage : poste → voie de circulation parallèle → point d'attente → seuil de piste
 function taxiOutPts(path, gp){
+  if(gp.via&&gp.via.length){ const v=gp.via, rest=taxiOutPts(path, v[v.length-1]); return [gp, ...v, ...rest.slice(1)]; }
   const r=path.dep; if(!r) return [gp, path.air[0]];
   const f=toRw(r,gp), tw=(f.x>=0?1:-1)*Math.min(Math.abs(f.x)*0.6,190);
   if(Math.abs(f.x)<40) return [gp, r.thr];
@@ -172,6 +188,7 @@ function taxiOutPts(path, gp){
 }
 // Dégagement : sortie rapide → voie parallèle → poste
 function taxiInPts(path, gp){
+  if(gp.via&&gp.via.length){ const v=gp.via, rest=taxiInPts(path, v[v.length-1]); return [...rest, ...v.slice(0,-1).reverse(), gp]; }
   const r=path.arr, E=path.air[path.air.length-1]; if(!r) return [E, gp];
   const f=toRw(r,gp), aE=toRw(r,E).a, tw=(f.x>=0?1:-1)*Math.min(Math.abs(f.x)*0.6,190);
   if(Math.abs(f.x)<40) return [E, gp];

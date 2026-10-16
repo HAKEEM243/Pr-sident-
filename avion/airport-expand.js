@@ -25,7 +25,7 @@ XP_STEPS.forEach((st,i)=>{ UPGRADES[st.k]={name:`${st.name} (étape ${i+1}/${XPN
   can:a=>xpHubCountries().has(a.cc)&&(a.xp||0)===i&&a.cls>=2&&!(S.projects||[]).some(p=>p.code===a.code&&p.type.startsWith('xp')),
   desc:st.desc, apply:a=>{ a.xp=i+1; a.traffic=+(a.traffic*st.traffic).toFixed(3); a.gatesX=XP_STEPS.slice(0,i+1).reduce((t,x)=>t+x.gates,0); if(st.k==='xp3') a.rw2=true; if(st.k==='xp4') a.cls=Math.min(5,a.cls+1); if(st.k==='xp5'){ a.lounge=true; a.terminal=true; } xpRefresh(a.code); }}; });
 // les caches qui dépendent de l'aéroport sont recalculés
-function xpRefresh(code){ try{ delete _rwCache[code]; delete _apron[code]; _pathCache.clear(); const cc=AP(code).cc; if(typeof _cTraffic!=='undefined') delete _cTraffic[cc]; }catch(e){}
+function xpRefresh(code){ try{ delete _rwCache[code]; delete _apron[code]; delete _gates[code]; _pathCache.clear(); const cc=AP(code).cc; if(typeof _cTraffic!=='undefined') delete _cTraffic[cc]; }catch(e){}
   // la 3D et la carte 2D se redessinent tout de suite (nouvelle piste, nouveaux terminaux)
   try{ if(typeof G!=='undefined'&&G&&G.apNear) G.apNear.c={lat:-89,lon:0}; }catch(e){}
   try{ if(typeof _rwDrawn!=='undefined') _rwDrawn=null; if(typeof drawRunways==='function'&&typeof map!=='undefined'&&map) setTimeout(()=>{ try{ drawRunways(true); }catch(e){} },50); }catch(e){} }
@@ -36,6 +36,20 @@ function apTerminals(code){ const A=AP(code), ap=apronOf(code), r=ap&&ap.rw; if(
   if(xp>=6){ const L=Math.round(span*0.55); out.push({n:'T3',a:a0-span/2-L/2-260,x:gx+s*110,L}); }
   if(xp>=7){ const L=Math.round(span*0.7); out.push({n:'T4',a:a0,x:gx+s*360,L}); }
   return out.map(t=>({...t,r,s})); }
+
+// portes réelles de chaque terminal : ligne de stationnement à 72 m devant la façade, une porte tous les 85 m
+const _gates={};
+function apGates(code){ const A=AP(code); if(!A) return null; const key=(A.xp||0)+':'+(A.cls||0);
+  if(_gates[code]&&_gates[code].key===key) return _gates[code].g;
+  const ap=apronOf(code), r=ap&&ap.rw; if(!r) return null;
+  const s=ap.side, gx=ap.x, a0=ap.a, hdg=(r.hdg+90*s+360)%360, out=[];
+  const T=apTerminals(code), t1=T[0], span=t1.L;
+  for(const t of T){ const ax=t.x-s*72, max=t.n==='T1'?24:t.n==='T4'?14:12, n=Math.max(t.n==='T1'?8:4,Math.min(max,Math.floor(t.L/85)));
+    // T4 est derrière T1 : on y roule en contournant l'aérogare par son extrémité
+    const aC=a0-span/2-130, via=t.n==='T4'? [fromRw(r,aC,ax),fromRw(r,aC,gx)] : null;
+    for(let k=0;k<n;k++){ const off=t.n==='T1'? ((k%2)?1:-1)*Math.ceil(k/2)*85 : (k-(n-1)/2)*85;
+      const p=fromRw(r,t.a+off,ax), g={lat:p.lat, lon:p.lon, hdg, t:t.n}; if(via) g.via=via; out.push(g); } }
+  _gates[code]={key,g:out}; return out; }
 
 /* ---------- deuxième piste : parallèle, à 1 050 m, du côté opposé à l'aérogare ---------- */
 { const _rw=runwaysOf; runwaysOf=function(code){ const out=_rw(code); const a=AP(code); if(!a||!a.rw2||out._xp||!out.length) return out;
@@ -75,7 +89,9 @@ function xp2D(){ if(typeof drawRunways!=='function'||drawRunways._xp) return;
   const _dr=drawRunways; drawRunways=function(force){ const was=_rwDrawn; _dr(force); if(!_rwDrawn||_rwDrawn===was||!L_runways) return;
     const z=map.getZoom(); if(z<13) return; const b=map.getBounds().pad(0.4), c0=map.getCenter().lng, LL=p=>[p.lat,unwrapLon(p.lon,c0)];
     for(const code of AIRPORT_CODES){ const A=AP(code); if(!(A.xp>=1)||!b.contains([A.lat,unwrapLon(A.lon,c0)])) continue;
-      for(const t of apTerminals(code)){ const d=t.s*40, pts=[fromRw(t.r,t.a-t.L/2,t.x),fromRw(t.r,t.a+t.L/2,t.x),fromRw(t.r,t.a+t.L/2,t.x+d),fromRw(t.r,t.a-t.L/2,t.x+d)];
+      for(const t of apTerminals(code)){ if(t.n!=='T1'){ const ax=t.x-t.s*72, ap=[fromRw(t.r,t.a-t.L/2-50,ax-t.s*60),fromRw(t.r,t.a+t.L/2+50,ax-t.s*60),fromRw(t.r,t.a+t.L/2+50,t.x),fromRw(t.r,t.a-t.L/2-50,t.x)];
+          L.polygon(ap.map(LL),{stroke:false,fillColor:'#9ca3af',fillOpacity:0.7,interactive:false}).addTo(L_runways); }
+        const d=t.s*40, pts=[fromRw(t.r,t.a-t.L/2,t.x),fromRw(t.r,t.a+t.L/2,t.x),fromRw(t.r,t.a+t.L/2,t.x+d),fromRw(t.r,t.a-t.L/2,t.x+d)];
         L.polygon(pts.map(LL),{color:'#ffd60a',weight:2,fillColor:'#e7e5e4',fillOpacity:0.85,interactive:false}).addTo(L_runways);
         const c=fromRw(t.r,t.a,t.x+d/2); L.marker(LL(c),{icon:L.divIcon({className:'rwy-label',html:`<span style="background:#111827cc;color:#ffd60a;padding:1px 4px;border-radius:4px;font-weight:700">${t.n}</span>`,iconSize:[30,16],iconAnchor:[15,8]}),interactive:false}).addTo(L_runways); } } };
   drawRunways._xp=true; }

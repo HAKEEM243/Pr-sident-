@@ -126,7 +126,7 @@ function airportProps(code,N){
   const EL=typeof gElev==='function'?gElev(code):0;
   const mk=(p,hdg,url,minPx)=>{ const pos=C.Cartesian3.fromDegrees(p.lon,p.lat,0.2+EL); N.ents.push(apLit(V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(hdg-90),0,0)), model:{uri:url, minimumPixelSize:minPx||0, shadows:C.ShadowMode.ENABLED, distanceDisplayCondition:new C.DistanceDisplayCondition(0,30000)}}),'lit')); };
   const s=ap.side, gx=ap.x, a0=ap.a, A=AP(code), big=A.cls>=3, hdgOut=(r.hdg+90*s+360)%360;
-  const xp=A.xp||0, span=Math.round((big?1900:700)*(1+0.1*Math.min(5,xp))), n=Math.min(44,(big?22:8)+(A.gatesX||0));   // aéroport agrandi par le joueur
+  const xp=A.xp||0, span=Math.round((big?1900:700)*(1+0.1*Math.min(5,xp))), n=(typeof apGates==='function'&&(apGates(code)||[]).length)||Math.min(44,(big?22:8)+(A.gatesX||0));   // portes de tous les terminaux
   // terminal derrière la ligne de portes
   const terms=typeof apTerminals==='function'?apTerminals(code):[{n:'T1',a:a0,x:gx+s*72,L:span}];
   for(const t of terms){ mk(rwPt(r,t.a,t.x),hdgOut+180,apModel('term'+t.L,M_TERMINAL(t.L)));   // terminaux 1 à 4 (agrandissements du joueur)
@@ -144,7 +144,7 @@ function airportProps(code,N){
   mk(rwPt(r,a0+span/2+120,gx+s*110),r.hdg,apModel('tower',M_TOWER),8);
   // avions d'autres compagnies garés aux premières portes
   if(typeof AC3D!=='undefined'){ const al=(typeof airlinesAt==='function'?airlinesAt(code):[]).slice(0,6).map(([c])=>c);
-    for(let k=0;k<Math.min(GQ.mob&&!GQ.hq?3:6,n);k++){ if(!al.length) break; const c=al[k%al.length], sp=slotPt(code,k), m=getModel(k%3===0&&big?'B789':k%2?'A20N':'B738')||getModel('A20N');
+    for(let k=0;k<Math.min(GQ.mob&&!GQ.hq?3:6,n);k++){ if(!al.length) break; const gs=typeof apGates==='function'&&apGates(code), tt=gs?[...new Set(gs.map(x=>x.t))]:['T1'], kk=gs?gs.findIndex(x=>x.t===tt[k%tt.length])+Math.floor(k/tt.length):k, c=al[k%al.length], sp=slotPt(code,kk), m=getModel(k%3===0&&big?'B789':k%2?'A20N':'B738')||getModel('A20N');
       const mi=AC3D.uri(m,typeof airlineColor==='function'?airlineColor(c):'#64748b'), pos=C.Cartesian3.fromDegrees(sp.lon,sp.lat,mi.R+mi.gH+0.4+EL);
       N.ents.push(apLit(V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(hdgOut-90),0,0)), model:{uri:mi.uri, shadows:C.ShadowMode.CAST_ONLY, distanceDisplayCondition:new C.DistanceDisplayCondition(0,25000)}}))); } }
   // mâts d'éclairage le long de l'aire ; la nuit : halo des projecteurs et flaques de lumière sur le béton
@@ -200,12 +200,20 @@ function signModel(city,code){
 }
 /* ---------- aire de stationnement : béton + marquages ---------- */
 function apronGround(code,N,EL){
-  const C=Cesium, V=G.viewer, ap=apronOf(code), r=ap.rw, s=ap.side, gx=ap.x, a0=ap.a, big=AP(code).cls>=3, span=Math.round((big?1900:700)*(1+0.1*(AP(code).xp||0))), n=Math.min(44,(big?22:8)+(AP(code).gatesX||0)), hdgOut=(r.hdg+90*s+360)%360;
+  const C=Cesium, V=G.viewer, ap=apronOf(code), r=ap.rw, s=ap.side, gx=ap.x, a0=ap.a, big=AP(code).cls>=3, span=Math.round((big?1900:700)*(1+0.1*(AP(code).xp||0))), n=(typeof apGates==='function'&&(apGates(code)||[]).length)||Math.min(44,(big?22:8)+(AP(code).gatesX||0)), hdgOut=(r.hdg+90*s+360)%360;
   const c1=rwPt(r,a0-span/2-60,gx-s*70), c2=rwPt(r,a0+span/2+60,gx-s*70), c3=rwPt(r,a0+span/2+60,gx+s*70), c4=rwPt(r,a0-span/2-60,gx+s*70);
   const geo=[new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray([c1,c2,c3,c4].flatMap(q=>[q.lon,q.lat]))),height:EL+0.18,vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(AP3D.night?new C.Color(0.4,0.35,0.28,1):new C.Color(0.72,0.72,0.70,1))}})];
   const lines=[], Y=C.Color.fromCssColorString(AP3D.night?'#b8901a':'#facc15');
   const ln=(a,b,col,w)=>lines.push(new C.GeometryInstance({geometry:new C.PolylineGeometry({positions:C.Cartesian3.fromDegreesArrayHeights([a.lon,a.lat,EL+0.3,b.lon,b.lat,EL+0.3]),width:w||3,vertexFormat:C.PolylineColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(col||Y)}}));
   ln(rwPt(r,a0-span/2-60,gx-s*55),rwPt(r,a0+span/2+60,gx-s*55));                     // voie de circulation de l'aire
+  // aires des terminaux 2, 3 et 4 (béton + voie de circulation), et la bretelle qui contourne T1 vers T4
+  if(typeof apTerminals==='function') for(const t of apTerminals(code)){ if(t.n==='T1') continue; const ax=t.x-s*72;
+    const q=[rwPt(r,t.a-t.L/2-50,ax-s*70),rwPt(r,t.a+t.L/2+50,ax-s*70),rwPt(r,t.a+t.L/2+50,ax+s*70),rwPt(r,t.a-t.L/2-50,ax+s*70)];
+    geo.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(q.flatMap(v=>[v.lon,v.lat]))),height:EL+0.18,vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(AP3D.night?new C.Color(0.4,0.35,0.28,1):new C.Color(0.72,0.72,0.70,1))}}));
+    ln(rwPt(r,t.a-t.L/2-50,ax-s*55),rwPt(r,t.a+t.L/2+50,ax-s*55));
+    if(t.n==='T4'){ const aC=a0-span/2-130, b=[rwPt(r,aC-25,gx-s*70),rwPt(r,aC+25,gx-s*70),rwPt(r,aC+25,ax+s*20),rwPt(r,aC-25,ax+s*20)];
+      geo.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(b.flatMap(v=>[v.lon,v.lat]))),height:EL+0.17,vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(AP3D.night?new C.Color(0.4,0.35,0.28,1):new C.Color(0.72,0.72,0.70,1))}}));
+      ln(rwPt(r,aC,gx-s*55),rwPt(r,aC,ax)); } }
   for(let k=0;k<n;k++){ const sp=slotPt(code,k), a=destPt(sp.lat,sp.lon,hdgOut+180,0.055), b=destPt(sp.lat,sp.lon,hdgOut,0.026);
     ln(a,b);                                                                          // ligne d'entrée au poste
     const st=destPt(sp.lat,sp.lon,hdgOut,0.022); ln(destPt(st.lat,st.lon,hdgOut+90,0.004),destPt(st.lat,st.lon,hdgOut-90,0.004),AP3D.night?C.Color.fromCssColorString('#a8a29e'):C.Color.WHITE,4); }   // barre d'arrêt
@@ -232,7 +240,7 @@ function gateFx(ac,p){
   const G3=AP3D.gate||(AP3D.gate={ents:{},pax:[],k:null,spawn:0});
   const bigAp=AP(code)&&AP(code).cls>=3, jet=bigAp&&(m.seats||0)>=70&&!(typeof isCargo==='function'&&isCargo(m));
   // passerelle fixe de ce poste masquée (remplacée par la passerelle mobile)
-  const k=8+acSlotHash(ac.id)%14, br=AP3D.bridges&&AP3D.bridges[code]&&AP3D.bridges[code][k]; if(br) br.show=!atGate;
+  const k=typeof gateIdx==='function'?gateIdx(code,ac,depIntl(ac,ac.flight)):8+acSlotHash(ac.id)%14, br=AP3D.bridges&&AP3D.bridges[code]&&AP3D.bridges[code][k]; if(br) br.show=!atGate;
   const ensure=(name,url,extra)=>G3.ents[name]||(G3.ents[name]=apLit(V.entities.add({position:C.Cartesian3.ZERO, model:{uri:url, shadows:C.ShadowMode.ENABLED, ...(extra||{})}, show:false})));
   for(const e of Object.values(G3.ents)) e.show=false;
   if(!atGate){ for(const x of G3.pax) V.entities.remove(x.e); G3.pax=[]; return; }
