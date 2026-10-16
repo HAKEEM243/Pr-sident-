@@ -68,6 +68,7 @@ function raceOpen(e,M,tg){
   const tl=tg&&tg.legs?tg.legs:{}, sc=b=>marketDemand(M,b)*(tl[b]?1.6:1);
   const b=dests.sort((x,y)=>sc(y)-sc(x)).slice(0,5)[rndi(0,Math.min(4,dests.length-1))];
   const cost=e.fleet<10?0.8e6:e.fleet<40?2e6:4e6; if(e.cash<-e.fleet*3e6*raceAmb(e)) return false;
+  if(typeof aiPeace==='function'&&aiPeace(e.code)&&e.routes>=e.fleet*2) return false;   // les compagnies de votre pays grandissent au rythme de leur flotte
   e.cash-=cost; if(!raceAddPair(e,M,b,2)) return false;
   S.ai.mHot=S.ai.mHot||{}; S.ai.mHot[M]=S.time;
   const foreign=AP(M).cc!==e.cc, n=(AP_ROUTES[M]||[]).filter(x=>carriersOn(M,x).includes(e.code)).length; e.bases=e.bases||[];
@@ -108,7 +109,7 @@ function raceFights(){
     const A=aiBy(f.att), B=aiBy(f.def); if(!A||!B||A.status==='dead'||B.status==='dead'){ delete F[k]; continue; }
     const w=Math.max(0.3,marketDemand(f.a,f.b)/400); A.cash-=w*0.6e6; B.cash-=w*0.45e6; A.rep=clamp(A.rep-0.1,10,95);
     if(f.until>S.time) continue; delete F[k];
-    const pk=x=>typeof aiPeace==='function'&&aiPeace(x.code)?40e6:0, sA=A.cash/Math.max(1,A.fleet)+A.rep*0.3e6+A.fleet*0.05e6+pk(A), sB=B.cash/Math.max(1,B.fleet)+B.rep*0.3e6+B.fleet*0.05e6+pk(B), lose=sA<sB?A:B, win=lose===A?B:A;
+    const pk=x=>typeof aiPeace==='function'&&aiPeace(x.code)?6e6:0, sA=A.cash/Math.max(1,A.fleet)+A.rep*0.3e6+A.fleet*0.05e6+pk(A), sB=B.cash/Math.max(1,B.fleet)+B.rep*0.3e6+B.fleet*0.05e6+pk(B), lose=sA<sB?A:B, win=lose===A?B:A;
     if(!carriersOn(f.a,f.b).includes(lose.code)) continue;
     raceDropPair(lose,f.a,f.b);
     if(raceLoud(f.M||f.a,win.fleet>=150||lose.fleet>=150)) aiNews(`🏳️ ${lose.name} abandonne ${keyCity(f.a)}–${keyCity(f.b)} face à ${win.name}.`,'news',raceMine().has(f.M||f.a));
