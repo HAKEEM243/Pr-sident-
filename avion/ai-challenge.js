@@ -43,7 +43,7 @@ function aiChallenge(){
         const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&!R.routes.some(x=>pairKey(x.a,x.b)===key)) R.routes.push({a:c,b:mine,freq:3});
         aiNews(`🎯 ${e.name} attaque le hub du n°1 mondial (${lead.me?'vous':lead.name}) : nouvelle ligne ${keyCity(c)} → ${keyCity(mine)} (3 vols par jour).`,lead.me?'rival':'news',true); } }
     // coup d'éclat 4 : guerre des prix sur l'une de vos lignes
-    if(Math.random()<0.06*D*heat&&!lead.me&&lead.e&&typeof raceWar==='function'){ raceWar(e,{...lead,rank:1},lead.e.cc); }
+    if(Math.random()<0.06*D*heat&&!lead.me&&lead.e&&typeof raceWar==='function'){ raceMarketMove(e,lead.e.hub); }
     else if(lead.me&&Math.random()<0.06*D*heat&&S.routes.length){ const rt=pick(S.routes), a=rt.stops[0], b=rt.stops[rt.stops.length-1], key=pairKey(a,b); ai.wars=ai.wars||{};
       if(!ai.wars[e.code+key]&&!(typeof isAlly==='function'&&isAlly(e.code))){ ai.wars[e.code+key]={code:e.code,a,b,until:S.time+rndi(14,35)*DAY,kind:'prix'};
         aiNews(`⚔️ ${e.name} brade ses billets sur ${keyCity(a)}–${keyCity(b)} : guerre des prix contre vous.`,'rival',true); } }
@@ -67,8 +67,7 @@ function aiOutsiders(){
     if(Math.random()<0.30) aiRoute(e,'open');
     e.rep=clamp(e.rep+0.06*D,20,85);
     // les petits attaquent celle juste au-dessus d'eux dans leur pays (une IA ou vous, sans distinction)
-    if(typeof raceTables==='function'&&Math.random()<0.15*(D-1)){ const rows=raceTables()[e.cc]||[], k=rows.findIndex(x=>x.code===e.code), tg=k>0?rows[k-1]:null;
-      if(tg&&!(tg.me&&typeof isAlly==='function'&&isAlly(e.code))) (Math.random()<0.5?raceOpen:raceWar)(e,{...tg,rank:k},e.cc); }
+    if(typeof raceMarketMove==='function'&&Math.random()<0.15*(D-1)) raceMarketMove(e,e.hub);   // se battre sur son propre marché
     const rival=(S.rivals||[]).find(x=>x.code===e.code); if(rival){ rival.fleet=e.fleet; rival.cash=e.cash; rival.rep=e.rep; rival.network=e.routes; }
   }
 }
