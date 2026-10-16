@@ -121,8 +121,21 @@ function godWeekly(){
   const L=g.aiLvl??1; if(S.ai&&L!==1) for(const e of aiAlive()){ e.skill=clamp((e.skill||0)+(L-1)*0.003,-0.6,0.6); e.rep=clamp((e.rep||60)+(L-1)*0.05,10,95); if(L>=3&&(e.mavg||0)>0&&Math.random()<0.05*(L-2)){ e.fleet++; } }
 }
 
+/* ---------- plus de nouvelles compagnies automatiques (sauf si vous l'autorisez) ---------- */
+function godNoNewAI(){
+  { const _st=aiStartup; aiStartup=function(...a){ if(!S||!S.allowNewAI) return false; return _st(...a); }; }
+  { const _wg=aiWorldGrow; aiWorldGrow=function(){ if(!S||!S.allowNewAI) return; return _wg(); }; }
+  { const _pb=hrPlayerBuildRouteTick; hrPlayerBuildRouteTick=function(){ if(!S||!S.allowNewAI){ if(S) S.playerBuildRouteQueue=[]; return; } return _pb(); }; }
+}
+// ménage : supprimer d'un coup les petites compagnies inventées par le jeu
+function godCleanup(){ const cc=homeCC(); let n=0;
+  for(const e of aiAlive()){ if(e.real||e.code==='MSB'||e.code==='KVA'||(S.vassals&&S.vassals[e.code])||e.godMade) continue; if(e.cc===cc&&!UI.godCleanHome) continue;
+    if(typeof retireAICorp==='function'){ retireAICorp(e); e.deathWhy='retirée par l’éditeur'; n++; } }
+  return n; }
+
 /* ---------- branchements ---------- */
 function godHook(){ if(godHook.done) return; godHook.done=true;
+  try{ godNoNewAI(); }catch(e){ console.warn(e); }
   // demande : mondiale, par pays, et boycott si vous trichez trop
   { const _dm=demandMult; demandMult=function(a,b){ let k=_dm(a,b); if(!S||!S.god) return k; const g=S.god, A=AP(a), B=AP(b), ca=g.ov.cc[A.cc], cb=g.ov.cc[B.cc];
       k*=(g.dem??1)*Math.sqrt((ca&&ca.dem!==undefined?ca.dem:1)*(cb&&cb.dem!==undefined?cb.dem:1)); const h=g.heat||0; if(h>75) k*=1-Math.min(0.4,(h-75)/100); return k; }; }
@@ -152,6 +165,7 @@ function godHook(){ if(godHook.done) return; godHook.done=true;
     let v=el.type==='checkbox'?el.checked:num?+el.value:el.value; if(num&&!Number.isFinite(v)) return;
     if(el.dataset.mul) v=v*+el.dataset.mul; godSet(t,id,f,v); const lab=el.closest('label')&&el.closest('label').querySelector('.gv'); if(lab) lab.textContent=godFmt(f,v);
     if(typeof renderTop==='function') renderTop(); const hb=$('#godHeat'); if(hb) hb.outerHTML=godHeatHtml(); };
+  INPUTS.gdNewAi=el=>{ S.allowNewAI=el.checked; toast(el.checked?'🆕 De nouvelles compagnies pourront naître':'🚫 Plus aucune nouvelle compagnie automatique','info'); };
   INPUTS.gdq=el=>{ UI['god_'+el.dataset.t]=el.value.trim().toUpperCase(); };
   godReapply(); godBadge();
   // une autre partie est chargée : on réapplique ses modifications
@@ -168,10 +182,11 @@ function godDo(k,d){
   else if(k==='newModel'){ const E=UI.godNew||{}; const m={id:'X'+uid(), name:(E.name||'Avion libre').slice(0,30), maker:'Éditeur', fam:E.fam||'A320', seats:+E.seats||0, cargo:+E.seats>0?0:(+E.cargo||20), range:Math.max(100,+E.range||8000), speed:Math.max(150,+E.speed||850), price:Math.max(0.000001,(+E.price||1)/1e6), burn:Math.max(1,+E.burn||2500), cls:clamp(+E.cls||3,1,5), alt:11500, color:'#a855f7', logo:'🧬', custom:true, god:true};
     S.customModels.push(m); const base=customSpecs({seats:m.seats,cargo:m.cargo,range:m.range,speed:m.speed}); const h=clamp((1-m.price/Math.max(0.01,base.price))*20+(base.burn>m.burn?(1-m.burn/base.burn)*10:0),0,35);
     const g=godS(); g.log.unshift({id:uid(),t:'new',i:m.id,f:'modèle',o:'',v:m.name,h:+h.toFixed(1),at:S.time}); g.heat=clamp(g.heat+h,0,120); toast(`🧬 « ${m.name} » ajouté au catalogue (${fmtMoney(m.price*1e6)})`,'ok'); }
+  else if(k==='clean'){ if(!confirm('Supprimer toutes les petites compagnies inventées par le jeu (hors de votre pays, hors vassales, Masambukidi Fly et celles que vous avez créées) ?')) return; const n=godCleanup(); toast(`🧹 ${n} compagnie(s) supprimée(s)`,'ok'); }
   else if(k==='kill'){ const e=aiBy(d.c); if(e&&confirm(`Faire disparaître ${e.name} ?`)){ aiBankrupt(e); godS().heat+=8; } }
   else if(k==='newAi'){ const E=UI.godAi||{}, hub=(E.hub||'').toUpperCase(); if(!AP(hub)) return toast('Code d’aéroport inconnu','bad');
     let code=(E.code||'').toUpperCase().slice(0,3); if(!code||aiBy(code)||(typeof AIRLINE_DB!=='undefined'&&AIRLINE_DB[code])) code='G'+String.fromCharCode(65+rndi(0,25))+String.fromCharCode(65+rndi(0,25));
-    const e={code, name:(E.name||'Nouvelle compagnie').slice(0,30), color:E.color||'#0ea5e9', hub, cc:AP(hub).cc, real:false, startup:true, founded:S.time, fleet:Math.max(1,+E.fleet||10), cash:Math.max(0,+E.cash||5e8), rep:60, skill:0.1, safety:1.1, routes:0, crashes:0, incidents:0, status:'ok', debt:0, pax:0, hist:[]};
+    const e={godMade:true, code, name:(E.name||'Nouvelle compagnie').slice(0,30), color:E.color||'#0ea5e9', hub, cc:AP(hub).cc, real:false, startup:true, founded:S.time, fleet:Math.max(1,+E.fleet||10), cash:Math.max(0,+E.cash||5e8), rep:60, skill:0.1, safety:1.1, routes:0, crashes:0, incidents:0, status:'ok', debt:0, pax:0, hist:[]};
     if(typeof AIRLINE_COLORS!=='undefined') AIRLINE_COLORS[code]=e.color; S.ai.list.push(e); S.ai.ver++; for(let i=0;i<Math.min(8,Math.ceil(e.fleet/2));i++) aiRoute(e,'open');
     aiNews(`🆕 ${e.name} naît à ${keyCity(hub)} avec ${e.fleet} avions.`,'news',true); toast(`🆕 ${e.name} créée`,'ok'); }
 }
@@ -228,6 +243,8 @@ function godHtml(){
     body=`${gRow(`Niveau de l’IA de toutes les compagnies <b class="gv">${godFmt('lvl',L)}</b>`,gIn('ai','','lvl','range','min="0" max="4" step="1"'))}
       <div class="small mut">Plus le niveau est haut, plus les compagnies gagnent d’argent, apprennent vite et grandissent. Monter le niveau fait baisser la vigilance (vous jouez plus dur).</div>
       ${gRow(`Agressivité <b class="gv">${godFmt('drive',godGet('ai','','drive'))}</b>`,gIn('ai','','drive','range','min="0" max="3" step="1"'))}
+      <label class="tog"><input type="checkbox" data-in="gdNewAi" ${S.allowNewAI?'checked':''}> <b>Laisser naître de nouvelles compagnies</b> <span class="mut small">(désactivé : aucune compagnie ne se crée toute seule, ni quand vous agrandissez un aéroport)</span></label>
+      <div class="btns sm"><button class="btn sm danger" data-act="godDo" data-k="clean">🧹 Supprimer les petites compagnies inventées (${aiAlive().filter(e=>!e.real&&e.code!=='MSB'&&e.code!=='KVA'&&e.cc!==homeCC()&&!(S.vassals&&S.vassals[e.code])&&!e.godMade).length} hors de votre pays)</button></div>
       <h3>Une compagnie</h3><label>Compagnie<select data-in="gdsel" data-t="ai">${list.slice(0,300).map(x=>`<option value="${x.code}" ${x.code===sel?'selected':''}>${esc(x.name)} · ${x.fleet} av.</option>`).join('')}</select></label>
       ${e?`<div class="form">${gRow('Flotte',gIn('ai',sel,'fleet','number','min="1"'))}${gRow('Trésorerie ($)',gIn('ai',sel,'cash','number','step="1000000"'))}${gRow(`Image <b class="gv">${Math.round(e.rep)}</b>`,gIn('ai',sel,'rep','range','min="10" max="95"'))}${gRow(`Talent de gestion <b class="gv">${(+e.skill||0).toFixed(2)}</b>`,gIn('ai',sel,'skill','range','min="-0.6" max="0.6" step="0.05"'))}${gRow(`Ambition <b class="gv">${(+(e.amb??0.6)).toFixed(2)}</b>`,gIn('ai',sel,'amb','range','min="0" max="1" step="0.05"'))}</div>
         <div class="btns sm"><button class="btn sm danger" data-act="godDo" data-k="kill" data-c="${sel}">💥 Faire disparaître</button><button class="btn sm" data-act="airlineCard" data-c="${sel}">Voir la fiche</button></div>`:''}

@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261177';
+const GAME_VER='20261178';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🚫 Plus de nouvelles compagnies automatiques','Le jeu ne crée plus de compagnies tout seul : ni au hasard, ni par vagues, ni quand vous agrandissez un aéroport (aucune compagnie ne vient s’y installer à cause de vos travaux). Dans 🧬 Éditeur → 🤖 IA : un interrupteur pour les réautoriser si vous voulez, et un bouton 🧹 pour supprimer d’un coup les petites compagnies inventées par le jeu.'],
   ['🎬 Revoir un accident au ralenti','Touchez un accident (💥 🔥 ⚠️ sur la carte, onglet 💥 Accidents des actualités, ou la fenêtre de votre propre accident) puis ▶️ : une vidéo reconstitue ce qui s’est passé, vue de côté, avec ralenti automatique aux moments clés, transcription du cockpit, altitude et vitesse, pompiers et évacuation par les toboggans, puis un rapport d’enquête. Scénarios : sortie de piste sous la pluie, atterrissage dur, feu moteur (chute ou retour réussi), orage et givrage jusqu’au décrochage, fumée en cabine. Reconstitution fictive.'],
   ['🧬 L’éditeur divin','Plus → 🧬 Éditeur divin : modifiez TOUT le jeu en direct, pendant qu’il tourne. Votre compagnie (argent, image, nom, couleur, limite de flotte), tous les avions (sièges, autonomie, vitesse, prix — même 1 $ —, consommation) et des avions sans aucune limite, les pays (nom, capitale, population, richesse, envie de voyager, guerre), les aéroports (nom, trafic, piste, population, fermeture), l’économie, le temps, et l’IA (niveau de Débutant à Légendaire, chaque compagnie, création et disparition). Un journal permet d’annuler chaque changement. ⚠️ Mais le monde vous surveille : trop de triche fait monter la vigilance mondiale — rumeurs, enquête et amendes, vos compatriotes et alliés se retournent contre vous, coalition mondiale, boycott des passagers, vassales qui ne paient plus.'],
   ['👑 Compagnies vassales','Quand vous achetez 51 % d’une compagnie (Compagnie → Bourse), vous choisissez : en faire votre VASSALE (elle garde son nom et ses avions, l’IA la dirige, et ses bénéfices vous sont versés chaque semaine — 100 %, ou 50 % pour qu’elle grandisse plus vite ; elle ne vous attaque jamais), ou l’INTÉGRER (vous dirigez ses avions, en achetez, en vendez, ajoutez des lignes). D’autres compagnies peuvent proposer de racheter votre vassale : c’est vous qui décidez. Une vassale peut être intégrée plus tard.'],

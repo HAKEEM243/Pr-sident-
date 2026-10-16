@@ -60,6 +60,7 @@ function natRival(){
   if(e&&e.status!=='dead') return e;
   // la plus grosse compagnie IA du pays ; sinon une nouvelle compagnie nationale créée par l'État
   e=S.ai.list.filter(x=>x.status!=='dead'&&(x.cc===cc||homeOf(x.code)===cc)).sort((x,y)=>y.fleet-x.fleet)[0];
+  if(!e&&!S.allowNewAI) return null;   // plus de compagnie créée automatiquement (réglable dans l’éditeur)
   if(!e){ const hub=mainAirport(cc)||S.company.hub, code='N'+cc;
     e={code, name:`${ccName(cc)} Airways`, color:'#0ea5e9', hub, cc, real:false, fleet:8, cash:2e8, rep:58, pax:4000, skill:0.05, safety:1, routes:4, crashes:0, incidents:0, status:'ok', debt:0, hist:[], startup:true};
     S.ai.list.push(e); S.ai.ver++; aiNews(`🆕 ${ccWith(cc)} : l’État lance « ${e.name} », une compagnie nationale pour concurrencer ${S.company.name}.`,'rival',true); }
