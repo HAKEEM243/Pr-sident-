@@ -67,9 +67,8 @@ function natRival(){
 }
 function natRivalWeekly(){
   const e=natRival(); if(!e) return; const lvl=typeof drive==='function'?drive():2; if(!lvl) return;
-  const me=S.fleet.length, target=Math.max(10,Math.round(me*(0.35+0.15*lvl)));
-  // il grandit pour suivre votre taille (financé par l'État et des investisseurs)
-  if(e.fleet<target){ const add=Math.max(1,Math.round((target-e.fleet)*0.08)); e.fleet+=add; e.cash+=add*6e6; if(add>=3) aiNews(`✈️ ${e.name} reçoit ${add} avions neufs (${e.fleet} au total).`,'rival',false); }
+  // plus de croissance « calquée » sur la vôtre : il grandit selon ses propres moyens (voir 🏁 Course)
+  if(false){ const add=Math.max(1,Math.round((target-e.fleet)*0.08)); e.fleet+=add; e.cash+=add*6e6; if(add>=3) aiNews(`✈️ ${e.name} reçoit ${add} avions neufs (${e.fleet} au total).`,'rival',false); }
   // il ne vous copie pas : il s'améliore et ouvre SES propres destinations
   aiImprove(e,lvl,true);
 }

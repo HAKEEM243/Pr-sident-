@@ -36,7 +36,7 @@ function ceoTick(){
   const gens=[
     {w:lines.length?3:0, f:mkCodeshare},
     {w:lines.some(r=>r.stats.flights>=6)?2:0, f:mkBuyLine},
-    {w:lines.length?2.4:0, f:mkThreat},
+    {w:0, f:mkThreat},   // plus de menaces ciblées : les compagnies se battent contre tout le monde (🏁 Course)
     {w:S.fleet.length>=3&&!Object.keys(S.allies||{}).some(isAlly)?1:0.3, f:mkAlliance},
     {w:1.4, f:mkUsedPlane},
     {w:1.6, f:mkBanter},
