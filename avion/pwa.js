@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261172';
+const GAME_VER='20261173';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🇨🇩 Des compagnies congolaises vraiment fortes','Les compagnies de votre pays (et Masambukidi Fly) sont maintenant fortes dans tous les domaines : rentables et sans dettes, image parmi les meilleures du monde, flotte neuve et très sûre (moins d’accidents), bases à l’étranger, avantage dans les guerres des prix contre les étrangères, et rachat de compagnies étrangères en difficulté. Elles ne vous attaquent jamais. Leur classement mondial : 📰 Actualités → 🏁 Marchés.'],
   ['🟡 Masambukidi Fly','Nouvelle compagnie congolaise basée à Goma : 1 milliard de dollars de fonds, avions jaunes, uniquement de très gros porteurs (A380, 777, 747), 10 lignes vers les plus grandes villes du monde (Dubaï, Londres, Paris, Atlanta, Tokyo…). Elle s’étend chaque semaine et ouvre des bases à l’étranger, sans jamais vous faire la guerre. Toutes les compagnies de votre pays deviennent plus fortes, grossissent et partent à la conquête de l’étranger, sans vous attaquer. Et plus d’avions dans le ciel de la carte.'],
   ['🏁 La guerre des marchés','La bataille ne se fait plus par pays mais par marché (aéroport) : n’importe quelle compagnie peut venir se battre n’importe où — Qatar Airways à Kinshasa, une compagnie chinoise à Paris… Chacune veut dominer les marchés où elle vole et attaque celle qui est juste devant elle (nouvelles lignes, bases à l’étranger, guerres des prix), vous comprise, sans vous viser en particulier. La n°1 d’un marché se défend. Une compagnie chassée de toutes les lignes de son hub disparaît. Suivez tout dans 📰 Actualités → 🏁 Marchés. Vous pouvez aussi fermer un hub (🏢 Acheter un hub → Vos hubs → 🗑️ Fermer).'],
   ['🛫 Les terminaux servent vraiment','Vos avions utilisent maintenant les Terminaux 2, 3 et 4 que vous construisez : vols internationaux aux T2/T4, vols intérieurs aux T1/T3, avec portes, passerelles, aires de béton et roulage (T4 contourne T1). Le « vol présidentiel » est désormais un vrai aller-retour qu’on voit décoller, payé au retour ; un rappel constructeur met vraiment les avions au sol en atelier (🔧).'],

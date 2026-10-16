@@ -81,7 +81,40 @@ function cpWeekly(){
         if(cpOpen(e,e.hub,to,2)) aiNews(`🌍 ${e.name} (${ccName(cc)}) part à la conquête de l’étranger : nouvelle ligne ${keyCity(e.hub)} – ${keyCity(to)}.`,'news',e.fleet>=15); } }
   }
   // les plus grandes de votre pays deviennent visibles sur la carte
-  for(const e of aiAlive().filter(x=>x.cc===cc&&x.code!==MSB).sort((x,y)=>y.fleet-x.fleet).slice(0,4)) if(e.fleet>=10) cpR(e,null);
+  for(const e of aiAlive().filter(x=>x.cc===cc&&x.code!==MSB).sort((x,y)=>y.fleet-x.fleet).slice(0,6)) if(e.fleet>=8) cpR(e,null);
+}
+
+/* ---------- vraiment fortes, dans tous les domaines ---------- */
+function cpStrong(){
+  const cc=homeCC();
+  for(const e of cpCompat()){ const msb=e.code===MSB;
+    // gestion : rentables, sans dettes, en mode croissance
+    e.skill=Math.max(e.skill||0,msb?0.5:0.35); e.mavg=Math.max(e.mavg||0,0.12); e.debt=0; e.startup=false;
+    e.plan={mode:'grow',until:S.time+8*7*DAY}; e.cash+=e.fleet*(msb?0.6e6:0.35e6);
+    // image et service : parmi les meilleures du monde
+    e.rep=clamp(Math.max(e.rep||60,msb?85:72)+0.4,10,95);
+    // sécurité : flotte neuve, maintenance irréprochable, très peu d'accidents
+    e.safety=Math.max(e.safety||1,msb?1.6:1.4); e.age=Math.min(e.age||8,msb?3:5);
+    // réseau : les grandes ouvrent des bases à l'étranger (jamais sur vos marchés)
+    if(!msb&&e.fleet>=25&&typeof raceOpen==='function'&&Math.random()<0.35){ const ms=cpBig().filter(c=>AP(c).cc!==cc&&dist(e.hub,c)<(e.fleet>=60?11000:6000)&&!(typeof raceMine==='function'&&raceMine().has(c)));
+      if(ms.length){ const M=ms.slice(0,40)[rndi(0,Math.min(39,ms.length-1))]; raceOpen(e,M,null); } }
+  }
+}
+// elles rachètent des compagnies étrangères en difficulté
+function cpMonthly(){
+  const cc=homeCC(), strong=cpCompat().filter(e=>e.cash>e.fleet*12e6&&e.fleet>=15);
+  if(!strong.length||Math.random()>0.35||typeof aiAcquireCompany!=='function') return;
+  const buyer=pick(strong), prey=aiAlive().filter(x=>x.cc!==cc&&x.code!==MSB&&x.fleet>=5&&x.fleet<=buyer.fleet*0.6&&((x.debt||0)>=1||x.cash<x.fleet*3e6||(x.mavg||0)<-0.08)&&dist(x.hub,buyer.hub)<9000);
+  if(!prey.length) return; const t=prey.sort((a,b)=>b.fleet-a.fleet)[0];
+  if(buyer.cash<t.fleet*9e6+t.fleet*1e6) buyer.cash+=t.fleet*10e6;   // financement des banques du pays
+  if(aiAcquireCompany(buyer,t,'merger')) aiNews(`🇨🇩 ${buyer.name} rachète ${t.name} (${ccName(t.cc)}) : la puissance congolaise s’étend.`,'news',true);
+}
+// fiche « Compagnies de votre pays » (onglet 🏁 Marchés)
+function cpCardHtml(){
+  const rows=aiRows(), cc=homeCC(), mine=rows.filter(r=>!r.me&&r.e&&(r.e.cc===cc||r.code===MSB));
+  if(!mine.length) return '';
+  return `<div class="card small"><b>${COUNTRIES[cc]?COUNTRIES[cc][2]:''} Les compagnies de votre pays dans le monde</b> <span class="mut">(elles ne vous attaquent jamais)</span>
+    <table class="tbl"><tr><th>Rang mondial</th><th>Compagnie</th><th>Flotte</th><th>Lignes</th><th>Image</th><th>Bases</th></tr>${mine.slice(0,10).map(r=>`<tr class="click" data-act="airlineCard" data-c="${r.code}"><td>#${r.rank}</td><td><span class="dot" style="background:${r.color}"></span>${esc(r.name)}</td><td>${r.fleet}</td><td>${r.routes}</td><td>${Math.round(r.rep)}</td><td>${(r.e.bases||[]).slice(0,3).map(keyCity).join(', ')||'—'}</td></tr>`).join('')}</table></div>`;
 }
 
 /* ---------- branchements ---------- */
@@ -91,7 +124,9 @@ function cpHook(){ if(cpHook.done) return; cpHook.done=true;
   { const _rt=retireAICorp; retireAICorp=function(e,b,p){ if(e&&e.code===MSB){ e.cash=Math.max(e.cash,6e8); e.debt=0; return; } return _rt(e,b,p); }; }
   { const _aq=aiAcquireCompany; aiAcquireCompany=function(buyer,target,kind){ if(target&&target.code===MSB) return false; return _aq(buyer,target,kind); }; }
   { const _bk=aiBankrupt; aiBankrupt=function(e){ if(e&&e.code===MSB){ e.cash=Math.max(e.cash,6e8); e.debt=0; return; } return _bk(e); }; }
-  { const _aw=aiWeekly; aiWeekly=function(){ const wk=S.ai&&S.ai.lastWeek; _aw(); try{ if(S.ai&&S.ai.lastWeek!==wk){ msbEnsure(); msbWeekly(); cpWeekly(); } }catch(e){ console.warn(e); } }; }
+  { const _aw=aiWeekly; aiWeekly=function(){ const wk=S.ai&&S.ai.lastWeek; _aw(); try{ if(S.ai&&S.ai.lastWeek!==wk){ msbEnsure(); msbWeekly(); cpWeekly(); cpStrong(); } }catch(e){ console.warn(e); } }; }
   setTimeout(()=>{ try{ msbEnsure(); }catch(e){ console.warn(e); } },1500);
+  { const _am=aiMonthly; aiMonthly=function(){ _am(); try{ cpMonthly(); }catch(e){ console.warn(e); } }; }
+  if(typeof raceTabHtml==='function'){ const _rt=raceTabHtml; raceTabHtml=function(){ let c=''; try{ c=cpCardHtml(); }catch(e){} return c+_rt(); }; }
 }
 if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ cpHook(); }catch(e){ console.warn(e); } },0));
