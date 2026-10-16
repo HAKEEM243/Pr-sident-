@@ -371,15 +371,18 @@ function updateFlightCard(){
   const ac=selectedPlane && S.fleet.find(a=>a.id===selectedPlane);
   if(!ac||!ac.flight){ box.hidden=true; _fcKey=''; return; }
   const st=flightState(ac, simNow()); if(!st){ box.hidden=true; _fcKey=''; return; }
-  const key=ac.id+'|'+followPlane+'|'+ac.flight.li+'|'+ac.flight.legs[0].dep, now=performance.now();
+  const mini=!!UI.fcMini, key=ac.id+'|'+followPlane+'|'+mini+'|'+ac.flight.li+'|'+ac.flight.legs[0].dep, now=performance.now();
   if(key!==_fcKey){
-    _fcKey=key; _fcAt=0;
-    box.innerHTML=`<button class="x" data-act="closeCard">×</button>`+(typeof photoHtml==='function'?photoHtml(modelOf(ac),'banner'):'')+`<div class="fc-live"></div>`+
+    _fcKey=key; _fcAt=0; box.classList.toggle('mini',mini);
+    if(mini){ box.innerHTML=`<div class="fc-mini"></div><div class="btns sm"><button class="btn sm" data-act="fcMax">⬆️ Détails</button><button class="btn sm ${followPlane?'gold':''}" data-act="followCam">🎥 ${followPlane?'Ne plus suivre':'Suivre'}</button><button class="btn sm" data-act="closeCard">✖</button></div>`; }
+    else box.innerHTML=`<button class="x" data-act="closeCard">×</button><button class="x" data-act="fcMin" style="right:34px" title="Réduire">▾</button>`+(typeof photoHtml==='function'?photoHtml(modelOf(ac),'banner'):'')+`<div class="fc-live"></div>`+
       `<div class="btns sm"><button class="btn sm ${followPlane?'gold':''}" data-act="followCam">🎥 ${followPlane?'Caméra attachée':'Suivre l’avion'}</button><button class="btn sm" data-act="zoomPlane">🔍 Zoom</button><button class="btn sm" data-act="zoomRoute">🧭 Trajet</button><button class="btn sm gold" data-act="view3D" data-id="${ac.id}">🎥 Vue 3D</button><button class="btn sm" data-act="manifest" data-id="${ac.id}">📋 Passagers</button></div><div class="fc-leg"></div>`;
     if(typeof hydratePhotos==='function') hydratePhotos();
   }
   box.hidden=false;
   if(now-_fcAt<450) return; _fcAt=now;
+  if(mini){ const ft=Math.round(st.alt*3.28084/100)*100, fl=st.alt>3000?'FL'+String(Math.round(ft/1000)*10).padStart(3,'0'):num(ft)+' ft', eta=st.eta?fmtLocal(st.eta,st.dest):'';
+    const mm=box.querySelector('.fc-mini'); if(mm) mm.innerHTML=`<b>${esc(S.company.code+flightNumber(ac))}</b> · ${st.from}→${st.to} · ${PHASES[st.phase]} · ${fl} · ${Math.round(st.gs||st.spd||0)} km/h${eta?` · arr. ${eta}`:''} · <b>${Math.round((st.progress||0)*100)} %</b>`; return; }
   const legs=ac.flight.legs, pax=legs[ac.flight.li].pax;
   const paxTxt = pax? `${pax.f+pax.j+pax.w+pax.y} passagers (F${pax.f} · J${pax.j} · W${pax.w} · Y${pax.y})` : legs[ac.flight.li].cargo? `${legs[ac.flight.li].cargo} t de fret` : '';
   box.querySelector('.fc-live').innerHTML=flightTipHtml(ac,st);

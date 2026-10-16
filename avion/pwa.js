@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261187';
+const GAME_VER='20261188';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🎥 Suivre l’avion sans la grosse fiche','Quand vous suivez un avion, sa fiche se réduit en une petite barre en bas (vol, altitude, vitesse, arrivée, progression) : vous voyez l’avion bouger sur la carte. ⬆️ Détails rouvre la fiche complète, ▾ la réduit, ✖ la ferme. La fiche complète ne dépasse plus la moitié de l’écran.'],
   ['🧭 Les tracés suivent les vraies routes','Les lignes dessinées sur la carte 2D et en 3D ne sont plus droites : elles montrent la vraie route de l’avion en vol sur la ligne (ou la route du jour), aller en trait plein, retour en pointillés, et changent à chaque vol. Les avions des autres compagnies qui s’écartent de la ligne droite restent visibles.'],
   ['🧭 Routes différentes, sans grand détour','Chaque vol (aller, retour, chaque nouveau départ, chaque compagnie) prend un chemin différent, d’un côté ou de l’autre de la route directe, avec un détour de 4 à 20 % au maximum — plus de grands crochets par une autre région.'],
   ['🧭 Chaque vol a sa propre route','Les avions (les vôtres et ceux de toutes les compagnies) suivent maintenant des points de passage — villes, îles, balises — choisis à chaque vol : l’aller, le retour et le vol suivant ne prennent jamais le même chemin. Le détour reste raisonnable (3 à 10 %, parfois une route plus large par l’océan ou une autre région). La fiche du vol affiche la « 🧭 Route du jour : via … ».'],

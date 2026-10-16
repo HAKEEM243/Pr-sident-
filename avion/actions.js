@@ -25,8 +25,9 @@ function openAirport(code){ openM('airport',code); }
 function after(){ renderPanel(); refreshModal(); renderTop(); drawRoutes(); drawAirports(); }
 
 const ACTIONS = {
-  closeModal, closeCard:()=>selectPlane(null),
-  followCam:()=>{ followPlane=!followPlane; updateFlightCard(); },
+  closeModal, closeCard:()=>{ UI.fcMini=false; selectPlane(null); },
+  followCam:()=>{ followPlane=!followPlane; UI.fcMini=followPlane; updateFlightCard(); },   // en suivant l'avion, la fiche se réduit pour voir la carte
+  fcMin:()=>{ UI.fcMini=true; updateFlightCard(); }, fcMax:()=>{ UI.fcMini=false; updateFlightCard(); },
   zoomPlane:()=>zoomPlane(), zoomRoute:()=>zoomRoute(),
   openNews:()=>{ UI.newsTab='actu'; setTab('news'); },
   openPresidents:()=>{ UI.newsTab='pays'; setTab('news'); },
