@@ -377,7 +377,8 @@ function updateFlightCard(){
   const paxTxt = pax? `${pax.f+pax.j+pax.w+pax.y} passagers (F${pax.f} · J${pax.j} · W${pax.w} · Y${pax.y})` : legs[ac.flight.li].cargo? `${legs[ac.flight.li].cargo} t de fret` : '';
   box.querySelector('.fc-live').innerHTML=flightTipHtml(ac,st);
   const sg0=legProf(st.leg,modelOf(ac)).segs.find(x=>x.ph===1), std=sg0?st.leg.dep+sg0.t0:st.leg.dep;
-  const legHtml=`<div class="mut" style="margin-top:4px">Tronçon ${ac.flight.li+1}/${legs.length} : ${AP(st.from).city} → ${AP(st.to).city} · ${Math.round(st.leg.dist)} km</div>`+
+  const vp=(()=>{ try{ return legPath(st.leg,modelOf(ac)).via||[]; }catch(e){ return []; } })();
+  const legHtml=`<div class="mut" style="margin-top:4px">Tronçon ${ac.flight.li+1}/${legs.length} : ${AP(st.from).city} → ${AP(st.to).city} · ${Math.round(st.leg.dist)} km</div>`+(vp.length?`<div class="small">🧭 Route du jour : via ${vp.map(esc).join(', ')}</div>`:'')+
     `<div>🕒 Départ du poste prévu : <b>${fmtLocal(std,st.from)}</b>${st.leg.hOut>=MIN?` · attente piste ${Math.round(st.leg.hOut/MIN)} min`:''}</div>`+
     (paxTxt?`<div>${paxTxt}</div>`:'')+
     `<div class="phases">${PHASES.map((p,i)=>`<span class="${i<st.phase?'done':i===st.phase?'cur':''}">${p}</span>`).join('')}</div>`;
@@ -480,7 +481,7 @@ function rivalPos(r,i,t){
   if(seg.ph===2){ const R=0.45; if(u<R){ const k=u/R; uD=0.4*k*k; alt=0; } else { const k=(u-R)/(1-R); uD=0.4+0.6*k; alt=seg.a1*Math.pow(k,1.3); } }
   else if(seg.ph===7){ uD=1-(1-u)*(1-u); alt=u<0.12? seg.a0*Math.pow(1-u/0.12,1.6) : 0; }
   let pp;
-  const path=K[dir]||(K[dir]=legPath({from,to,dist:d,ownerCode:r.c||''},m));
+  const cyc=Math.floor((t-K.anchors[i]+K.bA)/T), path=legPath({from,to,dist:d,ownerCode:r.c||'',seed:cyc*16+i*2+(dir==='AB'?0:1)},m);   // chaque rotation suit une route différente
   if(seg.ph===4){ const F=AP(from),Tt=AP(to),f=clamp((seg.d0+(seg.d1-seg.d0)*u)/d,0,1),pp=pointOnPath(path,f*path.total);
     return {p:{lat:pp.lat,lon:pp.lon},hdg:pp.hdg,from:F,to:Tt,d,alt,ph:4,gnd:false,cat}; }
   const fake={id:r.a+r.b+i};

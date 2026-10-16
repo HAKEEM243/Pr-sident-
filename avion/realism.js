@@ -94,10 +94,36 @@ function payloadFactor(m, d){ const R=m.range; if(d<=0.82*R) return 1; return cl
 /* ---------- trajectoires alignées sur les pistes ---------- */
 const _pathCache=new Map();
 function invalidateAirspacePathCache(){ _pathCache.clear(); }
+// ---------- points de passage ----------
+const navHash=str=>{ let h=2166136261; for(const ch of str) h=Math.imul(h^ch.charCodeAt(0),16777619)>>>0; return h; };
+function navRng(seed){ let a=seed>>>0||1; return ()=>{ a=(a+0x6D2B79F5)>>>0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+let _navFix=null;
+function navFixes(){ if(_navFix) return _navFix; _navFix=AIRPORT_CODES.filter(c=>AP(c).traffic>=0.04).map(c=>({lat:AP(c).lat,lon:AP(c).lon,name:AP(c).city})); return _navFix; }
+// 1 à 3 points de passage proches de la route directe ; détour total limité (≈ 3 à 10 %, parfois jusqu'à 18 %)
+function navVia(A,B,seed){
+  const D=gcDist(A,B); if(D<350) return [];
+  const rng=navRng(seed), big=rng()<0.2, eps=Math.min(big?0.1+rng()*0.08:0.03+rng()*0.07,(big?950:650)/D), max=D*(1+eps);   // parfois une route plus large (par l'océan, par une autre région)
+  const n=D<1500?1:D<4500?1+(rng()<0.5?1:0):2+(rng()<0.5?1:0);
+  const out=[]; let prev=A, used=0;
+  const pad=D*0.3/111, la0=Math.min(A.lat,B.lat)-pad, la1=Math.max(A.lat,B.lat)+pad, wide=Math.abs(A.lon-B.lon)>180;
+  const lo0=Math.min(A.lon,B.lon)-pad*1.5, lo1=Math.max(A.lon,B.lon)+pad*1.5;
+  const cands=navFixes().filter(f=>f.lat>la0&&f.lat<la1&&(wide||(f.lon>lo0&&f.lon<lo1)));
+  for(let k=1;k<=n;k++){
+    const fT=Math.min(0.85,Math.max(0.15,k/(n+1)+(rng()-0.5)*0.14));
+    const ok=P=>{ const a=gcDist(A,P), b=gcDist(P,B), f=a/(a+b); return Math.abs(f-fT)<0.13&&used+gcDist(prev,P)+b<=max; };
+    let P=null;
+    if(rng()<0.75){ const L=cands.filter(ok); if(L.length) P=L[Math.floor(rng()*L.length)]; }
+    if(!P){ const base=gcInterp(A,B,fT), hd=(bearing(A,B)+(rng()<0.5?90:-90)+360)%360; let off=D*eps*(0.4+rng()*0.9);
+      for(let t=0;t<6;t++){ const q=destPt(base.lat,base.lon,hd,off); if(used+gcDist(prev,q)+gcDist(q,B)<=max){ P={lat:q.lat,lon:q.lon,name:null}; break; } off*=0.6; } }
+    if(!P) continue; used+=gcDist(prev,P); prev=P; out.push(P);
+  }
+  return out;
+}
 function legPath(leg, m){
   const carrier=leg.ownerCode||(S&&S.company&&S.company.code)||'', rev=typeof airspacePolicyRev==='function'?airspacePolicyRev():0;
-  const vday=leg.dep?Math.floor(leg.dep/DAY)%3:0;   // la trajectoire change un peu d'un jour à l'autre
-  const key=leg.from+'>'+leg.to+'|'+(m?m.id:'')+'|'+carrier+'|'+rev+'|'+vday;
+  // chaque vol a sa propre route (aller, retour, et chaque nouveau départ) : graine propre au vol
+  const seed=leg.seed!==undefined?leg.seed:(leg.dep?Math.floor(leg.dep/60000):0);
+  const key=leg.from+'>'+leg.to+'|'+(m?m.id:'')+'|'+carrier+'|'+rev+'|'+seed;
   if(_pathCache.has(key)) return _pathCache.get(key);
   if(_pathCache.size>3000) _pathCache.clear();
   const A=AP(leg.from), B=AP(leg.to);
@@ -112,19 +138,18 @@ function legPath(leg, m){
   else air.push({lat:A.lat,lon:A.lon});
   const faf = arr? destPt(arr.thr.lat,arr.thr.lon,(arr.hdg+180)%360, short?4:14) : {lat:B.lat,lon:B.lon};
   const anchors=[air[air.length-1],...route.slice(1,-1),faf];
-  // les avions ne volent pas en ligne droite : routes aériennes, vents, contournements…
-  // chaque sens (et chaque jour) a sa propre courbe : un arc d'un côté ou de l'autre, parfois un S, parfois presque droit
-  let hh=2166136261; for(const ch of leg.from+'>'+leg.to+'#'+vday+carrier) hh=Math.imul(hh^ch.charCodeAt(0),16777619)>>>0;
-  const rr=k=>((hh>>>(k*4))&255)/255;
-  for(let j=1;j<anchors.length;j++){ const s=anchors[j-1], e=anchors[j], sd=gcDist(s,e), n=Math.max(1,Math.ceil(sd/120));
-    const amp=sd<180?0:Math.min(380,sd*(0.035+0.11*rr(j)))*(rr(j+1)<0.18?0.15:1)*(rr(j+2)<0.5?-1:1), sCurve=rr(j+3)<0.3, brg=bearing(s,e);
-    for(let i=1;i<=n;i++){ const u=i/n, p=gcInterp(s,e,u), off=amp*(sCurve?0.75*Math.sin(2*Math.PI*u):Math.sin(Math.PI*u))*(anchors.length>2?0.5:1);
-      const q=Math.abs(off)>0.5&&i<n?destPt(p.lat,p.lon,(brg+90+360)%360,off):p; air.push({lat:q.lat,lon:q.lon}); } }
+  // les avions ne volent pas en ligne droite : ils suivent des points de passage (villes, îles, balises),
+  // différents à chaque vol, avec un détour limité ; les détours d'espace aérien interdit restent prioritaires
+  const via=route.length>2?[]:navVia(air[air.length-1],faf,(seed*2654435761+navHash(leg.from+'>'+leg.to+carrier))>>>0);
+  let nodes=[air[air.length-1],...route.slice(1,-1),...via,faf];
+  for(let it=0;it<2&&nodes.length>2;it++){ const sm=[nodes[0]]; for(let i=0;i<nodes.length-1;i++){ const P=nodes[i], Q=nodes[i+1]; if(i>0) sm.push(gcInterp(P,Q,0.25)); if(i<nodes.length-2) sm.push(gcInterp(P,Q,0.75)); } sm.push(nodes[nodes.length-1]); nodes=sm; }   // virages adoucis
+  for(let j=1;j<nodes.length;j++){ const s=nodes[j-1], e=nodes[j], n=Math.max(1,Math.ceil(gcDist(s,e)/120));
+    for(let i=1;i<=n;i++){ const p=gcInterp(s,e,i/n); air.push({lat:p.lat,lon:p.lon}); } }
   if(arr){ air.push(arr.thr, destPt(arr.thr.lat,arr.thr.lon,arr.hdg,Math.min(arr.len/1000*0.65,2.2))); }
   else air.push({lat:B.lat,lon:B.lon});
   const cum=[0]; for(let i=1;i<air.length;i++) cum.push(cum[i-1]+gcDist(air[i-1],air[i]));
   const p={air, cum, total:cum[cum.length-1]||1, dep, arr,
-    gateA:{lat:A.lat,lon:A.lon}, gateB:{lat:B.lat,lon:B.lon}, route};
+    gateA:{lat:A.lat,lon:A.lon}, gateB:{lat:B.lat,lon:B.lon}, route, via:via.map(v=>v.name).filter(Boolean)};
   _pathCache.set(key,p); return p;
 }
 function pointOnPath(p, s){
