@@ -36,14 +36,15 @@ function aiChallenge(){
     // coup d'éclat 2 : levée de fonds
     if(Math.random()<0.03*D*heat){ const k=Math.max(2e8,r.value*rnd(0.02,0.06)); e.cash+=k; aiNews(`💰 ${e.name} lève ${Md(k)} auprès d’investisseurs pour ${tag}.`,'rival',true); }
     // coup d'éclat 3 : nouvelle ligne jusque sur votre hub
-    const mine=S.hubs.slice().sort((a,b)=>AP(b).traffic-AP(a).traffic)[0]||S.company.hub;
-    if(S.noCopy===false&&aiAirportMarketOpen(mine)&&Math.random()<0.08*D*heat){ const cand=AIRPORT_CODES.filter(c=>c!==mine&&aiAirportMarketOpen(c)&&AP(c).cls>=2&&dist(e.hub,c)>400&&dist(c,mine)>400&&dist(c,mine)<(e.fleet>=100?9000:4000)&&!carriersOn(c,mine).includes(e.code)&&!airspaceViolation(e.code,c,mine));
+    const mine=lead.me?(S.hubs.slice().sort((a,b)=>AP(b).traffic-AP(a).traffic)[0]||S.company.hub):lead.e&&lead.e.hub;   // le hub du n°1 mondial, quel qu'il soit
+    if(mine&&(!lead.me||S.noCopy===false)&&aiAirportMarketOpen(mine)&&Math.random()<0.08*D*heat){ const cand=AIRPORT_CODES.filter(c=>c!==mine&&aiAirportMarketOpen(c)&&AP(c).cls>=2&&dist(e.hub,c)>400&&dist(c,mine)>400&&dist(c,mine)<(e.fleet>=100?9000:4000)&&!carriersOn(c,mine).includes(e.code)&&!airspaceViolation(e.code,c,mine));
       const setup=e.fleet<30?1.5e6:3.5e6;
       if(cand.length&&e.cash>=setup){ const c=cand.sort((x,y)=>marketDemand(e.hub,y)-marketDemand(e.hub,x))[0], key=pairKey(c,mine); e.cash-=setup; (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
         const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&!R.routes.some(x=>pairKey(x.a,x.b)===key)) R.routes.push({a:c,b:mine,freq:3});
-        aiNews(`🎯 ${e.name} attaque votre hub : nouvelle ligne ${keyCity(c)} → ${keyCity(mine)} (3 vols par jour).`,'rival',true); } }
+        aiNews(`🎯 ${e.name} attaque le hub du n°1 mondial (${lead.me?'vous':lead.name}) : nouvelle ligne ${keyCity(c)} → ${keyCity(mine)} (3 vols par jour).`,lead.me?'rival':'news',true); } }
     // coup d'éclat 4 : guerre des prix sur l'une de vos lignes
-    if(Math.random()<0.06*D*heat&&S.routes.length){ const rt=pick(S.routes), a=rt.stops[0], b=rt.stops[rt.stops.length-1], key=pairKey(a,b); ai.wars=ai.wars||{};
+    if(Math.random()<0.06*D*heat&&!lead.me&&lead.e&&typeof raceWar==='function'){ raceWar(e,{...lead,rank:1},lead.e.cc); }
+    else if(lead.me&&Math.random()<0.06*D*heat&&S.routes.length){ const rt=pick(S.routes), a=rt.stops[0], b=rt.stops[rt.stops.length-1], key=pairKey(a,b); ai.wars=ai.wars||{};
       if(!ai.wars[e.code+key]&&!(typeof isAlly==='function'&&isAlly(e.code))){ ai.wars[e.code+key]={code:e.code,a,b,until:S.time+rndi(14,35)*DAY,kind:'prix'};
         aiNews(`⚔️ ${e.name} brade ses billets sur ${keyCity(a)}–${keyCity(b)} : guerre des prix contre vous.`,'rival',true); } }
     // coup d'éclat 5 : plus de vols sur ses lignes existantes
@@ -57,7 +58,7 @@ function aiOutsiders(){
   const pool=aiAlive().filter(e=>e.fleet>=3&&e.fleet<=90&&e.status!=='dead'&&!skip.has(e.code)&&e.real!==undefined&&e.debt<2&&e.cash>e.fleet*2e6&&e.rep>=35&&(e.mavg===undefined||e.mavg>-0.12));
   const strength=e=>e.cash/Math.max(1,e.fleet)/1e6+e.rep*0.2+Math.min(40,e.routes)*0.1-(e.debt||0)*20;
   pool.sort((a,b)=>strength(b)-strength(a)||b.fleet-a.fleet||a.code.localeCompare(b.code));
-  const n=Math.min(pool.length,D===2?2:4), myName=S.company.name, tag=lead.me?`dépasser ${myName}`:`défier ${lead.name}`;
+  const n=Math.min(pool.length,D===2?2:4), tag='devenir n°1 de son pays';
   for(let k=0;k<n;k++){ const e=pool[k]; if(!e) break; e.ambition=Math.min(5,(e.ambition||0)+1);
     // croissance par paliers : location d'avions, petits financements
     if(Math.random()<0.28){ const add=Math.max(1,Math.round(e.fleet*rnd(0.04,0.1))); e.fleet+=add; e.cash-=add*rnd(3e6,6e6); const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet;
@@ -65,16 +66,9 @@ function aiOutsiders(){
     if(Math.random()<0.18){ const k2=Math.max(2e6,e.fleet*rnd(0.15e6,0.45e6)); e.cash+=k2; if(e.fleet>=10) aiNews(`💸 ${e.name} lève ${Md(k2)} auprès d’investisseurs locaux pour grandir vite.`,'rival'); }
     if(Math.random()<0.30) aiRoute(e,'open');
     e.rep=clamp(e.rep+0.06*D,20,85);
-    // attaque d'un petit sur votre hub
-    const mine=S.hubs.length?S.hubs.slice().sort((a,b)=>AP(b).traffic-AP(a).traffic)[0]:null;
-    if(S.noCopy===false&&mine&&aiAirportMarketOpen(mine)&&Math.random()<0.10*(D-1)){ const cand=AIRPORT_CODES.filter(c=>c!==mine&&aiAirportMarketOpen(c)&&AP(c).cls>=2&&dist(e.hub,c)<(e.fleet>=20?5000:2500)&&dist(c,mine)>300&&dist(c,mine)<(e.fleet>=20?5000:2500)&&!carriersOn(c,mine).includes(e.code));
-      const setup=e.fleet<30?1.5e6:3.5e6;
-      if(cand.length&&e.cash>=setup){ const c=cand.sort((x,y)=>marketDemand(e.hub,y)-marketDemand(e.hub,x))[0], key=pairKey(c,mine); e.cash-=setup; (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
-        const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&!R.routes.some(x=>pairKey(x.a,x.b)===key)) R.routes.push({a:c,b:mine,freq:2});
-        aiNews(`🐜 David contre Goliath : ${e.name} ouvre ${keyCity(c)} → ${keyCity(mine)} et s’attaque à votre hub.`,'rival',true); } }
-    // petite guerre des prix
-    if(Math.random()<0.05*(D-1)&&S.routes.length){ const rt=pick(S.routes), a=rt.stops[0], b=rt.stops[rt.stops.length-1], key=pairKey(a,b); ai.wars=ai.wars||{};
-      if(!ai.wars[e.code+key]&&!(typeof isAlly==='function'&&isAlly(e.code))){ ai.wars[e.code+key]={code:e.code,a,b,until:S.time+rndi(10,25)*DAY,kind:'prix'}; aiNews(`⚔️ ${e.name} casse ses prix sur ${keyCity(a)}–${keyCity(b)} pour vous prendre des clients.`,'rival',true); } }
+    // les petits attaquent celle juste au-dessus d'eux dans leur pays (une IA ou vous, sans distinction)
+    if(typeof raceTables==='function'&&Math.random()<0.15*(D-1)){ const rows=raceTables()[e.cc]||[], k=rows.findIndex(x=>x.code===e.code), tg=k>0?rows[k-1]:null;
+      if(tg&&!(tg.me&&typeof isAlly==='function'&&isAlly(e.code))) (Math.random()<0.5?raceOpen:raceWar)(e,{...tg,rank:k},e.cc); }
     const rival=(S.rivals||[]).find(x=>x.code===e.code); if(rival){ rival.fleet=e.fleet; rival.cash=e.cash; rival.rep=e.rep; rival.network=e.routes; }
   }
 }
