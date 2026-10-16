@@ -99,22 +99,29 @@ const navHash=str=>{ let h=2166136261; for(const ch of str) h=Math.imul(h^ch.cha
 function navRng(seed){ let a=seed>>>0||1; return ()=>{ a=(a+0x6D2B79F5)>>>0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 let _navFix=null;
 function navFixes(){ if(_navFix) return _navFix; _navFix=AIRPORT_CODES.filter(c=>AP(c).traffic>=0.04).map(c=>({lat:AP(c).lat,lon:AP(c).lon,name:AP(c).city})); return _navFix; }
-// 1 à 3 points de passage proches de la route directe ; détour total limité (≈ 3 à 10 %, parfois jusqu'à 18 %)
+// 1 à 3 points de passage : près du direct (≈ 2-8 %), variante (8-20 %) ou par une autre région (20-42 %)
 function navVia(A,B,seed){
   const D=gcDist(A,B); if(D<350) return [];
-  const rng=navRng(seed), big=rng()<0.2, eps=Math.min(big?0.1+rng()*0.08:0.03+rng()*0.07,(big?950:650)/D), max=D*(1+eps);   // parfois une route plus large (par l'océan, par une autre région)
+  const rng=navRng(seed), r0=rng();
+  // trois styles de route, tirés à chaque vol : près du direct, variante, ou par une tout autre région
+  const mode=D<900?'near':r0<0.3?'near':r0<0.7?'mid':'wide';
+  const eps=mode==='near'?0.02+rng()*0.06:mode==='mid'?0.08+rng()*0.12:0.2+rng()*0.22, max=D*(1+eps);
   const n=D<1500?1:D<4500?1+(rng()<0.5?1:0):2+(rng()<0.5?1:0);
-  const out=[]; let prev=A, used=0;
-  const pad=D*0.3/111, la0=Math.min(A.lat,B.lat)-pad, la1=Math.max(A.lat,B.lat)+pad, wide=Math.abs(A.lon-B.lon)>180;
-  const lo0=Math.min(A.lon,B.lon)-pad*1.5, lo1=Math.max(A.lon,B.lon)+pad*1.5;
+  const pad=D*(mode==='wide'?0.75:mode==='mid'?0.45:0.25)/111, wide=Math.abs(A.lon-B.lon)>180;
+  const la0=Math.min(A.lat,B.lat)-pad, la1=Math.max(A.lat,B.lat)+pad, lo0=Math.min(A.lon,B.lon)-pad*1.5, lo1=Math.max(A.lon,B.lon)+pad*1.5;
   const cands=navFixes().filter(f=>f.lat>la0&&f.lat<la1&&(wide||(f.lon>lo0&&f.lon<lo1)));
+  const side=rng()<0.5?1:-1, brg=bearing(A,B);
+  const sideOf=P=>{ const d=((bearing(A,P)-brg+540)%360)-180; return d>=0?1:-1; };   // à droite ou à gauche de la route directe
+  const out=[]; let prev=A, used=0;
   for(let k=1;k<=n;k++){
-    const fT=Math.min(0.85,Math.max(0.15,k/(n+1)+(rng()-0.5)*0.14));
-    const ok=P=>{ const a=gcDist(A,P), b=gcDist(P,B), f=a/(a+b); return Math.abs(f-fT)<0.13&&used+gcDist(prev,P)+b<=max; };
+    const first=k===1&&mode!=='near';
+    const fT=first?0.25+rng()*0.5:Math.min(0.85,Math.max(0.15,k/(n+1)+(rng()-0.5)*0.14));
+    const ok=P=>{ const a=gcDist(A,P), b=gcDist(P,B), f=a/(a+b); if(first){ const det=(a+b)/D-1; return f>0.18&&f<0.82&&det>=eps*0.45&&used+gcDist(prev,P)+b<=max&&sideOf(P)===side; }
+      return Math.abs(f-fT)<0.13&&used+gcDist(prev,P)+b<=max&&a>gcDist(A,prev)-50; };
     let P=null;
-    if(rng()<0.75){ const L=cands.filter(ok); if(L.length) P=L[Math.floor(rng()*L.length)]; }
-    if(!P){ const base=gcInterp(A,B,fT), hd=(bearing(A,B)+(rng()<0.5?90:-90)+360)%360; let off=D*eps*(0.4+rng()*0.9);
-      for(let t=0;t<6;t++){ const q=destPt(base.lat,base.lon,hd,off); if(used+gcDist(prev,q)+gcDist(q,B)<=max){ P={lat:q.lat,lon:q.lon,name:null}; break; } off*=0.6; } }
+    if(first||rng()<0.75){ const L=cands.filter(ok); if(L.length) P=L[Math.floor(rng()*L.length)]; }
+    if(!P){ const base=gcInterp(A,B,fT), hd=(brg+(first?side*90:(rng()<0.5?90:-90))+360)%360; let off=D*eps*(first?0.9:0.4+rng()*0.9);
+      for(let t=0;t<7;t++){ const q=destPt(base.lat,base.lon,hd,off); if(used+gcDist(prev,q)+gcDist(q,B)<=max){ P={lat:q.lat,lon:q.lon,name:null}; break; } off*=0.65; } }
     if(!P) continue; used+=gcDist(prev,P); prev=P; out.push(P);
   }
   return out;
