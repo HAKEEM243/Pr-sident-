@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261185';
+const GAME_VER='20261186';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,7 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
-  ['🧭 Des routes vraiment toutes différentes','Chaque vol tire maintenant son propre style de route : près du direct, une variante, ou par une tout autre région (Kinshasa → Paris peut passer par l’Égypte, l’Arabie et la Turquie, ou par le Liberia et l’Espagne, ou par les Canaries…). L’aller, le retour, chaque nouveau vol et chaque compagnie prennent un chemin différent.'],
+  ['🧭 Routes différentes, sans grand détour','Chaque vol (aller, retour, chaque nouveau départ, chaque compagnie) prend un chemin différent, d’un côté ou de l’autre de la route directe, avec un détour de 4 à 20 % au maximum — plus de grands crochets par une autre région.'],
   ['🧭 Chaque vol a sa propre route','Les avions (les vôtres et ceux de toutes les compagnies) suivent maintenant des points de passage — villes, îles, balises — choisis à chaque vol : l’aller, le retour et le vol suivant ne prennent jamais le même chemin. Le détour reste raisonnable (3 à 10 %, parfois une route plus large par l’océan ou une autre région). La fiche du vol affiche la « 🧭 Route du jour : via … ».'],
   ['😶 Un pays que tout le monde fuit','🧬 Éditeur → 🌍 Pays : nouveau curseur « Activité aérienne » de 0 à 150 %. En baissant, moins de gens veulent y aller ; sous 35 %, plus personne ne veut y aller et les compagnies suspendent leurs vols (leurs avions disparaissent) ; à 0 %, plus aucun vol, les aéroports ferment. Au-dessus de 100 %, le pays attire du monde. Boutons rapides et retour à la normale à tout moment.'],
   ['🌍 Qui vient dans chaque pays, et pourquoi','Dans 🛂 Voyageurs (et depuis la fiche de votre pays) : pour chaque pays, les nationalités qui arrivent, combien par an, leurs motifs (affaires, famille, tourisme, études, travail, soins, religion, humanitaire) et une explication concrète — par exemple les Chinois au Congo pour les mines de cuivre et de cobalt et les chantiers, les Rwandais pour le commerce avec Goma, les Congolais de Belgique pour la famille. Estimations du jeu.'],
