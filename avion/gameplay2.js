@@ -40,7 +40,7 @@ function playerAccident(ac,leg,m,pax){
   else { ac.readyAt=Math.max(ac.readyAt||0,S.time)+out*DAY; ac.condition=clamp(ac.condition-25,0,100); }
   S.stats.incidents=(S.stats.incidents||0)+1;
   // carte et presse
-  if(S.ai){ (S.ai.crashes=S.ai.crashes||[]).unshift({t:S.time,code:S.company.code,name:S.company.name,model:m.name,a:leg.from,b:leg.to,sev,victims,lat:+lat.toFixed(3),lon:+lon.toFixed(3),id:'p'+Math.round(S.time/1000),mine:true});
+  if(S.ai){ (S.ai.crashes=S.ai.crashes||[]).unshift({t:S.time,code:S.company.code,name:S.company.name,model:m.name,a:leg.from,b:leg.to,sev,victims,lat:+lat.toFixed(3),lon:+lon.toFixed(3),id:'p'+Math.round(S.time/1000),mine:true,kind});
     aiNews((sev==='fatal'?'💥':sev==='hull'?'🔥':'⚠️')+` ${S.company.name} : ${title.toLowerCase()} à ${B.city} (${m.name}${victims?`, ${victims} victimes`:''}).`,'bad',true);
     if(typeof crashSync==='function') crashSync(); }
   const detail=`<div class="card"><b>${esc(title)}</b><p>${esc(txt)}</p>
