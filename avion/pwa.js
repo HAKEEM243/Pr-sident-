@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261174';
+const GAME_VER='20261175';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['👑 Compagnies vassales','Quand vous achetez 51 % d’une compagnie (Compagnie → Bourse), vous choisissez : en faire votre VASSALE (elle garde son nom et ses avions, l’IA la dirige, et ses bénéfices vous sont versés chaque semaine — 100 %, ou 50 % pour qu’elle grandisse plus vite ; elle ne vous attaque jamais), ou l’INTÉGRER (vous dirigez ses avions, en achetez, en vendez, ajoutez des lignes). D’autres compagnies peuvent proposer de racheter votre vassale : c’est vous qui décidez. Une vassale peut être intégrée plus tard.'],
   ['🟡 Masambukidi Fly démarre petite','Masambukidi Fly redémarre avec 10 gros porteurs et ses 10 lignes depuis Goma, puis progresse peu à peu (environ une vingtaine d’avions au bout d’un an, image et sécurité qui montent chaque semaine). Les compagnies congolaises s’améliorent progressivement au lieu d’être fortes d’un coup, avec environ 2 lignes par avion. Les compagnies étrangères deviennent plus fortes aussi : elles apprennent de leurs bons résultats et les jeunes sont soutenues la première année.'],
   ['🇨🇩 Des compagnies congolaises vraiment fortes','Les compagnies de votre pays (et Masambukidi Fly) sont maintenant fortes dans tous les domaines : rentables et sans dettes, image parmi les meilleures du monde, flotte neuve et très sûre (moins d’accidents), bases à l’étranger, avantage dans les guerres des prix contre les étrangères, et rachat de compagnies étrangères en difficulté. Elles ne vous attaquent jamais. Leur classement mondial : 📰 Actualités → 🏁 Marchés.'],
   ['🟡 Masambukidi Fly','Nouvelle compagnie congolaise basée à Goma : 1 milliard de dollars de fonds, avions jaunes, uniquement de très gros porteurs (A380, 777, 747), 10 lignes vers les plus grandes villes du monde (Dubaï, Londres, Paris, Atlanta, Tokyo…). Elle s’étend chaque semaine et ouvre des bases à l’étranger, sans jamais vous faire la guerre. Toutes les compagnies de votre pays deviennent plus fortes, grossissent et partent à la conquête de l’étranger, sans vous attaquer. Et plus d’avions dans le ciel de la carte.'],

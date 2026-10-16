@@ -17,7 +17,7 @@ function pBourse(){
        <div class="small mut">Flottant : ${Math.round(st.public*100)} % · vous devez garder 51 % · un dividende soutient le cours et l’image.</div>`}
   </div>
   <h3>Marché des compagnies</h3>
-  <div class="mut small">Achetez des actions de vos concurrents. À <b>51 %</b>, vous les rachetez : leur hub, leurs lignes et leurs avions deviennent les vôtres.</div>
+  <div class="mut small">Achetez des actions de vos concurrents. À <b>51 %</b>, vous les contrôlez : vassale (elle vous verse ses bénéfices) ou intégration (ses avions et ses lignes deviennent les vôtres).</div>
   ${comp.map(R=>{ const pct=st.holdings[R.code]||0, val=rivalValue(R), cost5=0.05*val*(1.1+pct*0.6);
     return `<div class="card rivalcard"><div class="row"><span class="dot" style="background:${R.color}"></span><div class="grow"><b>${R.name}</b>${R.local?' <span class="badge bad">rival local</span>':''}${isPartner(R)?' <span class="badge ok">partenaire</span>':''}<br><span class="small mut">${flag(R.hub)} ${AP(R.hub).city} · ${R.fleet} avions · ${R.routes.length} lignes · ${stars(R.rep)}</span></div><div class="right"><b>${fmtMoney(val)}</b><br><span class="small mut">valeur</span></div></div>
       <div class="cond">Votre part ${bar(pct/0.51, pct>=0.4?'warn':'')} <b>${Math.round(pct*100)} % / 51 %</b></div>
@@ -69,7 +69,7 @@ Object.assign(ACTIONS,{
   buyback:d=>{ if(!err(buyback(+d.p))) renderPanel(); },
   dividend:d=>{ if(!err(payDividend(+d.v))) renderPanel(); },
   stake:d=>{ const R=S.rivals.find(x=>x.code===d.c); const cur=S.stock.holdings[d.c]||0;
-    if(cur+(+d.p)>=0.51 && !confirm(`Prendre le contrôle de ${R.name} ? Sa flotte, ses lignes et son hub vous reviendront.`)) return;
+    if(cur+(+d.p)>=0.51 && !confirm(`Prendre le contrôle de ${R.name} ? Vous choisirez ensuite : en faire votre vassale (elle vous verse ses bénéfices) ou l’intégrer (vous dirigez ses avions et ses lignes).`)) return;
     if(!err(buyStake(d.c,+d.p))){ renderPanel(); renderTop(); } },
   unstake:d=>{ if(!err(sellStake(d.c,+d.p))) renderPanel(); },
 });
