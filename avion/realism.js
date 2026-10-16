@@ -96,7 +96,8 @@ const _pathCache=new Map();
 function invalidateAirspacePathCache(){ _pathCache.clear(); }
 function legPath(leg, m){
   const carrier=leg.ownerCode||(S&&S.company&&S.company.code)||'', rev=typeof airspacePolicyRev==='function'?airspacePolicyRev():0;
-  const key=leg.from+'>'+leg.to+'|'+(m?m.id:'')+'|'+carrier+'|'+rev;
+  const vday=leg.dep?Math.floor(leg.dep/DAY)%3:0;   // la trajectoire change un peu d'un jour à l'autre
+  const key=leg.from+'>'+leg.to+'|'+(m?m.id:'')+'|'+carrier+'|'+rev+'|'+vday;
   if(_pathCache.has(key)) return _pathCache.get(key);
   if(_pathCache.size>3000) _pathCache.clear();
   const A=AP(leg.from), B=AP(leg.to);
@@ -111,8 +112,14 @@ function legPath(leg, m){
   else air.push({lat:A.lat,lon:A.lon});
   const faf = arr? destPt(arr.thr.lat,arr.thr.lon,(arr.hdg+180)%360, short?4:14) : {lat:B.lat,lon:B.lon};
   const anchors=[air[air.length-1],...route.slice(1,-1),faf];
-  for(let j=1;j<anchors.length;j++){ const s=anchors[j-1], e=anchors[j], n=Math.max(1,Math.ceil(gcDist(s,e)/120));
-    for(let i=1;i<=n;i++){ const p=gcInterp(s,e,i/n); air.push({lat:p.lat,lon:p.lon}); } }
+  // les avions ne volent pas en ligne droite : routes aériennes, vents, contournements…
+  // chaque sens (et chaque jour) a sa propre courbe : un arc d'un côté ou de l'autre, parfois un S, parfois presque droit
+  let hh=2166136261; for(const ch of leg.from+'>'+leg.to+'#'+vday+carrier) hh=Math.imul(hh^ch.charCodeAt(0),16777619)>>>0;
+  const rr=k=>((hh>>>(k*4))&255)/255;
+  for(let j=1;j<anchors.length;j++){ const s=anchors[j-1], e=anchors[j], sd=gcDist(s,e), n=Math.max(1,Math.ceil(sd/120));
+    const amp=sd<180?0:Math.min(380,sd*(0.035+0.11*rr(j)))*(rr(j+1)<0.18?0.15:1)*(rr(j+2)<0.5?-1:1), sCurve=rr(j+3)<0.3, brg=bearing(s,e);
+    for(let i=1;i<=n;i++){ const u=i/n, p=gcInterp(s,e,u), off=amp*(sCurve?0.75*Math.sin(2*Math.PI*u):Math.sin(Math.PI*u))*(anchors.length>2?0.5:1);
+      const q=Math.abs(off)>0.5&&i<n?destPt(p.lat,p.lon,(brg+90+360)%360,off):p; air.push({lat:q.lat,lon:q.lon}); } }
   if(arr){ air.push(arr.thr, destPt(arr.thr.lat,arr.thr.lon,arr.hdg,Math.min(arr.len/1000*0.65,2.2))); }
   else air.push({lat:B.lat,lon:B.lon});
   const cum=[0]; for(let i=1;i<air.length;i++) cum.push(cum[i-1]+gcDist(air[i-1],air[i]));

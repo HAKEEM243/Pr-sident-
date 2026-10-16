@@ -258,9 +258,12 @@ function drawRoutes(){
       for(let i=0;i<r.stops.length-1;i++){
         const A=AP(r.stops[i]), B=AP(r.stops[i+1]);
         const plan=airspaceRoutePlan(S.company.code,A.code,B.code);
-        const raw=airspacePathCoordinates(S.company.code,A.code,B.code,ref); if(!raw.length) continue;
+        // le tracé suit la vraie trajectoire des avions (courbe), l'aller et le retour peuvent passer par des chemins différents
+        const curve=(f,t,r0)=>{ try{ const P=legPath({from:f,to:t,dist:dist(f,t),ownerCode:S.company.code},getModel('A20N')); let pv=r0; return P.air.map(q=>{ const lo=unwrapLon(q.lon,pv); pv=lo; return [q.lat,lo]; }); }catch(e){ return []; } };
+        let raw=curve(A.code,B.code,ref); if(!raw.length) raw=airspacePathCoordinates(S.company.code,A.code,B.code,ref); if(!raw.length) continue;
         const pts=raw.map(([la,lo])=>[la,lo+off]);
         ref=pts[pts.length-1][1]-off;
+        if(!big){ const back=curve(B.code,A.code,ref).map(([la,lo])=>[la,lo+off]); if(back.length) L.polyline(back,{color, weight:1.6, opacity:0.45, dashArray:'3 7', interactive:false}).addTo(L_routes); }
         if(!big) L.polyline(pts,{color:'#000', weight:5, opacity:0.35, interactive:false}).addTo(L_routes);
         L.polyline(pts,big?{renderer:rnd, color, weight:2, opacity:0.8, dashArray:'8 6'}:{color, weight:2.6, opacity:0.95, className:'route-anim'}).addTo(L_routes)
           .bindTooltip(`${r.stops.join(' → ')}${plan.points.length>2?` · détour d’espace aérien (+${Math.max(0,Math.round(plan.distance-dist(A.code,B.code))).toLocaleString('fr-FR')} km)`:''}`,{sticky:true});
