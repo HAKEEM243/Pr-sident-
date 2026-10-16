@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261178';
+const GAME_VER='20261179';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🧬 L’éditeur va plus loin','Recherche par nom (tapez « Paris » ou « Nigeria »), bouton 🧬 Modifier sur chaque fiche d’aéroport, de pays et de compagnie, 🎬 Scénarios en un geste (Afrique en plein essor, Congo superpuissance, crise pétrolière, IA légendaire, mode zen, guerre ou paix mondiale, monde d’origine) annulables d’un coup, ✈️ vos avions un par un (nom, état, téléportation, changement de modèle), et 🌐 Code de monde pour copier et partager votre monde modifié.'],
   ['🚫 Plus de nouvelles compagnies automatiques','Le jeu ne crée plus de compagnies tout seul : ni au hasard, ni par vagues, ni quand vous agrandissez un aéroport (aucune compagnie ne vient s’y installer à cause de vos travaux). Dans 🧬 Éditeur → 🤖 IA : un interrupteur pour les réautoriser si vous voulez, et un bouton 🧹 pour supprimer d’un coup les petites compagnies inventées par le jeu.'],
   ['🎬 Revoir un accident au ralenti','Touchez un accident (💥 🔥 ⚠️ sur la carte, onglet 💥 Accidents des actualités, ou la fenêtre de votre propre accident) puis ▶️ : une vidéo reconstitue ce qui s’est passé, vue de côté, avec ralenti automatique aux moments clés, transcription du cockpit, altitude et vitesse, pompiers et évacuation par les toboggans, puis un rapport d’enquête. Scénarios : sortie de piste sous la pluie, atterrissage dur, feu moteur (chute ou retour réussi), orage et givrage jusqu’au décrochage, fumée en cabine. Reconstitution fictive.'],
   ['🧬 L’éditeur divin','Plus → 🧬 Éditeur divin : modifiez TOUT le jeu en direct, pendant qu’il tourne. Votre compagnie (argent, image, nom, couleur, limite de flotte), tous les avions (sièges, autonomie, vitesse, prix — même 1 $ —, consommation) et des avions sans aucune limite, les pays (nom, capitale, population, richesse, envie de voyager, guerre), les aéroports (nom, trafic, piste, population, fermeture), l’économie, le temps, et l’IA (niveau de Débutant à Légendaire, chaque compagnie, création et disparition). Un journal permet d’annuler chaque changement. ⚠️ Mais le monde vous surveille : trop de triche fait monter la vigilance mondiale — rumeurs, enquête et amendes, vos compatriotes et alliés se retournent contre vous, coalition mondiale, boycott des passagers, vassales qui ne paient plus.'],
