@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261175';
+const GAME_VER='20261176';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🧬 L’éditeur divin','Plus → 🧬 Éditeur divin : modifiez TOUT le jeu en direct, pendant qu’il tourne. Votre compagnie (argent, image, nom, couleur, limite de flotte), tous les avions (sièges, autonomie, vitesse, prix — même 1 $ —, consommation) et des avions sans aucune limite, les pays (nom, capitale, population, richesse, envie de voyager, guerre), les aéroports (nom, trafic, piste, population, fermeture), l’économie, le temps, et l’IA (niveau de Débutant à Légendaire, chaque compagnie, création et disparition). Un journal permet d’annuler chaque changement. ⚠️ Mais le monde vous surveille : trop de triche fait monter la vigilance mondiale — rumeurs, enquête et amendes, vos compatriotes et alliés se retournent contre vous, coalition mondiale, boycott des passagers, vassales qui ne paient plus.'],
   ['👑 Compagnies vassales','Quand vous achetez 51 % d’une compagnie (Compagnie → Bourse), vous choisissez : en faire votre VASSALE (elle garde son nom et ses avions, l’IA la dirige, et ses bénéfices vous sont versés chaque semaine — 100 %, ou 50 % pour qu’elle grandisse plus vite ; elle ne vous attaque jamais), ou l’INTÉGRER (vous dirigez ses avions, en achetez, en vendez, ajoutez des lignes). D’autres compagnies peuvent proposer de racheter votre vassale : c’est vous qui décidez. Une vassale peut être intégrée plus tard.'],
   ['🟡 Masambukidi Fly démarre petite','Masambukidi Fly redémarre avec 10 gros porteurs et ses 10 lignes depuis Goma, puis progresse peu à peu (environ une vingtaine d’avions au bout d’un an, image et sécurité qui montent chaque semaine). Les compagnies congolaises s’améliorent progressivement au lieu d’être fortes d’un coup, avec environ 2 lignes par avion. Les compagnies étrangères deviennent plus fortes aussi : elles apprennent de leurs bons résultats et les jeunes sont soutenues la première année.'],
   ['🇨🇩 Des compagnies congolaises vraiment fortes','Les compagnies de votre pays (et Masambukidi Fly) sont maintenant fortes dans tous les domaines : rentables et sans dettes, image parmi les meilleures du monde, flotte neuve et très sûre (moins d’accidents), bases à l’étranger, avantage dans les guerres des prix contre les étrangères, et rachat de compagnies étrangères en difficulté. Elles ne vous attaquent jamais. Leur classement mondial : 📰 Actualités → 🏁 Marchés.'],
