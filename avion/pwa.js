@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261186';
+const GAME_VER='20261187';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🧭 Les tracés suivent les vraies routes','Les lignes dessinées sur la carte 2D et en 3D ne sont plus droites : elles montrent la vraie route de l’avion en vol sur la ligne (ou la route du jour), aller en trait plein, retour en pointillés, et changent à chaque vol. Les avions des autres compagnies qui s’écartent de la ligne droite restent visibles.'],
   ['🧭 Routes différentes, sans grand détour','Chaque vol (aller, retour, chaque nouveau départ, chaque compagnie) prend un chemin différent, d’un côté ou de l’autre de la route directe, avec un détour de 4 à 20 % au maximum — plus de grands crochets par une autre région.'],
   ['🧭 Chaque vol a sa propre route','Les avions (les vôtres et ceux de toutes les compagnies) suivent maintenant des points de passage — villes, îles, balises — choisis à chaque vol : l’aller, le retour et le vol suivant ne prennent jamais le même chemin. Le détour reste raisonnable (3 à 10 %, parfois une route plus large par l’océan ou une autre région). La fiche du vol affiche la « 🧭 Route du jour : via … ».'],
   ['😶 Un pays que tout le monde fuit','🧬 Éditeur → 🌍 Pays : nouveau curseur « Activité aérienne » de 0 à 150 %. En baissant, moins de gens veulent y aller ; sous 35 %, plus personne ne veut y aller et les compagnies suspendent leurs vols (leurs avions disparaissent) ; à 0 %, plus aucun vol, les aéroports ferment. Au-dessus de 100 %, le pays attire du monde. Boutons rapides et retour à la normale à tout moment.'],

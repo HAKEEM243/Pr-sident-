@@ -245,6 +245,13 @@ function drawAirports(){
 }
 
 let _routeCanvas=null;
+// trajectoire montrée pour une ligne : celle de l'avion en vol sur ce tronçon s'il y en a un, sinon la route du jour
+function routeLegPath(f,t){
+  for(const ac of S.fleet||[]){ const fl=ac.flight; if(!fl) continue; const l=fl.legs[fl.li]; if(l&&l.from===f&&l.to===t) return legPath(l,modelOf(ac)); }
+  return legPath({from:f,to:t,dist:dist(f,t),ownerCode:S.company.code,seed:Math.floor((S.time||0)/DAY)*3+(f<t?0:1)},getModel('A20N'));
+}
+// les tracés changent avec les vols : on redessine quand un nouveau jour commence ou qu'un vol part
+setInterval(()=>{ try{ if(typeof S==='undefined'||!S||!map) return; const k=Math.floor(S.time/DAY)+'|'+(S.fleet||[]).filter(a=>a.flight).map(a=>a.id+a.flight.li+(a.flight.legs[0].dep||0)).join(); if(k!==drawRoutes._k){ drawRoutes._k=k; drawRoutes(); } }catch(e){} },8000);
 function drawRoutes(){
   if(!map) return;
   L_routes.clearLayers();
@@ -259,7 +266,7 @@ function drawRoutes(){
         const A=AP(r.stops[i]), B=AP(r.stops[i+1]);
         const plan=airspaceRoutePlan(S.company.code,A.code,B.code);
         // le tracé suit la vraie trajectoire des avions (courbe), l'aller et le retour peuvent passer par des chemins différents
-        const curve=(f,t,r0)=>{ try{ const P=legPath({from:f,to:t,dist:dist(f,t),ownerCode:S.company.code},getModel('A20N')); let pv=r0; return P.air.map(q=>{ const lo=unwrapLon(q.lon,pv); pv=lo; return [q.lat,lo]; }); }catch(e){ return []; } };
+        const curve=(f,t,r0)=>{ try{ const P=routeLegPath(f,t); let pv=r0; return P.air.map(q=>{ const lo=unwrapLon(q.lon,pv); pv=lo; return [q.lat,lo]; }); }catch(e){ return []; } };
         let raw=curve(A.code,B.code,ref); if(!raw.length) raw=airspacePathCoordinates(S.company.code,A.code,B.code,ref); if(!raw.length) continue;
         const pts=raw.map(([la,lo])=>[la,lo+off]);
         ref=pts[pts.length-1][1]-off;
@@ -506,7 +513,7 @@ function routeBBox(r){
   const coords=airspacePathCoordinates(r.c||'',r.a,r.b,A.lon);
   for(const [lat,lon0] of coords){ const lon=unwrapLon(lon0,prev); prev=lon;
     if(lat<minLat)minLat=lat; if(lat>maxLat)maxLat=lat; if(lon<minLon)minLon=lon; if(lon>maxLon)maxLon=lon; }
-  return r._bb={minLat:minLat-3,maxLat:maxLat+3,minLon:minLon-3,maxLon:maxLon+3};
+  return r._bb={minLat:minLat-14,maxLat:maxLat+14,minLon:minLon-14,maxLon:maxLon+14};   // les routes s'écartent de la ligne droite
 }
 /* Les avions des autres compagnies sont dessinés sur UN canvas (au lieu de centaines d'éléments HTML) : la carte reste fluide. */
 let rivalCv=null, rivalCtx=null, rivalHover=null, rivalTipLayer=null, rivalTipPinned=false, _rvTipAt=0, _rvDirty=false;
