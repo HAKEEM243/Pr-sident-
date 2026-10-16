@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261180';
+const GAME_VER='20261181';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏗️ Les terminaux ne coupent plus les routes','Quand un aéroport a des terminaux 2, 3 ou 4, le jeu regarde les vraies routes autour (OpenStreetMap) et place chaque terminal là où il en coupe le moins ; la 2D, la 3D et les portes suivent. En 3D, une route qui passe encore sous un terminal en fait le tour, et les voitures aussi.'],
   ['🧭 Trajets libres et vols en courbe','Bus et camions : « 🧭 Prolonger le trajet jusqu’à… » ajoute n’importe quelle ville à la fin de la ligne, dans l’ordre que vous voulez (ex. Kinshasa → Johannesburg → Kinshasa → Le Caire), avec un bouton ↩️ Retour au départ ; le trajet complet s’affiche sur la ligne et le voyage illustré le suit jusqu’au bout. Avions : les trajectoires ne sont plus des lignes droites — chaque vol a sa courbe (un arc d’un côté ou de l’autre, parfois un S, parfois presque droit), l’aller et le retour prennent des chemins différents, et ça change selon les jours. La carte dessine l’aller et, en pointillés, le retour.'],
   ['🧬 L’éditeur va plus loin','Recherche par nom (tapez « Paris » ou « Nigeria »), bouton 🧬 Modifier sur chaque fiche d’aéroport, de pays et de compagnie, 🎬 Scénarios en un geste (Afrique en plein essor, Congo superpuissance, crise pétrolière, IA légendaire, mode zen, guerre ou paix mondiale, monde d’origine) annulables d’un coup, ✈️ vos avions un par un (nom, état, téléportation, changement de modèle), et 🌐 Code de monde pour copier et partager votre monde modifié.'],
   ['🚫 Plus de nouvelles compagnies automatiques','Le jeu ne crée plus de compagnies tout seul : ni au hasard, ni par vagues, ni quand vous agrandissez un aéroport (aucune compagnie ne vient s’y installer à cause de vos travaux). Dans 🧬 Éditeur → 🤖 IA : un interrupteur pour les réautoriser si vous voulez, et un bouton 🧹 pour supprimer d’un coup les petites compagnies inventées par le jeu.'],

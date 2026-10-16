@@ -149,7 +149,7 @@ async function rdLoad(key,s,w,n,e,kinds,limit,major){
   const C=Cesium, V=G.viewer, cell=RD.cells.get(key); if(!cell) return;
   const inst=[], paths=[], marks=[], edges=[];
   for(const el of js.elements||[]){
-    const g=el.geometry, hw=(el.tags||{}).highway, k=RD_KIND[hw]; if(!g||g.length<2||!k) continue;
+    const g=typeof xpRoadAvoid==='function'?xpRoadAvoid(el.geometry):el.geometry, hw=(el.tags||{}).highway, k=RD_KIND[hw]; if(!g||g.length<2||!k) continue;   // les routes contournent les nouveaux terminaux
     if(!major&&[...RD.cells.values()].some(c=>c.major&&g[0].lat>=c.s&&g[0].lat<=c.n&&g[0].lon>=c.w&&g[0].lon<=c.e)&&/motorway|trunk|primary/.test(hw)) continue;
     const P3=C.Cartesian3.fromDegreesArray(g.flatMap(p=>[p.lon,p.lat]));
     if(/motorway|trunk|primary|secondary/.test(hw)) try{ marks.push(new C.GeometryInstance({geometry:new C.GroundPolylineGeometry({positions:P3,width:hw==='secondary'?0.7:1.0})})); }catch(err){}   // ligne médiane
