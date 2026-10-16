@@ -99,24 +99,25 @@ const navHash=str=>{ let h=2166136261; for(const ch of str) h=Math.imul(h^ch.cha
 function navRng(seed){ let a=seed>>>0||1; return ()=>{ a=(a+0x6D2B79F5)>>>0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 let _navFix=null;
 function navFixes(){ if(_navFix) return _navFix; _navFix=AIRPORT_CODES.filter(c=>AP(c).traffic>=0.04).map(c=>({lat:AP(c).lat,lon:AP(c).lon,name:AP(c).city})); return _navFix; }
-// 1 à 3 points de passage : près du direct (≈ 2-8 %), variante (8-20 %) ou par une autre région (20-42 %)
+// 1 à 3 points de passage : petit écart (4-8 %) ou variante (8-20 %), toujours d'un côté choisi au hasard
 function navVia(A,B,seed){
   const D=gcDist(A,B); if(D<350) return [];
   const rng=navRng(seed), r0=rng();
   // trois styles de route, tirés à chaque vol : près du direct, variante, ou par une tout autre région
-  const mode=D<900?'near':r0<0.3?'near':r0<0.7?'mid':'wide';
-  const eps=mode==='near'?0.02+rng()*0.06:mode==='mid'?0.08+rng()*0.12:0.2+rng()*0.22, max=D*(1+eps);
+  // deux styles, tirés à chaque vol : un petit écart (4-8 %) ou une variante plus marquée (8-20 %), jamais plus de 20 %
+  const mode=D<900||r0<0.3?'near':'mid';
+  const eps=mode==='near'?0.04+rng()*0.04:0.08+rng()*0.12, max=D*(1+eps);
   const n=D<1500?1:D<4500?1+(rng()<0.5?1:0):2+(rng()<0.5?1:0);
-  const pad=D*(mode==='wide'?0.75:mode==='mid'?0.45:0.25)/111, wide=Math.abs(A.lon-B.lon)>180;
+  const pad=D*(mode==='mid'?0.45:0.25)/111, wide=Math.abs(A.lon-B.lon)>180;
   const la0=Math.min(A.lat,B.lat)-pad, la1=Math.max(A.lat,B.lat)+pad, lo0=Math.min(A.lon,B.lon)-pad*1.5, lo1=Math.max(A.lon,B.lon)+pad*1.5;
   const cands=navFixes().filter(f=>f.lat>la0&&f.lat<la1&&(wide||(f.lon>lo0&&f.lon<lo1)));
   const side=rng()<0.5?1:-1, brg=bearing(A,B);
   const sideOf=P=>{ const d=((bearing(A,P)-brg+540)%360)-180; return d>=0?1:-1; };   // à droite ou à gauche de la route directe
   const out=[]; let prev=A, used=0;
   for(let k=1;k<=n;k++){
-    const first=k===1&&mode!=='near';
+    const first=k===1;
     const fT=first?0.25+rng()*0.5:Math.min(0.85,Math.max(0.15,k/(n+1)+(rng()-0.5)*0.14));
-    const ok=P=>{ const a=gcDist(A,P), b=gcDist(P,B), f=a/(a+b); if(first){ const det=(a+b)/D-1; return f>0.18&&f<0.82&&det>=eps*0.45&&used+gcDist(prev,P)+b<=max&&sideOf(P)===side; }
+    const ok=P=>{ if(out.includes(P)||out.some(q=>q.name&&q.name===P.name)) return false; const a=gcDist(A,P), b=gcDist(P,B), f=a/(a+b); if(first){ const det=(a+b)/D-1; return f>0.18&&f<0.82&&det>=eps*0.45&&used+gcDist(prev,P)+b<=max&&sideOf(P)===side; }
       return Math.abs(f-fT)<0.13&&used+gcDist(prev,P)+b<=max&&a>gcDist(A,prev)-50; };
     let P=null;
     if(first||rng()<0.75){ const L=cands.filter(ok); if(L.length) P=L[Math.floor(rng()*L.length)]; }
@@ -156,7 +157,7 @@ function legPath(leg, m){
   else air.push({lat:B.lat,lon:B.lon});
   const cum=[0]; for(let i=1;i<air.length;i++) cum.push(cum[i-1]+gcDist(air[i-1],air[i]));
   const p={air, cum, total:cum[cum.length-1]||1, dep, arr,
-    gateA:{lat:A.lat,lon:A.lon}, gateB:{lat:B.lat,lon:B.lon}, route, via:via.map(v=>v.name).filter(Boolean)};
+    gateA:{lat:A.lat,lon:A.lon}, gateB:{lat:B.lat,lon:B.lon}, route, via:[...new Set(via.map(v=>v.name).filter(Boolean))]};
   _pathCache.set(key,p); return p;
 }
 function pointOnPath(p, s){
