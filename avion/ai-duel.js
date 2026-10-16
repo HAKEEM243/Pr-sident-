@@ -24,7 +24,7 @@ function duelWeekly(){
     const sh=mk.y.share, myP=mk.y.ratio, myF=mk.freq;
     const xs=rivalsOn(a,b), fair=1/(xs.length+1);                     // part « normale » si tout le monde se valait
     for(const x of xs){
-      const code=x.R.code, e=aiBy(code); if(typeof isAlly==='function'&&isAlly(code)) continue;
+      const code=x.R.code, e=aiBy(code); if(typeof isAlly==='function'&&isAlly(code)) continue; if(typeof aiPeace==='function'&&aiPeace(code)) continue;
       const k=code+key, d=ai.duel[k]||(ai.duel[k]={px:1,fq:0,mode:'hold',t:S.time});
       if(Math.random()>0.45+0.15*Dv) continue;                          // elles ne réagissent pas toutes chaque semaine
       const old=d.mode, poor=e&&(e.cash<0||(e.debt||0)>=3);

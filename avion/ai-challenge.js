@@ -37,7 +37,7 @@ function aiChallenge(){
     if(Math.random()<0.03*D*heat){ const k=Math.max(2e8,r.value*rnd(0.02,0.06)); e.cash+=k; aiNews(`💰 ${e.name} lève ${Md(k)} auprès d’investisseurs pour ${tag}.`,'rival',true); }
     // coup d'éclat 3 : nouvelle ligne jusque sur votre hub
     const mine=lead.me?(S.hubs.slice().sort((a,b)=>AP(b).traffic-AP(a).traffic)[0]||S.company.hub):lead.e&&lead.e.hub;   // le hub du n°1 mondial, quel qu'il soit
-    if(mine&&(!lead.me||S.noCopy===false)&&aiAirportMarketOpen(mine)&&Math.random()<0.08*D*heat){ const cand=AIRPORT_CODES.filter(c=>c!==mine&&aiAirportMarketOpen(c)&&AP(c).cls>=2&&dist(e.hub,c)>400&&dist(c,mine)>400&&dist(c,mine)<(e.fleet>=100?9000:4000)&&!carriersOn(c,mine).includes(e.code)&&!airspaceViolation(e.code,c,mine));
+    if(mine&&(!lead.me||(S.noCopy===false&&!(typeof aiPeace==='function'&&aiPeace(e.code))))&&aiAirportMarketOpen(mine)&&Math.random()<0.08*D*heat){ const cand=AIRPORT_CODES.filter(c=>c!==mine&&aiAirportMarketOpen(c)&&AP(c).cls>=2&&dist(e.hub,c)>400&&dist(c,mine)>400&&dist(c,mine)<(e.fleet>=100?9000:4000)&&!carriersOn(c,mine).includes(e.code)&&!airspaceViolation(e.code,c,mine));
       const setup=e.fleet<30?1.5e6:3.5e6;
       if(cand.length&&e.cash>=setup){ const c=cand.sort((x,y)=>marketDemand(e.hub,y)-marketDemand(e.hub,x))[0], key=pairKey(c,mine); e.cash-=setup; (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
         const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&!R.routes.some(x=>pairKey(x.a,x.b)===key)) R.routes.push({a:c,b:mine,freq:3});
@@ -45,7 +45,7 @@ function aiChallenge(){
     // coup d'éclat 4 : guerre des prix sur l'une de vos lignes
     if(Math.random()<0.06*D*heat&&!lead.me&&lead.e&&typeof raceWar==='function'){ raceMarketMove(e,lead.e.hub); }
     else if(lead.me&&Math.random()<0.06*D*heat&&S.routes.length){ const rt=pick(S.routes), a=rt.stops[0], b=rt.stops[rt.stops.length-1], key=pairKey(a,b); ai.wars=ai.wars||{};
-      if(!ai.wars[e.code+key]&&!(typeof isAlly==='function'&&isAlly(e.code))){ ai.wars[e.code+key]={code:e.code,a,b,until:S.time+rndi(14,35)*DAY,kind:'prix'};
+      if(!ai.wars[e.code+key]&&!(typeof isAlly==='function'&&isAlly(e.code))&&!(typeof aiPeace==='function'&&aiPeace(e.code))){ ai.wars[e.code+key]={code:e.code,a,b,until:S.time+rndi(14,35)*DAY,kind:'prix'};
         aiNews(`⚔️ ${e.name} brade ses billets sur ${keyCity(a)}–${keyCity(b)} : guerre des prix contre vous.`,'rival',true); } }
     // coup d'éclat 5 : plus de vols sur ses lignes existantes
     if(Math.random()<0.12*D*heat){ const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&R.routes.length){ const rt=pick(R.routes); if((rt.freq||1)<9){ rt.freq=(rt.freq||1)+1; ai.ver++; } } }
