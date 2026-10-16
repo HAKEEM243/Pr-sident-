@@ -108,7 +108,7 @@ function raceFights(){
     const A=aiBy(f.att), B=aiBy(f.def); if(!A||!B||A.status==='dead'||B.status==='dead'){ delete F[k]; continue; }
     const w=Math.max(0.3,marketDemand(f.a,f.b)/400); A.cash-=w*0.6e6; B.cash-=w*0.45e6; A.rep=clamp(A.rep-0.1,10,95);
     if(f.until>S.time) continue; delete F[k];
-    const sA=A.cash/Math.max(1,A.fleet)+A.rep*0.3e6+A.fleet*0.05e6, sB=B.cash/Math.max(1,B.fleet)+B.rep*0.3e6+B.fleet*0.05e6, lose=sA<sB?A:B, win=lose===A?B:A;
+    const pk=x=>typeof aiPeace==='function'&&aiPeace(x.code)?40e6:0, sA=A.cash/Math.max(1,A.fleet)+A.rep*0.3e6+A.fleet*0.05e6+pk(A), sB=B.cash/Math.max(1,B.fleet)+B.rep*0.3e6+B.fleet*0.05e6+pk(B), lose=sA<sB?A:B, win=lose===A?B:A;
     if(!carriersOn(f.a,f.b).includes(lose.code)) continue;
     raceDropPair(lose,f.a,f.b);
     if(raceLoud(f.M||f.a,win.fleet>=150||lose.fleet>=150)) aiNews(`🏳️ ${lose.name} abandonne ${keyCity(f.a)}–${keyCity(f.b)} face à ${win.name}.`,'news',raceMine().has(f.M||f.a));
