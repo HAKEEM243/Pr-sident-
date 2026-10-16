@@ -415,7 +415,7 @@ function updateParked(){
     for(const [code,list] of Object.entries(byAp)){
       // au zoom rapproché : chaque avion sur son poste de stationnement réel (rangée le long de la piste)
       const used=new Set();
-      list.slice().sort((a,b)=>a.id<b.id?-1:1).forEach((ac,i)=>{ let k=8+acSlotHash(ac.id)%14; while(used.has(k)) k++; used.add(k); want.set(ac.id,{ac,code,i,k}); });
+      list.slice().sort((a,b)=>a.id<b.id?-1:1).forEach((ac,i)=>{ const N=(typeof apGates==='function'&&(apGates(code)||[]).length)||40; let k=gateIdx(code,ac,!!ac.gIntl), t=0; while(used.has(k)&&t++<N) k=(k+1)%N; used.add(k); want.set(ac.id,{ac,code,i,k}); });
     }
   }
   for(const [id,mk] of parkedMarkers){ const w=want.get(id); if(!w || mk._code!==w.code || mk._i!==(real?w.k:w.i) || mk._st!==w.ac.status || mk._real!==real){ L_planes.removeLayer(mk); parkedMarkers.delete(id); } }
@@ -485,13 +485,13 @@ function rivalPos(r,i,t){
   if((seg.ph===2||seg.ph===7||(seg.ph===6&&alt<300))&&typeof atcRivalBlocked==='function'){
     const dep=seg.ph===2, rw=dep?path.dep:path.arr;
     if(rw&&atcRivalBlocked(rwyKey(dep?from:to,rw),r.a+r.b+(r.c||'')+i+dir,t)){
-      if(dep){ const hp=holdPoint(path,gateSlot(from,fake),1+hashStr(r.a+r.b+(r.c||'')+i)%4); return {p:{lat:hp.lat,lon:hp.lon}, hdg:hp.hdg, from:AP(from), to:AP(to), d, alt:0, ph:1, gnd:true, cat, holding:'out'}; }
+      if(dep){ const hp=holdPoint(path,gateSlot(from,fake,AP(from).cc!==AP(to).cc),1+hashStr(r.a+r.b+(r.c||'')+i)%4); return {p:{lat:hp.lat,lon:hp.lon}, hdg:hp.hdg, from:AP(from), to:AP(to), d, alt:0, ph:1, gnd:true, cat, holding:'out'}; }
       const s6=prof.segs.find(x=>x.ph===6), f=pointOnPath(path,clamp(s6.d0/d,0,1)*path.total), c=destPt(f.lat,f.lon,(f.hdg||0)+90,4.5), b0=bearing(c,f), th=(t/(4*MIN)*360)%360, q2=destPt(c.lat,c.lon,b0+th,4.5);
       return {p:{lat:q2.lat,lon:q2.lon}, hdg:(b0+th+90)%360, from:AP(from), to:AP(to), d, alt:900+305*(1+hashStr(r.a+r.b+(r.c||'')+i)%5), ph:6, gnd:false, cat, holding:'in'};
     }
   }
-  if(seg.ph===1) pp=polyAt(taxiOutPts(path,gateSlot(from,fake)),u);
-  else if(seg.ph>=8) pp=polyAt(taxiInPts(path,gateSlot(to,fake)),u);
+  if(seg.ph===1) pp=polyAt(taxiOutPts(path,gateSlot(from,fake,AP(from).cc!==AP(to).cc)),u);
+  else if(seg.ph>=8) pp=polyAt(taxiInPts(path,gateSlot(to,fake,AP(from).cc!==AP(to).cc)),u);
   else { const dd=seg.d0+(seg.d1-seg.d0)*uD; pp=pointOnPath(path, clamp(dd/d,0,1)*path.total); }
   return {p:{lat:pp.lat,lon:pp.lon}, hdg:pp.hdg, from:AP(from), to:AP(to), d, alt, ph:seg.ph, gnd:alt<5, cat};
 }
