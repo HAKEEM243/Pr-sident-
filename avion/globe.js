@@ -329,7 +329,7 @@ function drawGlobeRivals(){
   for(const e of G.rivals) V.entities.remove(e); G.rivals=[];
   if(!MAPOPT.rival) return;
   let n=0; const t=gSimNow();
-  const list=[]; for(const R of S.rivals||[]) for(const r of R.routes){ if(typeof airspaceViolation==='function'&&airspaceViolation(R.code,r.a,r.b)) continue; if(!r.c) r.c=R.code; list.push({R,r}); }
+  const list=[]; for(const R of S.rivals||[]) for(const r of R.routes){ if(typeof airspaceViolation==='function'&&airspaceViolation(R.code,r.a,r.b)) continue; if(typeof godCcDead==='function'&&godCcDead(r.a,r.b)) continue; if(!r.c) r.c=R.code; list.push({R,r}); }
   // autour de l'avion suivi : le trafic réel des aéroports proches
   if(G.follow&&typeof visibleRealRoutes==='function'){ const ac=S.fleet.find(a=>a.id===G.follow), st=ac&&flightState(ac,t);
     if(st){ const b=L.latLngBounds([st.lat-6,st.lon-8],[st.lat+6,st.lon+8]); list.unshift(...visibleRealRoutes(b,st.lon,15)); } }

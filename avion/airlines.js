@@ -334,7 +334,7 @@ function rivalSig(){ return (S.rivals||[]).map(R=>R.code+R.routes.length+'.'+(R.
 function rivalIndex(){
   const sig=rivalSig(); if(_rvIdx && sig===_rvSig && _rvIdx._S===S) return _rvIdx;
   const m=new Map(); m._S=S;
-  for(const R of S.rivals||[]) for(const r of R.routes){ if(airspaceViolation(R.code,r.a,r.b)) continue; const k=pairKey(r.a,r.b); (m.get(k)||m.set(k,[]).get(k)).push({R,freq:r.freq}); }
+  for(const R of S.rivals||[]) for(const r of R.routes){ if(airspaceViolation(R.code,r.a,r.b)) continue; if(typeof godCcDead==='function'&&godCcDead(r.a,r.b)) continue; const k=pairKey(r.a,r.b); (m.get(k)||m.set(k,[]).get(k)).push({R,freq:r.freq}); }
   _rvIdx=m; _rvSig=sig; return m;
 }
 const _realOn=new Map();
