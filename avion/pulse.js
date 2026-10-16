@@ -96,7 +96,7 @@ function aiReact(){
     // 1. guerre des prix : un rival agressif s'attaque à une ligne que vous dominez
     if(sh>0.3&&rivals.length&&Math.random()<0.12){
       const e=rivals.sort((x,y)=>personaOf(y.code).agg-personaOf(x.code).agg)[0];
-      if(Math.random()<personaOf(e.code).agg&&!ai.wars[e.code+key]&&!(typeof isAlly==='function'&&(isAlly(e.code)||inTruce(e.code)))){
+      if(Math.random()<personaOf(e.code).agg&&!ai.wars[e.code+key]&&!(typeof aiPeace==='function'&&aiPeace(e.code))&&!(typeof isAlly==='function'&&(isAlly(e.code)||inTruce(e.code)))){
         ai.wars[e.code+key]={code:e.code,a,b,until:S.time+rndi(10,28)*DAY,kind:'prix'};
         aiNews(vary('war',[`⚔️ Guerre des prix : ${e.name} casse ses tarifs sur ${keyCity(a)}–${keyCity(b)}, face à vous. Votre part de marché va baisser.`,`⚔️ ${e.name} s’attaque à votre ligne ${keyCity(a)}–${keyCity(b)} avec des billets bradés.`,`⚔️ Offensive tarifaire de ${e.name} sur ${keyCity(a)}–${keyCity(b)} : à vous de répondre (prix, service ou fréquence).`]),'rival',true);
         continue; }
@@ -104,13 +104,13 @@ function aiReact(){
     // 2. un rival copie votre ligne rentable
     const profit=r.stats.rev-r.stats.cost;
     if(S.noCopy===false&&r.stats.flights>=8&&profit>0&&aiAirportMarketOpen(a)&&aiAirportMarketOpen(b)&&Math.random()<0.08){
-      const cand=aiAlive().filter(e=>e.fleet>=8&&!carriersOn(a,b).includes(e.code)&&!airspaceViolation(e.code,a,b)&&dist(e.hub,a)<1200&&dist(a,b)<(e.fleet>=40?9000:3500));
+      const cand=aiAlive().filter(e=>e.fleet>=8&&!(typeof aiPeace==='function'&&aiPeace(e.code))&&!carriersOn(a,b).includes(e.code)&&!airspaceViolation(e.code,a,b)&&dist(e.hub,a)<1200&&dist(a,b)<(e.fleet>=40?9000:3500));
       if(cand.length){ const e=pick(cand); (ai.extra[e.code]=ai.extra[e.code]||[]).push(key); e.routes++; ai.ver++;
         const R=(S.rivals||[]).find(x=>x.code===e.code); if(R&&!R.routes.some(x=>pairKey(x.a,x.b)===key)) R.routes.push({a,b,freq:2});
         aiNews(vary('copy',[`🎯 ${e.name} copie votre succès : une nouvelle ligne ${keyCity(a)}–${keyCity(b)} s’ouvre en concurrence directe.`,`🎯 Voyant votre ligne ${keyCity(a)}–${keyCity(b)} remplir ses avions, ${e.name} décide de s’y installer.`]),'rival',true); }
     }
     // 3. défense de hub : un rival dont le hub est une extrémité renforce ses vols
-    const defenders=rivals.filter(e=>e.hub===a||e.hub===b);
+    const defenders=rivals.filter(e=>(e.hub===a||e.hub===b)&&!(typeof aiPeace==='function'&&aiPeace(e.code)));
     if(defenders.length&&Math.random()<0.08){ const e=pick(defenders), R=(S.rivals||[]).find(x=>x.code===e.code), tr=R&&R.routes.find(x=>pairKey(x.a,x.b)===key);
       if(tr&&tr.freq<8){ tr.freq++; ai.ver++; aiNews(`🛡️ ${e.name} défend son hub : un vol de plus par jour sur ${keyCity(a)}–${keyCity(b)}.`,'rival',true); } }
   }

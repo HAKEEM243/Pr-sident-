@@ -49,7 +49,7 @@ function crewPromote(p,silent){
   const r=p.rank; p.rank=Math.min(2,r+1); p.salary=Math.round(p.salary*CREW_RAISE[r]/100)*100; p.mo=clamp(p.mo+20,0,100); p.wait=0;
   if(!silent) logMsg(`🎖️ ${p.name} devient ${CREW_RANKS[p.rank][0].toLowerCase()} (salaire ${fmtMoney(p.salary)}/mois).`,'ok');
 }
-function crewRivalFor(){ const L=(typeof aiAlive==='function'?aiAlive():[]).filter(e=>e.status!=='dead'); if(!L.length) return null; const cont=COUNTRIES[homeCC()][1];
+function crewRivalFor(){ const L=(typeof aiAlive==='function'?aiAlive():[]).filter(e=>e.status!=='dead'&&!(typeof aiPeace==='function'&&aiPeace(e.code))); if(!L.length) return null; const cont=COUNTRIES[homeCC()][1];
   const near=L.filter(e=>COUNTRIES[e.cc]&&COUNTRIES[e.cc][1]===cont); return pick(near.length?near:L); }
 function crewLeave(p,rivalName){ S.pilots=S.pilots.filter(x=>x!==p); S.staff.morale.pil=clamp(S.staff.morale.pil-1,0,100);
   logMsg(`🚪 ${CREW_RANKS[p.rank][0]} ${p.name} (${num(p.hours)} h) quitte la compagnie pour ${rivalName||'un concurrent'}.`,'warn'); }

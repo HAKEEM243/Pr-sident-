@@ -52,7 +52,10 @@ function racePickMarket(e){
 function raceMarketMove(e,M){
   const mk=raceMarket(M); if(!mk||mk.closed) return false;
   const list=mk.list, i=list.findIndex(x=>x.code===e.code&&!x.me);
-  const tg=i===0?list[1]:i>0?list[i-1]:list[0]; if(!tg) return raceOpen(e,M,null);
+  let tg=i===0?list[1]:i>0?list[i-1]:list[0];
+  // les compagnies de votre pays (et Masambukidi Fly) ne vous attaquent jamais : elles visent la suivante
+  if(tg&&tg.me&&typeof aiPeace==='function'&&aiPeace(e.code)) tg=list.find(x=>!x.me&&x.code!==e.code)||null;
+  if(!tg) return raceOpen(e,M,null);
   if(tg.me&&typeof isAlly==='function'&&(isAlly(e.code)||(typeof inTruce==='function'&&inTruce(e.code)))) return false;
   if(i===0) return raceDefend(e,M,tg);
   const amb=raceAmb(e), k=wpick([{k:'open',w:3},{k:'war',w:i>0?2+amb*2:0}]).k;
