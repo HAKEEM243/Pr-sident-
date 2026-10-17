@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261200';
+const GAME_VER='20261201';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏆 Classement en direct','Le classement bouge chaque seconde avec le temps du jeu : le patrimoine des compagnies évolue heure par heure, vos passagers/jour = voyageurs réellement débarqués sur les 24 dernières heures, ceux des concurrents suivent les pointes du matin et du soir. Le tableau se redessine tout seul.'],
   ['🗓️ Horaires respectés','Sur une ligne avec plusieurs avions, les départs de la semaine sont répartis régulièrement (ex. 6 h 30, 12 h 15, 18 h 00) et donnés aux avions à tour de rôle. Deux avions de la même ligne ne partent plus l’un derrière l’autre : un écart minimum est toujours gardé, même quand un avion revient en retard.'],
   ['🤝 Adjoint : vous choisissez les lignes','Dites-lui le pays et le budget : il propose jusqu’à 12 lignes. Cochez seulement celles que vous voulez, il n’ouvre que celles-là (audit, avion, décollage et personnel compris). Il n’ouvre plus jamais de ligne tout seul.'],
   ['🤝 Adjoint : vous n’avez plus rien à faire derrière lui','Bouton principal « ⚡ Vas-y, fais tout » : il ouvre les lignes, fait les audits, achète les avions, les fait décoller et recrute le personnel. Chaque jour, et dès l’ouverture du jeu, il audite toutes les lignes de son hub (même celles ouvertes avant) et complète le personnel.'],
