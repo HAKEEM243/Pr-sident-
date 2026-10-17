@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261191';
+const GAME_VER='20261192';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🤝 Adjoints','Onglet Lignes → « Mes adjoints » : engagez un adjoint pour un hub, dites-lui le pays et le budget. Il trouve les lignes les plus rentables, achète (ou loue) les avions, ouvre les lignes, programme les vols et recrute les pilotes. Mode automatique : il réinvestit chaque semaine.'],
   ['✈️ Avions 3D plus détaillés','Hublots un par un, portes dessinées, vraies vitres de cockpit, nez arrondi, carénage sous le ventre et rails de volets, moteurs avec cône d’entrée et tuyère, ailes plus claires ; A380 avec ses deux rangées de hublots.'],
   ['🛬 Aéroport 3D vivant','Plus d’avions des autres compagnies aux portes, à leurs couleurs, avec citerne, camion-repas, tapis et chariots ; passagers qui descendent du bus et montent l’escalier arrière ; tracteurs à bagages, bus et citernes qui roulent sur une route de service ; avions qui roulent sur la voie de circulation.'],
   ['🏟️ Grands événements mondiaux','Tous les 10 à 15 jours, une ville accueille un grand événement (CAN, Coupe du monde, JO, Hajj, carnaval de Rio, méga-concert de rumba, Festival Amani…). Annoncé 3 jours avant, il dure 6 jours : la demande vers la ville explose et c’est la course contre les autres compagnies pour transporter le plus de voyageurs, classement en direct. Touchez 🏟️ (bouton à droite ou icône sur la carte) puis « ✈️ Lancer des vols spéciaux » : vos avions libres décollent vraiment vers l’événement. Récompenses : trophées (salle des trophées) et ⭐ prestige à dépenser dans la boutique (ambassadeur star, campagne mondiale, partenaire officiel, A380 doré « Léopard d’Or », Concorde de collection).'],
