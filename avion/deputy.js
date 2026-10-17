@@ -64,11 +64,16 @@ function depRun(D,budget,silent){
   for(const mv of P.moves){
     let r=S.routes.find(x=>x.stops.length===2&&x.stops[0]===mv.hub&&x.stops[1]===mv.dest);
     if(!r){ const o=openLine([mv.hub,mv.dest]); if(typeof o==='string') continue; r=o; }
+    if(!r.audit) auditLine(r);                                        // audit fait par l'adjoint : demande et prix idéaux connus
     let ac=mv.ac?S.fleet.find(a=>a.id===mv.ac):null;
     if(!ac){ ac=addAircraft(mv.m.id,{owned:!D.lease,hub:mv.hub}); S.cash-=D.lease?mv.m.price*1e6*0.017:mv.m.price*1e6; }
     let e=setPlan(ac,r.id,mv.rot); if(e&&typeof autoPlan==='function') autoPlan(ac);
+    mv._ac=ac; mv._r=r;
     done.push(mv);
   }
+  depCare(D);
+  // les avions décollent tout de suite (visibles en 2D et en 3D), puis suivent leur programme
+  for(const mv of done){ const ac=mv._ac; if(ac&&ac.status==='idle'&&ac.loc===mv.hub&&!canFly(ac)) dispatchRoute(ac,mv._r,1,S.time); }
   if(done.length){
     // pilotes (2 par avion + 1 de réserve) et personnel au sol / cabine
     const cnt={}; for(const a of S.fleet){ const f=modelOf(a).fam; cnt[f]=(cnt[f]||0)+1; }
@@ -83,10 +88,18 @@ function depRun(D,budget,silent){
   if(!silent||done.length) logMsg(`🤝 ${D.name} (${AP(D.hub).city}) : ${done.length?done.length+' avion(s) placé(s), '+fmtMoney(spent)+' dépensés':'rien de rentable trouvé'}.`,done.length?'ok':'info');
   return {done,spent,gain};
 }
+// entretien courant du hub : audits des lignes, pilotes, PNC, mécaniciens, personnel au sol
+function depCare(D){ let n=0;
+  for(const r of S.routes) if(r.stops[0]===D.hub&&!r.audit){ if(!auditLine(r)) n++; }
+  const cnt={}; for(const a of S.fleet){ const f=modelOf(a).fam; cnt[f]=(cnt[f]||0)+1; }
+  for(const f of new Set(S.fleet.filter(a=>a.hub===D.hub).map(a=>modelOf(a).fam))){ let q=qualifiedPilots(f)+S.pilots.filter(p=>p.training&&p.training.fam===f).length, g=0;
+    while(q<2*cnt[f]+1&&g++<3000){ const p=makePilot([f],true); S.pilots.push(p); book('recrutement',-p.salary); q++; } }
+  const need=staffNeed(); for(const k of ['pnc','meca','sol']){ const miss=need[k]-S.staff[k]; if(miss>0){ book('recrutement',-STAFF_CATS[k][1]*0.6*miss); S.staff[k]+=miss; } }
+  return n; }
 // chaque semaine : les adjoints « actifs » réinvestissent leur budget hebdomadaire
 function depWeekly(){
   let sal=0;
-  for(const D of depList()){ sal+=DEP_SAL/4.33; if(!D.auto||!S.hubs.includes(D.hub)) continue;
+  for(const D of depList()){ sal+=DEP_SAL/4.33; if(!S.hubs.includes(D.hub)) continue; try{ depCare(D); }catch(e){} if(!D.auto) continue;
     const room=S.cash-(D.reserve||0); if(room<=0) continue;
     const r=depRun(D,Math.min(D.weekly||0,room),true);
     if(r.done.length) toast(`🤝 ${D.name} a placé ${r.done.length} avion(s) depuis ${AP(D.hub).city}`,'ok'); }
@@ -111,7 +124,7 @@ function depHtml(){
       <div class="small">Dépense : <b>${fmtMoney(P.spent)}</b> · bénéfice prévu ≈ <b>${fmtMoney(P.moves.reduce((s,x)=>s+x.profit,0))}</b>/semaine <span class="mut">(estimation)</span></div>
       <div class="btns"><button class="btn gold" data-act="depGo">✅ D’accord, vas-y</button><button class="btn sm" data-act="depCancel">✖ Annuler</button></div>`:''}</div>`; }
   const hub=U.hub&&S.hubs.includes(U.hub)?U.hub:S.hubs[0];
-  return `<div class="simplehelp">🤝 Un <b>adjoint</b> gère un hub pour vous : dites-lui le pays et l’argent, il cherche les lignes les plus rentables, achète les avions, ouvre les lignes, programme les vols et recrute les pilotes. Salaire : ${fmtMoney(DEP_SAL)}/mois.</div>
+  return `<div class="simplehelp">🤝 Un <b>adjoint</b> gère un hub pour vous : dites-lui le pays et l’argent, il cherche les lignes les plus rentables, achète les avions, ouvre les lignes, fait les audits, programme les vols (les avions décollent tout de suite) et recrute pilotes, PNC, mécaniciens et personnel au sol. Chaque semaine il audite les nouvelles lignes du hub et complète le personnel. Salaire : ${fmtMoney(DEP_SAL)}/mois.</div>
   ${prev}${L.map(card).join('')}
   <div class="card"><b>➕ Engager un adjoint</b>
     <label class="small">Hub<select id="dep-hub" onchange="UI.dep.hub=this.value;refreshModal()">${S.hubs.map(h=>`<option value="${h}"${h===hub?' selected':''}>${AP(h).city} (${h})</option>`).join('')}</select></label>

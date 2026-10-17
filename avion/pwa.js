@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261196';
+const GAME_VER='20261197';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🤝 L’adjoint fait tout','Il fait lui-même les audits des lignes, les avions décollent tout de suite (on les voit en 2D et en 3D), et il recrute pilotes, PNC, mécaniciens et personnel au sol. Chaque semaine il audite les nouvelles lignes de son hub et complète le personnel.'],
   ['🗺️ Carte : lignes et avions bien visibles','Vos lignes retrouvent leur couleur et leur épaisseur, vos avions leur taille normale, le fond n’est presque plus assombri. On garde seulement les noms de villes qui ne se chevauchent plus et les petites traînées.'],
   ['🏟️ Vols spéciaux réparés','Tous vos avions libres partent tout de suite vers l’événement, avec des escales techniques si l’autonomie ne suffit pas ; l’équipage manquant est recruté automatiquement ; un message dit combien sont partis et pourquoi les autres restent. Les supporters qui arrivent en avance comptent.'],
   ['✨ Carte plus belle','Vue épurée : les noms de villes ne se chevauchent plus, lignes plus fines, petites traînées derrière les avions, avions concurrents plus discrets, fond un peu assombri pour faire ressortir vos avions, moins de boutons à gauche. Bouton « ✨ Vue épurée » dans ⚙️ Options pour revenir à l’ancienne carte.'],
