@@ -36,19 +36,22 @@ function depEval(hub,dest,m,extraSeats){
 function depPlan(D,budget){
   const hub=D.hub, cc=D.cc, out=[], used={};
   let dests=AIRPORT_CODES.filter(c=>c!==hub&&AP(c).cls>=1&&!airportClosed(c)&&(cc==='*'||(cc==='home'?AP(c).cc===AP(hub).cc:AP(c).cc===cc)));
+  // par défaut : seulement des villes où je n'ai pas encore de ligne depuis ce hub
+  const mine=new Set(S.routes.filter(r=>r.stops[0]===hub).flatMap(r=>r.stops.slice(1)));
+  if(!D.reinforce) dests=dests.filter(c=>!mine.has(c));
   if(dests.length>160) dests=dests.sort((a,b)=>marketDemand(hub,b)-marketDemand(hub,a)).slice(0,160);
   const models=depModels().filter(m=>!D.modern||!/occasion/i.test(m.name)); let left=budget;
   const lineFee=dest=>S.routes.some(r=>r.stops.length===2&&r.stops[0]===hub&&r.stops[1]===dest)||out.some(o=>o.dest===dest)?0:lineCost([hub,dest]);
   // 1) avions libres du hub (rien à acheter)
   const idle=S.fleet.filter(a=>a.hub===hub&&a.status!=='manual'&&!(a.plan||[]).some(p=>p.weekly>0));
   for(const ac of idle){ let best=null; const m=modelOf(ac);
-    for(const c of dests){ const e=depEval(hub,c,m,used[c]); if(e&&e.profit>0&&(!best||e.profit>best.profit)) best=e; }
+    for(const c of dests){ if(!D.reinforce&&used[c]) continue; const e=depEval(hub,c,m,used[c]); if(e&&e.profit>0&&(!best||e.profit>best.profit)) best=e; }
     if(best&&lineFee(best.dest)<=left){ left-=lineFee(best.dest); out.push({...best,ac:ac.id,fee:lineFee(best.dest)}); used[best.dest]=(used[best.dest]||0)+best.rot*m.seats; } }
   // 2) achats : à chaque tour, le meilleur rapport bénéfice / argent investi
   for(let guard=0;guard<(D.maxN||25);guard++){ let best=null;
     for(const c of dests){ const fee=lineFee(c); for(const m of models){ const cost=m.price*1e6*(D.lease?0.017:1)+fee; if(cost>left) continue;
         const e=depEval(hub,c,m,used[c]); if(!e||e.profit<=0) continue; const roi=e.profit*52/(m.price*1e6+fee);
-        const k=out.filter(o=>o.dest===c).length; if(k>=3) continue;                       // au plus 3 avions par ville à chaque fois : il répartit
+        const k=out.filter(o=>o.dest===c).length; if(k>=(D.reinforce?3:1)) continue;       // une nouvelle ligne = un avion (jusqu'à 3 si on renforce)
         const sc=roi*(0.6+0.4*Math.min(1,e.load/0.7))*Math.pow(0.7,k)*Math.pow(0.85,out.filter(o=>o.m===m).length);
         if(!best||sc>best.sc) best={...e,sc,fee,cost}; } }
     if(!best) break;
@@ -98,12 +101,12 @@ function depCountryOpts(sel,hub){
 function depHtml(){
   const L=depList(), U=UI.dep||(UI.dep={});
   const card=D=>`<div class="card"><div class="row" style="justify-content:space-between;gap:6px"><b>🧑‍💼 ${esc(D.name)}</b><span class="small">${flag(D.hub)} ${AP(D.hub).city} → ${D.cc==='*'?'🌍 monde':D.cc==='home'?'🏠 '+esc(COUNTRIES[AP(D.hub).cc][0]):COUNTRIES[D.cc][2]+' '+esc(COUNTRIES[D.cc][0])}</span></div>
-    <div class="small mut">${D.lease?'Loue les avions':'Achète les avions'}${D.modern?' récents':''} · ${D.auto?`chaque semaine jusqu’à <b>${fmtMoney(D.weekly||0)}</b>, garde ${fmtMoney(D.reserve||0)} en caisse`:'seulement quand vous le lui demandez'} · déjà dépensé ${fmtMoney(D.spent||0)}</div>
+    <div class="small mut">${D.reinforce?'Nouvelles lignes et renfort':'Uniquement de nouvelles lignes'} · ${D.lease?'loue les avions':'achète les avions'}${D.modern?' récents':''} · ${D.auto?`chaque semaine jusqu’à <b>${fmtMoney(D.weekly||0)}</b>, garde ${fmtMoney(D.reserve||0)} en caisse`:'seulement quand vous le lui demandez'} · déjà dépensé ${fmtMoney(D.spent||0)}</div>
     ${(D.log||[]).slice(0,3).map(l=>`<div class="small">• ${l.n?`<b>${l.n}</b> avion(s), ${fmtMoney(l.spent)} → ≈ ${fmtMoney(l.gain)}/sem de bénéfice prévu<br><span class="mut">${esc(l.txt)}</span>`:'<span class="mut">rien de rentable trouvé</span>'}</div>`).join('')}
     <div class="btns sm"><button class="btn sm gold" data-act="depAsk" data-id="${D.id}">💰 Lui donner de l’argent</button><button class="btn sm" data-act="depAuto" data-id="${D.id}">${D.auto?'⏸️ Arrêter le mode automatique':'🔁 Mode automatique'}</button><button class="btn sm" data-act="depFire" data-id="${D.id}">👋 Renvoyer</button></div></div>`;
   let prev='';
   if(U.prev){ const D=L.find(x=>x.id===U.prev.id), P=U.prev.P;
-    prev=`<div class="card gold-b"><b>📋 Proposition de ${esc(D.name)}</b> (budget ${fmtMoney(U.prev.budget)})${P.moves.length?'':'<div class="mut">Rien de rentable avec ce budget dans cette zone. Essayez un autre pays ou plus d’argent.</div>'}
+    prev=`<div class="card gold-b"><b>📋 Proposition de ${esc(D.name)}</b> (budget ${fmtMoney(U.prev.budget)})${P.moves.length?'':'<div class="mut">Rien de rentable avec ce budget dans cette zone (les villes où vous avez déjà une ligne sont laissées de côté). Essayez un autre pays ou plus d’argent.</div>'}
       ${P.moves.length?`<div class="small">${P.moves.map(x=>`<div style="padding:5px 0;border-bottom:1px solid #ffffff14">${x.ac?'♻️ '+esc((S.fleet.find(a=>a.id===x.ac)||{}).reg||'')+' <span class="mut">(avion libre)</span>':'🛒 <b>'+esc(x.m.name)+'</b> <span class="mut">'+fmtMoney(x.price*(D.lease?0.017:1))+(D.lease?' (location)':'')+'</span>'}<br>→ ${flag(x.dest)} <b>${AP(x.dest).city}</b> <span class="mut">${num(x.d)} km${x.n?' · '+x.n+' concurrent(s)':''}</span> · ${x.rot} vols/sem · ${Math.round(x.load*100)} % plein · <b style="color:${x.profit>=0?'#4ade80':'#f87171'}">${x.profit>=0?'+':''}${fmtMoney(x.profit)}/sem</b></div>`).join('')}</div>
       <div class="small">Dépense : <b>${fmtMoney(P.spent)}</b> · bénéfice prévu ≈ <b>${fmtMoney(P.moves.reduce((s,x)=>s+x.profit,0))}</b>/semaine <span class="mut">(estimation)</span></div>
       <div class="btns"><button class="btn gold" data-act="depGo">✅ D’accord, vas-y</button><button class="btn sm" data-act="depCancel">✖ Annuler</button></div>`:''}</div>`; }
@@ -123,6 +126,7 @@ function depAskHtml(D){ const c=Math.max(0,S.cash);
   <div class="chips">${[0.25,0.5,0.75,1].map(f=>`<button class="chip" onclick="document.getElementById('dep-b').value=${Math.max(1,Math.floor(c*f/1e6))}">${f*100} %</button>`).join('')}</div>
   <label class="small">Pays visé<select id="dep-cc2">${depCountryOpts(D.cc,D.hub)}</select></label>
   <label class="small"><input type="checkbox" id="dep-mod2"${D.modern?' checked':''}> Avions récents seulement</label>
+  <label class="small"><input type="checkbox" id="dep-rf2"${D.reinforce?' checked':''}> Aussi ajouter des avions sur mes lignes existantes <span class="mut">(sinon : uniquement des villes nouvelles, un avion par nouvelle ligne)</span></label>
   <div class="btns"><button class="btn gold" data-act="depPlanGo" data-id="${D.id}">🔍 Voir ce qu’il propose</button><button class="btn" data-act="depDirect" data-id="${D.id}">⚡ Qu’il le fasse directement</button></div>`; }
 function depAutoHtml(D){ return `<div class="small">Chaque semaine, ${esc(D.name)} réinvestit jusqu’à ce montant si la caisse reste au-dessus de la réserve.</div>
   <label>Budget par semaine (millions $)<input id="dep-w" type="number" min="1" value="${Math.round((D.weekly||Math.max(1e6,S.cash*0.1))/1e6)}"></label>
@@ -140,9 +144,9 @@ function depHook(){ if(depHook.done||typeof ACTIONS==='undefined') return; depHo
       const D={id:uid(),name:p.name,hub,cc,lease,modern,auto:false,log:[],spent:0}; depList().push(D); book('recrutement',-DEP_SAL);
       toast(`🧑‍💼 ${D.name} est votre adjoint à ${AP(hub).city}`,'ok'); ACTIONS.depAsk({id:D.id}); },
     depAsk:d=>{ const D=get(d.id); UI.modal=null; showModal(`💰 Budget pour ${esc(D.name)}`,depAskHtml(D)); },
-    depPlanGo:d=>{ const D=get(d.id), b=budget(); D.cc=$('#dep-cc2').value; D.modern=$('#dep-mod2').checked; if(b<=0) return err('Indiquez un budget');
+    depPlanGo:d=>{ const D=get(d.id), b=budget(); D.cc=$('#dep-cc2').value; D.modern=$('#dep-mod2').checked; D.reinforce=$('#dep-rf2').checked; if(b<=0) return err('Indiquez un budget');
       UI.dep=UI.dep||{}; UI.dep.prev={id:D.id,budget:b,P:depPlan(D,Math.min(b,Math.max(0,S.cash)))}; back(); },
-    depDirect:d=>{ const D=get(d.id), b=budget(); D.cc=$('#dep-cc2').value; D.modern=$('#dep-mod2').checked; if(b<=0) return err('Indiquez un budget');
+    depDirect:d=>{ const D=get(d.id), b=budget(); D.cc=$('#dep-cc2').value; D.modern=$('#dep-mod2').checked; D.reinforce=$('#dep-rf2').checked; if(b<=0) return err('Indiquez un budget');
       const r=depRun(D,Math.min(b,Math.max(0,S.cash))); toast(r.done.length?`🤝 ${r.done.length} avion(s) placé(s) pour ${fmtMoney(r.spent)}`:'🤝 Rien de rentable trouvé avec ce budget',r.done.length?'ok':'info'); back(); renderTop(); },
     depGo:()=>{ const U=UI.dep, D=U&&U.prev&&get(U.prev.id); if(!D) return; const r=depRun(D,Math.min(U.prev.budget,Math.max(0,S.cash))); U.prev=null;
       toast(r.done.length?`🤝 ${r.done.length} avion(s) placé(s) pour ${fmtMoney(r.spent)}`:'🤝 Rien de rentable trouvé','ok'); back(); renderTop(); if(typeof renderPanel==='function') renderPanel(); },
