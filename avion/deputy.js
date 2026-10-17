@@ -140,7 +140,8 @@ function depAskHtml(D){ const c=Math.max(0,S.cash);
   <label class="small">Pays visé<select id="dep-cc2">${depCountryOpts(D.cc,D.hub)}</select></label>
   <label class="small"><input type="checkbox" id="dep-mod2"${D.modern?' checked':''}> Avions récents seulement</label>
   <label class="small"><input type="checkbox" id="dep-rf2"${D.reinforce?' checked':''}> Aussi ajouter des avions sur mes lignes existantes <span class="mut">(sinon : uniquement des villes nouvelles, un avion par nouvelle ligne)</span></label>
-  <div class="btns"><button class="btn gold" data-act="depPlanGo" data-id="${D.id}">🔍 Voir ce qu’il propose</button><button class="btn" data-act="depDirect" data-id="${D.id}">⚡ Qu’il le fasse directement</button></div>`; }
+  <div class="btns"><button class="btn gold" data-act="depDirect" data-id="${D.id}">⚡ Vas-y, fais tout</button><button class="btn sm" data-act="depPlanGo" data-id="${D.id}">🔍 Me montrer d’abord</button></div>
+  <div class="small mut">Il ouvre les lignes, fait les audits, achète les avions, les fait décoller et recrute tout le personnel. Vous n’avez rien à faire derrière lui.</div>`; }
 function depAutoHtml(D){ return `<div class="small">Chaque semaine, ${esc(D.name)} réinvestit jusqu’à ce montant si la caisse reste au-dessus de la réserve.</div>
   <label>Budget par semaine (millions $)<input id="dep-w" type="number" min="1" value="${Math.round((D.weekly||Math.max(1e6,S.cash*0.1))/1e6)}"></label>
   <label>Réserve à toujours garder (millions $)<input id="dep-r" type="number" min="0" value="${Math.round((D.reserve||Math.max(0,S.cash*0.2))/1e6)}"></label>
@@ -152,7 +153,7 @@ function depHook(){ if(depHook.done||typeof ACTIONS==='undefined') return; depHo
   const get=id=>depList().find(x=>x.id===id);
   const budget=()=>Math.max(0,(+($('#dep-b')||{}).value||0)*1e6);
   Object.assign(ACTIONS,{
-    depOpen:()=>{ UI.dep=UI.dep||{}; openM('deputy'); },
+    depOpen:()=>{ UI.dep=UI.dep||{}; careAll(); openM('deputy'); },
     depHire:()=>{ const hub=$('#dep-hub').value, cc=$('#dep-cc').value, lease=$('#dep-lease').checked, modern=$('#dep-modern').checked, p=makePilot(['A320'],true);
       const D={id:uid(),name:p.name,hub,cc,lease,modern,auto:false,log:[],spent:0}; depList().push(D); book('recrutement',-DEP_SAL);
       toast(`🧑‍💼 ${D.name} est votre adjoint à ${AP(hub).city}`,'ok'); ACTIONS.depAsk({id:D.id}); },
@@ -171,6 +172,9 @@ function depHook(){ if(depHook.done||typeof ACTIONS==='undefined') return; depHo
   // boutons dans l'onglet Réseau
   if(typeof pNetwork==='function'){ const _pn=pNetwork; pNetwork=function(){ const h=_pn(); return h.replace('🏢 Acheter un hub</button>','🏢 Acheter un hub</button><button class="btn '+(isSimple()?'sm':'big')+'" data-act="depOpen">🤝 Mes adjoints'+(depList().length?' ('+depList().length+')':'')+'</button>'); }; }
   if(typeof simpleTop==='function'){ const _st=simpleTop; simpleTop=function(tab){ const h=_st(tab); return tab==='network'?h.replace('<div class="bigcta">','<div class="bigcta"><button class="btn" data-act="depOpen">🤝 Mes adjoints<small>Il achète les avions et ouvre les lignes pour vous</small></button>'):h; }; }
+  const careAll=()=>{ for(const D of depList()) if(S.hubs.includes(D.hub)) try{ depCare(D); }catch(e){} };
+  if(typeof dailyTick==='function'){ const _dt=dailyTick; dailyTick=function(){ const r=_dt.apply(this,arguments); careAll(); return r; }; }
+  setTimeout(()=>{ try{ if(typeof S!=='undefined'&&S&&S.company) careAll(); }catch(e){} },1500);
   if(typeof weeklyTick==='function'){ const _wt=weeklyTick; weeklyTick=function(){ const r=_wt.apply(this,arguments); try{ depWeekly(); }catch(e){ console.warn('depWeekly',e); } return r; }; }
 }
 if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ depHook(); }catch(e){ console.warn(e); } },0));
