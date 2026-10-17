@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261189';
+const GAME_VER='20261190';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛬 Aéroport 3D vivant','Plus d’avions des autres compagnies aux portes, à leurs couleurs, avec citerne, camion-repas, tapis et chariots ; passagers qui descendent du bus et montent l’escalier arrière ; tracteurs à bagages, bus et citernes qui roulent sur une route de service ; avions qui roulent sur la voie de circulation.'],
   ['🏟️ Grands événements mondiaux','Tous les 10 à 15 jours, une ville accueille un grand événement (CAN, Coupe du monde, JO, Hajj, carnaval de Rio, méga-concert de rumba, Festival Amani…). Annoncé 3 jours avant, il dure 6 jours : la demande vers la ville explose et c’est la course contre les autres compagnies pour transporter le plus de voyageurs, classement en direct. Touchez 🏟️ (bouton à droite ou icône sur la carte) puis « ✈️ Lancer des vols spéciaux » : vos avions libres décollent vraiment vers l’événement. Récompenses : trophées (salle des trophées) et ⭐ prestige à dépenser dans la boutique (ambassadeur star, campagne mondiale, partenaire officiel, A380 doré « Léopard d’Or », Concorde de collection).'],
   ['🎥 Suivre l’avion sans la grosse fiche','Quand vous suivez un avion, sa fiche se réduit en une petite barre en bas (vol, altitude, vitesse, arrivée, progression) : vous voyez l’avion bouger sur la carte. ⬆️ Détails rouvre la fiche complète, ▾ la réduit, ✖ la ferme. La fiche complète ne dépasse plus la moitié de l’écran.'],
   ['🧭 Les tracés suivent les vraies routes','Les lignes dessinées sur la carte 2D et en 3D ne sont plus droites : elles montrent la vraie route de l’avion en vol sur la ligne (ou la route du jour), aller en trait plein, retour en pointillés, et changent à chaque vol. Les avions des autres compagnies qui s’écartent de la ligne droite restent visibles.'],
