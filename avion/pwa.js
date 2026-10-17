@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261193';
+const GAME_VER='20261194';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['✨ Carte plus belle','Vue épurée : les noms de villes ne se chevauchent plus, lignes plus fines, petites traînées derrière les avions, avions concurrents plus discrets, fond un peu assombri pour faire ressortir vos avions, moins de boutons à gauche. Bouton « ✨ Vue épurée » dans ⚙️ Options pour revenir à l’ancienne carte.'],
   ['🤝 Adjoints : nouvelles lignes','Votre adjoint laisse de côté les villes où vous avez déjà une ligne depuis ce hub : il ouvre seulement des lignes nouvelles, un avion par ligne. Une case permet aussi de renforcer vos lignes existantes.'],
   ['🤝 Adjoints','Onglet Lignes → « Mes adjoints » : engagez un adjoint pour un hub, dites-lui le pays et le budget. Il trouve les lignes les plus rentables, achète (ou loue) les avions, ouvre les lignes, programme les vols et recrute les pilotes. Mode automatique : il réinvestit chaque semaine.'],
   ['✈️ Avions 3D plus détaillés','Hublots un par un, portes dessinées, vraies vitres de cockpit, nez arrondi, carénage sous le ventre et rails de volets, moteurs avec cône d’entrée et tuyère, ailes plus claires ; A380 avec ses deux rangées de hublots.'],
