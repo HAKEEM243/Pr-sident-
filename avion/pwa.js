@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261194';
+const GAME_VER='20261195';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏟️ Vols spéciaux réparés','Tous vos avions libres partent tout de suite vers l’événement, avec des escales techniques si l’autonomie ne suffit pas ; l’équipage manquant est recruté automatiquement ; un message dit combien sont partis et pourquoi les autres restent. Les supporters qui arrivent en avance comptent.'],
   ['✨ Carte plus belle','Vue épurée : les noms de villes ne se chevauchent plus, lignes plus fines, petites traînées derrière les avions, avions concurrents plus discrets, fond un peu assombri pour faire ressortir vos avions, moins de boutons à gauche. Bouton « ✨ Vue épurée » dans ⚙️ Options pour revenir à l’ancienne carte.'],
   ['🤝 Adjoints : nouvelles lignes','Votre adjoint laisse de côté les villes où vous avez déjà une ligne depuis ce hub : il ouvre seulement des lignes nouvelles, un avion par ligne. Une case permet aussi de renforcer vos lignes existantes.'],
   ['🤝 Adjoints','Onglet Lignes → « Mes adjoints » : engagez un adjoint pour un hub, dites-lui le pays et le budget. Il trouve les lignes les plus rentables, achète (ou loue) les avions, ouvre les lignes, programme les vols et recrute les pilotes. Mode automatique : il réinvestit chaque semaine.'],

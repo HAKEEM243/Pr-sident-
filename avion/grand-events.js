@@ -72,17 +72,43 @@ function geEnd(e){
   g.cur=null; g.next=S.time+rndi(10,15)*DAY;
 }
 // vos voyageurs comptent quand vos avions se posent dans la ville pendant l'événement
-function geCount(leg,n){ const e=geActive(); if(!e||!leg||leg.to!==e.city||!n) return; e.me+=Math.round(n*(S.ge.perks.sponsorOn?1.3:1)); }
+function geCount(leg,n,sp){ let e=geActive(); const c=S.ge&&S.ge.cur; if(!e&&sp&&c&&c.id===sp&&gePhase(c)!=='done') e=c; if(!e||!leg||leg.to!==e.city||!n) return; e.me+=Math.round(n*(S.ge.perks.sponsorOn?1.3:1)); }
 
 /* ---------- vos vols spéciaux : de vrais vols vers l'événement ---------- */
-function geSpecials(){
+// itinéraire vers l'événement : direct, ou avec 1 ou 2 escales techniques si l'avion n'a pas l'autonomie
+const _geIt={};
+function geItin(ac,to){ const m=modelOf(ac), from=ac.loc, k=from+'>'+to+'|'+m.id; if(_geIt[k]!==undefined) return _geIt[k];
+  const R=m.range*0.95, ok=st=>!checkLegs(ac,legsFor(st));
+  if(dist(from,to)<=R&&ok([from,to])) return _geIt[k]=[from,to];
+  const pool=AIRPORT_CODES.filter(c=>c!==from&&c!==to&&AP(c).cls>=3&&!airportClosed(c)&&!runwayCheck(m,c));
+  let best=null; for(const x of pool){ const a=dist(from,x), b=dist(x,to); if(a<=R&&b<=R){ const t=a+b; if(!best||t<best.t) best={t,st:[from,x,to]}; } }
+  if(best&&ok(best.st)) return _geIt[k]=best.st;
+  // deux escales : on avance le plus possible vers la destination
+  const hop=pool.filter(c=>dist(from,c)<=R).sort((u,v)=>dist(u,to)-dist(v,to)).slice(0,25);
+  for(const x of hop){ let b2=null; for(const y of pool){ if(y===x) continue; const a=dist(x,y), b=dist(y,to); if(a<=R&&b<=R){ const t=dist(from,x)+a+b; if(!b2||t<b2.t) b2={t,st:[from,x,y,to]}; } }
+    if(b2&&ok(b2.st)) return _geIt[k]=b2.st; }
+  return _geIt[k]=null; }
+function geCandidates(e){ return S.fleet.filter(a=>a.status==='idle'&&(a.readyAt||0)<=S.time+10*MIN&&!a.charterQ&&(modelOf(a).seats||0)>=50&&S.hubs.includes(a.loc)&&a.loc!==e.city); }
+// recrute ce qui manque pour faire partir l'avion (PNC et pilotes qualifiés)
+function geCrew(ac){ const m=modelOf(ac);
+  let g=0; while(qualifiedPilots(m.fam)<2*(activeOfFamily(m.fam,ac)+1)&&g++<20){ const p=makePilot([m.fam],true); S.pilots.push(p); book('recrutement',-p.salary); }
+  const miss=cabinBusy(ac)+cabinNeed(m)-S.staff.pnc; if(miss>0){ book('recrutement',-STAFF_CATS.pnc[1]*0.6*miss); S.staff.pnc+=miss; geCrew.n=(geCrew.n||0)+miss; } }
+function geSpecials(){ geSpecials.why=null; geCrew.n=0;
   const e=S.ge&&S.ge.cur; if(!e||gePhase(e)==='done') return 'Aucun événement en cours';
-  const idle=S.fleet.filter(a=>a.status==='idle'&&(a.readyAt||0)<=S.time+10*MIN&&!a.charterQ&&(modelOf(a).seats||0)>=50&&S.hubs.includes(a.loc)&&a.loc!==e.city);
-  let n=0; const max=Math.max(2,Math.ceil(S.fleet.length*0.15));
-  for(const ac of idle){ if(n>=max) break; const err=startFlight(ac,[ac.loc,e.city,ac.loc],'charter',Math.max(S.time,e.start-2*HOUR),{});
-    if(err) continue; const seats=modelOf(ac).seats||100; ac.flight.ge=e.id; ac.flight.legs.forEach((l,i)=>{ l.pax={f:0,j:0,w:0,y:Math.round(seats*(i===0?0.97:0.55))}; }); n++; }
-  if(!n) return 'Aucun avion libre adapté dans vos hubs (il faut un avion de passagers au sol, avec l’autonomie suffisante)';
-  logMsg(`✈️ ${n} vol${n>1?'s':''} spécia${n>1?'ux':'l'} vers ${keyCity(e.city)} pour ${e.n}.`,'ok'); return null;
+  const idle=geCandidates(e); if(!idle.length) return 'Aucun avion de passagers libre au sol dans vos hubs';
+  let n=0, far=0, stops=new Set(); const max=idle.length;   // tous les avions libres partent
+  for(const ac of idle){ if(n>=max) break; const go=geItin(ac,e.city); if(!go){ far++; continue; }
+    const st=[...go,...go.slice(0,-1).reverse()];                 // aller puis retour par le même chemin
+    let err=startFlight(ac,st,'charter',S.time,{});                                   // départ tout de suite
+    if(err&&/PNC|pilotes/.test(err)){ geCrew(ac); err=startFlight(ac,st,'charter',S.time,{}); }   // équipage manquant : on recrute pour ce vol
+    if(err){ geSpecials.why=err; continue; }
+    const seats=modelOf(ac).seats||100, iArr=go.length-2; ac.flight.ge=e.id;
+    ac.flight.legs.forEach((l,i)=>{ l.pax={f:0,j:0,w:0,y:Math.round(seats*(i<=iArr?0.97:0.55))}; });
+    go.slice(1,-1).forEach(c=>stops.add(AP(c).city)); n++; }
+  if(!n&&geSpecials.why) return 'Aucun avion n’a pu partir : '+geSpecials.why;
+  if(!n) return far?`Vos ${far} avion(s) libre(s) n’ont pas l’autonomie pour rejoindre ${keyCity(e.city)}, même avec des escales`:'Aucun avion n’a pu partir';
+  geSpecials.last=`✈️ ${n} avion${n>1?'s':''} parti${n>1?'s':''} vers ${keyCity(e.city)}${stops.size?` (escale${stops.size>1?'s':''} : ${[...stops].slice(0,4).join(', ')})`:''}${far?` · ${far} trop court${far>1?'s':''} en autonomie`:''}${geCrew.n?` · ${geCrew.n} PNC recrutés`:''}`;
+  logMsg(`${geSpecials.last} pour ${e.n}.`,'ok'); return null;
 }
 
 /* ---------- boutique de prestige ---------- */
@@ -101,13 +127,13 @@ function geHtml(){
   const g=geS(), e=g.cur, ph=gePhase(e);
   let ev='';
   if(e){ const rows=[{me:true,name:S.company.name,pts:e.me,color:S.company.color||'#ffd60a'},...e.ai.map(a=>({name:a.name,pts:Math.round(a.pts),color:a.color}))].sort((x,y)=>y.pts-x.pts), mx=Math.max(1,...rows.map(r=>r.pts));
-    const left=ph==='ann'?e.start-S.time:e.end-S.time, idle=S.fleet.filter(a=>a.status==='idle'&&S.hubs.includes(a.loc)&&a.loc!==e.city&&(modelOf(a).seats||0)>=50).length;
+    const left=ph==='ann'?e.start-S.time:e.end-S.time, idle=geCandidates(e).length;
     ev=`<div class="card" style="border-color:#facc15"><div style="font-size:30px">${e.ic}</div><b style="font-size:17px">${esc(e.n)}</b><div>📍 ${flag(e.city)} <b>${esc(keyCity(e.city))}</b> · ${esc(e.why)}</div>
       <div class="${ph==='on'?'pos':'warnt'}"><b>${ph==='ann'?`Commence dans ${Math.ceil(left/HOUR)} h`:`En cours · fin dans ${Math.ceil(left/HOUR)} h`}</b> · demande vers la ville ×${e.m}</div>
       <h3>🏁 Classement : voyageurs transportés vers ${esc(keyCity(e.city))}</h3>
       ${rows.map((r,i)=>`<div class="small" style="margin:3px 0">${['🥇','🥈','🥉'][i]||i+1+'.'} <b>${esc(r.name)}</b>${r.me?' (vous)':''} · ${num(r.pts)}<div style="height:8px;border-radius:5px;background:#33415555"><div style="height:100%;width:${r.pts/mx*100}%;background:${r.color};border-radius:5px"></div></div></div>`).join('')}
       <div class="btns"><button class="btn gold" data-act="geGo">✈️ Lancer des vols spéciaux (${idle} avion${idle>1?'s':''} libre${idle>1?'s':''})</button></div>
-      <div class="small mut">Chaque passager de vos avions qui se pose à ${esc(keyCity(e.city))} pendant l’événement compte (vols spéciaux et lignes régulières). Ouvrez aussi des lignes vers la ville. Récompenses : 🥇 30 ⭐ · 🥈🥉 15 ⭐ · participation 5 ⭐ + trophée.</div></div>`; }
+      <div class="small mut">Les vols spéciaux partent tout de suite, avec des escales techniques si l’avion n’a pas l’autonomie ; leurs passagers comptent dès l’arrivée (supporters en avance). Sur vos lignes régulières, les passagers comptent pendant l’événement. Ouvrez aussi des lignes vers la ville. Récompenses : 🥇 30 ⭐ · 🥈🥉 15 ⭐ · participation 5 ⭐ + trophée.</div></div>`; }
   else ev=`<div class="card">Prochain grand événement annoncé ${g.next?`vers le ${fmtDate(g.next)}`:'bientôt'}.</div>`;
   const shop=GE_SHOP.map(it=>`<div class="card row" style="gap:8px;align-items:center"><div style="font-size:24px">${it.ic}</div><div class="grow"><b>${it.n}</b><div class="small mut">${it.d}</div></div><button class="btn sm ${g.pp>=it.c?'gold':''}" data-act="geBuy" data-k="${it.k}">${it.c} ⭐</button></div>`).join('');
   const tro=g.trophies.length?`<div class="chips">${g.trophies.slice(0,30).map(t=>`<span class="chip" title="${esc(t.n)} · ${esc(t.city)}">${t.tro} ${t.ic} ${esc(t.city)} · ${t.place}ᵉ</span>`).join('')}</div>`:'<div class="small mut">Aucun trophée pour l’instant : participez au prochain événement !</div>';
@@ -130,11 +156,12 @@ function geHook(){ if(geHook.done) return; geHook.done=true;
   { const _ah=aiHourly; aiHourly=function(){ _ah(); try{ geHourly(); }catch(e){ console.warn(e); } }; }
   { const _cl=completeLeg; completeLeg=function(ac){ const fl=ac.flight, leg=fl&&fl.legs[fl.li], pax=leg&&leg.pax?leg.pax.f+leg.pax.j+(leg.pax.w||0)+leg.pax.y:0;
       // vols spéciaux : billets vendus à prix d'événement
-      if(fl&&fl.ge&&leg&&pax){ book('billets',pax*(typeof baseFare==='function'?baseFare(leg.from,leg.to):300)*1.6); }
-      _cl(ac); try{ geCount(leg,pax); }catch(e){} }; }
+      if(fl&&fl.ge&&leg&&pax){ const o=fl.legs[0].from, c=(fl.legs.find(l=>l.to!==o&&fl.legs.indexOf(l)>=0&&S.ge&&S.ge.cur&&l.to===S.ge.cur.city)||{}).to||leg.to;   // escales : un seul billet par trajet complet
+        if(leg.to===c||fl.li===fl.legs.length-1) book('billets',pax*(typeof baseFare==='function'?baseFare(o,c):300)*1.6); }
+      _cl(ac); try{ geCount(leg,pax,fl&&fl.ge); }catch(e){} }; }
   { const _dm=demandMult; demandMult=function(a,b){ let k=_dm(a,b); const e=geActive(); if(e&&(a===e.city||b===e.city)) k*=e.m; if(S&&S.ge&&S.ge.perks.camp>S.time) k*=1.15; return k; }; }
   MODALS.ge=()=>showModal('🏟️ Grands événements & prestige', geHtml(), true);
-  Object.assign(ACTIONS,{ geOpen:()=>openM('ge'), geGo:()=>{ const e=geSpecials(); if(e) toast(e,'bad'); else toast('✈️ Vos avions décollent vers l’événement !','ok'); refreshModal(); },
+  Object.assign(ACTIONS,{ geOpen:()=>openM('ge'), geGo:()=>{ const e=geSpecials(); if(e) toast(e,'bad'); else toast(geSpecials.last||'✈️ Vos avions décollent vers l’événement !','ok'); refreshModal(); },
     geBuy:d=>{ const e=geBuy(d.k); if(e) return toast(e,'bad'); toast('⭐ Achat effectué','ok'); refreshModal(); if(typeof renderTop==='function') renderTop(); } });
   if(typeof pMore==='function'){ const _pm=pMore; pMore=function(){ return _pm().replace('<div class="morelist">','<div class="morelist"><button data-act="geOpen">🏟️ <b>Grands événements & prestige</b><small>Course aux voyageurs, trophées, boutique</small></button>'); }; }
   // le sponsor s'active au début du prochain événement
