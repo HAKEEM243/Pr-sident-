@@ -709,7 +709,7 @@ const WEEK_DAYS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 const SLOT_HOURS=[6.5,7.25,8.5,9.75,11,12.5,14,15.5,17,18.25,19.5,21];
 const slotHash=str=>{ let h=17; for(const c of str) h=(h*33+c.charCodeAt(0))%100003; return h; };
 // créneaux de départ (heure locale du hub, en ms depuis lundi 00:00) : chaque avion a ses propres jours et heures
-function planSlots(ac,p){
+function planSlotsOwn(ac,p){
   const w=Math.max(1,p.weekly), h=slotHash(ac.id+'|'+p.routeId), out=[], r=S.routes.find(x=>x.id===p.routeId), preferred=routeDepartureHour(r);
   const base=preferred===null?SLOT_HOURS[h%SLOT_HOURS.length]+((h>>4)%3)*0.25:clamp(preferred+(((h>>4)%5)-2)*0.25,5,22.5);
   if(w<=7){ const off=(h>>2)%7; for(let k=0;k<w;k++) out.push(((Math.floor(k*7/w)+off)%7)*DAY+base*HOUR); }
@@ -718,6 +718,39 @@ function planSlots(ac,p){
       out.push(d*DAY+hour*HOUR); } }
   return out.sort((a,b)=>a-b);
 }
+// créneaux coordonnés par ligne : tous les départs de la semaine d'une ligne sont répartis régulièrement
+// (jours et heures), puis distribués aux avions à tour de rôle : jamais deux avions de la même ligne l'un derrière l'autre
+let _rsIdx=null, _rsAt=-1; const _rsCache=new Map();
+function routeSlotPlan(r){
+  if(_rsAt!==S.time||!_rsIdx){ _rsAt=S.time; _rsIdx=new Map(); for(const ac of S.fleet) for(const p of ac.plan||[]) if(p.weekly>0){ const l=_rsIdx.get(p.routeId)||_rsIdx.set(p.routeId,[]).get(p.routeId); l.push({ac,p}); } }
+  const list=(_rsIdx.get(r.id)||[]).slice().sort((x,y)=>x.ac.id<y.ac.id?-1:1), pref=routeDepartureHour(r);
+  const sig=list.map(x=>x.ac.id+':'+x.p.weekly).join(',')+'|'+pref;
+  const c=_rsCache.get(r.id); if(c&&c.sig===sig) return c;
+  const N=list.reduce((s,x)=>s+x.p.weekly,0), times=[], h0=slotHash(r.id), A=5.5, B=22.5;
+  // nombre de départs par jour, les jours « en plus » répartis dans la semaine
+  const base=Math.floor(N/7), extra=N%7, perDay=[0,0,0,0,0,0,0]; for(let d=0;d<7;d++) perDay[d]=base; for(let k=0;k<extra;k++) perDay[(Math.floor(k*7/extra)+h0%7)%7]++;
+  for(let d=0;d<7;d++){ const n=perDay[d]; if(!n) continue;
+    if(n===1){ const h=pref!==null?clamp(pref,5,22.5):SLOT_HOURS[h0%SLOT_HOURS.length]; times.push(d*DAY+h*HOUR); continue; }
+    const step=(B-A)/n, first=pref!==null?clamp(pref,A,B):A+step/2;
+    for(let i=0;i<n;i++){ const h=A+((first-A+i*step)%(B-A)); times.push(d*DAY+Math.round(h*4)/4*HOUR); } }
+  times.sort((a,b)=>a-b);
+  // distribution : à chaque départ, l'avion encore disponible (revenu de sa rotation précédente) qui a le moins volé
+  const st=list.map(x=>({id:x.ac.id,left:x.p.weekly,avail:-Infinity,cyc:routeCycleHours(r,x.ac)*HOUR,out:[]}));
+  for(const t of times){ let best=null;
+    for(const q of st){ if(q.left<=0) continue; const ok=q.avail<=t, bok=best&&best.avail<=t;
+      if(!best||(ok&&!bok)||(ok===bok&&(ok?q.out.length<best.out.length:q.avail<best.avail))) best=q; }
+    if(!best) break; best.out.push(t); best.left--; best.avail=Math.max(t,best.avail)+best.cyc; }
+  const res={sig,N,map:new Map(st.map(q=>[q.id,q.out.sort((a,b)=>a-b)]))}; _rsCache.set(r.id,res); return res;
+}
+function planSlots(ac,p){
+  const r=S.routes.find(x=>x.id===p.routeId); if(!r) return planSlotsOwn(ac,p);
+  const sl=routeSlotPlan(r).map.get(ac.id); return sl&&sl.length===Math.max(1,p.weekly)?sl:planSlotsOwn(ac,p);
+}
+// écart minimal entre deux départs de la même ligne et dans le même sens
+const _lastDep=new Map();
+function routeGapOk(r,dir,at){ const N=Math.max(1,routeSlotPlan(r).N), gap=Math.min(3*HOUR,7*DAY/N*0.5), k=r.id+(dir>0?'+':'-'), last=_lastDep.get(k);
+  return last===undefined||at<last||at-last>=gap; }
+function routeGapMark(r,dir,at){ _lastDep.set(r.id+(dir>0?'+':'-'),at); }
 // fuseau du hub (décalage UTC réel de l'aéroport) ; l'embarquement dure `boardMs` avant l'heure de départ affichée
 const hubTz=ac=>{ const A=AP(ac.hub); if(!A) return 0; return (A.utc!==undefined&&A.utc!==null&&A.utc!==''?+A.utc:A.lon/15)*HOUR; };
 function boardMs(ac,r){ const m=modelOf(ac), a=r.stops[0], b=r.stops[1], sg=legProfile(dist(a,b),m,windKmh(a,b),a,b).segs[0]; return sg.t1-sg.t0; }
@@ -732,7 +765,8 @@ function scheduleAircraft(ac, t, dep){
   if(ac.pendingReturn){
     const r=S.routes.find(x=>x.id===ac.pendingReturn);
     if(r && ac.loc===r.stops[r.stops.length-1] && ac.loc!==ac.hub){
-      const err=dispatchRoute(ac,r,-1,dep); ac.blocked=err||null; if(!err) ac.pendingReturn=null; return;
+      if(!routeGapOk(r,-1,dep)){ ac.blocked='Attend l’écart avec le vol précédent de la ligne'; return; }
+      const err=dispatchRoute(ac,r,-1,dep); ac.blocked=err||null; if(!err){ ac.pendingReturn=null; routeGapMark(r,-1,dep); } return;
     }
     ac.pendingReturn=null;
   }
@@ -751,8 +785,9 @@ function scheduleAircraft(ac, t, dep){
   if(!best){ ac.blocked=null; return; }
   const r=S.routes.find(x=>x.id===best.routeId);
   if(!r){ ac.plan=ac.plan.filter(x=>x!==best); return; }
-  const err=dispatchRoute(ac,r,1,Math.max(dep,bestAt)); ac.blocked=err||null;
-  if(!err){ ac.wk.c[r.id]=(ac.wk.c[r.id]||0)+1; if(r.stops[r.stops.length-1]!==ac.hub) ac.pendingReturn=r.id; }
+  const at1=Math.max(dep,bestAt); if(!routeGapOk(r,1,at1)){ ac.blocked='Attend l’écart avec le vol précédent de la ligne'; return; }
+  const err=dispatchRoute(ac,r,1,at1); ac.blocked=err||null;
+  if(!err){ routeGapMark(r,1,at1); ac.wk.c[r.id]=(ac.wk.c[r.id]||0)+1; if(r.stops[r.stops.length-1]!==ac.hub) ac.pendingReturn=r.id; }
 }
 function simStep(){
   const t=S.time;
