@@ -46,7 +46,7 @@ const AC3D=(function(){
   function strip(fz, z0,z1,a0,a1,R,scale=1.012,steps=10){
     const secs=[], cs=[];
     for(let i=0;i<=steps;i++){ const z=lerp(z0,z1,i/steps), f=fz(z), ring=[];
-      for(let k=0;k<=4;k++){ const a=lerp(a0,a1,k/4), s=Math.sin(a); ring.push([Math.cos(a)*f.r*scale*(f.wide||1), f.yc+s*f.r*scale*(s>0?f.top:1), z]); }
+      for(let k=0;k<=4;k++){ const a=lerp(a0,a1,k/4), s=Math.sin(a); ring.push([Math.cos(a)*f.r*scale*(f.wide||1), f.yc+s*f.r*scale*(s>0?f.top:1)*(f.tall||1), z]); }
       secs.push(ring); cs.push([0,f.yc,z]); }
     return loft(secs,{centers:cs,open:true});
   }
@@ -86,14 +86,14 @@ const AC3D=(function(){
     const top747=t=>v==='747'? (t>0.06&&t<0.36? 1.32 : t>=0.36&&t<0.46? lerp(1.32,1,(t-0.36)/0.1) : t<=0.06? lerp(1,1.32,t/0.06):1) : v==='a380'? 1.18 : 1;
     const conc=v==='conc';
     const prof=(conc?[[0,.03,-.1],[.03,.35,-.06],[.1,.8,0],[.2,1,0],[.75,1,0],[.9,.8,.1],[1,.25,.25]]:
-      [[0,.04,-.12],[.015,.42,-.1],[.04,.72,-.05],[.08,.92,-.01],[.13,1,0],[.66,1,0],[.76,.88,.12],[.86,.62,.3],[.94,.36,.46],[1,.08,.55]])
+      [[0,.03,-.2],[.006,.3,-.18],[.016,.5,-.15],[.03,.68,-.1],[.05,.82,-.06],[.08,.93,-.025],[.11,.985,-.005],[.14,1,0],[.66,1,0],[.76,.88,.12],[.86,.62,.3],[.94,.36,.46],[1,.08,.55]])
       .map(([t,r,y])=>[1-t,r,y,top747(t)]);  // tube() va de z0 (queue) à z1 (nez)
     prof.sort((a,b)=>a[0]-b[0]);
     const fz=z=>{ const t=1-(z-z0)/L; let i=0; const P=prof.map(p=>[1-p[0],p[1],p[2],p[3]]).sort((a,b)=>a[0]-b[0]);
       while(i<P.length-2&&P[i+1][0]<t) i++; const a=P[i], b=P[i+1], u=Math.max(0,Math.min(1,(t-a[0])/((b[0]-a[0])||1)));
-      return {r:R*lerp(a[1],b[1],u), yc:R*lerp(a[2],b[2],u), top:lerp(a[3],b[3],u)}; };
-    const body=tube(z0,z1,prof,R,{n:22,tall:v==='a380'?1.12:1});
-    const P={white:[body], grey:[], tail:[], dark:[], glass:[], stripe:[], eng:[], fan:[], prop:[], gear:[], tire:[]};
+      return {r:R*lerp(a[1],b[1],u), yc:R*lerp(a[2],b[2],u), top:lerp(a[3],b[3],u), tall:v==='a380'?1.12:1}; };
+    const body=tube(z0,z1,prof,R,{n:30,tall:v==='a380'?1.12:1});
+    const P={white:[body], line:[], spin:[], grey:[], tail:[], dark:[], glass:[], stripe:[], eng:[], fan:[], prop:[], gear:[], tire:[]};
     // pièces mobiles (nœuds glTF animés) : volets, aérofreins, inverseurs de poussée, hublots éclairés
     const anim=[], revs=[], wins=[];
     const relT=(g,T)=>({pos:g.pos.map((v,i)=>v-T[i%3]), nor:g.nor, idx:g.idx});
@@ -101,16 +101,32 @@ const AC3D=(function(){
       anim.push({name:name+'R',kind,T,axis,sg:1,P:{grey:[gr]},...extra});
       anim.push({name:name+'L',kind,T:[-T[0],T[1],T[2]],axis:[-axis[0],axis[1],axis[2]],sg:-1,P:{grey:[mirrorX(gr)]},...extra}); };
     // verrière, fenêtres, liseré
-    P.glass.push(strip(fz, z1-L*0.085, z1-L*0.045, 0.35, Math.PI-0.35, R, 1.01, 6));
+    if(conc) P.glass.push(strip(fz, z1-L*0.085, z1-L*0.045, 0.35, Math.PI-0.35, R, 1.01, 6));
+    else { const H=Math.PI/2, cz=z1-L*(v==='single'||v==='otter'?0.16:v==='prop'||v==='rear'?0.075:0.058), u=Math.max(0.36,R*0.19);   // u : longueur d'une vitre (m)
+      const pane=(za,zb,a0,a1)=>{ const g=strip(fz,za,zb,a0,a1,R,1.014,3); P.glass.push(g,mirrorX(g)); };
+      pane(cz-u*0.55, cz+u*0.45, H-0.4, H-0.05);           // pare-brise
+      pane(cz-u*1.6, cz-u*0.72, H-0.8, H-0.46);            // fenêtre latérale avant
+      pane(cz-u*2.5, cz-u*1.78, H-0.95, H-0.7); }           // fenêtre latérale arrière
     if(!cargo&&!conc){
-      const W=(za,zb,a0,a1,st)=>{ const w=strip(fz,za,zb,a0,a1,R,1.006,st); P.dark.push(w,mirrorX(w)); const l=strip(fz,za+0.3,zb-0.3,a0+0.015,a1-0.015,R,1.0095,st); wins.push(l,mirrorX(l)); };
-      W(z0+L*0.18, z1-L*0.13, -0.02, 0.10, 14);
-      if(v==='a380') W(z0+L*0.2, z1-L*0.16, 0.62, 0.74, 14);
-      if(v==='747') W(z1-L*0.34, z1-L*0.12, 0.85, 0.95, 6);
+      // portes : contour sombre + panneau, des deux côtés
+      const dW=R>2.5?1.07:R>1.5?0.82:0.7, dA0=-0.62, dA1=Math.min(0.42,0.3+1.6/R*0.1), doors=[];
+      const door=z=>{ doors.push(z); const o=strip(fz,z-dW/2-0.06,z+dW/2+0.06,dA0-0.035,dA1+0.035,R,1.012,2), pn=strip(fz,z-dW/2,z+dW/2,dA0,dA1,R,1.018,2), dw=strip(fz,z-0.12,z+0.12,dA1-0.2,dA1-0.08,R,1.022,1);
+        P.line.push(o,mirrorX(o)); P.white.push(pn,mirrorX(pn)); P.dark.push(dw,mirrorX(dw)); };
+      const zwr=(v==='prop'||v==='single'||v==='otter')? z1-L*0.4 : z1-L*0.36;
+      if(!(v==='single'||v==='otter')){ door(z1-L*(v==='prop'||v==='rear'?0.13:0.105)); door(z0+L*(v==='rear'?0.24:0.2));
+        if(v==='wb'||v==='quadwb'||v==='747'||v==='a380'||v==='md11'){ door(z1-L*0.29); door(zwr-L*0.2); }
+        else if(v==='nb'&&L>36) { const ow=strip(fz,zwr-L*0.09-0.3,zwr-L*0.09+0.3,-0.25,0.2,R,1.012,2); P.line.push(ow,mirrorX(ow)); } }
+      // hublots : un par un (pas réel ≈ 0,5 m)
+      const W=(za,zb,a0,a1)=>{ const pitch=R>2.5?0.53:R>1.5?0.53:0.6, ww=pitch*0.46, n=Math.floor((zb-za)/pitch);
+        for(let i=0;i<=n;i++){ const z=za+i*pitch; if(doors.some(d=>Math.abs(z-d)<dW/2+0.35)) continue;
+          const w=strip(fz,z-ww/2,z+ww/2,a0,a1,R,1.006,1); P.dark.push(w,mirrorX(w)); const l=strip(fz,z-ww*0.38,z+ww*0.38,a0+0.012,a1-0.012,R,1.0095,1); wins.push(l,mirrorX(l)); } };
+      W(z0+L*0.18, z1-L*0.13, -0.03, 0.12);
+      if(v==='a380') W(z0+L*0.2, z1-L*0.16, 0.6, 0.75);
+      if(v==='747') W(z1-L*0.34, z1-L*0.12, 0.84, 0.96);
     }
     const sty=(livery&&livery.style)||'classique';
     // bande en arc (ventre) : plusieurs subdivisions angulaires
-    const arc=(za,zb,a0,a1,sc)=>{ const secs=[], cs=[]; for(let i=0;i<=14;i++){ const z=lerp(za,zb,i/14), f=fz(z), ring=[]; for(let k=0;k<=12;k++){ const a=lerp(a0,a1,k/12), s2=Math.sin(a); ring.push([Math.cos(a)*f.r*sc*(f.wide||1), f.yc+s2*f.r*sc*(s2>0?f.top:1), z]); } secs.push(ring); cs.push([0,f.yc,z]); } return loft(secs,{centers:cs,open:true}); };
+    const arc=(za,zb,a0,a1,sc)=>{ const secs=[], cs=[]; for(let i=0;i<=14;i++){ const z=lerp(za,zb,i/14), f=fz(z), ring=[]; for(let k=0;k<=12;k++){ const a=lerp(a0,a1,k/12), s2=Math.sin(a); ring.push([Math.cos(a)*f.r*sc*(f.wide||1), f.yc+s2*f.r*sc*(s2>0?f.top:1)*(f.tall||1), z]); } secs.push(ring); cs.push([0,f.yc,z]); } return loft(secs,{centers:cs,open:true}); };
     if(!conc&&(sty==='classique'||sty==='double')) P.stripe.push(strip(fz, z0+L*0.12, z1-L*0.06, -0.32, -0.2, R, 1.008, 14), mirrorX(strip(fz, z0+L*0.12, z1-L*0.06, -0.32, -0.2, R, 1.008, 14)));
     if(!conc&&sty==='double') P.stripe.push(strip(fz, z0+L*0.14, z1-L*0.08, -0.12, -0.07, R, 1.008, 14), mirrorX(strip(fz, z0+L*0.14, z1-L*0.08, -0.12, -0.07, R, 1.008, 14)));
     if(!conc&&sty==='ventre') P.stripe.push(arc(z0+L*0.1, z1-L*0.04, -Math.PI+0.28, -0.28, 1.008));
@@ -139,6 +155,9 @@ const AC3D=(function(){
         pair(name,'flap',loft([sec(xa),sec(xb)],{capStart:[-1,0,0],capEnd:[1,0,0]}),T,norm(sub(Tb,T)),{fw:[0,-0.035*cm,-0.2*cm]}); };
       const fx0=high?R*1.05:xr+0.25, fx1=half*(high?0.7:0.72);
       flapSeg('flapI',fx0,Math.max(fx0+0.5,kink)); flapSeg('flapO',Math.max(fx0+0.5,kink),fx1);
+      // carénage ventral (sous l'emplanture) et carénages des rails de volets
+      if(!high&&v!=='rear'){ const fb=tube(zr-cr*1.25,zr+cr*0.35,[[0,.25,0],[.18,.8,0],[.5,1,0],[.82,.85,0],[1,.3,0]],R*0.6,{y:wingYr-R*0.05,wide:1.75,tall:0.62,n:18}); P.white.push(fb); }
+      if(!high) for(const fx of [0.2,0.4,0.6]){ const x=half*fx, a=wAt(x), ft=tube(a.zl-a.c*1.18,a.zl-a.c*0.45,[[0,.15,0],[.25,.9,0],[.7,1,0],[1,.4,0]],Math.max(0.16,a.c*0.05),{x,y:a.y-a.t*a.c*0.35-Math.max(0.16,a.c*0.05)*0.9,tall:1.4,n:10}); P.grey.push(ft,mirrorX(ft)); }
       // aérofreins / spoilers sur l'extrados (sortent au toucher)
       if(!high){ const splSeg=(name,xa,xb)=>{ const U=[0.56,0.6,0.64,0.68,0.72];
           const sec=x=>{ const a=wAt(x), top=U.map(u=>[x, a.y+naca(u)*a.t*a.c+0.035, a.zl-u*a.c]), bot=U.slice().reverse().map(u=>[x, a.y+naca(u)*a.t*a.c+0.004, a.zl-u*a.c]); return [...top,...bot]; };
@@ -148,7 +167,7 @@ const AC3D=(function(){
       // ailettes (winglets / sharklets)
       if(!high&&v!=='rear'){ const yt=wingYr+(half-xr)*dihed, zt=zr-(half-xr)*sweep-cr*0.05; const wl=loft([finSec(yt,zt,ct*0.9,0.08,half), finSec(yt+span*0.045,zt-ct*0.55,ct*0.35,0.08,half)],{capEnd:[0,1,0]}); P.tail.push(wl,mirrorX(wl)); }
       // moteurs sous l'aile
-      const nac=(x,y,z,len,r)=>{ const t=tube(z-len,z,[[0,.55,0],[.12,.82,0],[.55,1,0],[.9,1,0],[1,.94,0]],r,{x,y,n:16}); const f=disc(x,y,z-0.05,r*0.82); const py=box(x-r*0.12,x+r*0.12,y+r*0.7,wingYr+(Math.abs(x)-xr)*dihed,z-len*0.75,z-len*0.15); return [t,f,py]; };
+      const nac=(x,y,z,len,r)=>{ const t=tube(z-len,z,[[0,.55,0],[.12,.82,0],[.55,1,0],[.9,1,0],[1,.94,0]],r,{x,y,n:16}); const f=merge(disc(x,y,z-0.18,r*0.84), tube(z-len-r*0.75,z-len+0.15,[[0,.12,0],[.6,.42,0],[1,.55,0]],r,{x,y,n:12})); P.spin.push(tube(z-0.2,z+0.05-r*0.05,[[0,.32,0],[.6,.22,0],[1,.03,0]],r,{x,y,n:12}),tube(z-0.04,z+0.02,[[0,.97,0],[1,.97,0]],r,{x,y,n:16})); const py=box(x-r*0.12,x+r*0.12,y+r*0.7,wingYr+(Math.abs(x)-xr)*dihed,z-len*0.75,z-len*0.15); return [t,f,py]; };
       const engAt=(fx)=>{ const x=half*fx, z=zr-(x-xr)*sweep+L*0.05, r= v==='nb'?R*0.52 : v==='rear'?R*0.5 : R*0.62, len=L*(v==='nb'?0.11:0.1);
         const y=wingYr+(x-xr)*dihed-r*1.05; const [t,f,py]=nac(x,y,z,len,r); P.eng.push(t,mirrorX(t)); P.fan.push(f,mirrorX(f)); P.grey.push(py,mirrorX(py));
         const rv=tube(z-len*0.62,z-len*0.4,[[0,1.05,0],[1,1.05,0]],r,{x,y,n:16}); revs.push(rv,mirrorX(rv)); };
@@ -196,13 +215,13 @@ const AC3D=(function(){
     const lv=(color&&typeof color==='object')? color : {tail:color, stripe:color};
     const key=(m.id||'X')+'|'+JSON.stringify(lv); if(_cache[key]) return _cache[key];
     const B=build(m,lv), lc=hexc(lv.tail||'#1e5ba8'), sc=hexc(lv.stripe||lv.tail||'#1e5ba8');
-    const mats={white:lv.body?hexc(lv.body):[0.95,0.96,0.97,1], grey:[0.74,0.77,0.82,1], tail:lc, stripe:sc, dark:[0.1,0.12,0.18,1], glass:[0.04,0.07,0.13,1], eng:lv.engine?hexc(lv.engine):[0.86,0.88,0.9,1], fan:[0.12,0.13,0.16,1], prop:[0.15,0.15,0.17,0.32], gear:[0.55,0.57,0.6,1], tire:[0.06,0.06,0.07,1], rev:[0.16,0.17,0.19,1], lit:[0.32,0.27,0.17,1]};
+    const mats={white:lv.body?hexc(lv.body):[0.95,0.96,0.97,1], grey:[0.8,0.82,0.86,1], line:[0.42,0.45,0.5,1], spin:[0.62,0.64,0.68,1], tail:lc, stripe:sc, dark:[0.1,0.12,0.18,1], glass:[0.04,0.07,0.13,1], eng:lv.engine?hexc(lv.engine):[0.86,0.88,0.9,1], fan:[0.12,0.13,0.16,1], prop:[0.15,0.15,0.17,0.32], gear:[0.55,0.57,0.6,1], tire:[0.06,0.06,0.07,1], rev:[0.16,0.17,0.19,1], lit:[0.32,0.27,0.17,1]};
     const gltf={asset:{version:'2.0',generator:'Sky Empire 3D'}, scene:0, scenes:[{nodes:[]}], nodes:[], meshes:[], materials:[], accessors:[], bufferViews:[], buffers:[]};
     const chunks=[]; let off=0; const matIx={};
     const addView=(arr,target)=>{ const bytes=new Uint8Array(arr.buffer); const pad=(4-bytes.length%4)%4; chunks.push(bytes); if(pad) chunks.push(new Uint8Array(pad));
       gltf.bufferViews.push({buffer:0,byteOffset:off,byteLength:bytes.length,target}); off+=bytes.length+pad; return gltf.bufferViews.length-1; };
     const material=k=>{ if(matIx[k]!==undefined) return matIx[k]; const c=mats[k];
-      gltf.materials.push({pbrMetallicRoughness:{baseColorFactor:c,metallicFactor:k==='glass'?0.7:k==='grey'||k==='eng'?0.35:0.1,roughnessFactor:k==='glass'?0.15:k==='white'?0.35:0.5},doubleSided:true, ...(k==='lit'?{emissiveFactor:[1,0.78,0.42]}:{}), ...(c[3]<1?{alphaMode:'BLEND'}:{})});
+      gltf.materials.push({pbrMetallicRoughness:{baseColorFactor:c,metallicFactor:k==='glass'?0.6:k==='spin'?0.5:k==='grey'||k==='eng'?0.12:0.05,roughnessFactor:k==='glass'?0.12:k==='white'||k==='tail'||k==='stripe'?0.38:0.5},doubleSided:true, ...(k==='lit'?{emissiveFactor:[1,0.78,0.42]}:{}), ...(c[3]<1?{alphaMode:'BLEND'}:{})});
       return matIx[k]=gltf.materials.length-1; };
     // un maillage par nœud (corps, train, chaque pièce mobile)
     const mesh=parts=>{ const prims=[];
