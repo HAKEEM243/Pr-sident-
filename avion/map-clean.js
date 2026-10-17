@@ -27,10 +27,10 @@ function mcDeclutter(){
 function mcRoutes(){
   if(!mcOn()||typeof L_routes==='undefined'||!L_routes) return;
   L_routes.eachLayer(l=>{ if(!(l instanceof L.Polyline)) return; const o=l.options;
-    if(o.color==='#000') l.setStyle({opacity:0.12});
-    else if(o.dashArray==='3 7') l.setStyle({opacity:0.22,weight:1.2});
-    else if(o.className==='route-anim') l.setStyle({opacity:0.6,weight:1.8});
-    else l.setStyle({opacity:0.38,weight:1.4,dashArray:null}); });
+    if(o.color==='#000') l.setStyle({opacity:0.25});
+    else if(o.dashArray==='3 7') l.setStyle({opacity:0.4,weight:1.5});
+    else if(o.className==='route-anim') l.setStyle({opacity:0.9,weight:2.4});
+    else l.setStyle({opacity:0.72,weight:2.2,dashArray:null}); });
 }
 function mcHook(){ if(mcHook.done||typeof drawAirports!=='function') return; mcHook.done=true;
   if(MAPOPT.clean===undefined) MAPOPT.clean=true;
@@ -40,8 +40,8 @@ function mcHook(){ if(mcHook.done||typeof drawAirports!=='function') return; mcH
   const _ut=updateTrail; updateTrail=function(ac,st){ const r=_ut.apply(this,arguments); try{ if(!mcOn()||selectedPlane===ac.id) return r; const t=trails.get(ac.id); if(!t||t._mcAt===t.at) return r; t._mcAt=t.at;
       const ll=t.line.getLatLngs(); if(ll.length<2) return r; const out=[ll[ll.length-1]]; let d=0;
       for(let i=ll.length-2;i>=0&&d<450000;i--){ const sd=ll[i+1].distanceTo(ll[i]); if(d+sd>450000){ const u=(450000-d)/sd; out.unshift(L.latLng(ll[i+1].lat+(ll[i].lat-ll[i+1].lat)*u, ll[i+1].lng+(ll[i].lng-ll[i+1].lng)*u)); break; } out.unshift(ll[i]); d+=sd; }
-      t.line.setLatLngs(out); t.line.setStyle({opacity:0.32,weight:1.6}); }catch(e){} return r; };
-  const _zs=zoomScale; zoomScale=function(){ const k=_zs(); return mcOn()&&map&&map.getZoom()<=4?k*0.75:k; };
+      t.line.setLatLngs(out); t.line.setStyle({opacity:0.55,weight:2}); }catch(e){} return r; };
+  const _zs=zoomScale; zoomScale=function(){ const k=_zs(); return k; };
   // avions concurrents : plus petits et transparents en vue épurée
   drawRivals=function(){
     if(!rivalCtx||!map) return; _rvDirty=false;
@@ -65,9 +65,8 @@ function mcHook(){ if(mcHook.done||typeof drawAirports!=='function') return; mcH
   const st=document.createElement('style'); st.textContent=`
 body.mclean .ap-pin.lbl-off .ap-name{visibility:hidden}
 body.mclean .ap-pin .ap-name{font-size:11px;font-weight:600}
-body.mclean.mc-lo .ap-pin:not(.hub):not(.big){transform:scale(.8)}
 body.mclean.mc-lo .ap-pin:not(.hub) span{opacity:.85}
-body.mclean .leaflet-tile-pane{filter:saturate(.78) brightness(.82) contrast(1.04)}
+body.mclean .leaflet-tile-pane{filter:saturate(.92) brightness(.93)}
 body.mclean #mapctl:not(.open) button.keep:not(.primary){display:none}
 body.mclean #mapctl button{font-size:11.5px;padding:5px 8px}`;
   document.head.appendChild(st);
