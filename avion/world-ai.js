@@ -82,9 +82,18 @@ function aiWeekly(){
   const wk=Math.floor(S.time/(7*DAY)); if(S.ai.lastWeek===wk) return; S.ai.lastWeek=wk;
   const mk=monthKey(S.time); if(S.ai.lastMonth!==mk){ const first=S.ai.lastMonth===-1; S.ai.lastMonth=mk; if(!first) aiMonthly(); }
   const oilF=clamp(1.15-(S.oil-82)/160,0.6,1.3);
-  for(const e of S.ai.list.slice()) if(e.status!=='dead') aiStep(e,oilF);
+  S.ai.oilF=oilF; aiStagger();                      // chaque compagnie évolue à sa propre heure de la semaine (voir aiStagger)
   moodWeekly(); storiesWeekly(); storiesRandom(); if(typeof aiReact==='function') aiReact(); if(typeof duelWeekly==='function') duelWeekly(); if(typeof inboxWeekly==='function') inboxWeekly();
   aiRanking();
+}
+// le monde bouge heure par heure : chaque compagnie a « son » heure dans la semaine (même rythme qu'avant : une fois par semaine)
+function aiStagger(){
+  if(!S.ai||!S.ai.list) return; const wk=Math.floor(S.time/(7*DAY)), how=Math.floor((S.time-wk*7*DAY)/HOUR), oilF=S.ai.oilF||clamp(1.15-(S.oil-82)/160,0.6,1.3);
+  for(const e of S.ai.list.slice()){ if(e.status==='dead'||e.stepWk===wk) continue;
+    if(e.stepWk===undefined&&S.ai.lastWeek===wk&&!S.ai.stagOn){ e.stepWk=wk; e.stepAt=wk*7*DAY; continue; }   // anciennes parties : déjà calculées cette semaine
+    let h=7; for(const c of String(e.code)) h=(h*31+c.charCodeAt(0))%9973;
+    if(h%168>how) continue; e.stepWk=wk; e.stepAt=S.time; aiStep(e,oilF); }
+  S.ai.stagOn=true;
 }
 function aiStep(e,oilF){
   const R=(S.rivals||[]).find(x=>x.code===e.code);

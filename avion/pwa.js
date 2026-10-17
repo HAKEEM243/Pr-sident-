@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261201';
+const GAME_VER='20261202';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,10 +80,11 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🌍 Le monde bouge en continu','Chaque compagnie évolue à sa propre heure (flotte, argent, image, accidents) au lieu de toutes ensemble le lundi : actualités, sécurité, nouvelles, classement, réseau, flotte et patrimoine changent au fil des heures. Les présidents prennent aussi des décisions en cours de semaine. Tous les onglets d’actualités et le contrôle des passagers se redessinent chaque seconde.'],
+  ['🛂 Contrôle des passagers en direct','Nouvel encadré « ● En direct au contrôle » : arrivés depuis minuit (le compteur monte chaque minute), dernière heure, file et temps d’attente, refoulés du jour, et tableau des dernières arrivées (vos vols ⭐ et ceux des autres compagnies).'],
   ['🏆 Classement en direct','Le classement bouge chaque seconde avec le temps du jeu : le patrimoine des compagnies évolue heure par heure, vos passagers/jour = voyageurs réellement débarqués sur les 24 dernières heures, ceux des concurrents suivent les pointes du matin et du soir. Le tableau se redessine tout seul.'],
   ['🗓️ Horaires respectés','Sur une ligne avec plusieurs avions, les départs de la semaine sont répartis régulièrement (ex. 6 h 30, 12 h 15, 18 h 00) et donnés aux avions à tour de rôle. Deux avions de la même ligne ne partent plus l’un derrière l’autre : un écart minimum est toujours gardé, même quand un avion revient en retard.'],
   ['🤝 Adjoint : vous choisissez les lignes','Dites-lui le pays et le budget : il propose jusqu’à 12 lignes. Cochez seulement celles que vous voulez, il n’ouvre que celles-là (audit, avion, décollage et personnel compris). Il n’ouvre plus jamais de ligne tout seul.'],
-  ['🤝 Adjoint : vous n’avez plus rien à faire derrière lui','Bouton principal « ⚡ Vas-y, fais tout » : il ouvre les lignes, fait les audits, achète les avions, les fait décoller et recrute le personnel. Chaque jour, et dès l’ouverture du jeu, il audite toutes les lignes de son hub (même celles ouvertes avant) et complète le personnel.'],
   ['🤝 L’adjoint fait tout','Il fait lui-même les audits des lignes, les avions décollent tout de suite (on les voit en 2D et en 3D), et il recrute pilotes, PNC, mécaniciens et personnel au sol. Chaque semaine il audite les nouvelles lignes de son hub et complète le personnel.'],
   ['🗺️ Carte : lignes et avions bien visibles','Vos lignes retrouvent leur couleur et leur épaisseur, vos avions leur taille normale, le fond n’est presque plus assombri. On garde seulement les noms de villes qui ne se chevauchent plus et les petites traînées.'],
   ['🏟️ Vols spéciaux réparés','Tous vos avions libres partent tout de suite vers l’événement, avec des escales techniques si l’autonomie ne suffit pas ; l’équipage manquant est recruté automatiquement ; un message dit combien sont partis et pourquoi les autres restent. Les supporters qui arrivent en avance comptent.'],
