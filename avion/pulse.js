@@ -63,6 +63,9 @@ function aiHourly(){
   const n=1+(Math.random()<0.55?1:0)+(Math.random()<0.2?1:0);
   for(let i=0;i<n;i++) microEvent();
   playerHourly();
+  try{ aiStagger(); }catch(e){ console.warn(e); }
+  // présidents et climat des pays : de petites décisions au fil des heures
+  try{ if(typeof govAction==='function'&&typeof govList==='function'&&Math.random()<2.5/168){ const l=govList(); if(l.length) govAction(pick(l)); } if(typeof moodEpisode==='function'&&Math.random()<0.12/168) moodEpisode(); }catch(e){}
   if(typeof paxCaseTick==='function') paxCaseTick();
   if(typeof chartersHourly==='function') chartersHourly();
   if(typeof ceoTick==='function') ceoTick();

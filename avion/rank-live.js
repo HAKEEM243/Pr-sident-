@@ -31,7 +31,7 @@ function rlHook(){ if(rlHook.done||typeof aiRows!=='function') return; rlHook.do
       if(r.me){ if(!RL.at) RL.at=S.time; r.pax=rlMyPax(r.pax); continue; }
       const e=r.e||{}, k=rlHash(r.code);
       const wiggle=Math.sin(t/HOUR*0.9+k)*0.0022+Math.sin(t/(11*MIN)+k*0.37)*0.0007;            // ventes et dépenses de la journée
-      r.value=Math.max(10e6,(r.value+(e.lastOperatingResult||0)*fr)*(1+wiggle));
+      const f2=e.stepAt!==undefined?clamp((t-e.stepAt)/(7*DAY),0,1):fr; r.value=Math.max(10e6,(r.value+(e.lastOperatingResult||0)*f2)*(1+wiggle));
       r.pax=Math.round((r.pax||0)*rlDay(r.hub,t)*(1+Math.sin(t/(17*MIN)+k)*0.02));
       r.growth=typeof rankGrowth==='function'?rankGrowth(r.value,e):r.growth;
     }
@@ -45,7 +45,7 @@ function rlHook(){ if(rlHook.done||typeof aiRows!=='function') return; rlHook.do
     return h.replace('<div class="rank-overview">',live+'<div class="rank-overview">'); }; }
   // redessin chaque seconde quand le classement est affiché
   setInterval(()=>{ try{
-    if(typeof S==='undefined'||!S||UI.tab!=='news'||(UI.newsTab||'actu')!=='rank') return;
+    if(typeof S==='undefined'||!S||!['news','pax'].includes(UI.tab)) return;                // actualités (tous les onglets) et contrôle des passagers
     const P=document.getElementById('panel'); if(P&&P.classList.contains('hide')) return;
     if(document.hidden||performance.now()-(UI.touchAt||0)<1500) return;
     const a=document.activeElement; if(a&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)) return;
