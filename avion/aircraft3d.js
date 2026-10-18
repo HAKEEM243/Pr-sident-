@@ -78,7 +78,7 @@ const AC3D=(function(){
     return 'nb';
   }
   // couleur d'une livrée : extrémité de dérive, liseré, moteurs
-  function build(m, livery){
+  function build(m, livery, lite){   // lite : version légère (avions lointains, téléphones) — moins de mémoire graphique
     const sp=(typeof acSpec==='function'?acSpec(m):{span:35,len:38}), v=variantOf(m), L=sp.len, span=sp.span, cargo=typeof isCargo==='function'&&isCargo(m);
     const R = v==='a380'?3.55 : v==='747'?3.25 : v==='wb'||v==='quadwb'||v==='md11'?2.95 : v==='conc'?1.45 : v==='prop'?1.35 : v==='single'?0.85 : v==='otter'?0.95 : v==='rear'?1.35 : 1.98;
     const z0=-L/2, z1=L/2;
@@ -92,7 +92,7 @@ const AC3D=(function(){
     const fz=z=>{ const t=1-(z-z0)/L; let i=0; const P=prof.map(p=>[1-p[0],p[1],p[2],p[3]]).sort((a,b)=>a[0]-b[0]);
       while(i<P.length-2&&P[i+1][0]<t) i++; const a=P[i], b=P[i+1], u=Math.max(0,Math.min(1,(t-a[0])/((b[0]-a[0])||1)));
       return {r:R*lerp(a[1],b[1],u), yc:R*lerp(a[2],b[2],u), top:lerp(a[3],b[3],u), tall:v==='a380'?1.12:1}; };
-    const body=tube(z0,z1,prof,R,{n:30,tall:v==='a380'?1.12:1});
+    const body=tube(z0,z1,prof,R,{n:lite?20:30,tall:v==='a380'?1.12:1});
     const P={white:[body], line:[], spin:[], grey:[], tail:[], dark:[], glass:[], stripe:[], eng:[], fan:[], prop:[], gear:[], tire:[]};
     // pièces mobiles (nœuds glTF animés) : volets, aérofreins, inverseurs de poussée, hublots éclairés
     const anim=[], revs=[], wins=[];
@@ -101,13 +101,16 @@ const AC3D=(function(){
       anim.push({name:name+'R',kind,T,axis,sg:1,P:{grey:[gr]},...extra});
       anim.push({name:name+'L',kind,T:[-T[0],T[1],T[2]],axis:[-axis[0],axis[1],axis[2]],sg:-1,P:{grey:[mirrorX(gr)]},...extra}); };
     // verrière, fenêtres, liseré
-    if(conc) P.glass.push(strip(fz, z1-L*0.085, z1-L*0.045, 0.35, Math.PI-0.35, R, 1.01, 6));
+    if(conc||lite) P.glass.push(strip(fz, z1-L*0.085, z1-L*0.045, 0.35, Math.PI-0.35, R, 1.01, conc?6:3));
     else { const H=Math.PI/2, cz=z1-L*(v==='single'||v==='otter'?0.16:v==='prop'||v==='rear'?0.075:0.058), u=Math.max(0.36,R*0.19);   // u : longueur d'une vitre (m)
       const pane=(za,zb,a0,a1)=>{ const g=strip(fz,za,zb,a0,a1,R,1.014,3); P.glass.push(g,mirrorX(g)); };
       pane(cz-u*0.55, cz+u*0.45, H-0.4, H-0.05);           // pare-brise
       pane(cz-u*1.6, cz-u*0.72, H-0.8, H-0.46);            // fenêtre latérale avant
       pane(cz-u*2.5, cz-u*1.78, H-0.95, H-0.7); }           // fenêtre latérale arrière
     if(!cargo&&!conc){
+      if(lite){ const w=strip(fz,z0+L*0.18,z1-L*0.13,-0.02,0.1,R,1.006,6); P.dark.push(w,mirrorX(w)); const l=strip(fz,z0+L*0.18+0.3,z1-L*0.13-0.3,-0.005,0.085,R,1.0095,6); wins.push(l,mirrorX(l));
+        if(v==='a380'){ const u=strip(fz,z0+L*0.2,z1-L*0.16,0.6,0.75,R,1.006,6); P.dark.push(u,mirrorX(u)); } }
+      else {
       // portes : contour sombre + panneau, des deux côtés
       const dW=R>2.5?1.07:R>1.5?0.82:0.7, dA0=-0.62, dA1=Math.min(0.42,0.3+1.6/R*0.1), doors=[];
       const door=z=>{ doors.push(z); const o=strip(fz,z-dW/2-0.06,z+dW/2+0.06,dA0-0.035,dA1+0.035,R,1.012,2), pn=strip(fz,z-dW/2,z+dW/2,dA0,dA1,R,1.018,2), dw=strip(fz,z-0.12,z+0.12,dA1-0.2,dA1-0.08,R,1.022,1);
@@ -123,6 +126,7 @@ const AC3D=(function(){
       W(z0+L*0.18, z1-L*0.13, -0.03, 0.12);
       if(v==='a380') W(z0+L*0.2, z1-L*0.16, 0.6, 0.75);
       if(v==='747') W(z1-L*0.34, z1-L*0.12, 0.84, 0.96);
+      }
     }
     const sty=(livery&&livery.style)||'classique';
     // bande en arc (ventre) : plusieurs subdivisions angulaires
@@ -156,8 +160,8 @@ const AC3D=(function(){
       const fx0=high?R*1.05:xr+0.25, fx1=half*(high?0.7:0.72);
       flapSeg('flapI',fx0,Math.max(fx0+0.5,kink)); flapSeg('flapO',Math.max(fx0+0.5,kink),fx1);
       // carénage ventral (sous l'emplanture) et carénages des rails de volets
-      if(!high&&v!=='rear'){ const fb=tube(zr-cr*1.25,zr+cr*0.35,[[0,.25,0],[.18,.8,0],[.5,1,0],[.82,.85,0],[1,.3,0]],R*0.6,{y:wingYr-R*0.05,wide:1.75,tall:0.62,n:18}); P.white.push(fb); }
-      if(!high) for(const fx of [0.2,0.4,0.6]){ const x=half*fx, a=wAt(x), ft=tube(a.zl-a.c*1.18,a.zl-a.c*0.45,[[0,.15,0],[.25,.9,0],[.7,1,0],[1,.4,0]],Math.max(0.16,a.c*0.05),{x,y:a.y-a.t*a.c*0.35-Math.max(0.16,a.c*0.05)*0.9,tall:1.4,n:10}); P.grey.push(ft,mirrorX(ft)); }
+      if(!lite&&!high&&v!=='rear'){ const fb=tube(zr-cr*1.25,zr+cr*0.35,[[0,.25,0],[.18,.8,0],[.5,1,0],[.82,.85,0],[1,.3,0]],R*0.6,{y:wingYr-R*0.05,wide:1.75,tall:0.62,n:18}); P.white.push(fb); }
+      if(!lite&&!high) for(const fx of [0.2,0.4,0.6]){ const x=half*fx, a=wAt(x), ft=tube(a.zl-a.c*1.18,a.zl-a.c*0.45,[[0,.15,0],[.25,.9,0],[.7,1,0],[1,.4,0]],Math.max(0.16,a.c*0.05),{x,y:a.y-a.t*a.c*0.35-Math.max(0.16,a.c*0.05)*0.9,tall:1.4,n:10}); P.grey.push(ft,mirrorX(ft)); }
       // aérofreins / spoilers sur l'extrados (sortent au toucher)
       if(!high){ const splSeg=(name,xa,xb)=>{ const U=[0.56,0.6,0.64,0.68,0.72];
           const sec=x=>{ const a=wAt(x), top=U.map(u=>[x, a.y+naca(u)*a.t*a.c+0.035, a.zl-u*a.c]), bot=U.slice().reverse().map(u=>[x, a.y+naca(u)*a.t*a.c+0.004, a.zl-u*a.c]); return [...top,...bot]; };
@@ -167,7 +171,7 @@ const AC3D=(function(){
       // ailettes (winglets / sharklets)
       if(!high&&v!=='rear'){ const yt=wingYr+(half-xr)*dihed, zt=zr-(half-xr)*sweep-cr*0.05; const wl=loft([finSec(yt,zt,ct*0.9,0.08,half), finSec(yt+span*0.045,zt-ct*0.55,ct*0.35,0.08,half)],{capEnd:[0,1,0]}); P.tail.push(wl,mirrorX(wl)); }
       // moteurs sous l'aile
-      const nac=(x,y,z,len,r)=>{ const t=tube(z-len,z,[[0,.55,0],[.12,.82,0],[.55,1,0],[.9,1,0],[1,.94,0]],r,{x,y,n:16}); const f=merge(disc(x,y,z-0.18,r*0.84), tube(z-len-r*0.75,z-len+0.15,[[0,.12,0],[.6,.42,0],[1,.55,0]],r,{x,y,n:12})); P.spin.push(tube(z-0.2,z+0.05-r*0.05,[[0,.32,0],[.6,.22,0],[1,.03,0]],r,{x,y,n:12}),tube(z-0.04,z+0.02,[[0,.97,0],[1,.97,0]],r,{x,y,n:16})); const py=box(x-r*0.12,x+r*0.12,y+r*0.7,wingYr+(Math.abs(x)-xr)*dihed,z-len*0.75,z-len*0.15); return [t,f,py]; };
+      const nac=(x,y,z,len,r)=>{ const t=tube(z-len,z,[[0,.55,0],[.12,.82,0],[.55,1,0],[.9,1,0],[1,.94,0]],r,{x,y,n:16}); const f=lite?disc(x,y,z-0.05,r*0.82):merge(disc(x,y,z-0.18,r*0.84), tube(z-len-r*0.75,z-len+0.15,[[0,.12,0],[.6,.42,0],[1,.55,0]],r,{x,y,n:12})); if(!lite) P.spin.push(tube(z-0.2,z+0.05-r*0.05,[[0,.32,0],[.6,.22,0],[1,.03,0]],r,{x,y,n:12}),tube(z-0.04,z+0.02,[[0,.97,0],[1,.97,0]],r,{x,y,n:16})); const py=box(x-r*0.12,x+r*0.12,y+r*0.7,wingYr+(Math.abs(x)-xr)*dihed,z-len*0.75,z-len*0.15); return [t,f,py]; };
       const engAt=(fx)=>{ const x=half*fx, z=zr-(x-xr)*sweep+L*0.05, r= v==='nb'?R*0.52 : v==='rear'?R*0.5 : R*0.62, len=L*(v==='nb'?0.11:0.1);
         const y=wingYr+(x-xr)*dihed-r*1.05; const [t,f,py]=nac(x,y,z,len,r); P.eng.push(t,mirrorX(t)); P.fan.push(f,mirrorX(f)); P.grey.push(py,mirrorX(py));
         const rv=tube(z-len*0.62,z-len*0.4,[[0,1.05,0],[1,1.05,0]],r,{x,y,n:16}); revs.push(rv,mirrorX(rv)); };
@@ -211,10 +215,10 @@ const AC3D=(function(){
   const _cache={};
   function hexc(c){ if(!c) return [0.9,0.9,0.92,1]; if(c.startsWith('hsl')){ const m=c.match(/[\d.]+/g).map(Number); const h=m[0]/360,s=m[1]/100,l=m[2]/100; const q=l<.5?l*(1+s):l+s-l*s, p=2*l-q; const f=t=>{ t=(t+1)%1; return t<1/6?p+(q-p)*6*t:t<.5?q:t<2/3?p+(q-p)*(2/3-t)*6:p; }; return [f(h+1/3),f(h),f(h-1/3),1]; }
     const n=parseInt(c.replace('#',''),16); return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255,1]; }
-  function uri(m, color){
+  function uri(m, color, lite){
     const lv=(color&&typeof color==='object')? color : {tail:color, stripe:color};
-    const key=(m.id||'X')+'|'+JSON.stringify(lv); if(_cache[key]) return _cache[key];
-    const B=build(m,lv), lc=hexc(lv.tail||'#1e5ba8'), sc=hexc(lv.stripe||lv.tail||'#1e5ba8');
+    const key=(m.id||'X')+'|'+JSON.stringify(lv)+(lite?'|L':''); if(_cache[key]) return _cache[key];
+    const B=build(m,lv,lite), lc=hexc(lv.tail||'#1e5ba8'), sc=hexc(lv.stripe||lv.tail||'#1e5ba8');
     const mats={white:lv.body?hexc(lv.body):[0.95,0.96,0.97,1], grey:[0.8,0.82,0.86,1], line:[0.42,0.45,0.5,1], spin:[0.62,0.64,0.68,1], tail:lc, stripe:sc, dark:[0.1,0.12,0.18,1], glass:[0.04,0.07,0.13,1], eng:lv.engine?hexc(lv.engine):[0.86,0.88,0.9,1], fan:[0.12,0.13,0.16,1], prop:[0.15,0.15,0.17,0.32], gear:[0.55,0.57,0.6,1], tire:[0.06,0.06,0.07,1], rev:[0.16,0.17,0.19,1], lit:[0.32,0.27,0.17,1]};
     const gltf={asset:{version:'2.0',generator:'Sky Empire 3D'}, scene:0, scenes:[{nodes:[]}], nodes:[], meshes:[], materials:[], accessors:[], bufferViews:[], buffers:[]};
     const chunks=[]; let off=0; const matIx={};
