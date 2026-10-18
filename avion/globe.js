@@ -224,10 +224,13 @@ function initGlobe(){
 function globeNoteSim(){ if(G){ G.simAt=performance.now(); G.simTime=S.time; } }
 // horloge d'affichage de la 3D : avance en continu, ne recule jamais, et se recale en douceur sur le temps du jeu
 // (avant : quand le téléphone ralentissait, l'avion était projeté trop loin puis ramené en arrière → saccades)
-// une seule heure par image : l'avion, ses feux et la caméra utilisent exactement le même instant
-// (avant, chaque élément prenait l'heure à un moment légèrement différent : en vitesse rapide, les feux et la caméra « flottaient » autour de l'avion)
-function gSimNow(){ if(!G) return S.time; G.vc=G.vc||{}; const sc=G.viewer&&G.viewer.scene, fn=sc&&sc.frameState?sc.frameState.frameNumber:-1;
-  if(fn>=0&&G._fn===fn&&G._ft!==undefined) return G._ft; const t=smoothClock(G.vc,G.simTime,G.simAt); G._fn=fn; G._ft=t; return t; }
+// une seule heure par image : l'avion, ses feux et la caméra utilisent exactement le même instant.
+// L'heure de l'image suivante est fixée à la fin de chaque image (postRender) : Cesium place les avions AVANT
+// l'événement preRender où la caméra est posée — les deux voient donc la même heure (sinon la caméra cockpit tremble).
+function gSimNow(){ if(!G) return S.time; G.vc=G.vc||{}; const V=G.viewer;
+  if(V&&V.scene&&!V._seClock){ V._seClock=true; V.scene.postRender.addEventListener(()=>{ try{ G._ft=smoothClock(G.vc,G.simTime,G.simAt); G._ftOk=true; }catch(e){} }); }
+  if(G._ftOk&&V&&V._seClock&&!S.paused) return G._ft;
+  const t=smoothClock(G.vc,G.simTime,G.simAt); G._ft=t; return t; }
 function smoothClock(c,base,baseAt){
   const now=performance.now(); if(S.paused||base===undefined){ c.v=S.time; c.at=now; c.b=undefined; return S.time; }
   const mult=(SPEEDS[S.speed]||{mult:1}).mult;
