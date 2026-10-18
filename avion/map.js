@@ -630,7 +630,8 @@ function setRot(el,h){ const a=el._a===undefined?h:el._a, d=((h-a)%360+540)%360-
 let _clk={perf:0,t:-1};
 function simNow(){
   if(!S) return 0; const now=performance.now();
-  if(_clk.t!==S.time) _clk={perf:now,t:S.time};
+  if(_clk.t!==S.time){ _clk.perf=now; _clk.t=S.time; }
+  if(typeof smoothClock==='function'){ _clk.c=_clk.c||{}; return smoothClock(_clk.c,S.time,_clk.perf); }   // même horloge douce que la 3D : jamais de recul
   if(S.paused) return S.time;
   return S.time + Math.min(now-_clk.perf,450)*SPEEDS[S.speed].mult;
 }
