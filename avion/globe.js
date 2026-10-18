@@ -224,7 +224,10 @@ function initGlobe(){
 function globeNoteSim(){ if(G){ G.simAt=performance.now(); G.simTime=S.time; } }
 // horloge d'affichage de la 3D : avance en continu, ne recule jamais, et se recale en douceur sur le temps du jeu
 // (avant : quand le téléphone ralentissait, l'avion était projeté trop loin puis ramené en arrière → saccades)
-function gSimNow(){ if(!G) return S.time; G.vc=G.vc||{}; return smoothClock(G.vc,G.simTime,G.simAt); }
+// une seule heure par image : l'avion, ses feux et la caméra utilisent exactement le même instant
+// (avant, chaque élément prenait l'heure à un moment légèrement différent : en vitesse rapide, les feux et la caméra « flottaient » autour de l'avion)
+function gSimNow(){ if(!G) return S.time; G.vc=G.vc||{}; const sc=G.viewer&&G.viewer.scene, fn=sc&&sc.frameState?sc.frameState.frameNumber:-1;
+  if(fn>=0&&G._fn===fn&&G._ft!==undefined) return G._ft; const t=smoothClock(G.vc,G.simTime,G.simAt); G._fn=fn; G._ft=t; return t; }
 function smoothClock(c,base,baseAt){
   const now=performance.now(); if(S.paused||base===undefined){ c.v=S.time; c.at=now; c.b=undefined; return S.time; }
   const mult=(SPEEDS[S.speed]||{mult:1}).mult;

@@ -395,7 +395,7 @@ function boot(){
     if(acc1>=1000){ acc1=0; checkMissions(); if(typeof progressTick==='function') progressTick(); renderTop(); if(!g3){ updateRival(); drawWeather(); } if(typeof maybeShowDecision==='function') maybeShowDecision(); }
     if(acc2>=2000){ acc2=0; if(!P||P.hidden) liveRefresh(); }
     if(acc30>=20000){ acc30=0; if(!g3){ drawNight(); drawAirports(); } }
-    if(acc10>=(g3?30000:10000)){ acc10=0; save(); }   // en 3D : sauvegarde toutes les 30 s (évite les à-coups)
+    if(acc10>=(g3?120000:10000)){ acc10=0; save(); }   // en 3D : sauvegarde toutes les 2 min (une grosse partie prend du temps à enregistrer : à-coups)
   },200);
   const pn=document.getElementById('panel'); if(pn) for(const ev of ['pointerdown','wheel','touchstart','scroll','keydown']) pn.addEventListener(ev,()=>{ UI.touchAt=performance.now(); },{capture:true,passive:true});
   window.addEventListener('beforeunload',save);
