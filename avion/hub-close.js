@@ -28,7 +28,7 @@ function closeHub(code, mode, to){
   return null;
 }
 // avions vendus à l'atterrissage
-function hubCloseTick(){ for(const ac of (S.fleet||[]).slice()) if(ac.sellOnLand&&ac.status!=='flight'&&ac.status!=='manual'){ const m=hubSellAc(ac); logMsg(`💵 ${ac.reg} (${m.name}) vendu à son atterrissage (hub fermé).`,'info'); } }
+function hubCloseTick(){ for(const ac of (S.fleet||[]).slice()) if(ac.sellOnLand&&ac.status!=='flight'&&ac.status!=='manual'){ const m=hubSellAc(ac); logMsg(`💵 ${ac.reg} (${m.name}) vendu à son atterrissage.`,'info'); } }
 function closeHubHtml(code){
   const lines=S.routes.filter(r=>r.stops[0]===code), planes=S.fleet.filter(a=>a.hub===code), val=planes.reduce((s,a)=>s+(a.owned?acValue(a):0),0), others=S.hubs.filter(h=>h!==code);
   return `<p>Fermer le hub de <b>${esc(AP(code).city)}</b> (${code}) :</p>

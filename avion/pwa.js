@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261206';
+const GAME_VER='20261207';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🧹 Fin d’événement : lignes fermées, avions vendus','Les lignes ouvertes vers la ville d’un grand événement sont fermées à la fin, et les avions achetés pour l’événement sont vendus (en vol : à l’atterrissage). Les avions qui volent aussi ailleurs sont gardés. Case « Garder » dans 🏟️. Pour les anciens événements (São Paulo…) : liste à cocher dans 🏟️ pour fermer et vendre.'],
   ['🛡️ 3D plus légère sur téléphone','Pour éviter que la 3D se ferme (mémoire graphique pleine) : sur téléphone, les avions des autres compagnies utilisent un modèle allégé (2× moins lourd), l’aéroport vivant montre 4 avions au lieu de 6. Vos avions gardent le modèle détaillé.'],
   ['🎥 Cockpit et cabine de nouveau fluides','Correction : en vue cockpit / cabine la caméra tremblait depuis la dernière version. L’avion et la caméra utilisent maintenant la même heure à chaque image : l’avion avance tranquillement.'],
   ['🎥 3D : feux collés à l’avion, moins d’arrêts','L’avion, ses feux (rouge, vert, flashs) et la caméra utilisent exactement le même instant à chaque image : les feux ne flottent plus à côté de l’avion. Un petit ralentissement du téléphone ne fige plus l’avion, et en 3D la partie s’enregistre toutes les 2 minutes au lieu de 30 secondes (moins d’à-coups).'],
