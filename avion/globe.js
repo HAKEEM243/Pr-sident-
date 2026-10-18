@@ -20,7 +20,9 @@ function loadCesium(){
 // modèle représentatif pour les avions des autres compagnies
 const REP_MODEL={prop:'AT76', rj:'CRJ9', nb:'A20N', wb:'B789', quad:'B748', conc:'CONC'};
 const liveryOf=ac=>S.livery||S.company.color;
-function modelInfo(m,color){ return AC3D.uri(m,color); }
+function modelInfo(m,color,lite){ return AC3D.uri(m,color,lite); }
+// téléphone (hors qualité Haute) : modèles légers pour les avions des autres compagnies (un modèle par couleur de compagnie = beaucoup de mémoire graphique)
+const acLite=()=>typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq;
 
 /* ---------- ouverture / fermeture ---------- */
 async function open3D(){
@@ -359,7 +361,7 @@ function drawGlobeRivals(){
   if(fst) cands.sort((x,y)=>x.dd-y.dd);
   for(const {R,r,i:pi,q:q0} of cands){
     if(n>=(G.rivalCap!==undefined?G.rivalCap:(GQ.hq?60:GQ.mob?12:22))) return;
-    const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color);
+    const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color,acLite());
     let q=q0, qAt=-1; const an={}, nt={};
     const Q=()=>{ const now=performance.now(); if(now!==qAt){ qAt=now; q=rivalPos(r,pi||0,gSimNow())||q; } return q; };
     const posOf=()=>{ const v=Q(); const e=typeof gElev==='function'?gElev(gcDist(v.p,v.from)<gcDist(v.p,v.to)?v.from.code:v.to.code):0; return C.Cartesian3.fromDegrees(v.p.lon,v.p.lat,Math.max(v.alt||0,mi.R+mi.gH+0.4)+e); };

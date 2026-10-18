@@ -46,7 +46,7 @@ function liveDraw(){
   const cap=GQ.mob?(GQ.mini?25:45):90, cam=V.camera.positionCartographic, cla=C.Math.toDegrees(cam.latitude), clo=C.Math.toDegrees(cam.longitude);
   const list=[...LIVE.ac.values()].sort((x,y)=>gcDist(x,{lat:cla,lon:clo})-gcDist(y,{lat:cla,lon:clo})).slice(0,cap), keep=new Set(list.map(a=>a.id));
   for(const [id,e] of LIVE.ents) if(!keep.has(id)){ V.entities.remove(e); LIVE.ents.delete(id); }
-  const mi=AC3D.uri(getModel('A20N'),'#e2e8f0');
+  const mi=AC3D.uri(getModel('A20N'),'#e2e8f0',typeof acLite==='function'&&acLite());
   for(const a of list){ if(LIVE.ents.has(a.id)) continue; const id=a.id;
     const posOf=()=>{ const x=LIVE.ac.get(id); if(!x) return C.Cartesian3.fromDegrees(0,0,-1e6); const p=livePos(x); return C.Cartesian3.fromDegrees(p.lon,p.lat,Math.max(p.alt,mi.R+mi.gH+0.4)); };
     const e=V.entities.add({position:new C.CallbackProperty(posOf,false),

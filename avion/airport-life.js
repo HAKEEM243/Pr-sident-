@@ -11,7 +11,7 @@
    Tout est animé en continu (même jeu en pause), moins sur mobile.
    ========================================================= */
 'use strict';
-const ALQ=()=>{ const mob=typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq, mini=typeof GQ!=='undefined'&&GQ.mini; return {planes:mini?3:mob?6:12, veh:mini?3:mob?6:12, taxi:mini?0:mob?1:2, pax:mini?0:mob?4:8}; };
+const ALQ=()=>{ const mob=typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq, mini=typeof GQ!=='undefined'&&GQ.mini; return {planes:mini?3:mob?4:12, veh:mini?3:mob?6:12, taxi:mini?0:mob?1:2, pax:mini?0:mob?4:8}; };
 const alNow=()=>performance.now()/1000;
 // point décalé : fwd mètres devant (cap hdg), right mètres à droite
 function alOff(p,hdg,fwd,right){ const a=destPt(p.lat,p.lon,hdg,fwd/1000); return right?destPt(a.lat,a.lon,(hdg+90)%360,right/1000):a; }
@@ -35,13 +35,13 @@ function airportLife(code,N){
   // ---------- 1. avions des autres compagnies aux portes, avec leurs véhicules ----------
   const gates=(typeof apGates==='function'?apGates(code):null)||[]; if(!gates.length) return;
   const mine=new Set(); for(const ac of S.fleet||[]){ if(ac.loc===code||(ac.flight&&ac.flight.legs.some(l=>l.from===code||l.to===code))) try{ mine.add(gateIdx(code,ac,!!ac.gIntl)); }catch(e){} }
-  const al=(typeof airlinesAt==='function'?airlinesAt(code):[]).map(([c])=>c).slice(0,12); if(!al.length) return;
+  const al=(typeof airlinesAt==='function'?airlinesAt(code):[]).map(([c])=>c).slice(0,Q.planes>=12?12:4);   // téléphone : 4 couleurs de compagnies au plus (mémoire graphique) if(!al.length) return;
   const want=Math.min(Q.planes,Math.max(3,Math.round(Math.sqrt(A.traffic||1)*3)));
   const free=gates.map((g,i)=>i).filter(i=>i>=6&&!mine.has(i)); const used=[];
   for(let k=0;k<want&&free.length;k++){ const i=free.splice(Math.floor((k*7919)%free.length),1)[0]; used.push(i); }
   const parked=[];
   used.forEach((gi,k)=>{ const g=gates[gi], c=al[(k+6)%al.length], m=getModel(k%4===0&&big?'B789':k%3===0?'B738':k%5===0&&big?'A359':'A20N')||getModel('A20N');
-    const mi=AC3D.uri(m,typeof airlineColor==='function'?airlineColor(c):'#64748b'); stat(g,g.hdg,mi.uri,mi.R+mi.gH+0.4); parked.push({g,mi,m,k});
+    const mi=AC3D.uri(m,typeof airlineColor==='function'?airlineColor(c):'#64748b',typeof acLite==='function'&&acLite()); stat(g,g.hdg,mi.uri,mi.R+mi.gH+0.4); parked.push({g,mi,m,k});
     // véhicules de service autour de l'avion (côté droit = côté service)
     const L=mi.L||38, half=(mi.span||34)/2, h=g.hdg;
     stat(alOff(g,h,-L*0.02,half*0.55),(h+90)%360,apModel('fuel',M_FUEL));
@@ -71,7 +71,7 @@ function airportLife(code,N){
     if(kk==='tug') for(let j=1;j<=3;j++) mov(()=>{ const q=alPing(lp,rlen,sp,t0), b=destPt(q.lat,q.lon,(q.hdg+180)%360,(3.6*j)/1000); return {lat:b.lat,lon:b.lon,hdg:q.hdg}; },apModel('cart',M_CART),0.25); }
   // ---------- 4. avions qui roulent sur la voie de circulation ----------
   const tw=[rwPt(r,a0-span/2-30,gx-s*55),rwPt(r,a0+span/2+30,gx-s*55)], tlen=gcDist(tw[0],tw[1])*1000;
-  for(let i=0;i<Q.taxi;i++){ const c=al[(i+3)%al.length], m=getModel(i%2?'A20N':'B738')||getModel('A20N'), mi=AC3D.uri(m,typeof airlineColor==='function'?airlineColor(c):'#64748b');
+  for(let i=0;i<Q.taxi;i++){ const c=al[(i+3)%al.length], m=getModel(i%2?'A20N':'B738')||getModel('A20N'), mi=AC3D.uri(m,typeof airlineColor==='function'?airlineColor(c):'#64748b',typeof acLite==='function'&&acLite());
     // il roule, s'arrête un moment (autorisation), puis repart
     const run=tlen/8, cyc=2*run+40;
     mov(()=>{ const T=(alNow()+i*run*0.9)%cyc; let d, back=false;
