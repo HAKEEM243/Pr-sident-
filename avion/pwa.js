@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261203';
+const GAME_VER='20261204';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🎥 3D : feux collés à l’avion, moins d’arrêts','L’avion, ses feux (rouge, vert, flashs) et la caméra utilisent exactement le même instant à chaque image : les feux ne flottent plus à côté de l’avion. Un petit ralentissement du téléphone ne fige plus l’avion, et en 3D la partie s’enregistre toutes les 2 minutes au lieu de 30 secondes (moins d’à-coups).'],
   ['🎥 3D plus stable','L’avion ne recule plus et ne saute plus : nouvelle horloge d’affichage qui avance en continu et se recale en douceur sur le temps du jeu, même quand le téléphone ralentit (aussi sur la carte 2D).'],
   ['🌍 Le monde bouge en continu','Chaque compagnie évolue à sa propre heure (flotte, argent, image, accidents) au lieu de toutes ensemble le lundi : actualités, sécurité, nouvelles, classement, réseau, flotte et patrimoine changent au fil des heures. Les présidents prennent aussi des décisions en cours de semaine. Tous les onglets d’actualités et le contrôle des passagers se redessinent chaque seconde.'],
   ['🛂 Contrôle des passagers en direct','Nouvel encadré « ● En direct au contrôle » : arrivés depuis minuit (le compteur monte chaque minute), dernière heure, file et temps d’attente, refoulés du jour, et tableau des dernières arrivées (vos vols ⭐ et ceux des autres compagnies).'],
