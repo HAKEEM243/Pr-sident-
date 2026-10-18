@@ -222,7 +222,19 @@ function initGlobe(){
 
 /* ---------- temps et attitude ---------- */
 function globeNoteSim(){ if(G){ G.simAt=performance.now(); G.simTime=S.time; } }
-function gSimNow(){ if(!G||S.paused) return S.time; return G.simTime + Math.min(400,performance.now()-G.simAt)*SPEEDS[S.speed].mult; }
+// horloge d'affichage de la 3D : avance en continu, ne recule jamais, et se recale en douceur sur le temps du jeu
+// (avant : quand le téléphone ralentissait, l'avion était projeté trop loin puis ramené en arrière → saccades)
+function gSimNow(){ if(!G) return S.time; G.vc=G.vc||{}; return smoothClock(G.vc,G.simTime,G.simAt); }
+function smoothClock(c,base,baseAt){
+  const now=performance.now(); if(S.paused||base===undefined){ c.v=S.time; c.at=now; c.b=undefined; return S.time; }
+  const mult=(SPEEDS[S.speed]||{mult:1}).mult;
+  // vitesse réellement mesurée du temps de jeu (ms de jeu par ms réelle), lissée
+  if(c.b!==base){ if(c.b!==undefined&&baseAt>c.bAt){ const r=(base-c.b)/(baseAt-c.bAt); if(r>=0&&r<=mult*1.5) c.rate=c.rate===undefined?r:c.rate*0.7+r*0.3; } c.b=base; c.bAt=baseAt; }
+  if(c.mult!==mult){ c.mult=mult; c.rate=mult; }
+  const rate=Math.max(0,Math.min(mult,c.rate===undefined?mult:c.rate)), target=base+Math.min(1500,now-baseAt)*rate;
+  if(c.v===undefined||Math.abs(target-c.v)>Math.max(90000,4000*mult)){ c.v=target; c.at=now; return c.v; }      // saut (rattrapage) : on se cale
+  const dt=Math.min(250,now-(c.at||now)); let v=c.v+dt*rate; v+=(target-v)*Math.min(1,dt/900);
+  if(v<c.v) v=c.v; c.v=v; c.at=now; return v; }
 function attitude(ac,st,t){
   let a=G.att.get(ac.id); if(!a){ a={hdg:st.hdg,t,bank:0,pitch:0,alt:st.alt,vs:0}; G.att.set(ac.id,a); }
   const dtg=(t-a.t)/1000;
