@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261207';
+const GAME_VER='20261208';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🇨🇩 Des rivaux congolais plus puissants','Masambukidi Fly grandit plus vite jusqu’à 240 avions, peut ouvrir jusqu’à 3 lignes par semaine et bâtir des bases à l’étranger. Les autres compagnies congolaises progressent aussi plus régulièrement (plafond de 160 avions), étendent leur réseau et Masambukidi peut racheter des compagnies étrangères fragiles. Elles restent non agressives contre votre compagnie.'],
   ['🧹 Fin d’événement : lignes fermées, avions vendus','Les lignes ouvertes vers la ville d’un grand événement sont fermées à la fin, et les avions achetés pour l’événement sont vendus (en vol : à l’atterrissage). Les avions qui volent aussi ailleurs sont gardés. Case « Garder » dans 🏟️. Pour les anciens événements (São Paulo…) : liste à cocher dans 🏟️ pour fermer et vendre.'],
   ['🛡️ 3D plus légère sur téléphone','Pour éviter que la 3D se ferme (mémoire graphique pleine) : sur téléphone, les avions des autres compagnies utilisent un modèle allégé (2× moins lourd), l’aéroport vivant montre 4 avions au lieu de 6. Vos avions gardent le modèle détaillé.'],
   ['🎥 Cockpit et cabine de nouveau fluides','Correction : en vue cockpit / cabine la caméra tremblait depuis la dernière version. L’avion et la caméra utilisent maintenant la même heure à chaque image : l’avion avance tranquillement.'],

@@ -49,19 +49,24 @@ function msbEnsure(){
 function msbWeekly(){
   const e=aiBy(MSB); if(!e||e.status==='dead'){ msbEnsure(); return; }
   e.amb=1; e.skill=Math.min(0.5,(e.skill||0)+0.006); e.safety=Math.min(1.6,(e.safety||1)+0.01); e.rep=Math.min(90,(e.rep||60)+0.15);   // elle progresse semaine après semaine
-  if(e.cash<2e8){ e.cash+=3e8; aiNews(`💰 ${MSB_NAME} lève 300 millions de dollars pour continuer sa conquête du monde.`,'news'); }
-  // flotte : de plus en plus de gros porteurs
-  if(Math.random()<0.22){ const n=1; e.fleet+=n; e.cash-=n*rnd(9e7,1.5e8)*0.3; const R=(S.rivals||[]).find(x=>x.code===MSB); if(R) R.fleet=e.fleet;
-    aiNews(`🛬 ${MSB_NAME} reçoit ${n} nouveaux ${pick(['Airbus A380','Boeing 777-300ER','Boeing 747-8'])} jaunes : ${e.fleet} gros porteurs.`,'news'); }
-  // expansion mondiale : 1 à 2 lignes par semaine, depuis Goma ou ses bases à l'étranger
-  const n=e.routes<e.fleet*1.3&&Math.random()<0.5?1:0;   // une nouvelle ligne de temps en temps, quand la flotte suit
+  const support=Math.max(2e8,e.fleet*14e6);
+  if(e.cash<support){ const funding=Math.max(3e8,e.fleet*12e6); e.cash+=funding; aiNews(`💰 ${MSB_NAME} obtient ${fmtMoney(funding)} de ses investisseurs pour financer sa flotte et ses rachats.`,'news'); }
+  // expansion mondiale : jusqu'à 3 lignes par semaine depuis Goma et ses bases étrangères
+  const routeCap=Math.min(300,e.fleet*2.5), room=Math.max(0,Math.floor(routeCap-e.routes));
+  const n=Math.min(room,e.fleet>=40?3:e.fleet>=20?2:1);
   for(let i=0;i<n;i++){ const from=(e.bases||[]).length&&Math.random()<0.45?pick(e.bases):MSB_HUB;
     const cand=cpBig().filter(c=>c!==from&&AP(c).cc!==AP(from).cc&&dist(from,c)>1500&&dist(from,c)<14000&&!carriersOn(from,c).includes(MSB));
     if(!cand.length) continue; const to=cand.slice(0,40)[rndi(0,Math.min(39,cand.length-1))];
     if(cpOpen(e,from,to,1)) aiNews(`🟡 ${MSB_NAME} ouvre ${keyCity(from)} – ${keyCity(to)} en gros porteur.`,'news',from===MSB_HUB&&Math.random()<0.3);
-    // une base à l'étranger quand elle a 3 lignes ou plus depuis une grande ville
+    // une base à l'étranger quand le réseau commence à prendre de l'ampleur
     const nb=(S.ai.extra[MSB]||[]).filter(k=>k.includes(to)).length; e.bases=e.bases||[];
     if(nb>=3&&!e.bases.includes(to)&&AP(to).cc!==e.cc){ e.bases.push(to); aiNews(`🏴 ${MSB_NAME} installe une base à ${keyCity(to)} : les avions jaunes de Goma s’attaquent au marché de ${ccName(AP(to).cc)}.`,'news',true); }
+  }
+  // Débloquer les bases étrangères même quand les premières lignes sont toutes au départ de Goma.
+  if(e.fleet>=20&&e.routes>=20&&(e.bases||[]).length<8&&Math.random()<0.35){
+    const linked=new Set((S.ai.extra[MSB]||[]).flatMap(k=>[k.slice(0,3),k.slice(3)]));
+    const base=cpBig().find(c=>linked.has(c)&&c!==MSB_HUB&&AP(c).cc!==e.cc&&!(e.bases||[]).includes(c));
+    if(base){ e.bases=e.bases||[]; e.bases.push(base); aiNews(`🏴 ${MSB_NAME} ouvre une base à ${keyCity(base)} et rayonne sur de nouveaux marchés.`,'news',true); }
   }
   // elle se bat contre le monde : guerre des prix contre la n°1 d'un grand marché où elle vole (jamais contre vous)
   if(typeof raceMarketMove==='function'&&Math.random()<0.3){ const ms=[...(e.bases||[]),...(S.ai.extra[MSB]||[]).map(k=>k.slice(3))].filter(c=>AP(c)&&!(typeof raceMine==='function'&&raceMine().has(c))); if(ms.length) raceMarketMove(e,pick(ms)); }
@@ -74,11 +79,9 @@ function cpWeekly(){
     e.amb=Math.max(raceAmb?raceAmb(e):0.8,0.85); e.skill=Math.max(e.skill||0,0.12);
     // soutien des investisseurs du pays : elles ne s'effondrent pas
     if(e.cash<e.fleet*3e6){ e.cash+=Math.max(5e6,e.fleet*2.5e6); if(e.debt) e.debt=Math.max(0,e.debt-1); }
-    // plus d'avions
-    if(Math.random()<0.2){ const n=Math.max(1,Math.round(e.fleet*rnd(0.03,0.06))); e.fleet+=n; e.cash-=n*rnd(3e6,6e6); const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet;
-      if(n>=3) aiNews(`🇨🇩 ${e.name} s’agrandit : ${n} avions de plus (${e.fleet} au total) pour partir à l’assaut du monde.`,'news'); }
     // lignes vers l'étranger : Afrique d'abord pour les petites, le monde pour les grandes
-    if(Math.random()<0.25){ const maxD=e.fleet>=40?11000:e.fleet>=15?6000:3500;
+    const routeCap=Math.min(180,e.fleet*2.2);
+    if(e.routes<routeCap&&Math.random()<0.55){ const maxD=e.fleet>=40?11000:e.fleet>=15?6000:3500;
       const cand=(e.fleet>=15?cpBig():AIRPORT_CODES.filter(c=>AP(c).cls>=3&&AP(c).traffic>=1)).filter(c=>AP(c).cc!==cc&&dist(e.hub,c)>400&&dist(e.hub,c)<=maxD&&!carriersOn(e.hub,c).includes(e.code));
       if(cand.length){ const to=cand.sort((x,y)=>AP(y).traffic-AP(x).traffic).slice(0,25)[rndi(0,Math.min(24,cand.length-1))];
         if(cpOpen(e,e.hub,to,2)) aiNews(`🌍 ${e.name} (${ccName(cc)}) part à la conquête de l’étranger : nouvelle ligne ${keyCity(e.hub)} – ${keyCity(to)}.`,'news',e.fleet>=15); } }
@@ -91,12 +94,22 @@ function cpWeekly(){
 function cpStrong(){
   const cc=homeCC();
   for(const e of cpCompat()){ const msb=e.code===MSB;
-    // croissance progressive : au plus ~1,5 % de flotte en plus par semaine (les avions en trop sont revendus)
-    if(e.lastF){ e.fAcc=(e.fAcc||0)+e.lastF*0.015; const add=Math.floor(e.fAcc), allow=e.lastF+add; if(e.fleet>=allow) e.fAcc-=add; if(e.fleet>allow){ e.cash+=(e.fleet-allow)*5e6; e.fleet=allow; const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet; } }
-    e.lastF=e.fleet;
-    // pas plus de ~2 lignes par avion : les moins rentables sont abandonnées
-    if(e.routes>e.fleet*2.2&&typeof raceDropPair==='function'){ const ex=(S.ai.extra[e.code]||[]).slice(msb?10:0).sort((x,y)=>marketDemand(x.slice(0,3),x.slice(3))-marketDemand(y.slice(0,3),y.slice(3)));
-      while(e.routes>e.fleet*2&&ex.length){ const k=ex.shift(); raceDropPair(e,k.slice(0,3),k.slice(3)); } }
+    // Croissance hebdomadaire lisible et plafonnée : Masambukidi devient un géant,
+    // les autres compagnies congolaises grandissent vite sans flotte illimitée.
+    const fleetCap=msb?240:160, growth=msb?0.055:0.03;
+    if(e.fleet<fleetCap){
+      e.fAcc=(e.fAcc||0)+e.fleet*growth;
+      const add=Math.min(fleetCap-e.fleet,Math.floor(e.fAcc));
+      if(add>0){
+        e.fAcc-=add; e.fleet+=add; e.cash-=add*(msb?36e6:4.5e6);
+        const R=(S.rivals||[]).find(x=>x.code===e.code); if(R) R.fleet=e.fleet;
+        if(msb||add>=3) aiNews(`${msb?'🟡':'🇨🇩'} ${e.name} commande ${add} avion${add>1?'s':''} : flotte portée à ${e.fleet}.`,'news');
+      }
+    }
+    // Réseau dense mais borné pour éviter les flottes/réseaux démesurés dans les anciennes parties.
+    const routeCap=Math.min(msb?300:180,e.fleet*(msb?2.8:2.2));
+    if(e.routes>routeCap&&typeof raceDropPair==='function'){ const ex=(S.ai.extra[e.code]||[]).slice(msb?10:0).sort((x,y)=>marketDemand(x.slice(0,3),x.slice(3))-marketDemand(y.slice(0,3),y.slice(3)));
+      while(e.routes>routeCap&&ex.length){ const k=ex.shift(); raceDropPair(e,k.slice(0,3),k.slice(3)); } }
     // gestion : rentables, sans dettes, en mode croissance
     e.skill=Math.min(msb?0.5:0.35,(e.skill||0)+0.005); if((e.debt||0)>0&&e.cash>0) e.debt=0;
     if(e.cash>0) e.plan={mode:'grow',until:S.time+8*7*DAY}; e.cash+=e.fleet*0.12e6;
@@ -112,8 +125,8 @@ function cpStrong(){
 // elles rachètent des compagnies étrangères en difficulté
 function cpMonthly(){
   const cc=homeCC(), strong=cpCompat().filter(e=>e.cash>e.fleet*12e6&&e.fleet>=25);
-  if(!strong.length||Math.random()>0.15||typeof aiAcquireCompany!=='function') return;
-  const buyer=pick(strong), prey=aiAlive().filter(x=>x.cc!==cc&&x.code!==MSB&&x.fleet>=5&&x.fleet<=buyer.fleet*0.6&&((x.debt||0)>=1||x.cash<x.fleet*3e6||(x.mavg||0)<-0.08)&&dist(x.hub,buyer.hub)<9000);
+  if(!strong.length||Math.random()>0.3||typeof aiAcquireCompany!=='function') return;
+  const flagship=strong.find(e=>e.code===MSB), buyer=flagship&&Math.random()<0.65?flagship:pick(strong), prey=aiAlive().filter(x=>x.cc!==cc&&x.code!==MSB&&x.fleet>=5&&x.fleet<=buyer.fleet*0.6&&((x.debt||0)>=1||x.cash<x.fleet*3e6||(x.mavg||0)<-0.08)&&dist(x.hub,buyer.hub)<9000);
   if(!prey.length) return; const t=prey.sort((a,b)=>b.fleet-a.fleet)[0];
   if(buyer.cash<t.fleet*9e6+t.fleet*1e6) buyer.cash+=t.fleet*10e6;   // financement des banques du pays
   if(aiAcquireCompany(buyer,t,'merger')) aiNews(`🇨🇩 ${buyer.name} rachète ${t.name} (${ccName(t.cc)}) : la puissance congolaise s’étend.`,'news',true);
