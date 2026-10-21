@@ -32,6 +32,8 @@ const COUNTRY_OVERRIDES = {
   PA:['Panama','SA','🇵🇦','HP-'], AU:['Australie','OC','🇦🇺','VH-'], NZ:['Nouvelle-Zélande','OC','🇳🇿','ZK-'],
 };
 const COUNTRIES = Object.assign({}, COUNTRY_DB);
+// Palestine (absente de la base mondiale)
+if(!COUNTRIES.PS) COUNTRIES.PS=['Palestine','AS','🇵🇸','E4-'];
 for(const [cc,v] of Object.entries(COUNTRY_OVERRIDES)) COUNTRIES[cc]=[v[0], (COUNTRY_DB[cc]||v)[1], v[2], v[3]];
 const CONTINENTS = { AF:'Afrique', EU:'Europe', AS:'Asie & Moyen-Orient', NA:'Amérique du Nord & centrale', SA:'Amérique du Sud', OC:'Océanie', AN:'Antarctique' };
 
@@ -198,6 +200,9 @@ AIRPORT_DB.forEach(([code,icao,name,city,cc,lat,lon,cls,traffic,runway,large,utc
   if(!COUNTRIES[cc]) return;
   AIRPORTS[code]={code,icao,name,city,cc,prov:'',region,lat,lon,runway,surface:'Asphalte',cls,traffic,large:!!large,utc,drc:cc==='CD'};
 });
+// 1 bis) Palestine : aéroport international Yasser-Arafat de Gaza (vrai aéroport, fermé depuis 2001 ; rouvert dans le jeu)
+if(!AIRPORTS.GZA) AIRPORTS.GZA={code:'GZA',icao:'LVGZ',name:'Aéroport international Yasser-Arafat',city:'Gaza',cc:'PS',prov:'',region:'PS-GZA',lat:31.2464,lon:34.2761,runway:3076,surface:'Asphalte',cls:4,traffic:1.2,large:false,utc:2};
+if(typeof RUNWAY_DB!=='undefined'&&!RUNWAY_DB.GZA) RUNWAY_DB.GZA=[['08','26',null,null,null,null,80,3076,60,1]];
 // 2) noms français des grandes villes
 WORLD_AIRPORTS.forEach(([code,name,city])=>{ if(AIRPORTS[code]){ AIRPORTS[code].city=city; } });
 // 3) RDC : données détaillées (provinces, pistes en latérite)
