@@ -301,8 +301,15 @@ function globeSync(full){
   V.clock.currentTime=C.JulianDate.fromDate(new Date(tv));
   V.scene.globe.enableLighting=G.lighting;
   const seen=new Set();
+  // téléphone : seulement les 25 avions les plus proches de ce qu'on regarde (+ l'avion suivi) — une grosse flotte saturait la mémoire
+  let keep=null;
+  if(typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq){ try{ let ref=null; const f=G.follow&&S.fleet.find(a=>a.id===G.follow), fs=f&&f.flight&&flightState(f);
+      if(fs) ref={lat:fs.lat,lon:fs.lon}; else { const cp=V.camera.positionCartographic; if(cp) ref={lat:C.Math.toDegrees(cp.latitude),lon:C.Math.toDegrees(cp.longitude)}; }
+      if(ref){ const L=[]; for(const ac of S.fleet){ if(ac.status!=='flight'||!ac.flight) continue; const st=flightState(ac); if(st) L.push([gcDist(ref,st),ac.id]); }
+        if(L.length>25){ L.sort((x,y)=>x[0]-y[0]); keep=new Set(L.slice(0,25).map(x=>x[1])); if(G.follow) keep.add(G.follow); if(typeof selectedPlane!=='undefined'&&selectedPlane) keep.add(selectedPlane); } } }catch(e){ keep=null; } }
   for(const ac of S.fleet){
     if(ac.status!=='flight'||!ac.flight) continue;
+    if(keep&&!keep.has(ac.id)) continue;
     seen.add(ac.id);
     if(G.planes.has(ac.id)) continue;
     const m=modelOf(ac), mi=modelInfo(m,liveryOf(ac));
