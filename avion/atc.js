@@ -95,11 +95,11 @@ const RADAR={ap:null, range:60, raf:0, sweep:0, t0:0};
 function radarTargets(code){
   const A=AP(code), out=[], t=typeof simNow==='function'?simNow():S.time, R=RADAR.range*1.852;
   for(const ac of S.fleet){ if(ac.status!=='flight') continue; const st=flightState(ac,t); if(!st) continue; const d=gcDist(A,st); if(d>R*1.05) continue;
-    out.push({me:true, lat:st.lat, lon:st.lon, hdg:st.hdg, alt:st.alt, spd:st.gs||st.spd, cs:S.company.code+flightNumber(ac), hold:st.holding, ph:st.phase, gnd:st.alt<1}); }
+    out.push({me:true, lat:st.lat, lon:st.lon, hdg:st.hdg, alt:st.alt, spd:st.gs||st.spd, cs:S.company.code+flightNumber(ac), al:S.company.name, typ:modelOf(ac).name, to:st.to||'', from:st.from||'', hold:st.holding, ph:st.phase, gnd:st.alt<1}); }
   const b=L.latLngBounds([A.lat-R/111,A.lon-R/80],[A.lat+R/111,A.lon+R/80]);
   const list=[...((S.rivals||[]).flatMap(R0=>R0.routes.map(r=>{ if(!r.c) r.c=R0.code; return {R:R0,r}; }))), ...(typeof visibleRealRoutes==='function'?visibleRealRoutes(b,A.lon,40):[])];
   for(const {R:Rr,r} of list.slice(0,400)){ for(let i=0;i<Math.min(3,(rivalSched(r)||{nP:0}).nP);i++){ const q=rivalPos(r,i,t); if(!q) continue; const d=gcDist(A,q.p); if(d>R*1.05) continue;
-      out.push({me:false, lat:q.p.lat, lon:q.p.lon, hdg:q.hdg, alt:q.alt||(q.d<1200?6500:10500), spd:q.ph===4?(q.d<1200?520:850):300, cs:(Rr.code||'')+(100+hashStr(r.a+r.b+i)%800), hold:q.holding, ph:q.ph, gnd:q.gnd}); } }
+      out.push({me:false, lat:q.p.lat, lon:q.p.lon, hdg:q.hdg, alt:q.alt||(q.d<1200?6500:10500), spd:q.ph===4?(q.d<1200?520:850):300, cs:(Rr.code||'')+(100+hashStr(r.a+r.b+i)%800), al:Rr.name||Rr.code||'', typ:({prop:'Turbopropulseur',nb:'Moyen-courrier',wb:'Gros-porteur',quad:'Très gros porteur'})[r.cat||Rr.cat]||'', to:q.to||'', from:q.from||'', hold:q.holding, ph:q.ph, gnd:q.gnd}); } }
   return out;
 }
 function radarHtml(){
@@ -108,7 +108,8 @@ function radarHtml(){
     <div class="chips">${[20,40,60,120].map(r=>`<button class="chip ${RADAR.range===r?'on':''}" data-act="radarRange" data-r="${r}">${r} NM</button>`).join('')}</div></div>
     <div class="radar-wrap"><canvas id="radarCv" width="720" height="720"></canvas></div>
     <div class="small mut">🟡 vos avions · 🟢 autres compagnies · 🟠 en attente (piste occupée) · altitude en centaines de pieds</div>
-    <h4>🗼 Séquence de la tour</h4><div id="radarSeq" class="small"></div>`;
+    <div id="radarTower"></div>
+    <h4>🗼 Séquence de la tour (vos vols)</h4><div id="radarSeq" class="small"></div>`;
 }
 function radarSeqHtml(){
   const code=RADAR.ap, rows=[];
@@ -134,7 +135,11 @@ function radarDraw(){
   // balayage
   const sr=RADAR.sweep*Math.PI/180; for(let k=0;k<26;k++){ const a=sr-k*0.025; g.strokeStyle=`rgba(80,255,140,${0.5*(1-k/26)})`; g.lineWidth=3; g.beginPath(); g.moveTo(c,c); g.lineTo(c+Math.sin(a)*(c-10),c-Math.cos(a)*(c-10)); g.stroke(); }
   // cibles
-  if(!RADAR.tg||now-RADAR.tgAt>900){ RADAR.tg=radarTargets(RADAR.ap); RADAR.tgAt=now; }
+  if(!RADAR.tg||now-RADAR.tgAt>900){ RADAR.tg=radarTargets(RADAR.ap); RADAR.tgAt=now;
+    // traînées : les dernières positions de chaque avion
+    RADAR.hist=RADAR.hist||{}; const seen=new Set(); for(const p of RADAR.tg){ seen.add(p.cs); const H=RADAR.hist[p.cs]||(RADAR.hist[p.cs]=[]); H.push([p.lat,p.lon]); if(H.length>8) H.shift(); }
+    for(const k of Object.keys(RADAR.hist)) if(!seen.has(k)) delete RADAR.hist[k]; }
+  for(const p of RADAR.tg){ const H=(RADAR.hist||{})[p.cs]; if(!H) continue; H.forEach(([la,lo],i)=>{ const [x,y]=xy(la,lo); g.fillStyle=p.me?`rgba(250,204,21,${0.12+i*0.05})`:`rgba(74,222,128,${0.1+i*0.04})`; g.fillRect(x-1.5,y-1.5,3,3); }); }
   g.font='bold 15px ui-monospace,monospace';
   for(const p of RADAR.tg){ const [x,y]=xy(p.lat,p.lon); if(Math.hypot(x-c,y-c)>c-8) continue;
     const ang=(bearing(A,p)+360)%360, since=((RADAR.sweep-ang+360)%360)/360, br=Math.max(0.35,1-since*0.8);
@@ -143,8 +148,28 @@ function radarDraw(){
     if(p.gnd){ g.fillRect(x-3,y-3,6,6); } else { g.beginPath(); g.rect(x-5,y-5,10,10); g.stroke(); const h=(p.hdg||0)*Math.PI/180, v=Math.min(40,(p.spd||300)/18); g.beginPath(); g.moveTo(x,y); g.lineTo(x+Math.sin(h)*v,y-Math.cos(h)*v); g.stroke(); }
     if(p.me||RADAR.range<=60){ g.fillText(p.cs,x+9,y-6); g.font='13px ui-monospace,monospace'; g.fillText(`${p.gnd?'SOL':String(Math.round(p.alt*3.28/100)).padStart(3,'0')} ${Math.round((p.spd||0)/1.852)}${p.hold?' ATT':''}`,x+9,y+10); g.font='bold 15px ui-monospace,monospace'; } }
   g.fillStyle='#4ade80'; g.font='bold 16px ui-monospace,monospace'; g.fillText(`${RADAR.ap} · ${A.city}`,12,24); g.fillText(fmtTime(S.time)+' UTC',12,W-12);
-  if(!RADAR.seqAt||now-RADAR.seqAt>2000){ RADAR.seqAt=now; const el=document.getElementById('radarSeq'); if(el) el.innerHTML=radarSeqHtml(); }
+  if(!RADAR.seqAt||now-RADAR.seqAt>2000){ RADAR.seqAt=now; const el=document.getElementById('radarSeq'); if(el) el.innerHTML=radarSeqHtml(); const tw=document.getElementById('radarTower'); if(tw) tw.innerHTML=towerHtml(); }
 }
+// météo de surface de l'aéroport (modèle du jeu, stable heure par heure) et piste en service face au vent
+function towerWx(code){ const A=AP(code), t=S.time, h=hashStr(code), hr=t/HOUR, st=typeof stormAt==='function'?stormAt(A.lat,A.lon):null;
+  const dir=((h%36)*10+Math.round(Math.sin(hr/6+h)*40)+360)%360, spd=Math.max(2,Math.round(5+(h%9)+Math.sin(hr/4+h*0.3)*5+(st?14:0))), gust=st?spd+12:spd>14?spd+7:0;
+  const vis=st?(h%2?3000:1800):Math.sin(hr/5+h)>0.93?4000:10000, temp=Math.round(31-Math.abs(A.lat)*0.42-(A.elev||0)/1000*2+Math.sin((hr+(A.lon/15))/24*2*Math.PI-1.6)*5);
+  const qnh=Math.round(1013+Math.sin(hr/30+h)*6-(st?7:0)), atis=String.fromCharCode(65+Math.floor(hr)%26);
+  const rws=runwaysOf(code); const rw=rws.length?rws.slice().sort((a,b)=>angDiff(a.hdg,dir)-angDiff(b.hdg,dir))[0]:null;
+  return {dir,spd,gust,vis,temp,qnh,atis,st,rw}; }
+const PH_TXT=p=>p.gnd?'🅿️ Au sol':p.hold?'🔄 En attente':p.ph===2?'🛫 Décollage':p.ph===3?'↗️ Montée':p.ph===4?'✈️ Croisière':p.ph===5?'↘️ Descente':p.ph===6?'🛬 Approche':p.ph===7?'🛬 Finale':'·';
+function towerHtml(){
+  const code=RADAR.ap, A=AP(code), w=towerWx(code), T=(RADAR.tg||[]).map(p=>({...p,d:gcDist(A,p)/1.852})).sort((a,b)=>a.d-b.d);
+  const arr=T.filter(p=>!p.gnd&&(p.ph>=5||p.hold)), dep=T.filter(p=>!p.gnd&&p.ph>=2&&p.ph<=3), hold=T.filter(p=>p.hold), gnd=T.filter(p=>p.gnd);
+  const eta=p=>p.spd>50?Math.max(1,Math.round(p.d/(p.spd/1.852)*60)):null;
+  const strips=T.slice(0,14).map(p=>`<tr class="${p.me?'me':''}"><td><b>${esc(p.cs)}</b><br><span class="mut">${esc(p.al||'')}</span></td><td>${PH_TXT(p)}<br><span class="mut">${esc(p.typ||'')}</span></td><td>${p.gnd?'SOL':'FL'+String(Math.round(p.alt*3.28/100)).padStart(3,'0')}</td><td>${p.gnd&&!p.me&&p.ph!==2&&p.ph!==7?'0':Math.round((p.spd||0)/1.852)} kt</td><td>${p.d.toFixed(1).replace('.',',')} NM${arr.includes(p)&&eta(p)?`<br><span class="mut">ETA ${eta(p)} min</span>`:''}</td></tr>`).join('');
+  const nextL=arr.filter(p=>eta(p)).sort((a,b)=>eta(a)-eta(b)).slice(0,5).map(p=>`${esc(p.cs)} (${eta(p)} min)`).join(' · ');
+  return `<div class="card" style="margin:8px 0"><b>🗼 Tour de ${esc(A.city)}</b> <span class="mut small">· information ${w.atis}</span>
+    <div class="small" style="margin-top:4px">🌬️ Vent ${String(w.dir).padStart(3,'0')}° / ${w.spd} kt${w.gust?` rafales ${w.gust} kt`:''} · 👁️ Visibilité ${w.vis>=10000?'10 km et plus':num(w.vis)+' m'}${w.st?' · ⛈️ orage':''} · 🌡️ ${w.temp} °C · QNH ${w.qnh} hPa</div>
+    <div class="small">🛬 Piste en service : <b>${w.rw?esc(w.rw.id):'—'}</b>${w.rw?` (face au vent, ${num(Math.round(w.rw.len))} m)`:''}</div>
+    <div class="kpis" style="margin-top:6px"><div class="kpi"><div class="kl">En approche</div><div class="kv">${arr.length}</div></div><div class="kpi"><div class="kl">Au départ</div><div class="kv">${dep.length}</div></div><div class="kpi"><div class="kl">En attente</div><div class="kv">${hold.length}</div></div><div class="kpi"><div class="kl">Au sol</div><div class="kv">${gnd.length}</div></div></div>
+    ${nextL?`<div class="small">⏱️ Prochains atterrissages : ${nextL}</div>`:''}
+    ${strips?`<div class="tblwrap"><table class="tbl small"><tr><th>Vol</th><th>Phase</th><th>Altitude</th><th>Vitesse</th><th>Distance</th></tr>${strips}</table></div>`:'<div class="small mut">Aucun avion dans la zone radar.</div>'}</div>`; }
 function openRadar(code){
   RADAR.ap=code||RADAR.ap||(G&&G.follow&&(()=>{ const ac=S.fleet.find(a=>a.id===G.follow), st=ac&&flightState(ac); return st&&(st.frac>0.5?st.to:st.from); })())||S.company.hub;
   UI.modal='radar'; showModal('📡 Radar & tour de contrôle', radarHtml(), true); RADAR.tg=null; cancelAnimationFrame(RADAR.raf); RADAR.raf=requestAnimationFrame(radarDraw);

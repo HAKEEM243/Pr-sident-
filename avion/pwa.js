@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261209';
+const GAME_VER='20261210';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,10 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🇨🇩 FlyCAA et Masambukidi Fly vraiment fortes','Les compagnies de votre pays ne disparaissent plus, ne sont plus rachetées par l’étranger, ne perdent plus leurs lignes face aux étrangères et ne vendent plus leurs avions : elles grandissent chaque semaine. Une compagnie congolaise disparue renaît (une fois).'],
+  ['🧠 IA plus maligne','Les compagnies ouvrent la ligne la plus prometteuse depuis leur hub (forte demande, peu de concurrents) quand elles grandissent, ferment leur ligne la plus faible quand elles souffrent ; les bien gérées montent, les mal gérées coulent.'],
+  ['🛂 Contrôle des passagers plus détaillé','Refus calculés de la même façon pour toutes les compagnies (plus seulement les vôtres), numéro de vol et ville de départ, motif de chaque refus, bilan du jour par compagnie, motifs de refus, douane (fouilles, saisies, droits), nationalités dans la file.'],
+  ['🗼 Tour de contrôle et radar détaillés','Météo de l’aéroport (vent, rafales, visibilité, température, QNH, information ATIS), piste en service face au vent, compteurs (approche, départ, attente, sol), prochains atterrissages, fiches de vol de tous les avions (compagnie, phase, altitude, vitesse, distance, heure d’arrivée) et traînées sur le radar.'],
   ['🇵🇸 Palestine','Nouveau pays : la Palestine, avec l’aéroport international Yasser-Arafat de Gaza (GZA, piste de 3 076 m). Fermé dans la réalité depuis 2001, il est rouvert dans le jeu : ouvrez une ligne, il s’affiche aussi en 3D.'],
   ['🛬 Tous vos aéroports visibles en 3D','Bukavu, Kamina, Manono et 24 autres aéroports n’avaient pas de piste dans la base du jeu : la 3D ne les dessinait pas. Maintenant la vraie piste est téléchargée (OpenStreetMap) ou reconstruite : piste, balisage, terminal et avions s’affichent. « Allonger la piste » se voit aussi en 3D.'],
   ['🛡️ 3D plus légère pour les grosses flottes','Sur téléphone, la 3D n’affiche que vos 25 avions les plus proches (plus l’avion suivi) au lieu de tous vos vols du monde : beaucoup moins de mémoire et de calcul.'],
