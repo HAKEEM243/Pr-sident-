@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261210';
+const GAME_VER='20261211';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,8 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['☁️ Nuages en 3D','Des nuages autour de votre avion, aussi sur téléphone : cumulus bas, parfois une couche plus haute, gros nuages sombres sous les orages. Pas toujours : selon la région et le jour, ciel dégagé, quelques nuages ou ciel chargé. En montant, l’avion les traverse puis les voit en dessous.'],
+  ['🗺️ Mini-carte de retour en 3D','La petite carte revient à l’écran (même si elle avait été cachée) et suit l’avion : sa position, son cap, sa route en pointillés et sa ville d’arrivée ; zoom selon l’altitude.'],
   ['🇨🇩 FlyCAA et Masambukidi Fly vraiment fortes','Les compagnies de votre pays ne disparaissent plus, ne sont plus rachetées par l’étranger, ne perdent plus leurs lignes face aux étrangères et ne vendent plus leurs avions : elles grandissent chaque semaine. Une compagnie congolaise disparue renaît (une fois).'],
   ['🧠 IA plus maligne','Les compagnies ouvrent la ligne la plus prometteuse depuis leur hub (forte demande, peu de concurrents) quand elles grandissent, ferment leur ligne la plus faible quand elles souffrent ; les bien gérées montent, les mal gérées coulent.'],
   ['🛂 Contrôle des passagers plus détaillé','Refus calculés de la même façon pour toutes les compagnies (plus seulement les vôtres), numéro de vol et ville de départ, motif de chaque refus, bilan du jour par compagnie, motifs de refus, douane (fouilles, saisies, droits), nationalités dans la file.'],

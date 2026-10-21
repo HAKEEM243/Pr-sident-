@@ -213,7 +213,7 @@ function rdFrame(){
 
 /* ---------- mini-carte réglable ---------- */
 const MM={map:null, mk:null, size:null, zoomed:null};
-function mmSize(){ if(MM.size) return MM.size; try{ MM.size=localStorage.getItem('se-mm')||'m'; }catch(e){ MM.size='m'; } return MM.size; }
+function mmSize(){ if(MM.size) return MM.size; try{ MM.size=localStorage.getItem('se-mm')||'m'; if(localStorage.getItem('se-mm-v2')!=='1'){ localStorage.setItem('se-mm-v2','1'); if(MM.size==='off'||MM.size==='s'){ MM.size='m'; localStorage.setItem('se-mm','m'); } } }catch(e){ MM.size='m'; } return MM.size; }   // une fois : la mini-carte revient à l'écran
 function minimapInit(){
   if(MM.map||typeof L==='undefined') return; const host=document.getElementById('globe'); if(!host) return;
   const box=document.createElement('div'); box.id='minimap'; box.innerHTML=`<div id="mmMap"></div><div class="mmbar"><button data-mm="size" title="Taille">⤢</button><button data-mm="in">+</button><button data-mm="out">−</button><button data-mm="auto" title="Zoom automatique">🎯</button><button data-mm="hide" title="Masquer">×</button></div><button id="mmShow" hidden>🗺️</button>`;
@@ -223,6 +223,9 @@ function minimapInit(){
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,opacity:0.9}).addTo(MM.map);
   MM.mk=L.marker([0,0],{icon:L.divIcon({className:'mm-me',html:'<div class="mm-arrow">➤</div>',iconSize:[26,26],iconAnchor:[13,13]}),interactive:false}).addTo(MM.map);
   MM.cone=L.polygon([[0,0],[0,0],[0,0]],{color:'#ffd60a',weight:1,fillOpacity:0.18,interactive:false}).addTo(MM.map);
+  MM.route=L.polyline([],{color:'#ff2bd6',weight:2.5,opacity:0.9,dashArray:'6 6',interactive:false}).addTo(MM.map);
+  MM.dest=L.marker([0,0],{icon:L.divIcon({className:'mm-dest',html:'<div style="background:#ff2bd6;color:#fff;border-radius:6px;padding:1px 5px;font:700 10px system-ui;white-space:nowrap;box-shadow:0 1px 4px #000"></div>',iconSize:[0,0],iconAnchor:[0,8]}),interactive:false}).addTo(MM.map);
+  try{ MM.map.getContainer().style.background='#16324f'; }catch(e){}
   // toucher la mini-carte : la caméra s'y rend (hors poursuite d'un avion)
   MM.map.on('click',e=>{ if(!G||!G.viewer||G.follow) return; const c=rdCam(); G.viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(e.latlng.lng,e.latlng.lat,Math.max(800,c.h)),orientation:{heading:G.viewer.camera.heading,pitch:G.viewer.camera.pitch,roll:0},duration:1.2}); });
   MM.map.on('zoomstart',()=>{ if(!MM.auto) MM.userZoom=true; });
@@ -238,13 +241,19 @@ function mmApply(){ const box=document.getElementById('minimap'); if(!box) retur
   setTimeout(()=>{ try{ MM.map.invalidateSize({pan:false}); if(G&&G.viewer){ const c=rdCam(); MM.map.setView([c.lat,c.lon],MM.map.getZoom(),{animate:false}); } }catch(e){} },50); }
 function minimapUpdate(cam){
   minimapInit(); if(!MM.map||mmSize()==='off') return;
-  const hd=Cesium.Math.toDegrees(G.viewer.camera.heading), ll=[cam.lat,cam.lon];
+  let hd=Cesium.Math.toDegrees(G.viewer.camera.heading), ll=[cam.lat,cam.lon];
   // zoom automatique selon l'altitude, tant que le joueur n'a pas zoomé lui-même
-  const z=Math.max(4,Math.min(16,Math.round(17-Math.log2(Math.max(200,cam.h)/120))));
+  let z=Math.max(4,Math.min(16,Math.round(17-Math.log2(Math.max(200,cam.h)/120))));
+  // avion suivi : la carte montre l'avion, sa route et sa destination
+  const f=G.follow&&S.fleet.find(a=>a.id===G.follow), st=f&&f.flight&&flightState(f);
+  if(st){ ll=[st.lat,st.lon]; hd=st.hdg; z=st.alt>6000?6:st.alt>2500?8:st.alt>600?10:13;
+    try{ const leg=st.leg||f.flight.legs[f.flight.li]; if(leg&&MM.legKey!==leg.from+leg.to+leg.dep){ MM.legKey=leg.from+leg.to+leg.dep; const P=legPath(leg,modelOf(f)); MM.route.setLatLngs(P.air.map(q=>[q.lat,q.lon]));
+        const D=AP(leg.to); MM.dest.setLatLng([D.lat,D.lon]); const el=MM.dest.getElement(); if(el) el.firstChild.textContent='🛬 '+D.city; } }catch(e){} }
+  else if(MM.legKey){ MM.legKey=null; MM.route.setLatLngs([]); MM.dest.setLatLng([0,0]); }
   MM.auto=true; try{ if(!MM.userZoom) MM.map.setView(ll,z,{animate:false}); else MM.map.panTo(ll,{animate:false}); } finally{ MM.auto=false; }
   MM.mk.setLatLng(ll); const el=MM.mk.getElement(); if(el){ const a=el.querySelector('.mm-arrow'); if(a) a.style.transform=`rotate(${hd-90}deg)`; }
-  // cône de vue de la caméra
-  const R=Math.max(0.3,cam.h/1000*1.6), p1=destPt(cam.lat,cam.lon,hd-30,R), p2=destPt(cam.lat,cam.lon,hd+30,R);
+  // cône de vue de la caméra (hors poursuite d'un avion)
+  const R=st?0.001:Math.max(0.3,cam.h/1000*1.6), p1=destPt(cam.lat,cam.lon,hd-30,R), p2=destPt(cam.lat,cam.lon,hd+30,R);
   MM.cone.setLatLngs([ll,[p1.lat,p1.lon],[p2.lat,p2.lon]]);
 }
 setInterval(()=>{ try{ rdTick(); }catch(e){ console.warn(e); } },1000);
