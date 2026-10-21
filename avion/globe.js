@@ -258,8 +258,21 @@ function attitude(ac,st,t){
   }
   return a;
 }
+// trajectoire lissée en vol : la route est une ligne brisée ; sans lissage l'avion changeait de cap d'un coup
+// à chaque angle (ex. pour s'aligner sur la piste). On moyenne la position sur quelques secondes autour de
+// l'instant : les angles deviennent de vrais virages, et le cap suit la tangente (l'inclinaison en découle).
+function smoothSt(get,t,alt,D){
+  const s0=get(t); if(!s0||(s0.alt!==undefined?s0.alt:alt)<60) return s0;
+  const P=[get(t-D),get(t-D/2),s0,get(t+D/2),get(t+D)], W=[1,2,3,2,1]; if(P.some(x=>!x)) return s0;
+  let la=0,lo=0,al=0,w=0; for(let i=0;i<5;i++){ const q=P[i].p||P[i]; la+=q.lat*W[i]; lo+=(q.lon+(Math.abs(q.lon-(s0.p||s0).lon)>180?(q.lon<0?360:-360):0))*W[i]; al+=(P[i].alt||0)*W[i]; w+=W[i]; }
+  const A=P[1].p||P[1], B=P[3].p||P[3], h=gcDist(A,B)>0.02?bearing(A,B):s0.hdg;
+  return {s0,lat:la/w,lon:lo/w,alt:al/w,hdg:h};
+}
+function smoothState(ac,t){ const st=flightState(ac,t); if(!st||st.alt<60||st.phase<=1||st.phase>=8) return st;
+  const D=st.alt<3500?16000:30000, lg=st.leg; const r=smoothSt(x=>{ const q=flightState(ac,x); return q&&q.leg===lg?q:null; },t,st.alt,D);
+  if(!r||!r.s0) return st; return Object.assign({},st,{lat:r.lat,lon:r.lon,alt:Math.max(r.alt,60),hdg:r.hdg}); }
 function acPose(ac){
-  const t=gSimNow(), st=flightState(ac,t); if(!st) return null;
+  const t=gSimNow(), st=smoothState(ac,t); if(!st) return null;
   const mi=modelInfo(modelOf(ac),liveryOf(ac)), a=attitude(ac,st,t);
   const gear=st.alt<600||st.phase<=2||st.phase>=6;
   let h=Math.max(st.alt, mi.R+mi.gH+0.4)+(typeof legElev==='function'?legElev(st.from,st.to,st.frac):0);
@@ -314,7 +327,7 @@ function globeSync(full){
     if(G.planes.has(ac.id)) continue;
     const m=modelOf(ac), mi=modelInfo(m,liveryOf(ac));
     let pose=null, poseAt=-1; const an={}, nt={};
-    const P=()=>{ const now=performance.now(); if(now!==poseAt){ pose=acPose(ac); poseAt=now; } return pose; };
+    const P=()=>{ const tt=gSimNow(); if(tt!==poseAt){ pose=acPose(ac); poseAt=tt; } return pose; };   // une seule pose par image
     const ent=V.entities.add({
       position:new C.CallbackProperty(()=>{ const p=P(); return p&&p.pos; },false),
       orientation:new C.CallbackProperty(()=>{ const p=P(); return p&&p.q; },false),
@@ -370,7 +383,10 @@ function drawGlobeRivals(){
     if(n>=(G.rivalCap!==undefined?G.rivalCap:(GQ.hq?60:GQ.mob?12:22))) return;
     const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color,acLite());
     let q=q0, qAt=-1; const an={}, nt={};
-    const Q=()=>{ const now=performance.now(); if(now!==qAt){ qAt=now; q=rivalPos(r,pi||0,gSimNow())||q; } return q; };
+    const Q=()=>{ const tt=gSimNow(); if(tt!==qAt){ qAt=tt; const q1=rivalPos(r,pi||0,tt)||q;
+        // virages lissés aussi pour les autres compagnies (en vol seulement)
+        if(q1&&!q1.gnd&&(q1.alt||0)>60){ const sm=smoothSt(x=>{ const z=rivalPos(r,pi||0,x); return z&&!z.gnd?z:null; },tt,q1.alt,(q1.alt||0)<3500?16000:30000);
+          q=sm&&sm.s0?Object.assign({},q1,{p:{lat:sm.lat,lon:sm.lon},alt:Math.max(60,sm.alt),hdg:sm.hdg}):q1; } else q=q1; } return q; };
     const posOf=()=>{ const v=Q(); const e=typeof gElev==='function'?gElev(gcDist(v.p,v.from)<gcDist(v.p,v.to)?v.from.code:v.to.code):0; return C.Cartesian3.fromDegrees(v.p.lon,v.p.lat,Math.max(v.alt||0,mi.R+mi.gH+0.4)+e); };
     const re=V.entities.add({position:new C.CallbackProperty(posOf,false),
       orientation:new C.CallbackProperty(()=>{ const v=Q(), pos=posOf(); const pitch=v.ph===2&&!v.gnd?8:v.ph===3?6:v.ph===6||v.ph===5?-2:0; return C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(v.hdg-90),C.Math.toRadians(pitch),0)); },false),

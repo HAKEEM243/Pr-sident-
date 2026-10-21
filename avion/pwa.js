@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261211';
+const GAME_VER='20261212';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,9 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🔄 Virages en 3D','En 3D les avions tournent vraiment pour s’aligner sur la piste (et à chaque changement de cap), au lieu de sauter d’un coup sur l’axe : trajectoire lissée, inclinaison dans les virages. Pareil pour les avions des autres compagnies.'],
+  ['✈️ Trafic des autres compagnies en 3D','Autour de l’avion suivi, d’autres avions aux couleurs des compagnies de la région : en croisière à d’autres niveaux de vol, et près des aéroports en finale alignés sur la piste ou au décollage.'],
+  ['☁️ Plus de nuages','Ciel nuageux beaucoup plus souvent (dégagé environ 1 jour sur 7) et nuages plus proches de l’avion.'],
   ['☁️ Nuages en 3D','Des nuages autour de votre avion, aussi sur téléphone : cumulus bas, parfois une couche plus haute, gros nuages sombres sous les orages. Pas toujours : selon la région et le jour, ciel dégagé, quelques nuages ou ciel chargé. En montant, l’avion les traverse puis les voit en dessous.'],
   ['🗺️ Mini-carte de retour en 3D','La petite carte revient à l’écran (même si elle avait été cachée) et suit l’avion : sa position, son cap, sa route en pointillés et sa ville d’arrivée ; zoom selon l’altitude.'],
   ['🇨🇩 FlyCAA et Masambukidi Fly vraiment fortes','Les compagnies de votre pays ne disparaissent plus, ne sont plus rachetées par l’étranger, ne perdent plus leurs lignes face aux étrangères et ne vendent plus leurs avions : elles grandissent chaque semaine. Une compagnie congolaise disparue renaît (une fois).'],
