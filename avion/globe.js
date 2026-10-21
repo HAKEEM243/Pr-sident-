@@ -533,7 +533,7 @@ function renderGlobeHud(){
       <button class="gh" data-act="photo">📸 Photo</button>
       <button class="gh" data-act="radar">📡 Radar</button>
       <button class="gh ${typeof RADIO!=='undefined'&&RADIO.voice?'on':''}" data-act="radioVoice">🗣️ Voix</button>
-      <button class="gh ${typeof FX!=='undefined'&&FX.forceRain?'on':''}" data-act="globeRain" title="Pluie et orage (sinon : selon la météo du jeu)">🌧️ Pluie</button>
+      <button class="gh ${typeof FX!=='undefined'&&FX.forceRain?'on':''}" data-act="globeRain" title="Pluie et orage (sinon : selon la météo du jeu)">🌧️ Pluie</button><button class="gh ${typeof CL!=='undefined'&&clMode()!=='auto'?'on':''}" data-act="globeClouds" title="Nuages : touchez pour changer">☁️ ${typeof clModeLabel==='function'?clModeLabel():'Nuages'}</button>
       <span class="gh-sep"></span>
       <button class="gh ${G.tm&&G.tm.auto?'on':''}" data-act="globeTime" data-k="auto" title="Temps réel au décollage et à l’atterrissage, accéléré en croisière">🎬 Auto</button>
       ${TM_STEPS.map(([k,l])=>`<button class="gh ${G.tm&&!G.tm.auto&&S.speed===k?'on':''}" data-act="globeTime" data-k="${k}">${l}</button>`).join('')}
@@ -582,6 +582,7 @@ Object.assign(ACTIONS,{
   globeRelief:()=>{ TERRAIN.on=!TERRAIN.on; try{ localStorage.setItem('se-relief',TERRAIN.on?'1':'0'); }catch(e){} terrainApply(); toast(TERRAIN.on?'⛰️ Relief réel activé : montagnes, vallées et volcans':'Relief désactivé (terre plate, plus léger)','info'); renderGlobeHud(); },
   globeSound:()=>fxToggleSound(),
   globeRain:()=>{ FX.forceRain=!FX.forceRain; fxAudioUnlock(); renderGlobeHud(); },
+  globeClouds:()=>{ if(typeof clNext==='function'){ clNext(); toast('☁️ '+clModeLabel(),'info'); } renderGlobeHud(); },
   globeDay:()=>{ if(G.forceNight){ G.forceNight=false; G.forceDay=false; } else if(G.forceDay){ G.forceDay=false; G.forceNight=true; } else { G.forceDay=true; G.forceNight=false; } G.lighting=true; try{ localStorage.setItem('se-day',G.forceDay?'1':'0'); localStorage.setItem('se-night',G.forceNight?'1':'0'); }catch(e){} globeSync(false); renderGlobeHud(); },
   globeSnow:()=>set3DSnow(!G.snowOn),
   globeZoom:d=>{ G.cam.range=clamp(G.cam.range*(+d.d),15,80000); },
