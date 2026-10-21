@@ -34,7 +34,8 @@ function runwayNeeded(m, code){ const el=(AP(code)&&AP(code).elev)||0; return Ma
 function runwayCheck(m, code){
   const a=AP(code); const rws=runwaysOf(code);
   const need=runwayNeeded(m,code);
-  if(!rws.length) return a.cls<m.cls? `Piste de ${a.city} (${code}) trop courte pour un ${m.name}` : null;
+  // aéroports absents de la base de pistes : la piste affichée en 3D est reconstruite, la règle reste celle de la classe (comme avant)
+  if(!rws.length||!((typeof RUNWAY_DB!=='undefined'&&RUNWAY_DB[code])||[]).length) return a.cls<m.cls? `Piste de ${a.city} (${code}) trop courte pour un ${m.name}` : null;
   const hard=rws.filter(r=>r.hard), best=Math.max(...(hard.length?hard:rws).map(r=>r.len));
   if(!hard.length && m.fam!=='TURBO') return `${a.city} (${code}) n’a qu’une piste non revêtue : réservée aux turbopropulseurs`;
   const need2=hard.length? need : need*1.2;
@@ -51,9 +52,36 @@ function destPt(lat,lon,hdg,km){
   return {lat:toDeg(φ2), lon:toDeg(λ2)};
 }
 // Chaque piste physique donne deux sens d'utilisation (ex. 06 et 24)
+// pistes absentes de la base (beaucoup d'aéroports du Congo : Bukavu, Kamina, Manono…) : vraie piste téléchargée
+// d'OpenStreetMap (une fois, gardée dans la partie), sinon piste construite d'après la longueur connue de l'aéroport
+const _rwOsmTry={}; let _rwOsmBusy=false;
+function rwOsmFetch(code){
+  if(typeof fetch!=='function'||typeof S==='undefined'||!S||_rwOsmBusy||_rwOsmTry[code]) return; _rwOsmTry[code]=1; _rwOsmBusy=true;
+  const a=AP(code), q=`[out:json][timeout:20];way["aeroway"="runway"](around:5000,${a.lat.toFixed(4)},${a.lon.toFixed(4)});out geom 20;`;
+  const eps=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+  (async()=>{ let js=null; for(const ep of eps){ try{ const r=await fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}}); if(r.ok){ js=await r.json(); break; } }catch(e){} }
+    _rwOsmBusy=false; if(!js) return; const rows=[];
+    for(const el of js.elements||[]){ const g=el.geometry; if(!g||g.length<2) continue; const p1=g[0], p2=g[g.length-1], len=gcDist(p1,p2)*1000; if(len<500) continue;
+      const t=el.tags||{}, h=bearing(p1,p2), lo=Math.round((((h%360)+360)%360)/10)||36, hi=((lo+17)%36)+1, wid=+(String(t.width||'').replace(',','.'))||(/asphalt|concrete|paved/.test(t.surface||'')?45:30);
+      const lowFirst=lo<=18; rows.push(lowFirst?[String(lo).padStart(2,'0'),String(hi).padStart(2,'0'),p1.lat,p1.lon,p2.lat,p2.lon,h,Math.round(len),wid,/grass|dirt|gravel|ground|laterite|unpaved/.test(t.surface||'')?0:1]
+                                       :[String(hi).padStart(2,'0'),String(lo).padStart(2,'0'),p2.lat,p2.lon,p1.lat,p1.lon,(h+180)%360,Math.round(len),wid,/grass|dirt|gravel|ground|laterite|unpaved/.test(t.surface||'')?0:1]); }
+    if(!rows.length) return; S.rwOsm=S.rwOsm||{}; S.rwOsm[code]=rows.slice(0,3); rwInvalidate(code);
+    if(typeof G!=='undefined'&&G&&G.apNear) G.apNear.c={lat:-89,lon:0};      // la 3D redessine l'aéroport au prochain passage
+  })(); }
+function rwSynth(code){
+  const a=AP(code); if(!a) return [];
+  if(typeof S!=='undefined'&&S&&S.rwOsm&&S.rwOsm[code]) return S.rwOsm[code];
+  rwOsmFetch(code);
+  let h=17; for(const c of code) h=(h*31+c.charCodeAt(0))%9973; const hdg=(h%18)*10+5, len=Math.max(900,a.runway||1500), hard=a.surface==='Latérite'?0:1;
+  return [[String(Math.round(hdg/10)).padStart(2,'0'),String(Math.round(hdg/10)+18),null,null,null,null,hdg,len,hard?45:30,hard]];
+}
+function rwInvalidate(code){ delete _rwCache[code]; if(typeof _pathCache!=='undefined'&&_pathCache.clear) _pathCache.clear(); if(typeof _apron!=='undefined') delete _apron[code]; if(typeof _gates!=='undefined') delete _gates[code]; }
 function runwaysOf(code){
-  if(_rwCache[code]) return _rwCache[code];
-  const raw=(typeof RUNWAY_DB!=='undefined'&&RUNWAY_DB[code])||[], a=AP(code), out=[];
+  const a0=AP(code), key=(a0&&a0.runway)+'|'+(a0&&a0.surface)+'|'+((typeof S!=='undefined'&&S&&S.rwOsm&&S.rwOsm[code])?1:0);
+  if(_rwCache[code]&&_rwCache[code]._k===key) return _rwCache[code];
+  if(_rwCache[code]) rwInvalidate(code);          // piste allongée, bitumée ou vraie piste reçue : on redessine
+  let raw=(typeof RUNWAY_DB!=='undefined'&&RUNWAY_DB[code])||[]; const a=AP(code), out=[];
+  if(!raw.length) raw=rwSynth(code);
   for(const [le,he,la1,lo1,la2,lo2,hdg0,len,wid,hard] of raw){
     let p1,p2,h;
     if(la1!==null&&la2!==null){ p1={lat:la1,lon:lo1}; p2={lat:la2,lon:lo2}; h=bearing(p1,p2); }
@@ -63,7 +91,11 @@ function runwaysOf(code){
     out.push({id:le, hdg:h, thr:p1, end:p2, len:Math.max(len,L), wid, hard:!!hard});
     out.push({id:he, hdg:(h+180)%360, thr:p2, end:p1, len:Math.max(len,L), wid, hard:!!hard});
   }
-  return _rwCache[code]=out;
+  // piste allongée par le joueur (« Allonger la piste ») : la plus longue piste est prolongée, visible en 3D
+  if(a&&out.length){ const best=out.reduce((m,r)=>r.len>m.len?r:m,out[0]); if(a.runway>best.len+150){ const ext=a.runway-best.len, twin=out.find(r=>r!==best&&r.thr===best.end);
+      const ne=destPt(best.end.lat,best.end.lon,best.hdg,ext/1000); best.end=ne; best.len=a.runway; if(twin){ twin.thr=ne; twin.len=a.runway; } }
+    if(a.surface==='Asphalte') for(const r of out) if(!r.hard&&!((typeof RUNWAY_DB!=='undefined'&&RUNWAY_DB[code])||[]).length) r.hard=true; }   // piste bitumée par le joueur
+  out._k=key; return _rwCache[code]=out;
 }
 const angDiff=(a,b)=>Math.abs(((a-b+540)%360)-180);
 // Piste la mieux orientée pour un cap donné (en pratique le vent décide ; ici la direction du vol)

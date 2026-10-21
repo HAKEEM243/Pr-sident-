@@ -80,6 +80,8 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛬 Tous vos aéroports visibles en 3D','Bukavu, Kamina, Manono et 24 autres aéroports n’avaient pas de piste dans la base du jeu : la 3D ne les dessinait pas. Maintenant la vraie piste est téléchargée (OpenStreetMap) ou reconstruite : piste, balisage, terminal et avions s’affichent. « Allonger la piste » se voit aussi en 3D.'],
+  ['🛡️ 3D plus légère pour les grosses flottes','Sur téléphone, la 3D n’affiche que vos 25 avions les plus proches (plus l’avion suivi) au lieu de tous vos vols du monde : beaucoup moins de mémoire et de calcul.'],
   ['🇨🇩 Des rivaux congolais plus puissants','Masambukidi Fly grandit plus vite jusqu’à 240 avions, peut ouvrir jusqu’à 3 lignes par semaine et bâtir des bases à l’étranger. Les autres compagnies congolaises progressent aussi plus régulièrement (plafond de 160 avions), étendent leur réseau et Masambukidi peut racheter des compagnies étrangères fragiles. Elles restent non agressives contre votre compagnie.'],
   ['🧹 Fin d’événement : lignes fermées, avions vendus','Les lignes ouvertes vers la ville d’un grand événement sont fermées à la fin, et les avions achetés pour l’événement sont vendus (en vol : à l’atterrissage). Les avions qui volent aussi ailleurs sont gardés. Case « Garder » dans 🏟️. Pour les anciens événements (São Paulo…) : liste à cocher dans 🏟️ pour fermer et vendre.'],
   ['🛡️ 3D plus légère sur téléphone','Pour éviter que la 3D se ferme (mémoire graphique pleine) : sur téléphone, les avions des autres compagnies utilisent un modèle allégé (2× moins lourd), l’aéroport vivant montre 4 avions au lieu de 6. Vos avions gardent le modèle détaillé.'],

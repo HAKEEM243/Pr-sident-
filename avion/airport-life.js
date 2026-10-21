@@ -35,7 +35,7 @@ function airportLife(code,N){
   // ---------- 1. avions des autres compagnies aux portes, avec leurs véhicules ----------
   const gates=(typeof apGates==='function'?apGates(code):null)||[]; if(!gates.length) return;
   const mine=new Set(); for(const ac of S.fleet||[]){ if(ac.loc===code||(ac.flight&&ac.flight.legs.some(l=>l.from===code||l.to===code))) try{ mine.add(gateIdx(code,ac,!!ac.gIntl)); }catch(e){} }
-  const al=(typeof airlinesAt==='function'?airlinesAt(code):[]).map(([c])=>c).slice(0,Q.planes>=12?12:4);   // téléphone : 4 couleurs de compagnies au plus (mémoire graphique) if(!al.length) return;
+  const al=(typeof airlinesAt==='function'?airlinesAt(code):[]).map(([c])=>c).filter(c=>typeof c==='string'&&c).slice(0,Q.planes>=12?12:4); if(!al.length) return;   // téléphone : 4 couleurs de compagnies au plus (mémoire graphique)
   const want=Math.min(Q.planes,Math.max(3,Math.round(Math.sqrt(A.traffic||1)*3)));
   const free=gates.map((g,i)=>i).filter(i=>i>=6&&!mine.has(i)); const used=[];
   for(let k=0;k<want&&free.length;k++){ const i=free.splice(Math.floor((k*7919)%free.length),1)[0]; used.push(i); }
