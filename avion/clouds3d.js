@@ -22,14 +22,14 @@ function clImgs(){
 // couverture nuageuse de la région (0 = ciel clair … 1 = très chargé), stable pour la journée
 function clCover(lat,lon){ const day=Math.floor(S.time/DAY), cell=Math.floor(lat/4)*1000+Math.floor(lon/4);
   let h=(cell*7919+day*104729)%10007; h=((h*48271)%2147483647)/2147483647;
-  const tropics=Math.abs(lat)<15?0.15:0; return h<0.28?0:Math.min(1,h*0.9+tropics); }
+  const tropics=Math.abs(lat)<15?0.15:0; return h<0.15?0:Math.min(1,0.35+h*0.7+tropics); }   // ciel dégagé environ 1 fois sur 7
 function clSpawn(c){
   const C=Cesium, V=G.viewer; if(!CL.col||CL.viewer!==V){ CL.col=V.scene.primitives.add(new C.BillboardCollection()); CL.viewer=V; }
   CL.col.removeAll(); const st=typeof stormAt==='function'&&stormAt(c.lat,c.lon), cov=st?1:clCover(c.lat,c.lon); CL.cov=st?'orage':cov;
   if(!cov) return;
-  const I=clImgs(), mob=typeof GQ!=='undefined'&&GQ.mob, n=Math.round((mob?16:34)*cov*(st?1.4:1)), gr=typeof groundAt==='function'?Math.max(0,groundAt(c.lat,c.lon)):0;
+  const I=clImgs(), mob=typeof GQ!=='undefined'&&GQ.mob, n=Math.round((mob?22:40)*cov*(st?1.4:1)), gr=typeof groundAt==='function'?Math.max(0,groundAt(c.lat,c.lon)):0;
   for(let i=0;i<n;i++){
-    const d=2+Math.random()*55, q=destPt(c.lat,c.lon,Math.random()*360,d), high=!st&&Math.random()<0.2;
+    const d=1+Math.random()*32, q=destPt(c.lat,c.lon,Math.random()*360,d), high=!st&&Math.random()<0.2;
     const alt=gr+(st?1500+Math.random()*7500:high?5500+Math.random()*2500:1200+Math.random()*1800), w=st?3000+Math.random()*4000:high?2500+Math.random()*3500:1200+Math.random()*2400;
     const img=st?I.d[i%I.d.length]:I.w[i%I.w.length];
     CL.col.add({image:img, position:C.Cartesian3.fromDegrees(q.lon,q.lat,alt), width:w, height:w*(high?0.35:0.5), sizeInMeters:true,

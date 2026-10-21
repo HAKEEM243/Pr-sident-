@@ -125,7 +125,7 @@ function fxCabinOn(ac){
   if(FX.cabin&&FX.cabinFor===ac.id) return;
   fxCabinOff();
   const cb=cabinBuild(ac,mi); FX.cabinInfo=cb; FX.cabinFor=ac.id;
-  let pose=null, at=-1; const P=()=>{ const n=performance.now(); if(n!==at){ pose=acPose(ac); at=n; } return pose; };
+  let pose=null, at=-1; const P=()=>{ const n=gSimNow(); if(n!==at){ pose=acPose(ac); at=n; } return pose; };
   FX.cabin=V.entities.add({position:new C.CallbackProperty(()=>{ const p=P(); return p&&p.pos; },false), orientation:new C.CallbackProperty(()=>{ const p=P(); return p&&p.q; },false),
     model:{uri:cb.uri, scale:1, minimumPixelSize:0, shadows:C.ShadowMode.DISABLED}});
   FX.near=V.camera.frustum.near; V.camera.frustum.near=0.05;
