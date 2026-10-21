@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261208';
+const GAME_VER='20261209';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🇵🇸 Palestine','Nouveau pays : la Palestine, avec l’aéroport international Yasser-Arafat de Gaza (GZA, piste de 3 076 m). Fermé dans la réalité depuis 2001, il est rouvert dans le jeu : ouvrez une ligne, il s’affiche aussi en 3D.'],
   ['🛬 Tous vos aéroports visibles en 3D','Bukavu, Kamina, Manono et 24 autres aéroports n’avaient pas de piste dans la base du jeu : la 3D ne les dessinait pas. Maintenant la vraie piste est téléchargée (OpenStreetMap) ou reconstruite : piste, balisage, terminal et avions s’affichent. « Allonger la piste » se voit aussi en 3D.'],
   ['🛡️ 3D plus légère pour les grosses flottes','Sur téléphone, la 3D n’affiche que vos 25 avions les plus proches (plus l’avion suivi) au lieu de tous vos vols du monde : beaucoup moins de mémoire et de calcul.'],
   ['🇨🇩 Des rivaux congolais plus puissants','Masambukidi Fly grandit plus vite jusqu’à 240 avions, peut ouvrir jusqu’à 3 lignes par semaine et bâtir des bases à l’étranger. Les autres compagnies congolaises progressent aussi plus régulièrement (plafond de 160 avions), étendent leur réseau et Masambukidi peut racheter des compagnies étrangères fragiles. Elles restent non agressives contre votre compagnie.'],
