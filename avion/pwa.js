@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261217';
+const GAME_VER='20261218';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🗺️ Mini-carte bien visible en 3D','La petite carte est maintenant en haut à gauche, sous les boutons (elle était cachée sous le tableau de bord). Elle montre l’avion, sa route, la ville de départ 🛫 et d’arrivée 🛬, et au-dessus : le pays et la ville la plus proche, et les kilomètres restants.'],
   ['🛟 3D qui tient dans la durée','Correction importante : à chaque renouvellement des nuages, leurs images étaient recopiées dans la mémoire graphique sans jamais être libérées. Au bout de 10 minutes environ, l’iPhone était plein et rechargeait le jeu (retour à Kinshasa). Maintenant la mémoire reste stable.'],
   ['☁️ Nuages plus beaux','Nuages redessinés : sommet éclairé par le soleil, base grise, en grappes pour avoir du volume ; voiles fins en altitude ; sous l’orage, cumulonimbus sombres jusqu’à 11 km avec leur enclume.'],
   ['⛈️ Pluie et orage','Pluie visible sur tout l’écran (inclinée selon la vitesse, plus forte sous l’orage), gouttes sur le pare-brise en cockpit. Vrais éclairs en 3D du nuage au sol, flash selon la distance, tonnerre qui arrive après. Le bouton ☁️ « Orage » déclenche tout.'],
