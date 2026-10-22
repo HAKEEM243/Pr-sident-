@@ -443,7 +443,7 @@ function flightState(ac, t=S.time){
   // profil physique : au décollage, roulage en accélérant puis rotation ; à l'atterrissage, arrondi, toucher puis freinage
   let uD=u, alt=seg.a0+(seg.a1-seg.a0)*u, spd=seg.s0+(seg.s1-seg.s0)*u;
   if(seg.ph===2){ const R=0.45; if(u<R){ const k=u/R; uD=0.4*k*k; alt=0; spd=seg.s1*0.95*k; } else { const k=(u-R)/(1-R); uD=0.4+0.6*k; alt=seg.a1*Math.pow(k,1.3); spd=seg.s1*(0.95+0.05*k); } }
-  else if(seg.ph===7){ uD=1-(1-u)*(1-u); alt=u<0.12? seg.a0*Math.pow(1-u/0.12,1.6) : 0; }
+  else if(seg.ph===7){ uD=1-(1-u)*(1-u); const x=u/0.12; alt=u<0.12? seg.a0*Math.pow(1-x,1.8)*(1+1.1*x) : 0; }   // finale sans « plongeon » : même pente qu'en approche, puis arrondi en douceur
   const dd = seg.d0+(seg.d1-seg.d0)*uD;
   const A=AP(leg.from), B=AP(leg.to);
   const frac = leg.dist>0? clamp(dd/leg.dist,0,1) : 1;
