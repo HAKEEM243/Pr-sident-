@@ -216,7 +216,7 @@ const MM={map:null, mk:null, size:null, zoomed:null};
 function mmSize(){ if(MM.size) return MM.size; try{ MM.size=localStorage.getItem('se-mm')||'m'; if(localStorage.getItem('se-mm-v2')!=='1'){ localStorage.setItem('se-mm-v2','1'); if(MM.size==='off'||MM.size==='s'){ MM.size='m'; localStorage.setItem('se-mm','m'); } } }catch(e){ MM.size='m'; } return MM.size; }   // une fois : la mini-carte revient à l'écran
 function minimapInit(){
   if(MM.map||typeof L==='undefined') return; const host=document.getElementById('globe'); if(!host) return;
-  const box=document.createElement('div'); box.id='minimap'; box.innerHTML=`<div id="mmMap"></div><div class="mmbar"><button data-mm="size" title="Taille">⤢</button><button data-mm="in">+</button><button data-mm="out">−</button><button data-mm="auto" title="Zoom automatique">🎯</button><button data-mm="hide" title="Masquer">×</button></div><button id="mmShow" hidden>🗺️</button>`;
+  const box=document.createElement('div'); box.id='minimap'; box.innerHTML=`<div class="mmtitle" id="mmTitle">🗺️ Où suis-je ?</div><div id="mmMap"></div><div class="mmbar"><button data-mm="size" title="Taille">⤢</button><button data-mm="in">+</button><button data-mm="out">−</button><button data-mm="auto" title="Zoom automatique">🎯</button><button data-mm="hide" title="Masquer">×</button></div><button id="mmShow" hidden>🗺️</button>`;
   host.appendChild(box); box.className='mm-'+(mmSize()==='off'?'m':mmSize());
   MM.map=L.map('mmMap',{zoomControl:false,attributionControl:false,dragging:true,scrollWheelZoom:true,doubleClickZoom:false,keyboard:false}).setView([0,0],11);
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18}).addTo(MM.map);
@@ -237,10 +237,12 @@ function minimapInit(){
   mmApply();
 }
 function mmApply(){ const box=document.getElementById('minimap'); if(!box) return; const sz=mmSize(), off=sz==='off';
-  box.className='mm-'+sz; box.querySelector('#mmMap').hidden=off; box.querySelector('.mmbar').hidden=off; box.querySelector('#mmShow').hidden=!off;
+  try{ const bar=document.querySelector('#globe [data-act="globeCam"]'), hb=bar&&bar.closest('div'); if(hb){ const b=hb.getBoundingClientRect().bottom; if(b>0&&b<window.innerHeight*0.5) box.style.top=Math.round(b+8)+'px'; } }catch(e){}   // juste sous la barre de boutons de la 3D
+  box.className='mm-'+sz; box.querySelector('#mmMap').hidden=off; box.querySelector('#mmTitle').hidden=off; box.querySelector('.mmbar').hidden=off; box.querySelector('#mmShow').hidden=!off;
   setTimeout(()=>{ try{ MM.map.invalidateSize({pan:false}); if(G&&G.viewer){ const c=rdCam(); MM.map.setView([c.lat,c.lon],MM.map.getZoom(),{animate:false}); } }catch(e){} },50); }
 function minimapUpdate(cam){
   minimapInit(); if(!MM.map||mmSize()==='off') return;
+  if(!MM.posAt||performance.now()-MM.posAt>5000){ MM.posAt=performance.now(); try{ const box=document.getElementById('minimap'), bar=document.querySelector('#globe [data-act="globeCam"]'), hb=bar&&bar.closest('div'); if(box&&hb){ const b=hb.getBoundingClientRect().bottom; if(b>0&&b<window.innerHeight*0.5) box.style.top=Math.round(b+8)+'px'; } }catch(e){} }
   let hd=Cesium.Math.toDegrees(G.viewer.camera.heading), ll=[cam.lat,cam.lon];
   // zoom automatique selon l'altitude, tant que le joueur n'a pas zoomé lui-même
   let z=Math.max(4,Math.min(16,Math.round(17-Math.log2(Math.max(200,cam.h)/120))));
@@ -248,8 +250,13 @@ function minimapUpdate(cam){
   const f=G.follow&&S.fleet.find(a=>a.id===G.follow), st=f&&f.flight&&flightState(f);
   if(st){ ll=[st.lat,st.lon]; hd=st.hdg; z=st.alt>6000?6:st.alt>2500?8:st.alt>600?10:13;
     try{ const leg=st.leg||f.flight.legs[f.flight.li]; if(leg&&MM.legKey!==leg.from+leg.to+leg.dep){ MM.legKey=leg.from+leg.to+leg.dep; const P=legPath(leg,modelOf(f)); MM.route.setLatLngs(P.air.map(q=>[q.lat,q.lon]));
-        const D=AP(leg.to); MM.dest.setLatLng([D.lat,D.lon]); const el=MM.dest.getElement(); if(el) el.firstChild.textContent='🛬 '+D.city; } }catch(e){} }
-  else if(MM.legKey){ MM.legKey=null; MM.route.setLatLngs([]); MM.dest.setLatLng([0,0]); }
+        const D=AP(leg.to); MM.dest.setLatLng([D.lat,D.lon]); const el=MM.dest.getElement(); if(el) el.firstChild.textContent='🛬 '+D.city;
+        const O=AP(leg.from); if(!MM.orig) MM.orig=L.marker([0,0],{icon:L.divIcon({className:'mm-dest',html:'<div style="background:#16a34a;color:#fff;border-radius:6px;padding:1px 5px;font:700 10px system-ui;white-space:nowrap;box-shadow:0 1px 4px #000"></div>',iconSize:[0,0],iconAnchor:[0,8]}),interactive:false}).addTo(MM.map);
+        MM.orig.setLatLng([O.lat,O.lon]); const eo=MM.orig.getElement(); if(eo) eo.firstChild.textContent='🛫 '+O.city; } }catch(e){}
+    try{ const tt=document.getElementById('mmTitle'); if(tt&&(!MM.ttAt||performance.now()-MM.ttAt>3000)){ MM.ttAt=performance.now(); let n=null; for(const c of AIRPORT_CODES){ const a=AP(c), d=Math.abs(a.lat-st.lat)+Math.abs(a.lon-st.lon); if(!n||d<n.d) n={c,d}; }
+        const A=n&&AP(n.c), cc=A&&COUNTRIES[A.cc], to=AP(st.to||(st.leg&&st.leg.to)), left=to?Math.round(gcDist(st,to)):null;
+        tt.textContent=`📍 ${cc?cc[2]+' ':''}près de ${A?A.city:'?'}${left!==null?` · ${left} km jusqu’à ${to.city}`:''}`; } }catch(e){} }
+  else if(MM.legKey){ MM.legKey=null; MM.route.setLatLngs([]); MM.dest.setLatLng([0,0]); if(MM.orig) MM.orig.setLatLng([0,0]); const tt=document.getElementById('mmTitle'); if(tt) tt.textContent='🗺️ Où suis-je ?'; }
   MM.auto=true; try{ if(!MM.userZoom) MM.map.setView(ll,z,{animate:false}); else MM.map.panTo(ll,{animate:false}); } finally{ MM.auto=false; }
   MM.mk.setLatLng(ll); const el=MM.mk.getElement(); if(el){ const a=el.querySelector('.mm-arrow'); if(a) a.style.transform=`rotate(${hd-90}deg)`; }
   // cône de vue de la caméra (hors poursuite d'un avion)
