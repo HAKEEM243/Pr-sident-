@@ -18,7 +18,8 @@ function p3Apply(){
 function p3Frame(){
   P3.raf=0; if(typeof G==='undefined'||!G||!G.viewer||document.getElementById('globe').hidden){ P3.t0=0; return; }
   P3.raf=requestAnimationFrame(p3Frame);
-  if(P3.viewer!==G.viewer){ P3.viewer=G.viewer; P3.lvl=0; P3.low=0; P3.good=0; p3Apply(); }
+  if(P3.viewer!==G.viewer){ P3.since=performance.now(); P3.viewer=G.viewer; P3.lvl=(typeof GQ!=='undefined'&&GQ.crashed)?2:0; P3.low=0;   // la 3D a planté la fois d'avant : on repart allégé
+    P3.good=0; p3Apply(); }
   const now=performance.now(); if(!P3.t0){ P3.t0=now; P3.n=0; return; } P3.n++;
   const el=now-P3.t0; if(el<3000) return; const fps=P3.n*1000/el; P3.t0=now; P3.n=0;
   if(document.hidden||el>8000) return;

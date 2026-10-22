@@ -23,6 +23,8 @@ const liveryOf=ac=>S.livery||S.company.color;
 function modelInfo(m,color,lite){ return AC3D.uri(m,color,lite); }
 // téléphone (hors qualité Haute) : modèles légers pour les avions des autres compagnies (un modèle par couleur de compagnie = beaucoup de mémoire graphique)
 const acLite=()=>typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq;
+// téléphone : seul l'avion suivi a le modèle détaillé, les autres avions du joueur prennent le modèle léger
+const acLiteFor=ac=>acLite()&&!(G&&G.follow===ac.id);
 
 /* ---------- ouverture / fermeture ---------- */
 async function open3D(){
@@ -273,7 +275,7 @@ function smoothState(ac,t){ const st=flightState(ac,t); if(!st||st.alt<60||st.ph
   if(!r||!r.s0) return st; return Object.assign({},st,{lat:r.lat,lon:r.lon,alt:Math.max(r.alt,60),hdg:r.hdg}); }
 function acPose(ac){
   const t=gSimNow(), st=smoothState(ac,t); if(!st) return null;
-  const mi=modelInfo(modelOf(ac),liveryOf(ac)), a=attitude(ac,st,t);
+  const mi=modelInfo(modelOf(ac),liveryOf(ac),acLiteFor(ac)), a=attitude(ac,st,t);
   const gear=st.alt<600||st.phase<=2||st.phase>=6;
   let h=Math.max(st.alt, mi.R+mi.gH+0.4)+(typeof legElev==='function'?legElev(st.from,st.to,st.frac):0);
   // jamais à travers une montagne : marge de sécurité au-dessus du relief en route
@@ -319,13 +321,13 @@ function globeSync(full){
   if(typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq){ try{ let ref=null; const f=G.follow&&S.fleet.find(a=>a.id===G.follow), fs=f&&f.flight&&flightState(f);
       if(fs) ref={lat:fs.lat,lon:fs.lon}; else { const cp=V.camera.positionCartographic; if(cp) ref={lat:C.Math.toDegrees(cp.latitude),lon:C.Math.toDegrees(cp.longitude)}; }
       if(ref){ const L=[]; for(const ac of S.fleet){ if(ac.status!=='flight'||!ac.flight) continue; const st=flightState(ac); if(st) L.push([gcDist(ref,st),ac.id]); }
-        if(L.length>25){ L.sort((x,y)=>x[0]-y[0]); keep=new Set(L.slice(0,25).map(x=>x[1])); if(G.follow) keep.add(G.follow); if(typeof selectedPlane!=='undefined'&&selectedPlane) keep.add(selectedPlane); } } }catch(e){ keep=null; } }
+        if(L.length>12){ L.sort((x,y)=>x[0]-y[0]); keep=new Set(L.slice(0,12).map(x=>x[1])); if(G.follow) keep.add(G.follow); if(typeof selectedPlane!=='undefined'&&selectedPlane) keep.add(selectedPlane); } } }catch(e){ keep=null; } }
   for(const ac of S.fleet){
     if(ac.status!=='flight'||!ac.flight) continue;
     if(keep&&!keep.has(ac.id)) continue;
     seen.add(ac.id);
-    if(G.planes.has(ac.id)) continue;
-    const m=modelOf(ac), mi=modelInfo(m,liveryOf(ac));
+    if(G.planes.has(ac.id)){ const old=G.planes.get(ac.id); if(old._lite===acLiteFor(ac)) continue; V.entities.remove(old); G.planes.delete(ac.id); }   // l'avion suivi passe au modèle détaillé
+    const m=modelOf(ac), mi=modelInfo(m,liveryOf(ac),acLiteFor(ac)); const isLite=acLiteFor(ac);
     let pose=null, poseAt=-1; const an={}, nt={};
     const P=()=>{ const tt=gSimNow(); if(tt!==poseAt){ pose=acPose(ac); poseAt=tt; } return pose; };   // une seule pose par image
     const ent=V.entities.add({
@@ -338,7 +340,7 @@ function globeSync(full){
     // (affecté après coup : passé au constructeur, Cesium transformerait le rappel en simple sac de propriétés)
     const lo=acLight(an); ent.model.lightColor=new C.CallbackProperty(()=>acLight(an,lo).c,false); ent.model.imageBasedLightingFactor=new C.CallbackProperty(()=>lo.f,false);
     ent.model.nodeTransformations=new C.CallbackProperty(()=>{ const p=P(); if(!p) return nt; const st=p.st; acAnimate(an,p.mi,st.phase,st.alt,st.alt<0.6,st.spd,st.holding==='in',st.pushback,st.lat,st.lon); return AC3D.pose(p.mi,an,nt); },false);
-    ent._acId=ac.id; G.planes.set(ac.id,ent);
+    ent._acId=ac.id; ent._lite=isLite; G.planes.set(ac.id,ent);
   }
   for(const [id,ent] of G.planes) if(!seen.has(id)){ V.entities.remove(ent); G.planes.delete(id); G.att.delete(id); if(G.follow===id){ const nx=S.fleet.find(a=>a.status==='flight'&&a.flight&&a.id!==id); if(nx){ toast('🛬 Arrivé au parking ! On passe à un autre de vos vols en cours…','ok'); globeSync(false); globeFollow(nx.id); } else { globeFollow(null); toast('🛬 L’avion suivi est arrivé au parking','ok'); } } }
   if(full || (G.netKey!==netKey())){ drawGlobeNetwork(); }
