@@ -504,8 +504,8 @@ function rivalPos(r,i,t){
       return {p:{lat:q2.lat,lon:q2.lon}, hdg:(b0+th+90)%360, from:AP(from), to:AP(to), d, alt:900+305*(1+hashStr(r.a+r.b+(r.c||'')+i)%5), ph:6, gnd:false, cat, holding:'in'};
     }
   }
-  if(seg.ph===1) pp=polyAt(taxiOutPts(path,gateSlot(from,fake,AP(from).cc!==AP(to).cc)),u);
-  else if(seg.ph>=8) pp=polyAt(taxiInPts(path,gateSlot(to,fake,AP(from).cc!==AP(to).cc)),u);
+  if(seg.ph===1) pp=polyAt(filletPts(taxiOutPts(path,gateSlot(from,fake,AP(from).cc!==AP(to).cc)),40),u);
+  else if(seg.ph>=8) pp=polyAt(filletPts(taxiInPts(path,gateSlot(to,fake,AP(from).cc!==AP(to).cc)),40),u);
   else { const dd=seg.d0+(seg.d1-seg.d0)*uD; pp=pointOnPath(path, clamp(dd/d,0,1)*path.total); }
   return {p:{lat:pp.lat,lon:pp.lon}, hdg:pp.hdg, from:AP(from), to:AP(to), d, alt, ph:seg.ph, gnd:alt<5, cat};
 }

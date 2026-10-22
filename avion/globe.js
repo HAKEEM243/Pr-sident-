@@ -256,7 +256,7 @@ function attitude(ac,st,t){
     const vs=(st.alt-a.alt)/dtg*196.85; a.vs+=(vs-a.vs)*Math.min(1,dtg*0.5);
     // assiette = pente de la trajectoire + incidence (plus grande quand l'avion est lent), arrondi avant le toucher, rotation au décollage
     let tp;
-    if(ground) tp = st.phase===2? clamp((st.spd-190)/45,0,1)*8 : 0;                                       // rotation puis roulage nez au sol
+    if(ground){ let vr=240; if(st.phase===2){ try{ const s2=legProf(st.leg,modelOf(ac)).segs.find(x=>x.ph===2); if(s2) vr=s2.s1*0.95; }catch(e){} } tp = st.phase===2? clamp((st.spd-(vr-24))/22,0,1)*8 : 0; }   // rotation juste avant la vitesse de décollage du modèle                                       // rotation puis roulage nez au sol
     else { const fpa=Math.atan2(a.vs/196.85,Math.max(35,st.spd/3.6))*180/Math.PI, aoa=st.phase===4?2.3:st.phase===2||st.phase===3?6.5:st.phase===5?3:4.5;
       tp=clamp(fpa+aoa,-4,17);
       if(st.phase===6) tp=Math.max(1.5,fpa+5.5);                                   // approche : nez légèrement haut (volets sortis, avion lent)

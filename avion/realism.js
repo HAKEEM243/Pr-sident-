@@ -255,9 +255,25 @@ function taxiOutPts(path, gp){
   if(gp.via&&gp.via.length){ const v=gp.via, rest=taxiOutPts(path, v[v.length-1]); return [gp, ...v, ...rest.slice(1)]; }
   const r=path.dep; if(!r) return [gp, path.air[0]];
   const f=toRw(r,gp), tw=(f.x>=0?1:-1)*Math.min(Math.abs(f.x)*0.6,190);
-  if(Math.abs(f.x)<40) return [gp, r.thr];
-  return [gp, fromRw(r,f.a,tw), fromRw(r,-40,tw), fromRw(r,-25,tw*0.3), r.thr];
+  if(Math.abs(f.x)<40) return [gp, fromRw(r,-60,0), r.thr];
+  // bout du taxiway parallèle → virage vers l'axe → virage sur la piste : l'avion arrive aligné au seuil
+  return [gp, fromRw(r,f.a,tw), fromRw(r,-80,tw), fromRw(r,-80,0), r.thr];
 }
+// Virages arrondis : chaque angle d'un trajet au sol devient une courbe (l'avion tourne au lieu de pivoter sur place)
+function filletPts(pts,R){
+  if(!pts||pts.length<3) return pts; const o=pts[0], kx=M_DEG*Math.cos(toRad(o.lat)), P=pts.map(p=>[(p.lon-o.lon)*kx,(p.lat-o.lat)*M_DEG]), out=[pts[0]];
+  const back=(x,y)=>({lat:o.lat+y/M_DEG, lon:o.lon+x/kx});
+  for(let i=1;i<P.length-1;i++){ const a=P[i-1], b=P[i], c=P[i+1], l1=Math.hypot(b[0]-a[0],b[1]-a[1]), l2=Math.hypot(c[0]-b[0],c[1]-b[1]);
+    if(l1<2||l2<2){ out.push(pts[i]); continue; }
+    const v1=[(b[0]-a[0])/l1,(b[1]-a[1])/l1], v2=[(c[0]-b[0])/l2,(c[1]-b[1])/l2], th=Math.acos(clamp(v1[0]*v2[0]+v1[1]*v2[1],-1,1));
+    if(th<0.08){ out.push(pts[i]); continue; }
+    const t=Math.min(R*Math.tan(Math.min(th,2.6)/2), 0.45*l1, 0.45*l2), p0=[b[0]-v1[0]*t,b[1]-v1[1]*t], p2=[b[0]+v2[0]*t,b[1]+v2[1]*t], n=Math.max(3,Math.round(th*6));
+    for(let k=0;k<=n;k++){ const u=k/n, w0=(1-u)*(1-u), w1=2*u*(1-u), w2=u*u; out.push(back(w0*p0[0]+w1*b[0]+w2*p2[0], w0*p0[1]+w1*b[1]+w2*p2[1])); } }
+  out.push(pts[pts.length-1]); return out;
+}
+// Alignement depuis le point d'attente : avance, tourne vers l'axe, puis s'aligne au seuil
+function lineUpPts(path,h0){ const r=path.dep, f=toRw(r,h0);
+  return filletPts([h0, fromRw(r,-80,f.x), fromRw(r,-80,0), r.thr],45); }
 // Dégagement : sortie rapide → voie parallèle → poste
 function taxiInPts(path, gp){
   if(gp.via&&gp.via.length){ const v=gp.via, rest=taxiInPts(path, v[v.length-1]); return [...rest, ...v.slice(0,-1).reverse(), gp]; }
@@ -269,8 +285,9 @@ function taxiInPts(path, gp){
 // Point d'attente : sur le taxiway parallèle, avant le seuil, jamais sur la piste ; file d'attente vers l'arrière
 function holdPoint(path,gp,rank){
   const r=path.dep; if(!r) return {lat:gp.lat,lon:gp.lon,hdg:gp.hdg||0};
-  const f=toRw(r,gp), s=f.x>=0?1:-1, lat=s*Math.max(75,Math.min(Math.abs(f.x)*0.6,190)), a=-70-(rank||0)*80;
-  const q=fromRw(r,a,lat); return {lat:q.lat,lon:q.lon,hdg:r.hdg};
+  // dans le sens du roulage : la file d'attente remonte le taxiway, nez vers l'entrée de piste
+  const f=toRw(r,gp), s=f.x>=0?1:-1, lat=s*Math.max(24,Math.min(Math.abs(f.x)*0.6,190)), dir=f.a>-80?1:-1, a=-80+dir*(25+(rank||0)*80);
+  const q=fromRw(r,a,lat); return {lat:q.lat,lon:q.lon,hdg:dir>0?(r.hdg+180)%360:r.hdg};
 }
 function polyAt(pts,u){
   let tot=0; const seg=[]; for(let i=1;i<pts.length;i++){ const d=gcDist(pts[i-1],pts[i]); seg.push(d); tot+=d; }
