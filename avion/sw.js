@@ -3,14 +3,17 @@
    • 3D (Cesium) : téléchargée en arrière-plan une fois, puis gardée ;
    • images de carte et de relief déjà vues : gardées (les plus anciennes sont effacées au-delà de 6 000).
    Les mises à jour sont récupérées dès qu'Internet est là. */
-const CACHE='sky-empire-v26', TILES='sky-tiles-v1';
+const CACHE='sky-empire-v27', TILES='sky-tiles-v1';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icons/icon-180.png','./icons/icon-192.png','./icons/icon-512.png','./lib/leaflet/leaflet.js','./lib/leaflet/leaflet.css','./offline/earth-merc.jpg','./offline/earth-eq.jpg'];
 const CES='https://cdn.jsdelivr.net/npm/cesium@1.146.0/Build/Cesium/';
 const CES_FILES=['Cesium.js','Widgets/widgets.css','Assets/approximateTerrainHeights.json','Assets/IAU2006_XYS/IAU2006_XYS_17.json','Assets/IAU2006_XYS/IAU2006_XYS_18.json','Assets/IAU2006_XYS/IAU2006_XYS_19.json','Assets/Images/ion-credit.png',
   'Assets/Textures/moonSmall.jpg','Assets/Textures/waterNormals.jpg','Assets/Textures/waterNormalsSmall.jpg',...['mx','my','mz','px','py','pz'].map(s=>`Assets/Textures/SkyBox/tycho2t3_80_${s}.jpg`),
   ...["chunk-6FYG4X2F.js", "chunk-GWE2HRAQ.js", "chunk-HNL5VMHB.js", "chunk-IGOYCRIJ.js", "chunk-J6FR5PFB.js", "chunk-LOEQS4D5.js", "chunk-MXXXHGW3.js", "chunk-QVYSL4VL.js", "chunk-VF77DAIX.js", "chunk-YYTML7GF.js", "combineGeometry.js", "createBoxGeometry.js", "createBoxOutlineGeometry.js", "createCircleGeometry.js", "createCircleOutlineGeometry.js", "createCoplanarPolygonGeometry.js", "createCoplanarPolygonOutlineGeometry.js", "createCorridorGeometry.js", "createCorridorOutlineGeometry.js", "createCylinderGeometry.js", "createCylinderOutlineGeometry.js", "createEllipseGeometry.js", "createEllipseOutlineGeometry.js", "createEllipsoidGeometry.js", "createEllipsoidOutlineGeometry.js", "createFrustumGeometry.js", "createFrustumOutlineGeometry.js", "createGeometry.js", "createGroundPolylineGeometry.js", "createPlaneGeometry.js", "createPlaneOutlineGeometry.js", "createPolygonGeometry.js", "createPolygonOutlineGeometry.js", "createPolylineGeometry.js", "createPolylineVolumeGeometry.js", "createPolylineVolumeOutlineGeometry.js", "createRectangleGeometry.js", "createRectangleOutlineGeometry.js", "createSimplePolylineGeometry.js", "createSphereGeometry.js", "createSphereOutlineGeometry.js", "createTaskProcessorWorker.js", "createVectorTileClampedPolylines.js", "createVectorTileGeometries.js", "createVectorTilePoints.js", "createVectorTilePolygons.js", "createVectorTilePolylines.js", "createVerticesFromCesium3DTilesTerrain.js", "createVerticesFromGoogleEarthEnterpriseBuffer.js", "createVerticesFromHeightmap.js", "createVerticesFromQuantizedTerrainMesh.js", "createWallGeometry.js", "createWallOutlineGeometry.js", "decodeDraco.js", "decodeGoogleEarthEnterprisePacket.js", "decodeI3S.js", "gaussianSplatSorter.js", "gaussianSplatTextureGenerator.js", "incrementallyBuildTerrainPicker.js", "transcodeKTX2.js", "transferTypedArrayTest.js", "upsampleQuantizedTerrainMesh.js", "upsampleVerticesFromCesium3DTilesTerrain.js"].map(w=>'Workers/'+w)];
 const TILE_HOSTS=/(^|\.)arcgisonline\.com$|(^|\.)basemaps\.cartocdn\.com$|^tile\.openstreetmap\.org$|^tiles\.maps\.eox\.at$|^gibs\.earthdata\.nasa\.gov$|^s3\.amazonaws\.com$/;
-self.addEventListener('install',e=>{ e.waitUntil(caches.open(CACHE).then(c=>Promise.all(SHELL.map(u=>c.add(u).catch(()=>{}))))); self.skipWaiting(); });
+// installation : tout le jeu est gardé tout de suite (pages, scripts, carte, image de la Terre), pas au fil des écrans
+self.addEventListener('install',e=>{ e.waitUntil((async()=>{ const c=await caches.open(CACHE); await Promise.all(SHELL.map(u=>c.add(u).catch(()=>{})));
+  try{ const html=await (await fetch('./index.html',{cache:'no-store'})).text(), files=[...html.matchAll(/<(?:script|link)[^>]+(?:src|href)="([^"]+)"/g)].map(m=>m[1]).filter(u=>!/^(https?:|data:|\/\/)/.test(u));
+    let i=0; const run=async()=>{ while(i<files.length){ const u=files[i++]; await c.add(u).catch(()=>{}); } }; await Promise.all([run(),run(),run(),run()]); }catch(err){} })()); self.skipWaiting(); });
 // nouvelle version du service worker : anciens caches supprimés et pages ouvertes rechargées (partie gardée par le jeu)
 self.addEventListener('activate',e=>{ e.waitUntil((async()=>{
   const ks=await caches.keys(), old=ks.filter(k=>k.startsWith('sky-empire-')&&k!==CACHE);
@@ -29,7 +32,7 @@ self.addEventListener('fetch',e=>{
   // fichiers du jeu : réseau d'abord (toujours la dernière version), copie gardée si pas de réseau
   if(url.origin===location.origin){
     e.respondWith(timed(fetch(req),4000).then(res=>{ if(res.ok){ const cp=res.clone(); caches.open(CACHE).then(c=>c.put(req,cp)); } return res; })
-      .catch(()=>caches.match(req).then(r=>r||caches.match(req,{ignoreSearch:true})).then(r=>r||(req.mode==='navigate'?caches.match('./index.html'):fetch(req)))));
+      .catch(()=>caches.match(req).then(r=>r||caches.match(req,{ignoreSearch:true})).then(r=>r||(req.mode==='navigate'?caches.match('./index.html',{ignoreSearch:true}).then(x=>x||caches.match('./')):fetch(req)))));
     return;
   }
   // bibliothèques (Cesium, MapLibre) : copie gardée d'abord, elles ne changent pas (version fixée)

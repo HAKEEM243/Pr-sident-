@@ -11,7 +11,7 @@
      mettent en pause, le jeu continue.
    ========================================================= */
 'use strict';
-const OFF={ver:'2', earthM:'offline/earth-merc.jpg', earthE:'offline/earth-eq.jpg', ov:new WeakMap(), g3:null, err:0};
+const OFF={ver:'3', earthM:'offline/earth-merc.jpg', earthE:'offline/earth-eq.jpg', ov:new WeakMap(), g3:null, err:0};
 const offNet=()=>typeof navigator==='undefined'||navigator.onLine!==false;
 // --- carte 2D : la Terre sous les images de carte (3 copies pour faire le tour du monde) ---
 function offEarth2D(m){
@@ -56,6 +56,8 @@ function offOnMsg(e){ const d=e.data||{};
   if(d.type==='precache-done'){ OFF.busy=false; OFF.prog=d; try{ localStorage.setItem('se-offline',JSON.stringify({v:OFF.ver,at:Date.now(),ok:d.ok,bad:d.bad})); }catch(x){}
     if(OFF.manual||!OFF.quiet) toast(d.bad>d.total*0.2?`📴 Téléchargement partiel (${d.ok}/${d.total}) : réessayez avec un meilleur réseau.`:`✅ Prêt pour jouer sans réseau : carte, 3D et images de votre région gardées sur le téléphone.`,d.bad>d.total*0.2?'bad':'ok');
     OFF.manual=false; const el=document.getElementById('offProg'); if(el) el.textContent='terminé'; } }
+// état affiché dans le menu Plus : prêt / en cours / pas encore
+function offBadge(){ const s=offStatus(); if(OFF.busy) return `⏳ Téléchargement en cours${OFF.prog?' ('+OFF.prog.done+'/'+OFF.prog.total+')':''}… gardez le réseau`; if(s&&s.ok&&s.v===OFF.ver) return '✅ Prêt : vous pouvez couper le réseau'; return offNet()?'⏳ Pas encore prêt : touchez pour télécharger':'🔴 Pas prêt : reconnectez-vous une fois'; }
 function offStatus(){ let s=null; try{ s=JSON.parse(localStorage.getItem('se-offline')||'null'); }catch(e){} return s; }
 Object.assign(ACTIONS,{
   offlinePrep:()=>{ OFF.manual=true; offPrecache(true); },
@@ -70,7 +72,8 @@ function offHook(){ if(offHook.done) return; offHook.done=true;
   setInterval(()=>{ try{ if(typeof map!=='undefined'&&map) offEarth2D(map); if(typeof MM!=='undefined'&&MM.map) offEarth2D(MM.map); offWatch3D(); }catch(e){} },1000);
   window.addEventListener('offline',()=>{ try{ offEarth3D(true); }catch(e){} toast('📴 Plus de réseau : le jeu continue (carte et 3D avec les images gardées).','info'); });
   window.addEventListener('online',()=>{ const s=offStatus(); if(!s||s.v!==OFF.ver) setTimeout(()=>{ OFF.quiet=true; offPrecache(false); },5000); });
-  // première fois (ou après une mise à jour du mode hors ligne) : téléchargement discret en arrière-plan
-  setTimeout(()=>{ const s=offStatus(); if((!s||s.v!==OFF.ver||Date.now()-s.at>7*86400000)&&offNet()){ OFF.quiet=!!s; offPrecache(false); } },20000);
+  // première fois (ou après une mise à jour du mode hors ligne) : téléchargement en arrière-plan, le plus tôt possible
+  const auto=()=>{ const s=offStatus(); if(!OFF.busy&&(!s||s.v!==OFF.ver||Date.now()-s.at>7*86400000)&&offNet()&&navigator.serviceWorker&&navigator.serviceWorker.controller){ OFF.quiet=!!s; offPrecache(false); } };
+  setTimeout(auto,4000); if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('controllerchange',()=>setTimeout(auto,3000));
 }
 if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ offHook(); }catch(e){ console.warn(e); } },0));
