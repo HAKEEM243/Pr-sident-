@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261219';
+const GAME_VER='20261220';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛫 L’avion tourne tout seul vers la piste','Au roulage, les virages sont arrondis et l’avion s’aligne doucement dans l’axe de la piste (plus de pivot d’un coup), aussi depuis le point d’attente. Rotation à la vraie vitesse de décollage. 🎙️ Annonces du cockpit (V1, Rotate, 50-40-30, Retard…) et de l’équipage, grondement des roues, traînées blanches en croisière, gerbes d’eau sous la pluie.'],
   ['✈️ Décollages et atterrissages plus réalistes','Rotation vers 200 km/h, montée nez haut, approche stabilisée sans plongeon, arrondi avant le toucher puis le nez qui redescend doucement. Et la 3D devient plus nette toute seule quand le téléphone a de la marge (elle s’allège toujours si ça rame).'],
   ['🗺️ Mini-carte bien visible en 3D','La petite carte est maintenant en haut à gauche, sous les boutons (elle était cachée sous le tableau de bord). Elle montre l’avion, sa route, la ville de départ 🛫 et d’arrivée 🛬, et au-dessus : le pays et la ville la plus proche, et les kilomètres restants.'],
   ['🛟 3D qui tient dans la durée','Correction importante : à chaque renouvellement des nuages, leurs images étaient recopiées dans la mémoire graphique sans jamais être libérées. Au bout de 10 minutes environ, l’iPhone était plein et rechargeait le jeu (retour à Kinshasa). Maintenant la mémoire reste stable.'],
