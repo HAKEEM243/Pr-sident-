@@ -31,7 +31,7 @@ function trTick(){
   const t=gSimNow(), me={lat:st.lat,lon:st.lon};
   // on retire ceux qui sont trop loin ou arrivés
   for(const x of TR.list.slice()){ const q=x.Q(); if(gcDist(me,q)>70||(x.end&&q.d>x.end)||q.alt<0){ try{ G.viewer.entities.remove(x.ent); }catch(e){} TR.list.splice(TR.list.indexOf(x),1); } }
-  const mob=typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq, want=mob?4:8;
+  const mob=typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq, want=TR.cap!=null?TR.cap:(mob?4:8);   // plafond abaissé si la 3D rame (perf3d.js)
   const near=st.alt<3500||st.phase<=2||st.phase>=6, apc=st.phase<=3?st.from:st.to, codes=trAirlines(apc||S.company.hub), pick1=()=>codes[Math.floor(Math.random()*Math.min(codes.length,8))];
   let guard=0;
   while(TR.list.length<want&&guard++<6){
