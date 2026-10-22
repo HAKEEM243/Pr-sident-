@@ -27,6 +27,7 @@ function trAdd(x){
 function trTick(){
   if(typeof G==='undefined'||!G||!G.viewer||document.getElementById('globe').hidden||!G.follow||(typeof MAPOPT!=='undefined'&&MAPOPT.rival===false)){ if(TR.list.length&&(!G||!G.viewer||!G.follow)) trClear(); return; }
   if(TR.viewer!==G.viewer){ TR.list=[]; TR.viewer=G.viewer; }
+  if(typeof P3!=='undefined'&&P3.since&&performance.now()-P3.since<12000) return;   // laisser la 3D démarrer avant d'ajouter le trafic
   const ac=S.fleet.find(a=>a.id===G.follow), st=ac&&ac.flight&&flightState(ac,gSimNow()); if(!st){ trClear(); return; }
   const t=gSimNow(), me={lat:st.lat,lon:st.lon};
   // on retire ceux qui sont trop loin ou arrivés

@@ -48,6 +48,7 @@ function clOwnLayer(c,alt){ if(clMode()!=='many'||!CL.col||!(alt>800)||(CL.cap!=
 function clTick(){
   if(typeof G==='undefined'||!G||!G.viewer||document.getElementById('globe').hidden){ return; }
   if(CL.viewer&&CL.viewer!==G.viewer){ CL.col=null; CL.at=null; }
+  if(typeof P3!=='undefined'&&P3.since&&performance.now()-P3.since<8000) return;   // démarrage de la 3D d'abord
   const f=G.follow&&S.fleet.find(a=>a.id===G.follow), st=f&&f.flight&&flightState(f); let c=null;
   if(st){ const ah=destPt(st.lat,st.lon,st.hdg,18); c={lat:ah.lat,lon:ah.lon}; }   // nuages devant l'avion (sur sa route), pas derrière else { const cp=G.viewer.camera.positionCartographic; if(cp&&cp.height<40000) c={lat:Cesium.Math.toDegrees(cp.latitude),lon:Cesium.Math.toDegrees(cp.longitude)}; }
   if(!c) return; if(!CL.at||gcDist(CL.at,c)>(st?16:35)||(clMode()==='many'&&st&&Math.abs((CL.alt||0)-st.alt)>1500)){ CL.at=c; CL.alt=st?st.alt:0; try{ clSpawn(c); clOwnLayer(c,st&&st.alt); }catch(e){ console.warn('nuages',e); } }
