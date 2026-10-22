@@ -18,14 +18,19 @@ function p3Apply(){
 function p3Frame(){
   P3.raf=0; if(typeof G==='undefined'||!G||!G.viewer||document.getElementById('globe').hidden){ P3.t0=0; return; }
   P3.raf=requestAnimationFrame(p3Frame);
-  if(P3.viewer!==G.viewer){ P3.since=performance.now(); P3.viewer=G.viewer; P3.lvl=(typeof GQ!=='undefined'&&GQ.crashed)?2:0; P3.low=0;   // la 3D a planté la fois d'avant : on repart allégé
+  if(P3.viewer!==G.viewer){ P3.since=performance.now(); P3.viewer=G.viewer; P3.lvl=(typeof GQ!=='undefined'&&GQ.crashed)?2:0; P3.low=0; P3.up=0;   // la 3D a planté la fois d'avant : on repart allégé
     P3.good=0; p3Apply(); }
   const now=performance.now(); if(!P3.t0){ P3.t0=now; P3.n=0; return; } P3.n++;
   const el=now-P3.t0; if(el<3000) return; const fps=P3.n*1000/el; P3.t0=now; P3.n=0;
   if(document.hidden||el>8000) return;
   const mob=typeof GQ!=='undefined'&&GQ.mob, need=mob?18:15;
   if(fps<need){ P3.good=0; if(++P3.low>=2&&P3.lvl<3){ P3.low=0; P3.lvl++; p3Apply(); if(typeof toast==='function') toast(`🛟 3D allégée pour rester fluide (${Math.round(fps)} images/s)`,'info'); try{ log3D('allègement '+P3.lvl,Math.round(fps)+' i/s'); }catch(e){} } }
-  else { P3.low=0; if(fps>need*1.8&&++P3.good>=20&&P3.lvl>0&&P3.lvl<3){ P3.good=0; P3.lvl--; p3Apply(); } }
+  else { P3.low=0; if(fps>need*1.8&&++P3.good>=20&&P3.lvl>0&&P3.lvl<3){ P3.good=0; P3.lvl--; p3Apply(); }
+    // marge confortable : image plus nette, pas à pas (jamais au-delà de l'écran du téléphone)
+    if(P3.lvl===0&&fps>(mob?40:45)&&++P3.up>=3){ P3.up=0; try{ const V=G.viewer, sc=V.scene, dpr=window.devicePixelRatio||1, max=Math.min(dpr,mob?2:2.5)/dpr;
+        if((V.resolutionScale||1)<max-0.01){ V.resolutionScale=Math.min(max,(V.resolutionScale||1)+0.08); P3.sharp=(P3.sharp||0)+1; }
+        else if(sc.globe.maximumScreenSpaceError>1.5) sc.globe.maximumScreenSpaceError=Math.max(1.5,sc.globe.maximumScreenSpaceError-0.2); }catch(e){} }
+    if(fps<(mob?28:30)) P3.up=0; }
 }
 function p3Hook(){ if(p3Hook.done) return; p3Hook.done=true;
   setInterval(()=>{ if(!P3.raf&&typeof G!=='undefined'&&G&&G.viewer&&!document.getElementById('globe').hidden) P3.raf=requestAnimationFrame(p3Frame); },1000); }

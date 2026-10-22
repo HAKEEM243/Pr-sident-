@@ -254,8 +254,14 @@ function attitude(ac,st,t){
     const tb=ground?0:clamp(rate*9,-28,28);
     a.bank+=(tb-a.bank)*Math.min(1,dtg*0.6);
     const vs=(st.alt-a.alt)/dtg*196.85; a.vs+=(vs-a.vs)*Math.min(1,dtg*0.5);
-    const tp = ground? (st.phase===2&&st.spd>220?8:0) : st.phase===2?9 : st.phase===3?7 : st.phase===4?2.2 : st.phase===5?-0.5 : st.phase===6?2.5 : st.alt<20?5:3;
-    a.pitch+=(tp-a.pitch)*Math.min(1,dtg*0.4);
+    // assiette = pente de la trajectoire + incidence (plus grande quand l'avion est lent), arrondi avant le toucher, rotation au décollage
+    let tp;
+    if(ground) tp = st.phase===2? clamp((st.spd-190)/45,0,1)*8 : 0;                                       // rotation puis roulage nez au sol
+    else { const fpa=Math.atan2(a.vs/196.85,Math.max(35,st.spd/3.6))*180/Math.PI, aoa=st.phase===4?2.3:st.phase===2||st.phase===3?6.5:st.phase===5?3:4.5;
+      tp=clamp(fpa+aoa,-4,17);
+      if(st.phase===6) tp=Math.max(1.5,fpa+5.5);                                   // approche : nez légèrement haut (volets sortis, avion lent)
+      if(st.phase===7) tp=2.5+(1-Math.min(1,st.alt/40))*4; }                       // finale puis arrondi : le nez se lève avant le toucher des roues
+    a.pitch+=(tp-a.pitch)*Math.min(1,dtg*(ground&&st.phase>=7?0.35:0.6));
     a.hdg=st.hdg; a.t=t; a.alt=st.alt;
   }
   return a;
