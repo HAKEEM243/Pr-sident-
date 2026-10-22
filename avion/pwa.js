@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261222';
+const GAME_VER='20261223';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['📴 Jouer sans réseau','Le jeu marche maintenant sans Internet, aussi en avion : la carte et la 3D sont gardées sur le téléphone. Une image de la Terre est fournie avec le jeu : sans réseau on voit toujours continents, mers et relief, et les endroits déjà vus gardent leurs images satellite. Le téléchargement se fait tout seul en arrière-plan la première fois (Plus → 📴 Jouer sans réseau pour le lancer ou voir où il en est).'],
   ['✈️ Vol libre / vol d’exhibition','Plus → ✈️ Vol libre : choisissez départ, arrivée, compagnie (la vôtre, une autre, ou un nom libre), numéro de vol et avion. En temps réel, l’avion suit l’heure de votre téléphone : par exemple Paris-CDG → Kinshasa demain à 10:50, et il vole en même temps que votre vrai vol (donnez l’heure d’arrivée pour qu’il arrive pile à l’heure). Aucun coût, aucun passager. Aussi : les avions des autres compagnies s’inclinent dans les virages, lèvent le nez en montée, et deviennent détaillés quand ils passent près de vous.'],
   ['🏢 Aéroports plus beaux en 3D','Nouveau terminal : toiture en voûtes avec verrières, bandeau aux couleurs de l’aéroport, façade vitrée côté ville, route de dépose avec auvents et parking plein de voitures. La nuit : le « lapin » des feux d’approche court vers la piste. Sous la pluie : piste mouillée plus sombre. Les feux des taxiways suivent le chemin des avions.'],
   ['🛫 L’avion tourne tout seul vers la piste','Au roulage, les virages sont arrondis et l’avion s’aligne doucement dans l’axe de la piste (plus de pivot d’un coup), aussi depuis le point d’attente. Rotation à la vraie vitesse de décollage. 🎙️ Annonces du cockpit (V1, Rotate, 50-40-30, Retard…) et de l’équipage, grondement des roues, traînées blanches en croisière, gerbes d’eau sous la pluie.'],
