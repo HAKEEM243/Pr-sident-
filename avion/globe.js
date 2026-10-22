@@ -19,7 +19,7 @@ function loadCesium(){
 }
 // modèle représentatif pour les avions des autres compagnies
 const REP_MODEL={prop:'AT76', rj:'CRJ9', nb:'A20N', wb:'B789', quad:'B748', conc:'CONC'};
-const liveryOf=ac=>S.livery||S.company.color;
+const liveryOf=ac=>(ac&&ac.expo&&ac.livery)||S.livery||S.company.color;   // vol libre : couleurs de sa compagnie
 function modelInfo(m,color,lite){ return AC3D.uri(m,color,lite); }
 // téléphone (hors qualité Haute) : modèles légers pour les avions des autres compagnies (un modèle par couleur de compagnie = beaucoup de mémoire graphique)
 const acLite=()=>typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq;
@@ -390,15 +390,22 @@ function drawGlobeRivals(){
   for(const {R,r,i:pi,q:q0} of cands){
     if(n>=(G.rivalCap!==undefined?G.rivalCap:(GQ.hq?60:GQ.mob?12:22))) return;
     const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color,acLite());
-    let q=q0, qAt=-1; const an={}, nt={};
+    let q=q0, qAt=-1, re=null; const an={}, nt={}, at={b:0,p:0};
     const Q=()=>{ const tt=gSimNow(); if(tt!==qAt){ qAt=tt; const q1=rivalPos(r,pi||0,tt)||q;
         // virages lissés aussi pour les autres compagnies (en vol seulement)
         if(q1&&!q1.gnd&&(q1.alt||0)>60){ const sm=smoothSt(x=>{ const z=rivalPos(r,pi||0,x); return z&&!z.gnd?z:null; },tt,q1.alt,(q1.alt||0)<3500?16000:30000);
           q=sm&&sm.s0?Object.assign({},q1,{p:{lat:sm.lat,lon:sm.lon},alt:Math.max(60,sm.alt),hdg:sm.hdg}):q1; } else q=q1; } return q; };
     const posOf=()=>{ const v=Q(); const e=typeof gElev==='function'?gElev(gcDist(v.p,v.from)<gcDist(v.p,v.to)?v.from.code:v.to.code):0; return C.Cartesian3.fromDegrees(v.p.lon,v.p.lat,Math.max(v.alt||0,mi.R+mi.gH+0.4)+e); };
-    const re=V.entities.add({position:new C.CallbackProperty(posOf,false),
-      orientation:new C.CallbackProperty(()=>{ const v=Q(), pos=posOf(); const pitch=v.ph===2&&!v.gnd?8:v.ph===3?6:v.ph===6||v.ph===5?-2:0; return C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(v.hdg-90),C.Math.toRadians(pitch),0)); },false),
-      model:{uri:mi.uri, scale:1, minimumPixelSize:26, maximumScale:20000, show:new C.CallbackProperty(()=>rivalVisible(posOf()),false)},
+    re=V.entities.add({position:new C.CallbackProperty(posOf,false),
+      orientation:new C.CallbackProperty(()=>{ const v=Q(), pos=posOf(), tt=gSimNow(), now=performance.now();
+        // attitude : inclinaison dans les virages, nez qui suit la trajectoire (montée, descente, arrondi), sans à-coups
+        if(at.t!=null&&tt>at.t){ const dt=(tt-at.t)/1000, dh=((v.hdg-at.h+540)%360)-180, spd=(v.alt||0)<3000?75:220;
+          const bk=v.gnd?0:Math.max(-25,Math.min(25,Math.atan(spd*(dh/dt)*Math.PI/180/9.81)*180/Math.PI)), vs=((v.alt||0)-at.a)/dt;
+          const fpa=v.gnd?0:Math.atan2(vs,spd)*180/Math.PI, tp=v.gnd?(v.ph===2&&(v.alt||0)>0?6:0):Math.max(-4,Math.min(16,fpa+(v.ph===4?2.3:v.ph<=3?6:v.ph===7?5:3.5)));
+          const kf=Math.min(1,(now-(at.n||now))/1000*0.8)||0.05; at.b+=(bk-at.b)*kf; at.p+=(tp-at.p)*kf; }
+        at.t=tt; at.h=v.hdg; at.a=v.alt||0; at.n=now;
+        return C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(v.hdg-90),C.Math.toRadians(at.p),C.Math.toRadians(at.b))); },false),
+      model:{uri:new C.CallbackProperty(()=>rivalUri(re,mi,R,q0),false), scale:1, minimumPixelSize:26, maximumScale:20000, show:new C.CallbackProperty(()=>rivalVisible(posOf()),false)},
       label:{show:new C.CallbackProperty(()=>rivalVisible(posOf()),false), text:new C.CallbackProperty(()=>{ const v=Q(); return R.name+(v.ph===2?' · 🛫':v.ph===7?' · 🛬':''); },false), font:'600 11px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new C.Cartesian2(0,-24), distanceDisplayCondition:new C.DistanceDisplayCondition(0,60000), scale:0.85}});
     const lo=acLight(an); re.model.lightColor=new C.CallbackProperty(()=>acLight(an,lo).c,false); re.model.imageBasedLightingFactor=new C.CallbackProperty(()=>lo.f,false);
     re.model.nodeTransformations=new C.CallbackProperty(()=>{ const v=Q(); acAnimate(an,mi,v.ph,v.alt||0,!!v.gnd,undefined,v.holding==='in',false,v.p.lat,v.p.lon); return AC3D.pose(mi,an,nt); },false);
@@ -406,6 +413,14 @@ function drawGlobeRivals(){
   }
 }
 
+// tout près de l'avion suivi (moins de 2,5 km), un avion d'une autre compagnie passe en modèle détaillé (3 au plus)
+function rivalUri(re,mi,R,q0){
+  if(!re||!acLite()||!G.followPos||(typeof P3!=='undefined'&&P3.lvl>=2)) return mi.uri; const now=performance.now();
+  if(!re._lodAt||now-re._lodAt>700){ re._lodAt=now; let p=null; try{ p=re.position.getValue(G.viewer.clock.currentTime); }catch(e){}
+    const d=p?Cesium.Cartesian3.distance(p,G.followPos):1e9, hi=re._hi?d<4000:d<2500&&G.rivals.filter(x=>x._hi).length<3;
+    if(hi&&!re._miHi) try{ re._miHi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||getModel('A20N'),R.color,false); }catch(e){}
+    re._hi=hi&&!!re._miHi; }
+  return re._hi?re._miHi.uri:mi.uri; }
 // un avion d'une autre compagnie ne doit pas se superposer à celui qu'on suit (même piste au même moment)
 function rivalVisible(pos){ if(!G.follow||!G.followPos) return true; return Cesium.Cartesian3.distance(pos,G.followPos)>Math.max(250,(G.followL||40)*6); }
 /* ---------- caméra façon simulateur ---------- */
