@@ -33,7 +33,7 @@ function clSpawn(c){
   CL.col.removeAll(); const md=clMode(); if(md==='none'){ CL.cov=0; return; }
   const st=md==='storm'||(md==='auto'&&typeof stormAt==='function'&&stormAt(c.lat,c.lon)), cov=st?1:md==='few'?0.35:md==='some'?0.7:md==='many'?1:clCover(c.lat,c.lon); CL.cov=st?'orage':cov;
   if(!cov) return;
-  const I=clImgs(), mob=typeof GQ!=='undefined'&&GQ.mob, n=Math.round((mob?22:40)*cov*(st?1.4:1)), gr=typeof groundAt==='function'?Math.max(0,groundAt(c.lat,c.lon)):0;
+  const I=clImgs(), mob=typeof GQ!=='undefined'&&GQ.mob, n=CL.cap!=null?Math.min(CL.cap,Math.round((mob?22:40)*cov)):Math.round((mob?22:40)*cov*(st?1.4:1)), gr=typeof groundAt==='function'?Math.max(0,groundAt(c.lat,c.lon)):0;
   for(let i=0;i<n;i++){
     const d=1+Math.random()*26, q=destPt(c.lat,c.lon,Math.random()*360,d), high=!st&&Math.random()<0.2;
     const alt=gr+(st?1500+Math.random()*7500:high?5500+Math.random()*2500:1200+Math.random()*1800), w=st?3000+Math.random()*4000:high?2500+Math.random()*3500:1200+Math.random()*2400;
@@ -42,7 +42,7 @@ function clSpawn(c){
       color:C.Color.WHITE.withAlpha(high?0.55:st?0.95:0.88), distanceDisplayCondition:new C.DistanceDisplayCondition(0,120000)});
   }
 }
-function clOwnLayer(c,alt){ if(clMode()!=='many'||!CL.col||!(alt>800)) return; const C=Cesium, I=clImgs(), n=typeof GQ!=='undefined'&&GQ.mob?8:14;
+function clOwnLayer(c,alt){ if(clMode()!=='many'||!CL.col||!(alt>800)||(CL.cap!=null&&CL.cap<20)) return; const C=Cesium, I=clImgs(), n=typeof GQ!=='undefined'&&GQ.mob?8:14;
   for(let i=0;i<n;i++){ const q=destPt(c.lat,c.lon,Math.random()*360,1.5+Math.random()*14), a=alt+(Math.random()-0.5)*900, w=1500+Math.random()*2500;
     CL.col.add({image:I.w[i%I.w.length],position:C.Cartesian3.fromDegrees(q.lon,q.lat,a),width:w,height:w*0.5,sizeInMeters:true,color:C.Color.WHITE.withAlpha(0.85),distanceDisplayCondition:new C.DistanceDisplayCondition(0,120000)}); } }
 function clTick(){

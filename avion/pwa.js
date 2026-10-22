@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261213';
+const GAME_VER='20261214';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛟 3D qui s’allège toute seule','Dans tous les modes (même Minimal), la 3D mesure si le téléphone suit. Sinon elle retire les décors par étapes (trafic d’ambiance, nuages, avions des autres compagnies, aéroport vivant, résolution) au lieu de ramer ou de se fermer. Elle les remet quand ça redevient fluide.'],
   ['☁️ Choisissez vos nuages','Nouveau bouton ☁️ en 3D : météo du jeu, pas de nuages, quelques nuages, nuageux, très nuageux (des nuages aussi à l’altitude de l’avion) ou orage. Le choix est gardé. Les nuages apparaissent maintenant devant l’avion, sur sa route.'],
   ['🔄 Virages en 3D','En 3D les avions tournent vraiment pour s’aligner sur la piste (et à chaque changement de cap), au lieu de sauter d’un coup sur l’axe : trajectoire lissée, inclinaison dans les virages. Pareil pour les avions des autres compagnies.'],
   ['✈️ Trafic des autres compagnies en 3D','Autour de l’avion suivi, d’autres avions aux couleurs des compagnies de la région : en croisière à d’autres niveaux de vol, et près des aéroports en finale alignés sur la piste ou au décollage.'],
