@@ -51,20 +51,34 @@ const M_TOWER=()=>{ const sh=C3('#d6d3cc'), gl=C3('#1e3a5f'), dk=C3('#334155'), 
   [-7.6,7.6,53.5,55,-7.6,7.6,wh],                // toit
   [-0.3,0.3,55,64,-0.3,0.3,C3('#94a3b8')],[-0.6,0.6,63,64.2,-0.6,0.6,rd]];
   return {b, lit:[[-6.86,6.86,48.4,53.2,-6.86,6.86,C3('#d9f99d')],[-3.26,3.26,12,14,-3.26,3.26,C3('#fde68a')],[-3.26,3.26,28,30,-3.26,3.26,C3('#fde68a')]]}; };
-const M_TERMINAL=L=>()=>{ const c=C3('#e7e5e4'), g=C3('#2b4f73'), g2=C3('#3a6a96'), r=C3('#cbd5e1'), d=C3('#78716c'), m=C3('#f1f5f9'), b=[
+const M_TERMINAL=L=>()=>{ const c=C3('#e7e5e4'), g=C3('#2b4f73'), g2=C3('#3a6a96'), r=C3('#dfe5ec'), r2=C3('#c3ccd6'), sky=C3('#7fa6c9'), acc=C3('#0f766e'), d=C3('#78716c'), m=C3('#f1f5f9'), asp=C3('#3f4247'), curb=C3('#d6d3d1'), b=[
   [-L/2,L/2,0,4.2,-40,0,c],                       // rez-de-chaussée (bagages, services)
   [-L/2,L/2,4.2,4.8,-40,1.5,m],                   // dalle de l'étage départs
   [-L/2,L/2,4.8,14,-40,-1.2,c],                   // étage
-  [-L/2,L/2,5.2,13.6,-1.4,-0.6,g],                // mur-rideau vitré côté pistes
+  [-L/2,L/2,5.2,13.2,-1.4,-0.6,g],                // mur-rideau vitré côté pistes
+  [-L/2,L/2,13.2,14,-1.45,-0.55,acc],             // bandeau aux couleurs de l'aéroport
   [-L/2,L/2,0.6,3.6,-0.5,0.1,g2],                 // vitrage du rez-de-chaussée
-  [-L/2-2,L/2+2,14,15,-42,4,r],                   // toit avec grand auvent
-  [-L/2-2,L/2+2,13.2,14,2.6,4,r]];
-  for(let x=-L/2;x<=L/2;x+=6) b.push([x-0.18,x+0.18,4.8,14,-1.2,-0.2,m]);          // montants de façade
-  for(let x=-L/2+10;x<L/2;x+=60) b.push([x-0.5,x+0.5,4.8,14,2.4,3.4,m]);           // poteaux de l'auvent
-  for(let i=0;i<Math.max(2,Math.floor(L/120));i++){ const x=-L/2+L*(i+0.5)/Math.max(2,Math.floor(L/120)); b.push([x-7,x+7,15,18,-28,-12,d]); }  // locaux techniques
-  // la nuit : façade vitrée éclairée de l'intérieur (quelques baies plus sombres)
+  [-L/2,L/2,5.2,13.2,-40.6,-39.8,g]];             // façade vitrée côté ville
+  // toiture en voûtes : chaque travée est bombée (3 couches) ; verrière au sommet une travée sur deux
+  const bay=48; for(let x=-L/2,i=0;x<L/2;x+=bay,i++){ const x1=Math.min(L/2,x+bay)+2, x0=x-2;
+    b.push([x0,x1,14,15,-43,4.5,r],[x0+1,x1-1,15,16.1,-36,-2,r2],[x0+2,x1-2,16.1,16.9,-28,-10,r]);
+    if(i%2===0) b.push([x0+4,x1-4,16.9,17.1,-24,-14,sky]); }
+  for(let x=-L/2;x<=L/2;x+=6) b.push([x-0.18,x+0.18,4.8,13.2,-1.2,-0.2,m]);          // montants de façade
+  for(let x=-L/2+10;x<L/2;x+=60) b.push([x-0.5,x+0.5,4.8,14,2.6,3.6,m]);           // poteaux de l'auvent
+  for(let i=0;i<Math.max(2,Math.floor(L/160));i++){ const x=-L/2+L*(i+0.5)/Math.max(2,Math.floor(L/160)); b.push([x-6,x+6,16.9,19,-24,-14,d]); }  // locaux techniques
+  // côté ville : route de dépose sur deux niveaux, auvents d'entrée, parking avec voitures
+  b.push([-L/2-30,L/2+30,0,0.25,-58,-41,asp],[-L/2-30,L/2+30,0.25,0.45,-42.5,-40.6,curb]);
+  b.push([-L/2,L/2,4.2,4.9,-52,-40.6,C3('#a8a29e')]);                             // viaduc des départs
+  for(let x=-L/2+20;x<L/2;x+=40) b.push([x-0.6,x+0.6,0,4.2,-51,-50,d]);
+  for(let x=-L/2+60;x<L/2-30;x+=Math.max(90,L/8)) b.push([x-14,x+14,9,9.6,-50,-40.6,acc],[x-0.4,x+0.4,4.9,9,-49.6,-49,m]);  // auvents d'entrée
+  const PL=Math.min(L*0.8,520), cols=[C3('#f8fafc'),C3('#111827'),C3('#9ca3af'),C3('#b91c1c'),C3('#1d4ed8'),C3('#d4d4d8'),C3('#065f46')]; let sd=L|0; const rnd=()=>((sd=(sd*16807)%2147483647)/2147483647);
+  b.push([-PL/2,PL/2,0,0.2,-120,-62,asp]);
+  for(const z of [-68,-80,-92,-104,-116]){ b.push([-PL/2,PL/2,0.2,0.24,z+5.6,z+5.8,curb]);
+    for(let x=-PL/2+2;x<PL/2-2;x+=3.1) if(rnd()<0.68){ const k=cols[Math.floor(rnd()*cols.length)]; b.push([x,x+1.9,0.25,1.05,z,z+4.5,k],[x+0.15,x+1.75,1.05,1.5,z+1.1,z+3.4,k]); } }
+  // la nuit : façades vitrées éclairées de l'intérieur (quelques baies plus sombres)
   const lit=[], w=C3('#fff3c4'), w2=C3('#c7b98a');
-  for(let x=-L/2,i=0;x<L/2;x+=24,i++) lit.push([x,Math.min(L/2,x+24),5.3,13.5,-0.58,-0.5,(i*7)%5===0?w2:w],[x,Math.min(L/2,x+24),0.7,3.5,0.1,0.16,(i*3)%4===0?w2:w]);
+  for(let x=-L/2,i=0;x<L/2;x+=24,i++) lit.push([x,Math.min(L/2,x+24),5.3,13.1,-0.58,-0.5,(i*7)%5===0?w2:w],[x,Math.min(L/2,x+24),0.7,3.5,0.1,0.16,(i*3)%4===0?w2:w],[x,Math.min(L/2,x+24),5.3,13.1,-40.7,-40.62,(i*5)%4===0?w2:w]);
+  for(let x=-L/2+60;x<L/2-30;x+=Math.max(90,L/8)) lit.push([x-13,x+13,8.9,8.95,-49.5,-41,C3('#fff8dc')]);
   return {b, lit}; };
 const M_BRIDGE=()=>{ const g=C3('#cbd5e1'), d=C3('#475569'), gl=C3('#334155'); return {b:[[-1.6,1.6,4,7.4,0,38,g],[-1.65,1.65,5.2,6.4,2,36,gl],[-2.3,2.3,4.2,7.8,38,41.5,g],[-0.6,0.6,0,4.2,33,34.2,d],[-0.6,0.6,0,4.2,14,15.2,d],[-2.8,2.8,0,7,-4,0,d]], lit:[[-1.68,1.68,5.3,6.3,2.2,35.8,C3('#fff3c4')]]}; };
 // mât d'éclairage de l'aire (projecteurs tournés vers les postes)
@@ -110,9 +124,9 @@ function taxiLights(code,N,EL){
   const add=(q,col,sz)=>N.lights.add({position:C.Cartesian3.fromDegrees(q.lon,q.lat,0.9+EL), color:col, pixelSize:sz, disableDepthTestDistance:1500, scaleByDistance:new C.NearFarScalar(200,1.5,12000,0.4)});
   const seg=(a0,x0,a1,x1,edge)=>{ const L=Math.hypot(a1-a0,x1-x0), n=Math.max(1,Math.round(L/30)), ux=(x1-x0)/L, ua=(a1-a0)/L;
     for(let i=0;i<=n;i++){ const a=a0+(a1-a0)*i/n, x=x0+(x1-x0)*i/n; add(rwPt(r,a,x),G_,3); if(edge&&i%2===0){ add(rwPt(r,a-ux*11.5,x+ua*11.5),B,3); add(rwPt(r,a+ux*11.5,x-ua*11.5),B,3); } } };
-  seg(-60,tw,r.len+60,tw,true);                                                   // voie parallèle à la piste
-  seg(-40,tw,-25,tw*0.3); seg(-25,tw*0.3,0,0);                                    // entrée en bout de piste
-  seg(r.len+40,tw,r.len+25,tw*0.3); seg(r.len+25,tw*0.3,r.len,0);
+  seg(-80,tw,r.len+80,tw,true);                                                   // voie parallèle à la piste
+  seg(-80,tw,-80,0); seg(-80,0,0,0);                                               // entrée en bout de piste (le chemin que suivent les avions)
+  seg(r.len+80,tw,r.len+80,0); seg(r.len+80,0,r.len,0);
   for(const f of [0.45,0.62,0.78]) seg(r.len*f+180,tw,r.len*f,0);                   // sorties rapides
   const span=AP(code).cls>=3?1900:700, s=ap.side;
   seg(ap.a-span/2-60,ap.x-s*55,ap.a+span/2+60,ap.x-s*55);                         // voie de l'aire de stationnement
@@ -129,7 +143,7 @@ function airportProps(code,N){
   const xp=A.xp||0, span=Math.round((big?1900:700)*(1+0.1*Math.min(5,xp))), n=(typeof apGates==='function'&&(apGates(code)||[]).length)||Math.min(44,(big?22:8)+(A.gatesX||0));   // portes de tous les terminaux
   // terminal derrière la ligne de portes
   const terms=typeof apTerminals==='function'?apTerminals(code):[{n:'T1',a:a0,x:gx+s*72,L:span}];
-  for(const t of terms){ mk(rwPt(r,t.a,t.x),hdgOut+180,apModel('term'+t.L,M_TERMINAL(t.L)));   // terminaux 1 à 4 (agrandissements du joueur)
+  for(const t of terms){ mk(rwPt(r,t.a,t.x),hdgOut+180,apModel('term2-'+t.L,M_TERMINAL(t.L)));   // terminaux 1 à 4 (agrandissements du joueur)
     if(terms.length>1) try{ const q=rwPt(r,t.a,t.x+s*20), pos=C.Cartesian3.fromDegrees(q.lon,q.lat,24+EL); N.ents.push(V.entities.add({position:pos, label:{text:'Terminal '+t.n.slice(1), font:'700 13px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, distanceDisplayCondition:new C.DistanceDisplayCondition(0,9000)}})); }catch(e){} }
   // passerelles aux portes (positions de stationnement réelles du jeu)
   AP3D.bridges=AP3D.bridges||{}; AP3D.bridges[code]={};

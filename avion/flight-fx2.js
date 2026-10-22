@@ -8,7 +8,8 @@
      croisière, bienvenue à l'arrivée.
    • Grondement des roues sur la piste et « tac-tac » des feux d'axe.
    • En croisière (au-dessus de 7 600 m) : traînées blanches des réacteurs.
-   • Sous la pluie : gerbes d'eau derrière les roues au décollage et à l'atterrissage.
+   • La nuit : le « lapin » (feux à éclats) court sur la rampe d'approche.
+   • Sous la pluie : piste mouillée plus sombre, et gerbes d'eau derrière les roues au décollage et à l'atterrissage.
    Tout suit le bouton 🔊 (et celui des voix radio), et les effets se coupent si la 3D rame.
    ========================================================= */
 'use strict';
@@ -67,14 +68,31 @@ function fx2Trails(ac,p,inside,raining){
     for(const sx of [-1,1]) FX2.sp.push({b:col.add({image:img,position:fxLocal(p,sx*mi.R*1.1,-(mi.R+(mi.gH||2))+0.6,-mi.L*0.08),width:3,height:2,sizeInMeters:true,color:C.Color.fromCssColorString('#cfd6de').withAlpha(0.7)}),t0:now}); }
   FX2.sp=FX2.sp.filter(u=>{ const a=(now-u.t0)/1000; if(a>1.6){ col.remove(u.b); return false; } u.b.width=3+a*14; u.b.height=2+a*6; u.b.color=C.Color.fromCssColorString('#cfd6de').withAlpha(Math.max(0,0.7-a*0.44)); return true; });
 }
+// la nuit : feux à éclats de la rampe d'approche (le « lapin » qui court vers la piste, 2 fois par seconde)
+function fx2Rabbit(st){
+  const C=Cesium, V=G.viewer, night=typeof AP3D!=='undefined'&&AP3D.night, code=st.phase<=3?st.from:st.to, A=code&&AP(code);
+  if(!FX2.rab||FX2.rabV!==V){ FX2.rab=V.scene.primitives.add(new C.PointPrimitiveCollection()); FX2.rabV=V; FX2.rabFor=null; }
+  const on=night&&A&&gcDist(A,st)<30&&!(typeof P3!=='undefined'&&P3.lvl>=3);
+  if(!on){ if(FX2.rab.length) FX2.rab.removeAll(); FX2.rabFor=null; return; }
+  if(FX2.rabFor!==code){ FX2.rab.removeAll(); FX2.rabFor=code; FX2.rabL=[]; const EL=typeof gElev==='function'?gElev(code):0;
+    for(const r of runwaysOf(code).slice(0,4)){ if(!r.hard) continue; const pts=[]; for(let x=900;x>=300;x-=60){ const q=destPt(r.thr.lat,r.thr.lon,(r.hdg+180)%360,x/1000); pts.push(C.Cartesian3.fromDegrees(q.lon,q.lat,1.6+EL)); }
+      FX2.rabL.push({pts,p:FX2.rab.add({position:pts[0],pixelSize:9,color:C.Color.WHITE,disableDepthTestDistance:3000,scaleByDistance:new C.NearFarScalar(300,2.2,20000,0.7)})}); } }
+  const ph=(performance.now()%500)/500;
+  for(const L of FX2.rabL){ const i=Math.floor(ph*L.pts.length*1.3); L.p.show=i<L.pts.length; if(i<L.pts.length) L.p.position=L.pts[i]; }
+}
+// piste mouillée sous la pluie : asphalte plus sombre et bleuté, un peu brillant
+function fx2Wet(raining){
+  const N=G.apNear; if(!N) return; const k=raining?1:0, C=Cesium;
+  for(const e of N.ents) if(e&&e._rwy&&e.model&&e._wet!==k){ e._wet=k; if(k){ e.model.color=new C.Color(0.62,0.68,0.78,1); e.model.colorBlendMode=C.ColorBlendMode.MIX; e.model.colorBlendAmount=0.35; } else { e.model.colorBlendAmount=0; } }
+}
 function fx2Hook(){ if(fx2Hook.done||typeof fxTick!=='function') return; fx2Hook.done=true;
   { const _t=fxTick; fxTick=function(ac,p){ const r=_t.apply(this,arguments);
       try{ const inside=G.cam&&(G.cam.mode==='cabin'||G.cam.mode==='cockpit'), st=p.st, raining=!!(FX.forceRain||FX.rain||(typeof wxStorm==='function'&&wxStorm())||(typeof stormAt==='function'&&stormAt(st.lat,st.lon)));
-        fx2Callouts(ac,st,inside); fx2Wheels(st); fx2Trails(ac,p,inside,raining); }catch(e){ if(!fx2Hook.w){ fx2Hook.w=1; console.warn('fx2',e); } }
+        fx2Callouts(ac,st,inside); fx2Wheels(st); fx2Trails(ac,p,inside,raining); fx2Rabbit(st); fx2Wet(raining); }catch(e){ if(!fx2Hook.w){ fx2Hook.w=1; console.warn('fx2',e); } }
       return r; }; }
   // iPhone : la voix doit être « débloquée » pendant un toucher de l'écran
   if(typeof fxAudioUnlock==='function'){ const _u=fxAudioUnlock; fxAudioUnlock=function(){ const r=_u.apply(this,arguments); try{ if(!FX2.unl&&typeof speechSynthesis!=='undefined'){ FX2.unl=1; const u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); } }catch(e){} return r; }; }
   // quitter la 3D : on coupe la voix et le grondement
-  if(typeof fxClear==='function'){ const _c=fxClear; fxClear=function(){ try{ if(typeof speechSynthesis!=='undefined') speechSynthesis.cancel(); if(FX2.roll&&FX.sound) FX2.roll.g.gain.setTargetAtTime(0,FX.sound.ctx.currentTime,0.1); if(FX2.ctr){ FX2.ctr.removeAll(); FX2.trail=[]; FX2.sp=[]; } }catch(e){} return _c.apply(this,arguments); }; }
+  if(typeof fxClear==='function'){ const _c=fxClear; fxClear=function(){ try{ if(typeof speechSynthesis!=='undefined') speechSynthesis.cancel(); if(FX2.roll&&FX.sound) FX2.roll.g.gain.setTargetAtTime(0,FX.sound.ctx.currentTime,0.1); if(FX2.ctr){ FX2.ctr.removeAll(); FX2.trail=[]; FX2.sp=[]; } if(FX2.rab){ FX2.rab.removeAll(); FX2.rabFor=null; } }catch(e){} return _c.apply(this,arguments); }; }
 }
 if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ fx2Hook(); }catch(e){ console.warn(e); } },0));
