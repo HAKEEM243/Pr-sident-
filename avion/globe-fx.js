@@ -197,7 +197,7 @@ function fxCamera(ac,p,c){
 function puffImage(){
   if(FX._puff) return FX._puff; const cv=document.createElement('canvas'); cv.width=cv.height=64; const g=cv.getContext('2d');
   const gr=g.createRadialGradient(32,32,2,32,32,30); gr.addColorStop(0,'rgba(235,235,235,0.9)'); gr.addColorStop(0.6,'rgba(210,210,210,0.45)'); gr.addColorStop(1,'rgba(200,200,200,0)');
-  g.fillStyle=gr; g.fillRect(0,0,64,64); return FX._puff=cv;
+  g.fillStyle=gr; g.fillRect(0,0,64,64); return FX._puff=cv.toDataURL('image/png');
 }
 function fxTick(ac,p){
   const C=Cesium, V=G.viewer, now=performance.now(), mi=p.mi, st=p.st, inside=G.cam.mode==='cabin'||G.cam.mode==='cockpit';

@@ -95,7 +95,7 @@ function crashSync(){
   crash3D(list);
 }
 /* ---------- accidents en vue 3D ---------- */
-function crashImg(e){ crashImg.c=crashImg.c||{}; if(crashImg.c[e]) return crashImg.c[e]; const cv=document.createElement('canvas'); cv.width=cv.height=96; const g=cv.getContext('2d'); g.font='72px sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(e,48,52); return crashImg.c[e]=cv; }
+function crashImg(e){ crashImg.c=crashImg.c||{}; if(crashImg.c[e]) return crashImg.c[e]; const cv=document.createElement('canvas'); cv.width=cv.height=96; const g=cv.getContext('2d'); g.font='72px sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(e,48,52); return crashImg.c[e]=cv.toDataURL('image/png'); }
 function crash3D(list){
   if(typeof G==='undefined'||!G||!G.viewer) return; const C=Cesium, V=G.viewer; G.crashE=G.crashE||new Map();
   const ids=new Set(list.map(c=>c.id));

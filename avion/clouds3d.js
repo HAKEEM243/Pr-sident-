@@ -27,7 +27,7 @@ function clImgs(){
       g.fillStyle=gr; g.beginPath(); g.arc(x,Math.min(y,base-rad*0.35),rad,0,7); g.fill(); }
     // base ombrée
     const b=g.createLinearGradient(0,base-30,0,base+12); b.addColorStop(0,'rgba(0,0,0,0)'); b.addColorStop(1,dark?'rgba(30,32,40,0.45)':'rgba(120,128,145,0.28)'); g.globalCompositeOperation='source-atop'; g.fillStyle=b; g.fillRect(0,0,W,H); g.globalCompositeOperation='source-over';
-    return cv; };
+    return cv.toDataURL('image/png'); };   // adresse fixe : l'image n'est chargée qu'une fois en mémoire graphique (un canvas était recopié à chaque fois → la 3D se coupait au bout de 10 min)
   return CL.imgs={w:[mk(7),mk(41),mk(93),mk(211)], f:[mk(5,'f'),mk(77,'f')], d:[mk(17,'d'),mk(55,'d'),mk(131,'d')]};
 }
 // couverture nuageuse de la région (0 = ciel clair … 1 = très chargé), stable pour la journée
