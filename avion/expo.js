@@ -50,6 +50,10 @@ function expoRemove(id){ if(!S.expo) return; const ac=S.expo.find(a=>a.id===id);
   if(ac&&typeof toast==='function') toast(`🏁 Vol libre ${ac.expo.fno||''} terminé (${keyCity(ac.flight.legs[0].from)} → ${keyCity(ac.flight.legs[ac.flight.legs.length-1].to)}).`,'ok'); }
 const expoLabel=ac=>`${ac.expo.fno||(ac.expo.code+flightNumber(ac))} · ${ac.expo.cname} · ${modelOf(ac).name}`;
 // --- fenêtre de création ---
+// heure locale d'un aéroport (« 2026-10-23T17:40 » à Kinshasa) → instant exact ; sans fuseau connu : heure du téléphone
+function expoLocalTs(v,code){ const m=/^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(v||''); if(!m) return NaN; const u=AP(code)&&AP(code).utc;
+  if(typeof u!=='number') return new Date(v).getTime(); return Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5])-u*3600000; }
+const expoTz=code=>{ const a=AP(code); return a?`heure de ${a.city}`:'heure locale'; };
 function expoForm(){
   const pad=n=>String(n).padStart(2,'0'), d=new Date(Date.now()+86400000); d.setHours(10,50,0,0);
   const v=x=>`${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`;
@@ -67,8 +71,8 @@ function expoForm(){
     <label>Avion<select id="exModel">${models.map(m=>`<option value="${m.id}" ${m.id==='A359'?'selected':''}>${esc(m.name)} · ${m.range} km</option>`).join('')}</select></label>
     <label><input type="radio" name="exMode" value="real" checked> ⏱️ En temps réel (heure de votre téléphone)</label>
     <label><input type="radio" name="exMode" value="game"> 🎮 Dans le temps du jeu, départ tout de suite</label>
-    <label>Départ (repoussage)<input type="datetime-local" id="exDep" value="${v(d)}"></label>
-    <label>Arrivée prévue (facultatif, pour coller à votre vrai vol)<input type="datetime-local" id="exArr"></label>
+    <label>Départ (repoussage, heure locale du départ, comme sur la carte d’embarquement)<input type="datetime-local" id="exDep" value="${v(d)}"></label>
+    <label>Arrivée prévue (facultatif, heure locale de l’arrivée, comme sur la carte d’embarquement)<input type="datetime-local" id="exArr"></label>
     <div class="btns"><button class="btn" data-act="expoGo">🛫 Créer le vol</button></div>
     ${mine.length?`<h3>Vos vols libres</h3>${mine.map(a=>`<div class="row" style="display:flex;gap:6px;align-items:center;margin:4px 0"><span style="flex:1">${esc(expoLabel(a))}<br><small class="mut">${esc(keyCity(a.flight.legs[0].from))} → ${esc(keyCity(a.flight.legs[a.flight.legs.length-1].to))} · ${a.expo.real?'départ '+new Date(a.expo.off).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'}):'temps du jeu'}</small></span><button class="btn sm" data-act="expoView" data-id="${a.id}">🌍 3D</button><button class="btn sm" data-act="expoDel" data-id="${a.id}">✖</button></div>`).join('')}`:''}`);
 }
@@ -81,7 +85,7 @@ Object.assign(ACTIONS,{
   expoOpen:()=>expoForm(),
   expoGo:()=>{ const from=parseAp($('#exFrom').value), to=parseAp($('#exTo').value); if(!from||!to) return toast('Aéroport inconnu','bad');
     const real=(document.querySelector('input[name="exMode"]:checked')||{}).value!=='game', al=expoAirline($('#exAl').value);
-    const off=real&&$('#exDep').value?new Date($('#exDep').value).getTime():Date.now(), arr=real&&$('#exArr').value?new Date($('#exArr').value).getTime():0;
+    const off=real&&$('#exDep').value?expoLocalTs($('#exDep').value,from):Date.now(), arr=real&&$('#exArr').value?expoLocalTs($('#exArr').value,to):0;
     if(real&&!(off>0)) return toast('Heure de départ invalide','bad');
     const r=expoCreate({from,to,model:$('#exModel').value,real,off,arr,code:al.code,cname:al.cname,color:al.color,fno:$('#exFno').value.trim().toUpperCase()});
     if(typeof r==='string') return toast(r,'bad');
@@ -91,7 +95,20 @@ Object.assign(ACTIONS,{
   expoView:d=>{ closeModal(); ACTIONS.view3D({id:d.id}); },
   expoDel:d=>{ expoRemove(d.id); expoForm(); },
 });
-function expoHook(){ if(expoHook.done) return; expoHook.done=true;
+function expoFromUrl(){
+  let q; try{ q=new URLSearchParams(location.search); }catch(e){ return; } if(!q.get('vol')||!q.get('de')||!q.get('a')) return;
+  const go=()=>{ if(!S||!S.company||!S.fleet){ return setTimeout(go,1500); }
+    const fno=q.get('vol').toUpperCase(), from=q.get('de').toUpperCase(), to=q.get('a').toUpperCase(), off=q.get('dep')?expoLocalTs(q.get('dep'),from):Date.now(), arr=q.get('arr')?expoLocalTs(q.get('arr'),to):0;
+    if(!expoList().some(a=>a.expo.fno===fno&&Math.abs(a.expo.off-off)<60000)){ const cc=(q.get('cie')||fno.slice(0,2)).toUpperCase(), al=expoAirline(cc);
+      const r=expoCreate({from,to,model:q.get('avion')||'A359',real:true,off,arr,code:al.code,cname:q.get('nom')||(al.cname!==cc?al.cname:cc==='AF'?'Air France':cc),color:al.color,fno});
+      if(typeof r==='string'){ toast('✈️ '+r,'bad'); return; } }
+    try{ history.replaceState(null,'',location.pathname); }catch(e){}
+    const a=expoList().find(x=>x.expo.fno===fno), w=a?a.expo.off-Date.now():0;
+    toast(w>60000?`✈️ ${fno} prêt : l’avion attend à la porte, repoussage à ${new Date(off).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} (heure du téléphone). Plus → ✈️ Vol libre → 🌍 3D.`:`✈️ ${fno} en route !`,'ok');
+    try{ expoForm(); }catch(e){} };
+  setTimeout(go,2500);
+}
+function expoHook(){ if(expoHook.done) return; expoHook.done=true; expoFromUrl();
   { const _fs=flightState; flightState=function(ac,t){ if(ac&&ac.expo) try{ expoSync(ac,t); }catch(e){} return _fs.apply(this,arguments); }; }
   // la 3D dessine aussi les vols libres (étiquette à leur compagnie)
   if(typeof globeSync==='function'){ const _gs=globeSync; globeSync=function(){ expoInstall(); const ex=expoList(); if(!ex.length) return _gs.apply(this,arguments);
