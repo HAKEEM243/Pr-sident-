@@ -15,7 +15,7 @@ function trClear(){ if(TR.viewer) for(const x of TR.list) try{ TR.viewer.entitie
 function trAirlines(code){ const L=(typeof airlinesAt==='function'?airlinesAt(code):[]).map(([c])=>c).filter(c=>typeof c==='string'&&c&&c!==S.company.code); return L.length?L:['ET','KQ','SA','AF','EK','QR']; }
 function trPos(x,t){ const dt=(t-x.t0)/1000, d=x.spd*dt/1000; const p=destPt(x.lat,x.lon,x.hdg,d); let alt=x.alt+x.vs*dt; if(x.floor!==undefined) alt=Math.max(x.floor,alt); return {lat:p.lat,lon:p.lon,alt,d}; }
 function trAdd(x){
-  const C=Cesium, V=G.viewer, m=getModel(x.mid)||getModel('A20N'), mi=AC3D.uri(m,typeof airlineColor==='function'?airlineColor(x.code):'#94a3b8',typeof acLite==='function'&&acLite()), name=(typeof aiBy==='function'&&aiBy(x.code)&&aiBy(x.code).name)||x.code;
+  const C=Cesium, V=G.viewer, m=getModel(x.mid)||getModel('A20N'), name=(typeof aiBy==='function'&&aiBy(x.code)&&aiBy(x.code).name)||x.code, col=typeof airlineColor==='function'?airlineColor(x.code):'#94a3b8', lt=typeof acLite==='function'&&acLite(), mi=AC3D.uri(m,lt?col:{tail:col,stripe:col,title:name},lt);
   let cq=null, ct=-1; const Q=()=>{ const t=gSimNow(); if(t!==ct){ ct=t; cq=trPos(x,t); } return cq; };
   const pos=()=>{ const q=Q(); return C.Cartesian3.fromDegrees(q.lon,q.lat,Math.max(q.alt,mi.R+mi.gH+0.4)); };
   x.ent=V.entities.add({position:new C.CallbackProperty(pos,false),
