@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261227';
+const GAME_VER='20261228';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['✈️ Avions peints aux couleurs et 👷 personnel au sol','Le nom de la compagnie est peint sur le fuselage et son logo sur la dérive (votre compagnie, les autres compagnies, le vol libre). À la porte : mécanicien au nez avec casque radio, bagagistes en gilet fluo qui font la navette, agent d’avitaillement, chef d’escale. Au repoussage : agents au bout des ailes. À l’arrivée : le placier guide l’avion avec ses bâtons orange.'],
   ['🎞️ Rendu cinéma en 3D','Couleurs façon film / console (contraste doux, ombres bleutées, lumières chaudes au lever et coucher du soleil, coins assombris), reflets du soleil dans l’objectif, avions plus brillants. Nouveau bouton 🎞️ Film : bandes noires de cinéma, caméra automatique et écran sans boutons (touchez deux fois pour revenir). 🎨 Ciné pour couper l’effet. Il se coupe tout seul si le téléphone rame.'],
   ['🕒 Vol libre à l’heure locale','Les heures du vol libre se donnent maintenant comme sur la carte d’embarquement : départ à l’heure locale du départ, arrivée à l’heure locale de l’arrivée (ex. Paris 10:50 → Kinshasa 17:40). Et un lien peut créer le vol tout seul.'],
   ['📴 Sans réseau : vraie correction','Les images de carte prenaient énormément de place dans la mémoire du téléphone (des centaines de Mo comptés pour rien) : Safari pouvait alors refuser de garder le jeu. C’est corrigé (environ 20 Mo). Nouveau : Plus → 📴 Jouer sans réseau → 🩺 Diagnostic, qui montre exactement ce qui est gardé sur le téléphone.'],

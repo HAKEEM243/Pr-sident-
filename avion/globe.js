@@ -19,7 +19,8 @@ function loadCesium(){
 }
 // modèle représentatif pour les avions des autres compagnies
 const REP_MODEL={prop:'AT76', rj:'CRJ9', nb:'A20N', wb:'B789', quad:'B748', conc:'CONC'};
-const liveryOf=ac=>(ac&&ac.expo&&ac.livery)||S.livery||S.company.color;   // vol libre : couleurs de sa compagnie
+// livrée d'un avion + nom de la compagnie peint sur le fuselage (vol libre : couleurs et nom de sa compagnie)
+const liveryOf=ac=>{ const b=(ac&&ac.expo&&ac.livery)||S.livery||S.company.color, t=ac&&ac.expo?ac.expo.cname:S.company.name; return b&&typeof b==='object'?{...b,title:t}:{tail:b,stripe:b,title:t}; };
 function modelInfo(m,color,lite){ return AC3D.uri(m,color,lite); }
 // téléphone (hors qualité Haute) : modèles légers pour les avions des autres compagnies (un modèle par couleur de compagnie = beaucoup de mémoire graphique)
 const acLite=()=>typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq;
@@ -389,7 +390,7 @@ function drawGlobeRivals(){
   if(fst) cands.sort((x,y)=>x.dd-y.dd);
   for(const {R,r,i:pi,q:q0} of cands){
     if(n>=(G.rivalCap!==undefined?G.rivalCap:(GQ.hq?60:GQ.mob?12:22))) return;
-    const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},R.color,acLite());
+    const mi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||{id:'A20N',seats:180,cargo:0,fam:'A320'},acLite()?R.color:{tail:R.color,stripe:R.color,title:R.name},acLite());
     let q=q0, qAt=-1, re=null; const an={}, nt={}, at={b:0,p:0};
     const Q=()=>{ const tt=gSimNow(); if(tt!==qAt){ qAt=tt; const q1=rivalPos(r,pi||0,tt)||q;
         // virages lissés aussi pour les autres compagnies (en vol seulement)
@@ -418,7 +419,7 @@ function rivalUri(re,mi,R,q0){
   if(!re||!acLite()||!G.followPos||(typeof P3!=='undefined'&&P3.lvl>=2)) return mi.uri; const now=performance.now();
   if(!re._lodAt||now-re._lodAt>700){ re._lodAt=now; let p=null; try{ p=re.position.getValue(G.viewer.clock.currentTime); }catch(e){}
     const d=p?Cesium.Cartesian3.distance(p,G.followPos):1e9, hi=re._hi?d<4000:d<2500&&G.rivals.filter(x=>x._hi).length<3;
-    if(hi&&!re._miHi) try{ re._miHi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||getModel('A20N'),R.color,false); }catch(e){}
+    if(hi&&!re._miHi) try{ re._miHi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||getModel('A20N'),{tail:R.color,stripe:R.color,title:R.name},false); }catch(e){}
     re._hi=hi&&!!re._miHi; }
   return re._hi?re._miHi.uri:mi.uri; }
 // un avion d'une autre compagnie ne doit pas se superposer à celui qu'on suit (même piste au même moment)

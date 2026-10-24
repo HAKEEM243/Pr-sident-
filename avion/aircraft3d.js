@@ -208,13 +208,57 @@ const AC3D=(function(){
     P.gear.push(...legs);
     if(revs.length) anim.push({name:'rev',kind:'rev',T:[0,0,0],P:{rev:revs}});
     if(wins.length) anim.push({name:'win',kind:'win',T:[0,0,0],P:{lit:wins}});
-    return {P, R, gH, L, span, v, anim};
+    // décor peint (texture) : nom de la compagnie au-dessus des hublots, logo sur la dérive
+    let deco=null;
+    if(!lite&&livery&&livery.title&&!conc&&v!=='single'&&v!=='otter'){
+      const stripUV=(za,zb,a0,a1,sc,steps,side,uv)=>{ const pos=[],nor=[],uvs=[],idx=[];
+        for(let i=0;i<=steps;i++){ const z=lerp(za,zb,i/steps), f=fz(z); for(let k=0;k<=4;k++){ const a=lerp(a0,a1,k/4), s2=Math.sin(a), c2=Math.cos(a);
+            pos.push(side*c2*f.r*sc*(f.wide||1), f.yc+s2*f.r*sc*(s2>0?f.top:1)*(f.tall||1), z); nor.push(side*c2,s2,0);
+            const uu=side>0?1-i/steps:i/steps; uvs.push(uv[0]+(uv[2]-uv[0])*uu, uv[1]+(uv[3]-uv[1])*(1-k/4)); } }
+        for(let i=0;i<steps;i++) for(let k=0;k<4;k++){ const a=i*5+k, b=a+1, c=a+6, d=a+5; idx.push(a,b,c,a,c,d); }
+        return {pos,nor,uv:uvs,idx}; };
+      const a0=0.2, a1=0.62, Hm=R*(Math.sin(a1)-Math.sin(a0)), len=Math.min(8*Hm,L*0.42), zA=z1-L*(v==='prop'||v==='rear'?0.2:0.16), uvT=[0.5-len/Hm/16,0,0.5+len/Hm/16,0.25];
+      const parts=[stripUV(zA-len,zA,a0,a1,1.011,12,1,uvT),stripUV(zA-len,zA,a0,a1,1.011,12,-1,uvT)];
+      // logo : carré posé sur chaque face de la dérive (à mi-hauteur)
+      const fy=0.45, yc=yf0+finH*fy, zLE=lerp(zf0+finC,zf0+finC-finH*finSweep*0.65,fy), c=lerp(finC,finC*0.42,fy), sz=Math.min(finH*0.55,c*0.6), zc=zLE-c*0.42, xo=0.058*c+0.02;
+      for(const side of [1,-1]){ const P4=[[zc+sz/2,yc+sz/2],[zc-sz/2,yc+sz/2],[zc-sz/2,yc-sz/2],[zc+sz/2,yc-sz/2]], pos=[],nor=[],uvs=[];
+        P4.forEach(([z,y])=>{ pos.push(side*xo,y,z); nor.push(side,0,0); const u=side>0?(zc+sz/2-z)/sz:(z-(zc-sz/2))/sz, w=(yc+sz/2-y)/sz; uvs.push(u*0.375, 0.25+w*0.75); });
+        parts.push({pos,nor,uv:uvs,idx:[0,1,2,0,2,3]}); }
+      deco={parts};
+    }
+    return {P, R, gH, L, span, v, anim, deco};
   }
 
   /* ---------- assemblage glTF ---------- */
   const _cache={};
   function hexc(c){ if(!c) return [0.9,0.9,0.92,1]; if(c.startsWith('hsl')){ const m=c.match(/[\d.]+/g).map(Number); const h=m[0]/360,s=m[1]/100,l=m[2]/100; const q=l<.5?l*(1+s):l+s-l*s, p=2*l-q; const f=t=>{ t=(t+1)%1; return t<1/6?p+(q-p)*6*t:t<.5?q:t<2/3?p+(q-p)*(2/3-t)*6:p; }; return [f(h+1/3),f(h),f(h-1/3),1]; }
     const n=parseInt(c.replace('#',''),16); return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255,1]; }
+  // texture du décor : nom de la compagnie (haut) et logo (bas, à gauche) — dessinés une fois par compagnie
+  const _decoTex={};
+  function decoTexture(lv){
+    const key=(lv.title||'')+'|'+(lv.tail||''); if(_decoTex[key]) return _decoTex[key];
+    const cv=document.createElement('canvas'); cv.width=1024; cv.height=512; const g=cv.getContext('2d'), col=lv.titleColor||lv.tail||'#1e3a8a', name=String(lv.title).toUpperCase();
+    g.fillStyle=col; g.textAlign='center'; g.textBaseline='middle'; let fs=96; g.font=`italic 900 ${fs}px "Arial Black", Arial, sans-serif`;
+    while(g.measureText(name).width>980&&fs>30){ fs-=4; g.font=`italic 900 ${fs}px "Arial Black", Arial, sans-serif`; }
+    g.fillText(name,512,66);
+    // logo : anneau blanc, initiales, et un trait d'aile
+    const ini=name.replace(/[^A-Z0-9 ]/g,'').split(/\s+/).filter(w=>w&&!['AIR','AIRLINES','AIRWAYS','LINES','THE','DE','DU','LA','LE'].includes(w)).map(w=>w[0]).join('').slice(0,2)||name.slice(0,2);
+    g.save(); g.translate(192,320); g.strokeStyle='#ffffff'; g.lineWidth=16; g.beginPath(); g.arc(0,0,150,0,Math.PI*2); g.stroke();
+    g.fillStyle='rgba(255,255,255,.95)'; g.beginPath(); g.moveTo(-150,40); g.quadraticCurveTo(0,-40,150,-70); g.quadraticCurveTo(10,0,-150,70); g.closePath(); g.fill();
+    g.fillStyle='#ffffff'; g.font='900 120px "Arial Black", Arial, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText(ini,0,-62+130*0.15+40); g.restore();
+    return _decoTex[key]=cv.toDataURL('image/png');
+  }
+  function decoNode(gltf,deco,lv,addView){
+    const p=merge(...deco.parts), uv=[]; for(const d of deco.parts) uv.push(...d.uv);
+    const Pz=new Float32Array(p.pos), N=new Float32Array(p.nor), T=new Float32Array(uv), I=new Uint16Array(p.idx), mn=[Infinity,Infinity,Infinity], mx=[-Infinity,-Infinity,-Infinity];
+    for(let i=0;i<Pz.length;i++){ mn[i%3]=Math.min(mn[i%3],Pz[i]); mx[i%3]=Math.max(mx[i%3],Pz[i]); }
+    const vp=addView(Pz,34962), vn=addView(N,34962), vt=addView(T,34962), vi=addView(I,34963);
+    gltf.accessors.push({bufferView:vp,componentType:5126,count:Pz.length/3,type:'VEC3',min:mn,max:mx},{bufferView:vn,componentType:5126,count:N.length/3,type:'VEC3'},{bufferView:vt,componentType:5126,count:T.length/2,type:'VEC2'},{bufferView:vi,componentType:5123,count:I.length,type:'SCALAR'});
+    const a=gltf.accessors.length; gltf.images=[{uri:decoTexture(lv)}]; gltf.samplers=[{magFilter:9729,minFilter:9987,wrapS:33071,wrapT:33071}]; gltf.textures=[{source:0,sampler:0}];
+    gltf.materials.push({pbrMetallicRoughness:{baseColorTexture:{index:0},metallicFactor:0.05,roughnessFactor:0.32},alphaMode:'MASK',alphaCutoff:0.45,doubleSided:true});
+    gltf.meshes.push({primitives:[{attributes:{POSITION:a-4,NORMAL:a-3,TEXCOORD_0:a-2},indices:a-1,material:gltf.materials.length-1}]});
+    gltf.nodes.push({mesh:gltf.meshes.length-1,name:'deco'}); gltf.scenes[0].nodes.push(gltf.nodes.length-1);
+  }
   function uri(m, color, lite){
     const lv=(color&&typeof color==='object')? color : {tail:color, stripe:color};
     const key=(m.id||'X')+'|'+JSON.stringify(lv)+(lite?'|L':''); if(_cache[key]) return _cache[key];
@@ -244,6 +288,7 @@ const AC3D=(function(){
     const body={}, gearP={gear:B.P.gear, tire:B.P.tire}; for(const [k,l] of Object.entries(B.P)) if(k!=='gear'&&k!=='tire') body[k]=l;
     node('body',body); node('gear',gearP);
     for(const an of B.anim) node(an.name,an.P,an.T,an.kind==='rev'||an.kind==='win');
+    if(B.deco) try{ decoNode(gltf,B.deco,lv,addView); }catch(e){ console.warn('décor avion',e); }
     const all=new Uint8Array(off); let o=0; for(const c of chunks){ all.set(c,o); o+=c.length; }
     let bin=''; for(let i=0;i<all.length;i+=0x8000) bin+=String.fromCharCode.apply(null,all.subarray(i,i+0x8000));
     gltf.buffers.push({byteLength:off, uri:'data:application/octet-stream;base64,'+btoa(bin)});
