@@ -225,7 +225,7 @@ const AC3D=(function(){
     const addView=(arr,target)=>{ const bytes=new Uint8Array(arr.buffer); const pad=(4-bytes.length%4)%4; chunks.push(bytes); if(pad) chunks.push(new Uint8Array(pad));
       gltf.bufferViews.push({buffer:0,byteOffset:off,byteLength:bytes.length,target}); off+=bytes.length+pad; return gltf.bufferViews.length-1; };
     const material=k=>{ if(matIx[k]!==undefined) return matIx[k]; const c=mats[k];
-      gltf.materials.push({pbrMetallicRoughness:{baseColorFactor:c,metallicFactor:k==='glass'?0.6:k==='spin'?0.5:k==='grey'||k==='eng'?0.12:0.05,roughnessFactor:k==='glass'?0.12:k==='white'||k==='tail'||k==='stripe'?0.38:0.5},doubleSided:true, ...(k==='lit'?{emissiveFactor:[1,0.78,0.42]}:{}), ...(c[3]<1?{alphaMode:'BLEND'}:{})});
+      gltf.materials.push({pbrMetallicRoughness:{baseColorFactor:c,metallicFactor:k==='glass'?0.6:k==='spin'?0.55:k==='eng'?0.3:k==='grey'?0.15:0.06,roughnessFactor:k==='glass'?0.1:k==='white'||k==='tail'||k==='stripe'?0.3:k==='eng'?0.34:0.48},doubleSided:true, ...(k==='lit'?{emissiveFactor:[1,0.78,0.42]}:{}), ...(c[3]<1?{alphaMode:'BLEND'}:{})});
       return matIx[k]=gltf.materials.length-1; };
     // un maillage par nœud (corps, train, chaque pièce mobile)
     const mesh=parts=>{ const prims=[];
