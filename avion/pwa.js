@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261229';
+const GAME_VER='20261230';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🕵️ Poste de contrôle (mini-jeu)','Onglet Passagers → 🕵️ Poste de contrôle → 🎮 Jouer : vous êtes l’agent. 8 passagers d’un de vos vols : comparez la personne et la photo du passeport, la date d’expiration, le nom et le vol de la carte d’embarquement, le visa, le carnet fièvre jaune… puis passez le bagage cabine aux rayons X (couteau, arme, grande bouteille, feux d’artifice ?). Erreurs = amendes et image en baisse, bonnes décisions = image en hausse. Battez votre record !'],
   ['🛃 Aérogare en direct','Onglet Passagers (ou manifeste d’un vol à la porte) → 🛃 Suivre : le parcours de vos passagers minute par minute. Départ : enregistrement (bagages, excédents payés), sûreté (alarmes, palpations, objets confisqués), police aux frontières, porte d’embarquement par zones, dernier appel, absents. Arrivée : immigration (DGM, PAF…), carnet fièvre jaune, tapis à bagages, douane (DGDA, Douane française…) avec couloir vert/rouge, chien renifleur, saisies et amendes. Des incidents vous demandent une décision. Les refoulés sont ramenés à vos frais, les excédents de bagages vous rapportent.'],
   ['✈️ Avions peints aux couleurs et 👷 personnel au sol','Le nom de la compagnie est peint sur le fuselage et son logo sur la dérive (votre compagnie, les autres compagnies, le vol libre). À la porte : mécanicien au nez avec casque radio, bagagistes en gilet fluo qui font la navette, agent d’avitaillement, chef d’escale. Au repoussage : agents au bout des ailes. À l’arrivée : le placier guide l’avion avec ses bâtons orange.'],
   ['🎞️ Rendu cinéma en 3D','Couleurs façon film / console (contraste doux, ombres bleutées, lumières chaudes au lever et coucher du soleil, coins assombris), reflets du soleil dans l’objectif, avions plus brillants. Nouveau bouton 🎞️ Film : bandes noires de cinéma, caméra automatique et écran sans boutons (touchez deux fois pour revenir). 🎨 Ciné pour couper l’effet. Il se coupe tout seul si le téléphone rame.'],
