@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261231';
+const GAME_VER='20261232';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛂 Poste frontière (remplace le mini-jeu)','Plus de points ni de chronomètre : un vrai poste frontière intégré. Onglet Passagers → 🛂 Choisir un vol (ou manifeste d’un vol → 🛂 Contrôler) : TOUS les passagers du vol, un par un. Dossier complet : passeport (MRZ, tampons, puce), visa d’entrée RDC (e-visa DGM ou ambassade, catégorie, durée de séjour, entrées, n° de passeport), carte d’embarquement, fiche d’arrivée DGM (adresse à Kinshasa, motif, durée, profession), contrôle sanitaire PNHF (caméra thermique, certificat OMS fièvre jaune : date, lot, centre, médecin), autorisation parentale, puis douane DGDA (devises, marchandises, valises, fouille). Admettre, refuser, contrôle approfondi, orienter au médical, saisie. Anomalies rares comme en vrai. Quand un avion atterrit, le jeu vous le propose parfois (réglable : jamais, rarement, parfois).'],
   ['🕵️ Poste de contrôle : plus de détails','Passeport complet (sexe, nationalité, lieu de naissance, dates, bande lisible MRZ, tampons), carte d’identité pour les vols intérieurs, carte d’embarquement (date, destination, porte, zone, code-barres), visa (type, n° de passeport, dates), certificat OMS de vaccination (date, centre, cachet), autorisation de sortie pour les mineurs, et la question « motif du voyage ? ». Nouveaux pièges : faux visa, mauvaise date ou destination, passeport abîmé, vaccin trop récent, motif qui ne colle pas au visa… Rayons X : munitions, marteau, pistolet électrique, parapluie, batterie, pièces. Grades de Stagiaire à Inspecteur en chef, séries 🔥 et chronomètre.'],
   ['🕵️ Poste de contrôle (mini-jeu)','Onglet Passagers → 🕵️ Poste de contrôle → 🎮 Jouer : vous êtes l’agent. 8 passagers d’un de vos vols : comparez la personne et la photo du passeport, la date d’expiration, le nom et le vol de la carte d’embarquement, le visa, le carnet fièvre jaune… puis passez le bagage cabine aux rayons X (couteau, arme, grande bouteille, feux d’artifice ?). Erreurs = amendes et image en baisse, bonnes décisions = image en hausse. Battez votre record !'],
   ['🛃 Aérogare en direct','Onglet Passagers (ou manifeste d’un vol à la porte) → 🛃 Suivre : le parcours de vos passagers minute par minute. Départ : enregistrement (bagages, excédents payés), sûreté (alarmes, palpations, objets confisqués), police aux frontières, porte d’embarquement par zones, dernier appel, absents. Arrivée : immigration (DGM, PAF…), carnet fièvre jaune, tapis à bagages, douane (DGDA, Douane française…) avec couloir vert/rouge, chien renifleur, saisies et amendes. Des incidents vous demandent une décision. Les refoulés sont ramenés à vos frais, les excédents de bagages vous rapportent.'],
