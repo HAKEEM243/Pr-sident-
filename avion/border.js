@@ -77,13 +77,14 @@ function bcCase(f,i){
 }
 const BC_WHY={exp:'passeport expiré',photo:'la photo du passeport n’est pas cette personne',bpname:'le nom de la carte d’embarquement ne correspond pas',damaged:'passeport abîmé, non valable',novisa:'pas de visa d’entrée',visaexp:'visa expiré',visano:'visa délivré pour un autre passeport (faux visa probable)',visatype:'motif déclaré différent du type de visa',stay:'séjour prévu plus long que le visa',yf:'pas de certificat de vaccination fièvre jaune',yfdate:'vaccin fièvre jaune fait il y a moins de 10 jours (pas encore valable)',minor:'mineur seul sans autorisation parentale'};
 // --- décisions (enregistrées dans la sauvegarde) ---
-function bcSt(f){ S.bc=S.bc||{}; const k=f.key; if(!S.bc[k]){ S.bc[k]={imm:{},cus:{},med:{},t:S.time}; const ks=Object.keys(S.bc); if(ks.length>12) for(const kk of ks.sort((a,b)=>S.bc[a].t-S.bc[b].t).slice(0,ks.length-12)) delete S.bc[kk]; } return S.bc[k]; }
+function bcSt(f){ S.bc=S.bc||{}; const k=f.key; if(!S.bc[k]){ S.bc[k]={imm:{},cus:{},med:{},t:S.time,fno:f.fno,from:f.A.code,to:f.B.code,acId:f.acId,arr:f.arr,cost:0}; const ks=Object.keys(S.bc); if(ks.length>12) for(const kk of ks.sort((a,b)=>S.bc[a].t-S.bc[b].t).slice(0,ks.length-12)) delete S.bc[kk]; } return S.bc[k]; }
 function bcStats(f){ const s=bcSt(f), v=Object.values(s.imm); return {done:v.length, ok:v.filter(x=>x==='ok').length, ref:v.filter(x=>x==='ref').length, seize:Object.values(s.cus).filter(x=>x==='seize').length, med:Object.keys(s.med).length}; }
 function bcOutcome(f,c,kind,v){
   const s=bcSt(f); let msg='';
   if(kind==='imm'){ s.imm[c.i]=v;
-    if(v==='ref'&&c.imm){ book('incidents',-900); msg=`⛔ Entrée refusée : ${BC_WHY[c.imm]}. Le passager repart par votre prochain vol (billet retour à vos frais : 900 $).`; }
-    else if(v==='ref'){ book('incidents',-600); S.reputation=clamp((S.reputation||50)-0.1,0,100); msg=`⛔ Entrée refusée… mais après vérification, ses documents étaient en règle. Plainte du passager : indemnité de 600 $ versée par la compagnie.`; }
+    if(v==='ref'&&typeof bcDeport==='function') bcDeport(f,c);
+    if(v==='ref'&&c.imm){ book('incidents',-900); s.cost=(s.cost||0)+900; msg=`⛔ Entrée refusée : ${BC_WHY[c.imm]}. Le passager repart par votre prochain vol (billet retour à vos frais : 900 $).`; }
+    else if(v==='ref'){ book('incidents',-600); s.cost=(s.cost||0)+600; S.reputation=clamp((S.reputation||50)-0.1,0,100); msg=`⛔ Entrée refusée… mais après vérification, ses documents étaient en règle. Plainte du passager : indemnité de 600 $ versée par la compagnie.`; }
     else if(v==='ok'&&c.imm){ (s.later=s.later||[]).push(c.i); msg=`🟩 Tampon d’entrée apposé. Admis${c.x.F?'e':''} sur le territoire.`; }
     else msg=`🟩 Tampon d’entrée apposé. Admis${c.x.F?'e':''} sur le territoire.`; }
   if(kind==='med'){ s.med[c.i]=v; msg=v==='iso'?`🏥 Orienté${c.x.F?'e':''} vers le service médical de l’aéroport pour un examen (fièvre ${c.health.temp} °C).`:'🌡️ Température notée.'; }
@@ -93,7 +94,7 @@ function bcOutcome(f,c,kind,v){
   try{ save(); }catch(e){} return msg;
 }
 // anomalies laissées passer : signalées plus tard par les autorités (amende transporteur) — appliqué à l'arrivée du vol
-function bcLater(f){ const s=bcSt(f), L=(s.later||[]).slice(s.laterN||0); if(!L.length) return; s.laterN=(s.later||[]).length; const n=L.length, fine=n*3000; book('incidents',-fine); S.reputation=clamp((S.reputation||50)-0.15*n,0,100);
+function bcLater(f){ const s=bcSt(f), L=(s.later||[]).slice(s.laterN||0); if(!L.length) return; s.laterN=(s.later||[]).length; const n=L.length, fine=n*3000; book('incidents',-fine); s.cost=(s.cost||0)+fine; S.reputation=clamp((S.reputation||50)-0.15*n,0,100);
   logMsg(`🛂 Contrôle a posteriori sur ${f.fno} : ${n} passager${n>1?'s':''} admis par erreur (${L.map(i=>BC_WHY[bcCase(f,i).imm]).join(', ')}). Amende transporteur ${fmtMoney(fine)}.`,'bad'); try{ save(); }catch(e){} }
 // --- affichage ---
 const bcCard='background:#f8fafc;color:#0f172a;border-radius:10px;padding:9px 11px;font-size:12.5px;line-height:1.45;box-shadow:0 2px 8px rgba(0,0,0,.35)';
