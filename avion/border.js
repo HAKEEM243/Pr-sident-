@@ -98,36 +98,61 @@ function bcLater(f){ const s=bcSt(f), L=(s.later||[]).slice(s.laterN||0); if(!L.
   logMsg(`🛂 Contrôle a posteriori sur ${f.fno} : ${n} passager${n>1?'s':''} admis par erreur (${L.map(i=>BC_WHY[bcCase(f,i).imm]).join(', ')}). Amende transporteur ${fmtMoney(fine)}.`,'bad'); try{ save(); }catch(e){} }
 // --- affichage ---
 const bcCard='background:#f8fafc;color:#0f172a;border-radius:10px;padding:9px 11px;font-size:12.5px;line-height:1.45;box-shadow:0 2px 8px rgba(0,0,0,.35)';
+// --- 🧑‍✈️ l'adjoint : il signale les endroits à regarder (pas toujours un problème, « on ne sait jamais ») ---
+const bcHL=k=>BC.hl&&BC.hl.has(k)?'outline:3px solid #f59e0b;outline-offset:2px;box-shadow:0 0 0 6px rgba(245,158,11,.25);':'';
+function bcRow(k,v){ const on=BC.hl&&BC.hl.has(k);
+  return `<div style="display:flex;justify-content:space-between;gap:8px;border-bottom:1px dashed #cbd5e1;${on?'background:#fef08a;border-radius:4px;padding:0 3px;outline:2px solid #f59e0b':''}"><span style="color:#475569">${on?'🔍 ':''}${k}</span><b style="text-align:right">${v}</b></div>`; }
+const BC_HLMAP={exp:['Expire le'],photo:['@photo'],bpname:['Passager','Nom'],damaged:['@passport'],novisa:['@visa'],visaexp:['au'],visano:['Pour le passeport n°','N°'],visatype:['Catégorie','@say'],stay:['Durée de séjour','Durée prévue'],yf:['Certificat OMS fièvre jaune'],yfdate:['Vacciné(e) le'],minor:['@ast']};
+const BC_HLTXT={'Expire le':'la date d’expiration du passeport','@photo':'la photo par rapport au visage','Passager':'le nom sur la carte d’embarquement','Nom':'le nom du passeport','@passport':'l’état du passeport','@visa':'le visa','au':'la date de fin du visa','Pour le passeport n°':'le n° de passeport écrit sur le visa','N°':'le n° du passeport','Catégorie':'la catégorie du visa','@say':'ce que dit le passager','Durée de séjour':'la durée autorisée par le visa','Durée prévue':'la durée prévue sur la fiche','Certificat OMS fièvre jaune':'le certificat fièvre jaune','Vacciné(e) le':'la date du vaccin','@ast':'l’autorisation parentale','Date':'la date de la carte d’embarquement','Vol':'le n° de vol','De → à':'la destination de la carte','Caméra thermique':'la température','Devises déclarées':'l’argent déclaré','@bags':'les bagages (fouille conseillée)'};
+function bcHelp(f,c){
+  if(c.help) return c.help; const r=pfRng(f.key+'|help|'+c.i), set=new Set(), why=[];
+  const pool=['Expire le','@photo','Passager','Date','De → à'].concat(c.visa?['Pour le passeport n°','Catégorie','au','Durée de séjour']:[]).concat(c.health.yf?['Vacciné(e) le']:[]).concat(f.intl?['Durée prévue']:[]);
+  if(c.imm&&r()<0.85) for(const k of BC_HLMAP[c.imm]||[]) set.add(k);
+  const extra=c.imm?1:(r()<0.5?1:2); for(let n=0,g=0;n<extra&&g<20;g++){ const k=pool[Math.floor(r()*pool.length)]; if(!set.has(k)){ set.add(k); n++; } }
+  if(c.health.temp>=37.8) set.add('Caméra thermique');
+  const cs=new Set(); if(c.cus&&r()<0.7) cs.add(c.cus.kind==='cash'?'Devises déclarées':'@bags'); else if(r()<0.12) cs.add('@bags');
+  // niveau de risque affiché dans la liste (l'adjoint peut se tromper)
+  const noise=r(), miss=r()<0.05, score=(c.imm?(miss?0.05:0.52):0)+(c.cus?0.25:0)+(c.health.temp>=38?0.4:0)+noise*0.35+(r()<0.05?0.4:0);   // l'adjoint se trompe parfois
+  const lvl=score>=0.7?3:score>=0.35?2:1;
+  return c.help={set,cs,lvl};
+}
+const bcDot=l=>l===3?'🔴':l===2?'🟡':'🟢';
+function bcAideName(){ if(!S.bcAide){ const r=pfRng('aide|'+(S.company&&S.company.code)); S.bcAide=pfName(typeof homeCC==='function'?homeCC():'CD',r); } return S.bcAide; }
+function bcAidePanel(f,c,step){
+  if(S.bcHelp===false) return ''; const hp=bcHelp(f,c), keys=step==='cus'?[...hp.cs]:[...hp.set];
+  const txt=keys.map(k=>BC_HLTXT[k]||k).filter(Boolean);
+  return `<div class="card" style="margin:6px 0;border-left:5px solid #f59e0b;background:rgba(245,158,11,.08)">🧑‍✈️ <b>Votre adjoint ${esc(bcAideName())}</b> · risque ${bcDot(hp.lvl)} ${hp.lvl===3?'élevé':hp.lvl===2?'moyen':'faible'}<br>${txt.length?`« Regardez surtout : ${txt.join(', ')}. »`:step==='cus'?'« Rien de particulier pour la douane, couloir vert si vous voulez. »':'« Rien ne m’alerte. »'}<br><small class="mut">Les endroits à vérifier sont surlignés en jaune 🔍 — ce n’est pas forcément un problème, l’adjoint peut aussi se tromper.</small></div>`;
+}
 function bcDocs(f,c){
   const x=c.x, nat=COUNTRIES[x.nat]||['—','','🏳️'], sx=x.F?'F':'M', now=S.time, dest=COUNTRIES[f.B.cc]||[f.B.city,'','🏳️'];
   const mrz1=(`P<${x.nat}${x.last.toUpperCase().replace(/[^A-Z]/g,'')}<<${x.first.toUpperCase().replace(/[^A-Z]/g,'')}`+'<'.repeat(44)).slice(0,44), mrz2=(`${c.passNo}<${x.nat}${(x.dob||'').replace(/\D/g,'').slice(-2)}${sx}${bcD(c.passExp).replace(/\D/g,'').slice(-6)}`+'<'.repeat(44)).slice(0,44);
-  const row=(k,v)=>`<div style="display:flex;justify-content:space-between;gap:8px;border-bottom:1px dashed #cbd5e1"><span style="color:#475569">${k}</span><b style="text-align:right">${v}</b></div>`;
+  const row=bcRow;
   let h='';
-  h+=`<div style="${bcCard};border-top:6px solid ${c.national?'#0e7490':'#1e3a8a'};${c.damaged?'background:linear-gradient(135deg,#f8fafc 68%,#d6cfc4 68%);transform:rotate(-1.5deg)':''}">
+  h+=`<div style="${bcCard};${bcHL('@passport')}border-top:6px solid ${c.national?'#0e7490':'#1e3a8a'};${c.damaged?'background:linear-gradient(135deg,#f8fafc 68%,#d6cfc4 68%);transform:rotate(-1.5deg)':''}">
     <div style="display:flex;justify-content:space-between"><b>${c.national&&!f.intl?'CARTE D’IDENTITÉ':'PASSEPORT'} · ${esc(nat[0]).toUpperCase()}</b><span>${nat[2]} <span title="passeport biométrique">🔲</span></span></div>
-    <div style="display:flex;gap:10px;margin-top:5px"><div style="font-size:46px;background:#e2e8f0;border-radius:6px;padding:2px 8px;height:max-content">${c.photo}</div><div style="flex:1">
+    <div style="display:flex;gap:10px;margin-top:5px"><div style="font-size:46px;background:#e2e8f0;border-radius:6px;padding:2px 8px;height:max-content;${bcHL('@photo')}">${c.photo}</div><div style="flex:1">
     ${row('Nom',esc(x.last.toUpperCase()))}${row('Prénom',esc(x.first))}${row('Sexe',sx)}${row('Nationalité',esc(x.nat))}${row('Né'+(x.F?'e':'')+' le',esc(x.dob||'—'))}${row('à',esc(x.born||x.home||'—'))}${row('N°',esc(c.passNo))}${row('Délivré le',bcD(c.issued))}${row('Expire le',`<span style="color:${c.passExp<now?'#b91c1c':'inherit'}">${bcD(c.passExp)}</span>`)}</div></div>
     ${c.damaged?'<div style="color:#b91c1c;font-weight:700;margin-top:4px">⚠️ page des données décollée et déchirée</div>':''}
     <div style="font-family:ui-monospace,monospace;font-size:10px;letter-spacing:.4px;margin-top:5px;word-break:break-all;background:#eef2f7;padding:3px 4px;border-radius:4px">${esc(mrz1)}<br>${esc(mrz2)}</div>
     ${c.stamps.length?`<div style="margin-top:4px">Tampons des pages visas : ${c.stamps.map(s=>`<span style="display:inline-block;border:2px dashed #7c3aed;border-radius:50%;padding:1px 4px;margin:1px;opacity:.85">${s}</span>`).join('')}</div>`:''}</div>`;
   if(f.intl){ const v=c.visa;
-    if(c.needVisa||c.imm==='novisa') h+=v?`<div style="${bcCard};border-left:6px solid #16a34a;background:linear-gradient(135deg,#ecfdf5,#f0f9ff)"><div style="display:flex;justify-content:space-between"><b>🛂 VISA ${f.B.cc==='CD'?'D’ENTRÉE — RÉPUBLIQUE DÉMOCRATIQUE DU CONGO':'— '+esc(dest[0]).toUpperCase()}</b><span style="font-size:26px">${c.photo}</span></div>
+    if(c.needVisa||c.imm==='novisa') h+=v?`<div style="${bcCard};${bcHL('@visa')}border-left:6px solid #16a34a;background:linear-gradient(135deg,#ecfdf5,#f0f9ff)"><div style="display:flex;justify-content:space-between"><b>🛂 VISA ${f.B.cc==='CD'?'D’ENTRÉE — RÉPUBLIQUE DÉMOCRATIQUE DU CONGO':'— '+esc(dest[0]).toUpperCase()}</b><span style="font-size:26px">${c.photo}</span></div>
       ${row('Délivré par',esc(v.kind))}${row('Catégorie',esc(v.type))}${row('Durée de séjour',v.days+' jours')}${row('Entrées',v.entries)}${row('N° du visa',esc(v.no))}${row('Pour le passeport n°',esc(v.pass))}${row('Valable du',bcD(v.from))}${row('au',`<span style="color:${v.until<now?'#b91c1c':'inherit'}">${bcD(v.until)}</span>`)}
-      <div style="margin-top:3px;font-size:11px;color:#0369a1">✨ hologramme · ${f.B.cc==='CD'?'cachet DGM':'cachet consulaire'}</div></div>`:`<div style="${bcCard};opacity:.75"><b>🛂 Visa</b><br><i>aucun visa d’entrée dans le passeport</i></div>`;
+      <div style="margin-top:3px;font-size:11px;color:#0369a1">✨ hologramme · ${f.B.cc==='CD'?'cachet DGM':'cachet consulaire'}</div></div>`:`<div style="${bcCard};${bcHL('@visa')}opacity:.85"><b>🛂 Visa</b><br><i>aucun visa d’entrée dans le passeport</i></div>`;
     else h+=`<div style="${bcCard};opacity:.75"><b>🛂 Visa</b><br>${c.national?'Ressortissant(e) : pas de visa':f.B.cc==='CD'&&BC_NOVISA_CD.has(x.nat)?'Exempté(e) de visa (accord régional)':'Pas de visa requis pour cette nationalité'}</div>`; }
   h+=`<div style="${bcCard};border-left:6px solid #f59e0b"><b>🎫 CARTE D’EMBARQUEMENT · ${esc(S.company.name)}</b>${row('Passager',esc(c.bpName))}${row('Vol',esc(c.bpFlight))}${row('Date',bcD(c.bpDate))}${row('De → à',`${esc(f.A.code)} → ${esc(c.bpTo)}`)}${row('Siège',esc(x.seat)+' · '+(({f:'Première',j:'Affaires',w:'Premium',y:'Économique'})[x.cls]||''))}</div>`;
   if(f.intl) h+=`<div style="${bcCard};border-left:6px solid #64748b"><b>📝 FICHE D’ARRIVÉE ${f.B.cc==='CD'?'(DGM)':''}</b>${row('Adresse pendant le séjour',esc(c.card.addr))}${row('Motif',(typeof PURPOSE_LABEL!=='undefined'&&PURPOSE_LABEL[c.card.purp])||esc(c.card.purp))}${row('Durée prévue',c.card.stay+' jours')}${row('Profession',esc(c.card.job||'—'))}${row('Provenance',esc(f.A.city))}<div style="font-style:italic;color:#475569;margin-top:2px">Signature : ${esc(x.first[0])}. ${esc(x.last)}</div></div>`;
   const hy=c.health.yf;
   h+=`<div style="${bcCard};border-left:6px solid #eab308;background:#fefce8"><b>🩺 CONTRÔLE SANITAIRE ${f.B.cc==='CD'?'(PNHF — hygiène aux frontières)':''}</b>${row('Caméra thermique',`<span style="color:${c.health.temp>=38?'#b91c1c':'#15803d'}">${c.health.temp} °C</span>`)}
     ${c.yfNeed?(hy?`${row('Certificat OMS fièvre jaune','✅ présenté')}${row('Vacciné(e) le',bcD(hy.date))}${row('Lot du vaccin',esc(hy.lot))}${row('Centre',esc(hy.centre))}${row('Médecin',esc(hy.doc)+' 🩺 cachet')}<div style="font-size:11px;color:#475569">Valable à vie, à partir du 10e jour après la vaccination.</div>`:row('Certificat OMS fièvre jaune','<span style="color:#b91c1c">non présenté</span>')):row('Fièvre jaune','non exigé pour ce pays')}</div>`;
-  if(c.minor&&f.intl) h+=c.ast?`<div style="${bcCard};border-left:6px solid #db2777"><b>👨‍👧 AUTORISATION DE SORTIE DU TERRITOIRE</b><br>Mineur(e) de ${x.age} ans voyageant seul(e), autorisé(e) par <b>${esc(c.ast.parent)}</b> (parent).</div>`:`<div style="${bcCard};opacity:.75"><b>👨‍👧 Autorisation parentale</b><br><i>non présentée (mineur de ${x.age} ans voyageant seul)</i></div>`;
-  if(f.intl) h+=`<div style="${bcCard};background:#e0f2fe"><b>🗣️ Vous :</b> « Quel est le but de votre voyage ? »<br><b>${esc(x.first)} :</b> « ${esc(c.say)} »</div>`;
+  if(c.minor&&f.intl) h+=c.ast?`<div style="${bcCard};${bcHL('@ast')}border-left:6px solid #db2777"><b>👨‍👧 AUTORISATION DE SORTIE DU TERRITOIRE</b><br>Mineur(e) de ${x.age} ans voyageant seul(e), autorisé(e) par <b>${esc(c.ast.parent)}</b> (parent).</div>`:`<div style="${bcCard};${bcHL('@ast')}opacity:.85"><b>👨‍👧 Autorisation parentale</b><br><i>non présentée (mineur de ${x.age} ans voyageant seul)</i></div>`;
+  if(f.intl) h+=`<div style="${bcCard};${bcHL('@say')}background:#e0f2fe"><b>🗣️ Vous :</b> « Quel est le but de votre voyage ? »<br><b>${esc(x.first)} :</b> « ${esc(c.say)} »</div>`;
   return h;
 }
 function bcCustoms(f,c,searched){
-  const row=(k,v)=>`<div style="display:flex;justify-content:space-between;gap:8px;border-bottom:1px dashed #cbd5e1"><span style="color:#475569">${k}</span><b style="text-align:right">${v}</b></div>`;
+  const row=bcRow;
   let h=`<div style="${bcCard};border-left:6px solid #dc2626"><b>🛃 DÉCLARATION EN DOUANE ${f.B.cc==='CD'?'(DGDA)':''}</b>${row('Devises déclarées',fmtMoney(c.decl.cash))}${row('Marchandises',esc(c.decl.goods))}${row('Bagages en soute',c.bags.length?c.bags.length+' · '+c.bags.reduce((a,b)=>a+b.kg,0)+' kg':'aucun')}<div style="font-size:11px;color:#475569">Au-delà de 10 000 $ en espèces, déclaration obligatoire.</div></div>`;
-  h+=c.bags.map((b,k)=>`<div style="${bcCard}"><b>🧳 Valise ${k+1}</b> · ${esc(b.color)} · ${b.kg} kg · étiquette <b>${esc(b.tag)}</b>${searched?`<br>Contenu : ${esc(b.what)}${c.cus&&c.cus.kind==='goods'&&c.cus.bag===k?`<br><b style="color:#b91c1c">⚠️ ${esc(c.cus.item)}</b>`:''}`:''}</div>`).join('');
+  h+=c.bags.map((b,k)=>`<div style="${bcCard};${bcHL('@bags')}"><b>🧳 Valise ${k+1}</b> · ${esc(b.color)} · ${b.kg} kg · étiquette <b>${esc(b.tag)}</b>${searched?`<br>Contenu : ${esc(b.what)}${c.cus&&c.cus.kind==='goods'&&c.cus.bag===k?`<br><b style="color:#b91c1c">⚠️ ${esc(c.cus.item)}</b>`:''}`:''}</div>`).join('');
   if(searched) h+=`<div style="${bcCard}"><b>👜 Sac à main / poches</b><br>Portefeuille, téléphone, passeport${c.cus&&c.cus.kind==='cash'?`<br><b style="color:#b91c1c">⚠️ Liasses de billets : ${fmtMoney(c.cus.hidden)} non déclarés</b>`:''}</div>`;
   return h;
 }
@@ -136,14 +161,14 @@ function bcList(f){
   if(S.time>f.arr) bcLater(f);
   const st=bcStats(f), q=(BC.q||'').toLowerCase(), flt=BC.flt||'todo', s=bcSt(f);
   let idx=f.rows.map((x,i)=>i).filter(i=>{ const x=f.rows[i]; if(q&&!(x.first+' '+x.last).toLowerCase().includes(q)) return false; const v=s.imm[i];
-    return flt==='all'?true:flt==='todo'?!v:flt==='ref'?v==='ref':flt==='cus'?(v==='ok'&&!s.cus[i]):flt==='seize'?s.cus[i]==='seize':true; });
+    return flt==='all'?true:flt==='risk'?(!v&&bcHelp(f,bcCase(f,i)).lvl>=2):flt==='todo'?!v:flt==='ref'?v==='ref':flt==='cus'?(v==='ok'&&!s.cus[i]):flt==='seize'?s.cus[i]==='seize':true; });
   const lim=BC.lim||40, more=idx.length>lim; idx=idx.slice(0,lim);
   const chip=(k,l)=>`<button class="chip ${flt===k?'on':''}" data-act="bcFlt" data-k="${k}">${l}</button>`;
   return `<div class="small mut">${esc(f.fno)} · ${esc(f.A.city)} → <b>${esc(f.B.city)}</b> · ${f.intl?'🌍 vol international':'🏠 vol intérieur'} · arrivée ${fmtTime(f.arr)}</div>
-    <div class="card" style="margin:6px 0"><b>${f.B.cc==='CD'?'🇨🇩 DGM · DGDA · PNHF':'🛂 Immigration · 🛃 Douane'}</b> — ${st.done} / ${f.total} contrôlés · ✅ ${st.ok} admis · ⛔ ${st.ref} refusés · 🚫 ${st.seize} saisies · 🏥 ${st.med} au médical</div>
-    <div class="chips">${chip('todo','⏳ À contrôler')}${chip('cus','🛃 En douane')}${chip('ref','⛔ Refusés')}${chip('seize','🚫 Saisies')}${chip('all','Tous')}</div>
+    <div class="row" style="gap:6px;align-items:center"><button class="btn sm" data-act="bcHelpT">🧑‍✈️ Adjoint : ${S.bcHelp===false?'désactivé':'activé'}</button>${S.bcHelp!==false?`<small class="mut">🔴 à vérifier en priorité · 🟡 à regarder · 🟢 rien de particulier</small>`:''}</div><div class="card" style="margin:6px 0"><b>${f.B.cc==='CD'?'🇨🇩 DGM · DGDA · PNHF':'🛂 Immigration · 🛃 Douane'}</b> — ${st.done} / ${f.total} contrôlés · ✅ ${st.ok} admis · ⛔ ${st.ref} refusés · 🚫 ${st.seize} saisies · 🏥 ${st.med} au médical</div>
+    <div class="chips">${S.bcHelp!==false?chip('risk','🔴🟡 Signalés par l’adjoint'):''}${chip('todo','⏳ À contrôler')}${chip('cus','🛃 En douane')}${chip('ref','⛔ Refusés')}${chip('seize','🚫 Saisies')}${chip('all','Tous')}</div>
     <input data-in="bcQ" placeholder="🔎 Chercher un passager" value="${esc(BC.q||'')}" style="width:100%;margin:6px 0">
-    <div>${idx.map(i=>{ const x=f.rows[i]; return `<div class="row" data-act="bcPax" data-i="${i}" style="gap:8px;padding:6px 4px;border-bottom:1px solid rgba(148,163,184,.2);cursor:pointer"><span style="font-size:22px">${bcCase(f,i).face}</span><span class="grow"><b>${esc(x.last.toUpperCase())}</b> ${esc(x.first)} <small class="mut">${COUNTRIES[x.nat]?COUNTRIES[x.nat][2]:''} · ${x.age} ans · siège ${esc(x.seat)}</small></span><small>${bcStatus(f,i)}</small></div>`; }).join('')||'<div class="mut small">Personne dans cette liste.</div>'}</div>
+    <div>${idx.map(i=>{ const x=f.rows[i]; return `<div class="row" data-act="bcPax" data-i="${i}" style="gap:8px;padding:6px 4px;border-bottom:1px solid rgba(148,163,184,.2);cursor:pointer"><span style="font-size:22px">${bcCase(f,i).face}</span>${S.bcHelp!==false&&!s.imm[i]?`<span title="risque selon l’adjoint">${bcDot(bcHelp(f,bcCase(f,i)).lvl)}</span>`:''}<span class="grow"><b>${esc(x.last.toUpperCase())}</b> ${esc(x.first)} <small class="mut">${COUNTRIES[x.nat]?COUNTRIES[x.nat][2]:''} · ${x.age} ans · siège ${esc(x.seat)}</small></span><small>${bcStatus(f,i)}</small></div>`; }).join('')||'<div class="mut small">Personne dans cette liste.</div>'}</div>
     ${more?`<div class="btns"><button class="btn sm" data-act="bcMore">Afficher plus</button></div>`:''}
     ${f.total-st.done>0?`<div class="btns"><button class="btn sm" data-act="bcAll">✅ Contrôle standard pour les ${f.total-st.done} restants</button></div><div class="small mut">Les autres passagers passent le contrôle habituel des agents de l’aéroport.</div>`:''}`;
 }
@@ -152,12 +177,15 @@ function bcPaxView(f,i){
   let h=`<div class="row" style="gap:8px;justify-content:space-between"><button class="btn sm" data-act="bcBack">← Liste</button><small class="mut">Passager ${i+1} / ${f.total}</small><button class="btn sm" data-act="bcNext">Suivant →</button></div>
     <div class="card" style="text-align:center;margin:6px 0"><div style="font-size:64px;line-height:1">${c.face}</div><div><b>${esc(x.first)} ${esc(x.last)}</b> · ${x.age} ans${c.minor?' · voyage seul(e)':''}</div><small class="mut">${bcStatus(f,i)}</small></div>`;
   if(BC.msg) h+=`<div class="card" style="margin:6px 0;border-left:5px solid #38bdf8">${BC.msg}</div>`;
-  h+=`<h3>🛂 Immigration</h3><div style="display:grid;gap:8px">${bcDocs(f,c)}</div>`;
+  const hp=S.bcHelp===false?null:bcHelp(f,c);
+  if(!v) h+=bcAidePanel(f,c,'imm');
+  BC.hl=hp&&!v?hp.set:null; h+=`<h3>🛂 Immigration</h3><div style="display:grid;gap:8px">${bcDocs(f,c)}</div>`; BC.hl=null;
   if(!v){
     if(BC.deep===i) h+=`<div style="${bcCard};margin-top:8px;border-left:6px solid #7c3aed"><b>🔎 Contrôle approfondi</b><br>${c.imm==='visano'?'Le numéro du visa n’existe pas dans le fichier '+(f.B.cc==='CD'?'de la DGM':'des visas')+'.':c.imm==='visatype'||c.imm==='stay'?'Le passager hésite et ne présente pas de réservation correspondant à son visa.':c.imm==='photo'?'Les empreintes digitales ne correspondent pas au passeport biométrique.':c.imm?'L’examen confirme : '+BC_WHY[c.imm]+'.':'Réservation d’hôtel, billet retour et moyens de subsistance présentés : tout est cohérent.'}<br>Billet retour : ${c.card.stay<=60?'✅ le '+bcD(S.time+c.card.stay*86400000):'aller simple'} · Argent sur lui : ~${fmtMoney(c.decl.cash)}</div>`;
     h+=`<div class="btns" style="position:sticky;bottom:0;background:var(--bg2,#0f172a);padding:8px 0;z-index:2">${c.health.temp>=38&&!s.med[i]?`<button class="btn" data-act="bcMed" style="background:#b45309">🏥 Orienter vers le médical</button>`:''}<button class="btn" data-act="bcImm" data-v="ok">🟩 Admettre (tampon d’entrée)</button><button class="btn" data-act="bcImm" data-v="ref" style="background:#b91c1c">⛔ Refuser l’entrée</button>${BC.deep!==i?`<button class="btn" data-act="bcDeep">🔎 Contrôle approfondi</button>`:''}</div>`;
   } else if(v==='ok'){
-    h+=`<h3>🛃 Douane</h3><div style="display:grid;gap:8px">${bcCustoms(f,c,BC.search===i||cu==='seize')}</div>`;
+    if(!cu) h+=bcAidePanel(f,c,'cus');
+    BC.hl=hp&&!cu?hp.cs:null; h+=`<h3>🛃 Douane</h3><div style="display:grid;gap:8px">${bcCustoms(f,c,BC.search===i||cu==='seize')}</div>`; BC.hl=null;
     if(!cu) h+=`<div class="btns" style="position:sticky;bottom:0;background:var(--bg2,#0f172a);padding:8px 0;z-index:2">${BC.search===i?`<button class="btn" data-act="bcCus" data-v="seize" style="background:#b91c1c">🚫 Saisie et procès-verbal</button><button class="btn" data-act="bcCus" data-v="free">✅ Rien à signaler</button>`:`<button class="btn" data-act="bcCus" data-v="free">🟢 Couloir vert</button><button class="btn" data-act="bcSearch" style="background:#b45309">🔍 Fouiller les bagages</button>`}</div>`;
   }
   return h;
@@ -177,14 +205,15 @@ function bcPick(){
     ${fl.slice(0,40).map(({a,st,leg})=>{ const A=AP(leg.from),B=AP(leg.to),p=leg.pax.f+leg.pax.j+leg.pax.w+leg.pax.y; return `<div class="row" style="gap:6px;margin:5px 0"><span class="grow"><b>${S.company.code}${flightNumber(a)}</b> ${esc(A.city)} → ${esc(B.city)} ${A.cc!==B.cc?'🌍':''}<br><small class="mut">${ph(st)} · ${p} passagers</small></span><button class="btn sm" data-act="bcOpen" data-id="${a.id}">🛂 Contrôler</button></div>`; }).join('')||'<div class="mut">Aucun vol avec des passagers en ce moment.</div>'}
     <h3>⚙️ Me proposer un contrôle quand un avion atterrit</h3><div class="chips">${[['never','Jamais'],['rare','Rarement'],['some','Parfois']].map(([k,l])=>`<button class="chip ${ask===k?'on':''}" data-act="bcAskSet" data-k="${k}">${l}</button>`).join('')}</div>`,true);
 }
-function bcOpen(acId,i){ const ac=S.fleet.find(a=>a.id===acId); const f=bcFlight(ac); if(!f){ toast('Pas de passagers sur ce vol.','info'); return; } BC.view={key:f.key,i:i==null?null:i}; BC.flt='todo'; BC.q=''; BC.lim=40; BC.msg=''; BC.deep=null; BC.search=null; closeModal(); bcRender(true); }
+function bcOpen(acId,i){ const ac=S.fleet.find(a=>a.id===acId); const f=bcFlight(ac); if(!f){ toast('Pas de passagers sur ce vol.','info'); return; } BC.view={key:f.key,i:i==null?null:i}; BC.flt=S.bcHelp!==false?'risk':'todo'; BC.q=''; BC.lim=40; BC.msg=''; BC.deep=null; BC.search=null; closeModal(); bcRender(true); }
 Object.assign(ACTIONS,{
   bcPick:()=>bcPick(), bcOpen:d=>bcOpen(d.id),
+  bcHelpT:()=>{ S.bcHelp=S.bcHelp===false; try{ save(); }catch(e){} if(BC.flt==='risk'&&S.bcHelp===false) BC.flt='todo'; bcRender(); },
   bcAskSet:d=>{ S.bcAsk=d.k; try{ save(); }catch(e){} bcPick(); },
   bcFlt:d=>{ BC.flt=d.k; BC.lim=40; bcRender(); }, bcMore:()=>{ BC.lim=(BC.lim||40)+60; bcRender(); },
   bcPax:d=>{ BC.view.i=+d.i; BC.msg=''; BC.deep=null; BC.search=null; bcRender(true); },
   bcBack:()=>{ BC.view.i=null; BC.msg=''; bcRender(true); },
-  bcNext:()=>{ const f=BC.cache[BC.view.key], s=bcSt(f); let j=BC.view.i+1; while(j<f.total&&s.imm[j]) j++; if(j>=f.total){ BC.view.i=null; BC.msg=''; } else { BC.view.i=j; BC.msg=''; } BC.deep=null; BC.search=null; bcRender(true); },
+  bcNext:()=>{ const f=BC.cache[BC.view.key], s=bcSt(f); let j=BC.view.i+1; while(j<f.total&&(s.imm[j]||(BC.flt==='risk'&&bcHelp(f,bcCase(f,j)).lvl<2))) j++; if(j>=f.total){ BC.view.i=null; BC.msg=''; } else { BC.view.i=j; BC.msg=''; } BC.deep=null; BC.search=null; bcRender(true); },
   bcDeep:()=>{ BC.deep=BC.view.i; bcRender(); },
   bcSearch:()=>{ BC.search=BC.view.i; bcRender(); },
   bcMed:()=>{ const f=BC.cache[BC.view.key]; BC.msg=bcOutcome(f,bcCase(f,BC.view.i),'med','iso'); bcRender(true); },
