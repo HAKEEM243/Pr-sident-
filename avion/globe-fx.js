@@ -206,7 +206,7 @@ function fxTick(ac,p){
   const Lc=FX.lights; Lc.show=!inside;
   if(G.apNear){ for(const e of G.apNear.ents) e.show=!inside; }
   if(!inside){
-    if(Lc.length===0){ for(let i=0;i<7;i++) Lc.add({pixelSize:6,color:C.Color.WHITE,scaleByDistance:new C.NearFarScalar(30,2.2,6000,0.6)}); }
+    if(Lc.length===0){ for(let i=0;i<7;i++) Lc.add({pixelSize:6,color:C.Color.WHITE,scaleByDistance:new C.NearFarScalar(40,1.25,6000,0.55)}); }
     const half=mi.span/2*0.97, zw=-mi.L*0.06, yw=-mi.R*0.45, night=G.viewer.scene.globe.enableLighting&&!G.forceDay&&sunElevAt(st.lat,st.lon)<0;
     const set=(i,x,y,z,color,size,show)=>{ const pt=Lc.get(i); pt.position=fxLocal(p,x,y,z); pt.color=color; pt.pixelSize=size; pt.show=show; };
     const blink=(now%1100)<70, beacon=(now%1000)<120;
