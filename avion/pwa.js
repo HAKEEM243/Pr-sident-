@@ -57,15 +57,15 @@ function pwaLoad(txt){
 function maybeInstallHint(){
   if(isStandalone()) return; if(!(UI&&UI.mobile)&&!isIOS()) return;
   let n=0; try{ n=+(localStorage.getItem('se-inst-hint')||0); }catch(e){}
-  if(n>=3) return; try{ localStorage.setItem('se-inst-hint',String(n+1)); }catch(e){}
+  if(n>=2) return; try{ localStorage.setItem('se-inst-hint',String(n+1)); }catch(e){}
   setTimeout(()=>{ const b=document.createElement('div'); b.id='instBar';
     b.innerHTML=`<span>📲 Installez <b>Sky Empire</b> sur votre écran d’accueil : plein écran, comme une vraie appli.</span><button class="btn sm gold" data-act="install">Comment ?</button><button class="x" aria-label="Fermer">×</button>`;
     b.querySelector('.x').onclick=()=>b.remove(); b.querySelector('[data-act]').addEventListener('click',()=>setTimeout(()=>b.remove(),50));
-    document.body.appendChild(b); setTimeout(()=>b.remove(),20000); },4000);
+    document.body.appendChild(b); setTimeout(()=>b.remove(),12000); },9000);
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261234';
+const GAME_VER='20261235';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🎛️ Vue 3D rangée, façon pro','Fini les 38 boutons en vrac : une barre de 7 boutons (Carte, 🎥 Vue, ⏱️ Temps, 🌦️ Météo, ⚙️ Options, 🎞️ Film, Suivant), chacun ouvre son panneau ; toucher la 3D le referme. Sur téléphone plus rien ne se chevauche : mini-carte plus petite, radio de la tour en bas, échelles vertes seulement en vue cockpit. Ombre de l’avion au sol au roulage, au décollage et à l’atterrissage. Feux de bout d’aile plus fins. Carte : boutons + / − retirés sur téléphone (pincez pour zoomer), bandeau d’installation plus discret.'],
   ['🧑‍✈️ Un adjoint au poste frontière','Plus besoin de tout lire : votre adjoint donne un niveau de risque à chaque passager (🔴 à vérifier en priorité, 🟡 à regarder, 🟢 rien de particulier) et la liste s’ouvre sur ceux qu’il signale. Dans le dossier, il vous dit quoi regarder (« la date d’expiration, le n° de passeport sur le visa… ») et surligne ces endroits en jaune 🔍, même quand tout est peut-être en règle. Il peut se tromper. Bouton 🧑‍✈️ Adjoint pour l’activer ou le désactiver.'],
   ['🛂 Vos contrôles ont des effets dans le jeu','Un passager que vous refoulez repart vraiment sur votre prochain vol retour : il est dans le manifeste (au fond, « sous escorte »), sa fiche explique pourquoi, l’Aérogare du vol l’affiche, et en 3D un policier l’accompagne au pied de l’avion. L’Aérogare d’arrivée reprend vos décisions (refus, saisies, médical). La fiche passager et le manifeste montrent le résultat du contrôle. Nouveau 📒 Registre du poste frontière (onglet Passagers) : vols contrôlés, refus, saisies, coût, et suivi des refoulés.'],
   ['🛂 Poste frontière (remplace le mini-jeu)','Plus de points ni de chronomètre : un vrai poste frontière intégré. Onglet Passagers → 🛂 Choisir un vol (ou manifeste d’un vol → 🛂 Contrôler) : TOUS les passagers du vol, un par un. Dossier complet : passeport (MRZ, tampons, puce), visa d’entrée RDC (e-visa DGM ou ambassade, catégorie, durée de séjour, entrées, n° de passeport), carte d’embarquement, fiche d’arrivée DGM (adresse à Kinshasa, motif, durée, profession), contrôle sanitaire PNHF (caméra thermique, certificat OMS fièvre jaune : date, lot, centre, médecin), autorisation parentale, puis douane DGDA (devises, marchandises, valises, fouille). Admettre, refuser, contrôle approfondi, orienter au médical, saisie. Anomalies rares comme en vrai. Quand un avion atterrit, le jeu vous le propose parfois (réglable : jamais, rarement, parfois).'],
