@@ -260,16 +260,36 @@ function pNetwork(){
   return `<div class="btns">${isSimple()?'':'<button class="btn gold big" data-act="openLine">➕ Ouvrir une ligne</button>'}<button class="btn ${isSimple()?'sm':'big'}" data-act="calendar">🗓️ Calendrier</button><button class="btn ${isSimple()?'sm':'big'}" data-act="buyHubModal">🏢 Acheter un hub</button></div>
   <div class="hubs">${S.hubs.map(h=>{ const a=AP(h), n=(byHub[h]||[]).length, f=S.fleet.filter(x=>x.hub===h).length, traffic=a.traffic>=1?`${a.traffic.toFixed(1)} M`:`${Math.round(a.traffic*1000)} k`; return `<div class="hubcard" data-act="openAp" data-c="${h}">
     <div class="hc-top">${flag(h)} <b>${a.city}</b> <span class="mut">${h}</span></div><div class="small">${n} ligne(s) · ${f} avion(s)</div><div class="small mut">${a.name} · piste cl.${a.cls}</div><div class="small">🌍 Influence aéroportuaire : <b>n° ${typeof airportRank==='function'?airportRank(h):'—'}</b></div><div class="small mut">Trafic de base : ${traffic} passagers/an</div></div>`; }).join('')}</div>
-  ${S.hubs.map(h=>`<h3>Lignes depuis ${AP(h).city}</h3>${(byHub[h]||[]).map(lineCard).join('')||'<div class="mut small">Aucune ligne depuis ce hub.</div>'}`).join('')}`;
+  ${linesBoard(byHub)}`;
+}
+// résumé du réseau + tri et filtre des lignes
+const lineRes=r=>r.stats.rev-r.stats.cost, lineFill=r=>r.stats.seats?r.stats.pax/r.stats.seats:0, lineKm=r=>legsFor(r.stops).reduce((s,l)=>s+l.dist,0);
+const lineIssue=r=>routeLosing(r)||!routeAircraft(r).length||!r.audit;
+function linesBoard(byHub){
+  const R=S.routes; if(!R.length) return '<div class="mut small">Aucune ligne pour l’instant : ouvrez-en une depuis votre hub.</div>';
+  const tot=R.reduce((s,r)=>s+lineRes(r),0), seats=R.reduce((s,r)=>s+(r.stats.seats||0),0), pax=R.reduce((s,r)=>s+(r.stats.pax||0),0), lose=R.filter(routeLosing).length, noAc=R.filter(r=>!routeAircraft(r).length).length, noAu=R.filter(r=>!r.audit).length;
+  const best=R.slice().sort((a,b)=>lineRes(b)-lineRes(a))[0], worst=R.slice().sort((a,b)=>lineRes(a)-lineRes(b))[0];
+  const sort=UI.lineSort||'hub', flt=UI.lineFlt||'all', chip=(k,l,cur,act)=>`<button class="chip ${cur===k?'on':''}" data-act="${act}" data-k="${k}">${l}</button>`;
+  let L=flt==='issue'?R.filter(lineIssue):flt==='win'?R.filter(r=>lineRes(r)>0&&!routeLosing(r)):R.slice();
+  const head=`<div class="kgrid"><div><span>Lignes</span><b>${R.length}</b></div><div><span>Résultat cumulé</span><b class="${tot<0?'neg':'pos'}">${fmtMoney(tot)}</b></div><div><span>Remplissage</span><b>${seats?pct(pax/seats):'—'}</b></div><div><span>À surveiller</span><b class="${R.filter(lineIssue).length?'neg':''}">${R.filter(lineIssue).length}</b></div></div>
+    ${R.length>1?`<div class="small mut" style="margin:4px 0">🏆 Meilleure : <b>${best.stops.join('⇄')}</b> ${fmtMoney(lineRes(best))}${lineRes(worst)<0?` · 📉 Plus faible : <b>${worst.stops.join('⇄')}</b> ${fmtMoney(lineRes(worst))}`:''}${lose?` · ${lose} en déficit`:''}${noAc?` · ${noAc} sans avion`:''}${noAu?` · ${noAu} sans audit`:''}</div>`:''}
+    <div class="chips">${chip('all','Toutes','all'===flt?'all':flt,'lineFlt')}${chip('issue',`⚠️ À surveiller (${R.filter(lineIssue).length})`,flt,'lineFlt')}${chip('win','✅ Rentables',flt,'lineFlt')}</div>
+    <div class="chips"><span class="mut small" style="align-self:center;margin-right:4px">Trier :</span>${chip('hub','Par hub',sort,'lineSort')}${chip('res','Résultat',sort,'lineSort')}${chip('fill','Remplissage',sort,'lineSort')}${chip('km','Distance',sort,'lineSort')}</div>`;
+  if(sort==='hub') return head+S.hubs.map(h=>{ const l=L.filter(r=>r.stops[0]===h); return `<h3>Lignes depuis ${AP(h).city} (${l.length})</h3>${l.map(lineCard).join('')||'<div class="mut small">Aucune ligne ici avec ce filtre.</div>'}`; }).join('');
+  L.sort(sort==='res'?(a,b)=>lineRes(b)-lineRes(a):sort==='fill'?(a,b)=>lineFill(a)-lineFill(b):(a,b)=>lineKm(b)-lineKm(a));
+  return head+`<h3>${L.length} ligne${L.length>1?'s':''} · ${sort==='res'?'du meilleur résultat au plus faible':sort==='fill'?'des moins remplies aux plus remplies':'des plus longues aux plus courtes'}</h3>${L.map(lineCard).join('')||'<div class="mut small">Aucune ligne avec ce filtre.</div>'}`;
 }
 function lineCard(r){
   const legs=legsFor(r.stops), tot=legs.reduce((s,l)=>s+l.dist,0), acs=routeAircraft(r);
   const weekly=acs.reduce((s,ac)=>s+(ac.plan.find(p=>p.routeId===r.id)?.weekly||0),0);
   const res=r.stats.rev-r.stats.cost, losing=routeLosing(r), share=legMarket(r,r.stops[0],r.stops[1]).share;
-  return `<div class="card line ${losing?'losing':''}" data-act="line" data-id="${r.id}">
+  const fill=r.stats.seats?r.stats.pax/r.stats.seats:0;
+  return `<div class="card line ${losing?'losing':''}" data-act="line" data-id="${r.id}" style="border-left:4px solid ${!acs.length?'#64748b':losing||res<0?'var(--bad)':'var(--ok)'}">
     <div class="lhead"><div><b class="lroute">${r.stops.join(' ⇄ ')}</b><div class="small mut">${r.stops.map(c=>AP(c).city).join(' – ')} · ${num(tot)} km</div></div>
       <div class="lbadges">${!r.audit?'<span class="badge warn">Audit ?</span>':''}${losing?'<span class="badge bad">Déficit</span>':''}${!acs.length?'<span class="badge">Aucun avion</span>':''}</div></div>
     <div class="lstats"><div><span>Vols/sem.</span><b>${weekly}</b></div><div><span>Part</span><b>${pct(share)}</b></div><div><span>Rempl.</span><b>${r.stats.seats?pct(r.stats.pax/r.stats.seats):'—'}</b></div><div><span>Résultat</span><b class="${res<0?'neg':'pos'}">${fmtMoney(res)}</b></div></div>
+    ${r.stats.seats?bar(fill, fill<0.5?'bad':fill<0.7?'warn':''):''}
+    <div class="small mut">${acs.length?'✈️ '+acs.map(a=>a.reg).slice(0,4).join(', ')+(acs.length>4?' +'+(acs.length-4):''):'Aucun avion sur cette ligne'}</div>
   </div>`;
 }
 function lineModalHtml(r){
@@ -363,11 +383,33 @@ function acStatus(ac){
 }
 function pFleet(){
   const byHub={}; for(const ac of S.fleet) (byHub[ac.hub]=byHub[ac.hub]||[]).push(ac);
-  return `<div class="btns"><button class="btn gold" data-tab="shop">🛒 Acheter un avion</button><button class="btn" data-act="editor">🛠️ Éditeur d’avion</button></div>
+  return `<div class="btns">${isSimple()?'':'<button class="btn gold" data-tab="shop">🛒 Acheter un avion</button>'}<button class="btn sm" data-act="editor">🛠️ Éditeur d’avion</button></div>
   ${(S.orders||[]).length?`<h3>Commandes en cours (${S.orders.length})</h3>${S.orders.slice().sort((a,b)=>a.due-b.due).map(o=>{ const m=getModel(o.model); return `<div class="card row"><div class="grow"><b>${m.name}</b> → ${AP(o.hub).city}<br>${bar((S.time-o.ordered)/(o.due-o.ordered))}<span class="small mut">Livraison le ${fmtDate(o.due)} · solde ${fmtMoney(o.total-o.paid)} à payer</span></div><button class="btn sm danger" data-act="cancelOrder" data-id="${o.id}">Annuler</button></div>`; }).join('')}`:''}
   <label class="tog"><input type="checkbox" data-in="autoMaint" ${S.autoMaint?'checked':''}> Maintenance automatique (check A 600 h · C 3 000 h · D 12 000 h)</label>
-  ${Object.entries(byHub).map(([h,list])=>`<h3>Basés à ${AP(h).city} (${list.length})</h3>${list.map(acCard).join('')}`).join('')||'<div class="mut">Aucun avion.</div>'}`;
+  ${fleetBoard()}`;
 }
+// résumé de la flotte + filtre et tri
+const acIssue=ac=>!(ac.plan||[]).length||ac.condition<50||!!(ac.blocked&&(ac.plan||[]).length);
+function fleetBoard(){
+  const F=S.fleet; if(!F.length) return '<div class="mut">Aucun avion.</div>';
+  const n=k=>F.filter(a=>a.status===k).length, cond=F.reduce((s,a)=>s+a.condition,0)/F.length, issues=F.filter(acIssue).length;
+  const flt=UI.acFlt||'all', sort=UI.acSort||'hub', chip=(k,l,cur,act)=>`<button class="chip ${cur===k?'on':''}" data-act="${act}" data-k="${k}">${l}</button>`;
+  let L=flt==='flight'?F.filter(a=>a.status==='flight'):flt==='idle'?F.filter(a=>a.status==='idle'||a.status==='manual'):flt==='maint'?F.filter(a=>a.status==='maint'):flt==='issue'?F.filter(acIssue):F.slice();
+  const models={}; for(const a of F){ const m=modelOf(a).name; models[m]=(models[m]||0)+1; }
+  const head=`<div class="kgrid"><div><span>Avions</span><b>${F.length}</b></div><div><span>En vol</span><b class="pos">${n('flight')}</b></div><div><span>Au sol</span><b>${n('idle')+n('manual')}</b></div><div><span>Entretien</span><b>${n('maint')}</b></div><div><span>État moyen</span><b class="${cond<50?'neg':''}">${Math.round(cond)} %</b></div></div>
+    <div class="small mut" style="margin:4px 0">${Object.entries(models).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([m,c])=>`${c} × ${esc(m)}`).join(' · ')}${Object.keys(models).length>5?' …':''}</div>
+    <div class="chips">${chip('all',`Tous (${F.length})`,flt,'acFlt')}${chip('flight','✈️ En vol',flt,'acFlt')}${chip('idle','🅿️ Au sol',flt,'acFlt')}${chip('maint','🔧 Entretien',flt,'acFlt')}${chip('issue',`⚠️ À voir (${issues})`,flt,'acFlt')}</div>
+    <div class="chips"><span class="mut small" style="align-self:center;margin-right:4px">Trier :</span>${chip('hub','Par hub',sort,'acSort')}${chip('cond','État',sort,'acSort')}${chip('model','Modèle',sort,'acSort')}${chip('hours','Planning',sort,'acSort')}</div>`;
+  const lim=UI.acLim||30;
+  if(sort==='hub'){ const byHub={}; for(const ac of L) (byHub[ac.hub]=byHub[ac.hub]||[]).push(ac); let left=lim;
+    return head+(Object.entries(byHub).map(([h,list])=>{ if(left<=0) return ''; const show=list.slice(0,left); left-=show.length; return `<h3>Basés à ${AP(h).city} (${list.length})</h3>${show.map(acCard).join('')}`; }).join('')||'<div class="mut small">Aucun avion avec ce filtre.</div>')+(L.length>lim?`<div class="btns"><button class="btn" data-act="acMore">Afficher plus (${L.length-lim} restants)</button></div>`:''); }
+  L.sort(sort==='cond'?(a,b)=>a.condition-b.condition:sort==='model'?(a,b)=>modelOf(a).name.localeCompare(modelOf(b).name)||a.reg.localeCompare(b.reg):(a,b)=>planHours(a)-planHours(b));
+  return head+`<h3>${L.length} avion${L.length>1?'s':''} · ${sort==='cond'?'du plus usé au meilleur état':sort==='model'?'par modèle':'des moins occupés aux plus occupés'}</h3>${L.slice(0,lim).map(acCard).join('')||'<div class="mut small">Aucun avion avec ce filtre.</div>'}${L.length>lim?`<div class="btns"><button class="btn" data-act="acMore">Afficher plus (${L.length-lim} restants)</button></div>`:''}`;
+}
+window.addEventListener('load',()=>Object.assign(ACTIONS,{
+  lineSort:d=>{ UI.lineSort=d.k; renderPanel(); }, lineFlt:d=>{ UI.lineFlt=d.k; renderPanel(); },
+  acSort:d=>{ UI.acSort=d.k; UI.acLim=30; renderPanel(); }, acFlt:d=>{ UI.acFlt=d.k; UI.acLim=30; renderPanel(); }, acMore:()=>{ UI.acLim=(UI.acLim||30)+40; renderPanel(); },
+}));
 function acCard(ac){
   const m=modelOf(ac), st=acSeats(ac), h=planHours(ac);
   const lines=(ac.plan||[]).map(p=>{ const r=S.routes.find(x=>x.id===p.routeId); return r?`<span class="chip">${r.stops.join('⇄')} ×${p.weekly} · ${esc(planText(ac,p))}</span>`:''; }).join('');
