@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261235';
+const GAME_VER='20261236';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🧭 Lignes et ✈️ Flotte plus claires','Lignes : un résumé en haut (nombre de lignes, résultat cumulé, remplissage, lignes à surveiller), la meilleure et la plus faible, des filtres (⚠️ à surveiller, ✅ rentables) et le tri par résultat, remplissage ou distance. Chaque ligne a une bande de couleur (vert rentable, rouge en déficit, gris sans avion), une barre de remplissage et la liste de ses avions. Flotte : résumé (en vol, au sol, entretien, état moyen), répartition par modèle, filtres (en vol, au sol, entretien, à voir) et tri par état, modèle ou planning ; affichage par 30 pour les grandes flottes.'],
   ['🎛️ Vue 3D rangée, façon pro','Fini les 38 boutons en vrac : une barre de 7 boutons (Carte, 🎥 Vue, ⏱️ Temps, 🌦️ Météo, ⚙️ Options, 🎞️ Film, Suivant), chacun ouvre son panneau ; toucher la 3D le referme. Sur téléphone plus rien ne se chevauche : mini-carte plus petite, radio de la tour en bas, échelles vertes seulement en vue cockpit. Ombre de l’avion au sol au roulage, au décollage et à l’atterrissage. Feux de bout d’aile plus fins. Carte : boutons + / − retirés sur téléphone (pincez pour zoomer), bandeau d’installation plus discret.'],
   ['🧑‍✈️ Un adjoint au poste frontière','Plus besoin de tout lire : votre adjoint donne un niveau de risque à chaque passager (🔴 à vérifier en priorité, 🟡 à regarder, 🟢 rien de particulier) et la liste s’ouvre sur ceux qu’il signale. Dans le dossier, il vous dit quoi regarder (« la date d’expiration, le n° de passeport sur le visa… ») et surligne ces endroits en jaune 🔍, même quand tout est peut-être en règle. Il peut se tromper. Bouton 🧑‍✈️ Adjoint pour l’activer ou le désactiver.'],
   ['🛂 Vos contrôles ont des effets dans le jeu','Un passager que vous refoulez repart vraiment sur votre prochain vol retour : il est dans le manifeste (au fond, « sous escorte »), sa fiche explique pourquoi, l’Aérogare du vol l’affiche, et en 3D un policier l’accompagne au pied de l’avion. L’Aérogare d’arrivée reprend vos décisions (refus, saisies, médical). La fiche passager et le manifeste montrent le résultat du contrôle. Nouveau 📒 Registre du poste frontière (onglet Passagers) : vols contrôlés, refus, saisies, coût, et suivi des refoulés.'],
