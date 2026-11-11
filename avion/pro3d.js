@@ -9,7 +9,9 @@
       au-dessus de la barre du bas ; la mini-carte est plus petite.
    3. Ombre de l'avion au sol (roulage, décollage, atterrissage) : elle
       suit l'avion, s'éclaircit et s'élargit quand il monte.
-   4. Feux de bout d'aile plus fins. Carte 2D : boutons + / − retirés sur
+   4. La nuit, les phares d'atterrissage éclairent le sol devant l'avion.
+      La caméra glisse d'une vue à l'autre au lieu de sauter.
+   5. Feux de bout d'aile plus fins. Carte 2D : boutons + / − retirés sur
       téléphone (on pince pour zoomer), bandeau d'installation plus discret.
    ========================================================= */
 'use strict';
@@ -72,7 +74,10 @@ function shadowUri(span,len){
     g.moveTo(cx,218); g.lineTo(cx+44,240); g.lineTo(cx+44,248); g.lineTo(cx,238); g.lineTo(cx-44,248); g.lineTo(cx-44,240); g.closePath();     // empennage
     g.fill(); g.restore(); };
   g.fillStyle='rgba(0,0,0,0.085)'; for(let k=0;k<7;k++) shape(0.9+k*0.022);
-  const img=cv.toDataURL('image/png'), hx=span/2*1.12, hz=len/2*1.08;
+  return HUD3.shCache[key]=flatQuadUri(cv.toDataURL('image/png'),span/2*1.12,len/2*1.08);
+}
+// plaque horizontale texturée (ombre, halo de phares) : petit modèle 3D transparent
+function flatQuadUri(img,hx,hz){
   const P=new Float32Array([-hx,0,hz, hx,0,hz, hx,0,-hz, -hx,0,-hz]), N=new Float32Array([0,1,0,0,1,0,0,1,0,0,1,0]), T=new Float32Array([0,0, 1,0, 1,1, 0,1]), I=new Uint16Array([0,1,2,0,2,3]);
   const parts=[P,N,T,I], total=parts.reduce((a,b)=>a+b.byteLength+(4-b.byteLength%4)%4,0), all=new Uint8Array(total), views=[]; let off=0;
   for(const a of parts){ all.set(new Uint8Array(a.buffer),off); views.push({buffer:0,byteOffset:off,byteLength:a.byteLength}); off+=a.byteLength+(4-a.byteLength%4)%4; }
@@ -82,7 +87,7 @@ function shadowUri(span,len){
     textures:[{source:0,sampler:0}],samplers:[{magFilter:9729,minFilter:9729,wrapS:33071,wrapT:33071}],images:[{uri:img}],
     accessors:[{bufferView:0,componentType:5126,count:4,type:'VEC3',min:[-hx,0,-hz],max:[hx,0,hz]},{bufferView:1,componentType:5126,count:4,type:'VEC3'},{bufferView:2,componentType:5126,count:4,type:'VEC2'},{bufferView:3,componentType:5123,count:6,type:'SCALAR'}],
     bufferViews:views,buffers:[{byteLength:total,uri:'data:application/octet-stream;base64,'+btoa(bin)}]};
-  return HUD3.shCache[key]='data:model/gltf+json;base64,'+btoa(JSON.stringify(gltf));
+  return 'data:model/gltf+json;base64,'+btoa(JSON.stringify(gltf));
 }
 function shadowTick(ac,p){
   const C=Cesium, V=G.viewer, st=p.st, mi=p.mi; if(HUD3.viewer!==V){ HUD3.sh=null; HUD3.viewer=V; }
@@ -97,12 +102,38 @@ function shadowTick(ac,p){
   const k=alt/220, e=HUD3.sh; e.position=pos; e.orientation=C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(st.hdg-90),0,0));
   e.model.scale=1+k*0.9; e.model.color=new C.Color(1,1,1,Math.max(0,0.95*(1-k)*(1-k))); e.show=true;
 }
+// --- la nuit : les phares d'atterrissage éclairent le sol devant l'avion (roulage, décollage, finale) ---
+function beamUri(){ if(HUD3.beam) return HUD3.beam; const cv=document.createElement('canvas'); cv.width=128; cv.height=256; const g=cv.getContext('2d');
+  // faisceau : étroit près de l'avion (bas de l'image), large et diffus au loin
+  for(let k=0;k<14;k++){ const y=236-k*15, r=14+k*6.5, gr=g.createRadialGradient(64,y,1,64,y,r); gr.addColorStop(0,`rgba(255,244,214,${0.2-k*0.011})`); gr.addColorStop(1,'rgba(255,236,190,0)'); g.fillStyle=gr; g.beginPath(); g.ellipse(64,y,r*0.9,r,0,0,7); g.fill(); }
+  return HUD3.beam=flatQuadUri(cv.toDataURL('image/png'),34,75); }
+function beamTick(ac,p){
+  const C=Cesium, V=G.viewer, st=p.st, mi=p.mi, alt=Math.max(0,st.alt||0), night=typeof AP3D!=='undefined'&&AP3D.night, inside=G.cam&&G.cam.mode==='cabin';
+  const on=night&&!inside&&alt<140&&((st.phase>=1&&st.phase<=2)||st.phase>=6)&&!st.pushback&&!(typeof P3!=='undefined'&&P3.lvl>=3);
+  if(!on){ if(HUD3.bm) HUD3.bm.show=false; return; }
+  if(!HUD3.bm||HUD3.bmV!==V){ HUD3.bmV=V; HUD3.bm=V.entities.add({position:p.pos, model:{uri:beamUri(), shadows:C.ShadowMode.DISABLED}}); }
+  const c=C.Cartographic.fromCartesian(p.pos), body=mi.R+(mi.gH||2)+0.4, gh=c.height-Math.max(alt,body)+0.5, k=alt/140, ahead=mi.L*0.5+70+alt*2.2;
+  const q=destPt(st.lat,st.lon,st.hdg,ahead/1000), pos=C.Cartesian3.fromDegrees(q.lon,q.lat,gh), e=HUD3.bm;
+  e.position=pos; e.orientation=C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(st.hdg-90),0,0)); e.model.scale=1+k*1.6; e.model.color=new C.Color(1,1,1,Math.max(0,0.95*(1-k*0.9))); e.show=true;
+}
+// --- changement de vue en douceur : la caméra glisse d'une vue à l'autre au lieu de sauter ---
+const HUD3_ORBIT=['chase','side','front','top','tower'];
+function camGlide(from,to){
+  cancelAnimationFrame(HUD3.glide||0); const t0=performance.now(), D=850, dh=((to.h-from.h+540)%360)-180, tgt={h:to.h,p:to.p,range:to.range}, mode=to.mode;
+  to.h=from.h; to.p=from.p; to.range=from.range;
+  const step=()=>{ if(!G||!G.cam||G.cam!==to||G.cam.mode!==mode||HUD3.glideStop){ HUD3.glideStop=false; return; } const u=Math.min(1,(performance.now()-t0)/D), e=u<0.5?2*u*u:1-Math.pow(-2*u+2,2)/2;
+    to.h=from.h+dh*e; to.p=from.p+(tgt.p-from.p)*e; to.range=from.range+(tgt.range-from.range)*e; if(u<1) HUD3.glide=requestAnimationFrame(step); else to.h=tgt.h; };
+  HUD3.glideStop=false; HUD3.glide=requestAnimationFrame(step);
+}
 Object.assign(ACTIONS,{ hudGrp:d=>{ HUD3.open=HUD3.open===d.g?null:d.g; if(typeof renderGlobeHud==='function') renderGlobeHud(); } });
 function pro3dHook(){ if(pro3dHook.done) return; pro3dHook.done=true; hud3Css();
   if(typeof renderGlobeHud==='function'){ const _r=renderGlobeHud; renderGlobeHud=function(){ const r=_r.apply(this,arguments); try{ hud3Regroup(); }catch(e){ console.warn('hud3',e); } return r; }; }
   // toucher la 3D referme le panneau ouvert
   const gl=document.getElementById('globe'); if(gl) gl.addEventListener('pointerdown',()=>{ if(HUD3.open){ HUD3.open=null; try{ renderGlobeHud(); }catch(e){} } });
-  if(typeof fxTick==='function'){ const _t=fxTick; fxTick=function(ac,p){ const r=_t.apply(this,arguments); try{ shadowTick(ac,p); }catch(e){ if(!pro3dHook.w){ pro3dHook.w=1; console.warn('ombre',e); } } return r; }; }
-  if(typeof fxClear==='function'){ const _c=fxClear; fxClear=function(){ try{ if(HUD3.sh&&HUD3.viewer) HUD3.viewer.entities.remove(HUD3.sh); HUD3.sh=null; HUD3.open=null; const pan=document.getElementById('hudPanel'); if(pan) pan.hidden=true; }catch(e){} return _c.apply(this,arguments); }; }
+  if(typeof fxTick==='function'){ const _t=fxTick; fxTick=function(ac,p){ const r=_t.apply(this,arguments); try{ shadowTick(ac,p); beamTick(ac,p); }catch(e){ if(!pro3dHook.w){ pro3dHook.w=1; console.warn('ombre',e); } } return r; }; }
+  if(typeof setCam==='function'){ const _sc=setCam; setCam=function(mode){ const old=G&&G.cam?{...G.cam}:null; const r=_sc.apply(this,arguments);
+      try{ if(old&&G.cam&&old.mode!==G.cam.mode&&HUD3_ORBIT.includes(old.mode)&&HUD3_ORBIT.includes(G.cam.mode)) camGlide(old,G.cam); }catch(e){} return r; }; }
+  if(gl) gl.addEventListener('pointerdown',()=>{ HUD3.glideStop=true; cancelAnimationFrame(HUD3.glide||0); setTimeout(()=>{ HUD3.glideStop=false; },50); });
+  if(typeof fxClear==='function'){ const _c=fxClear; fxClear=function(){ try{ if(HUD3.bm&&HUD3.bmV) HUD3.bmV.entities.remove(HUD3.bm); HUD3.bm=null; if(HUD3.sh&&HUD3.viewer) HUD3.viewer.entities.remove(HUD3.sh); HUD3.sh=null; HUD3.open=null; const pan=document.getElementById('hudPanel'); if(pan) pan.hidden=true; }catch(e){} return _c.apply(this,arguments); }; }
 }
 if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ pro3dHook(); }catch(e){ console.warn(e); } },0));
