@@ -159,6 +159,12 @@ const AC3D=(function(){
         pair(name,'flap',loft([sec(xa),sec(xb)],{capStart:[-1,0,0],capEnd:[1,0,0]}),T,norm(sub(Tb,T)),{fw:[0,-0.035*cm,-0.2*cm]}); };
       const fx0=high?R*1.05:xr+0.25, fx1=half*(high?0.7:0.72);
       flapSeg('flapI',fx0,Math.max(fx0+0.5,kink)); flapSeg('flapO',Math.max(fx0+0.5,kink),fx1);
+      // becs de bord d'attaque : ils avancent et s'abaissent avec les volets (jets)
+      if(!lite&&!high&&v!=='rear'){ const slatSeg=(name,xa,xb)=>{ const U=[0,0.025,0.06,0.1,0.14];
+          const sec=x=>{ const a=wAt(x), top=U.map(u=>[x, a.y+naca(Math.max(u,0.004))*a.t*a.c+0.012, a.zl-u*a.c+0.015]), bot=U.slice().reverse().map(u=>[x, a.y-naca(Math.max(u,0.004))*a.t*a.c*0.55-0.006, a.zl-u*a.c+0.015]); return [...top,...bot]; };
+          const H=x=>{ const a=wAt(x); return [x,a.y,a.zl-0.14*a.c]; }, T=H(xa), cm=(wAt(xa).c+wAt(xb).c)/2;
+          pair(name,'slat',loft([sec(xa),sec(xb)],{capStart:[-1,0,0],capEnd:[1,0,0]}),T,norm(sub(H(xb),T)),{fw:[0,-0.035*cm,0.075*cm]}); };
+        slatSeg('slatI',xr+0.6,half*0.3); slatSeg('slatO',half*0.37,half*0.93); }
       // carénage ventral (sous l'emplanture) et carénages des rails de volets
       if(!lite&&!high&&v!=='rear'){ const fb=tube(zr-cr*1.25,zr+cr*0.35,[[0,.25,0],[.18,.8,0],[.5,1,0],[.82,.85,0],[1,.3,0]],R*0.6,{y:wingYr-R*0.05,wide:1.75,tall:0.62,n:18}); P.white.push(fb); }
       if(!lite&&!high) for(const fx of [0.2,0.4,0.6]){ const x=half*fx, a=wAt(x), ft=tube(a.zl-a.c*1.18,a.zl-a.c*0.45,[[0,.15,0],[.25,.9,0],[.7,1,0],[1,.4,0]],Math.max(0.16,a.c*0.05),{x,y:a.y-a.t*a.c*0.35-Math.max(0.16,a.c*0.05)*0.9,tall:1.4,n:10}); P.grey.push(ft,mirrorX(ft)); }
@@ -175,8 +181,17 @@ const AC3D=(function(){
       const engAt=(fx)=>{ const x=half*fx, z=zr-(x-xr)*sweep+L*0.05, r= v==='nb'?R*0.52 : v==='rear'?R*0.5 : R*0.62, len=L*(v==='nb'?0.11:0.1);
         const y=wingYr+(x-xr)*dihed-r*1.05; const [t,f,py]=nac(x,y,z,len,r); P.eng.push(t,mirrorX(t)); P.fan.push(f,mirrorX(f)); P.grey.push(py,mirrorX(py));
         const rv=tube(z-len*0.62,z-len*0.4,[[0,1.05,0],[1,1.05,0]],r,{x,y,n:16}); revs.push(rv,mirrorX(rv)); };
-      if(v==='nb'||v==='wb'||v==='md11') engAt(v==='nb'?0.33:0.31);
-      if(v==='747'||v==='a380'||v==='quadwb'){ engAt(0.27); engAt(0.53); }
+      // soufflante : aubes et cône avec sa virgule blanche, dans un nœud qui tourne
+      const fanNode=(x,y,z,r,sd,i)=>{ const T=[x,y,z-0.15], nb=22, pos=[], nor=[], idx=[];
+        for(let k=0;k<nb;k++){ const a=k/nb*Math.PI*2, w=0.085, r0=r*0.26, r1=r*0.83, b0=pos.length/3;
+          for(const [rr,da,dz] of [[r0,-w*1.6,0.05],[r0,w*1.6,-0.03],[r1,w+0.12,-0.05],[r1,-w+0.12,0.04]]){ pos.push(Math.cos(a+da)*rr,Math.sin(a+da)*rr,dz); nor.push(0.25*Math.cos(a+1.57),0.25*Math.sin(a+1.57),0.96); }
+          idx.push(b0,b0+1,b0+2,b0,b0+2,b0+3); }
+        const cone=tube(-0.06,0.2-r*0.05,[[0,.3,0],[.6,.2,0],[1,.02,0]],r,{n:12});
+        const zt=0.2-r*0.05, zb=-0.02, rb=r*0.29*1.04, sw={pos:[0,0,zt+0.004, rb*Math.cos(-0.5),rb*Math.sin(-0.5),zb, rb*Math.cos(0.15),rb*Math.sin(0.15),zb],nor:[0,0.5,0.86,0,0.5,0.86,0,0.5,0.86],idx:[0,1,2]};
+        anim.push({name:'fan'+i,kind:'fan',T,axis:[0,0,1],sg:sd,P:{blade:[{pos,nor,idx},cone]}}); };
+      let fanI=0; const _engAt=engAt, engFan=fx=>{ _engAt(fx); if(lite) return; const x=half*fx, z=zr-(x-xr)*sweep+L*0.05, r= v==='nb'?R*0.52 : v==='rear'?R*0.5 : R*0.62, y=wingYr+(x-xr)*dihed-r*1.05; fanNode(x,y,z,r,1,fanI++); fanNode(-x,y,z,r,-1,fanI++); };
+      if(v==='nb'||v==='wb'||v==='md11') engFan(v==='nb'?0.33:0.31);
+      if(v==='747'||v==='a380'||v==='quadwb'){ engFan(0.27); engFan(0.53); }
       if(v==='md11'){ const r=R*0.5, t=tube(z0+L*0.06,z0+L*0.19,[[0,.8,0],[.2,1,0],[1,.9,0]],r,{y:R*1.25,n:16}); P.eng.push(t); P.fan.push(disc(0,R*1.25,z0+L*0.19,r*0.8)); revs.push(tube(z0+L*0.09,z0+L*0.12,[[0,1.05,0],[1,1.05,0]],r,{y:R*1.25,n:16})); }
       if(v==='rear'){ const r=R*0.48, len=L*0.13; for(const s of [1,-1]){ const x=s*(R+r*1.15), z=z0+L*0.33; P.eng.push(tube(z-len,z,[[0,.6,0],[.15,.95,0],[.6,1,0],[1,.9,0]],r,{x,y:R*0.35,n:14})); revs.push(tube(z-len*0.62,z-len*0.4,[[0,1.04,0],[1,1.04,0]],r,{x,y:R*0.35,n:14})); P.fan.push(disc(x,R*0.35,z-0.05,r*0.8)); P.grey.push(box(Math.min(x,s*R*0.6),Math.max(x,s*R*0.6),R*0.25,R*0.45,z-len*0.7,z-len*0.25)); } }
       if(high){ // hélices
@@ -184,9 +199,19 @@ const AC3D=(function(){
         if(v==='single') nx.push(0); else { nx.push(half*0.28, -half*0.28); }
         for(const x of nx){ const zf=v==='single'? z1+0.1 : zr+cr*0.45, y=v==='single'?0:wingYr-R*0.2, rn=v==='single'?R*0.5:R*0.36;
           if(v!=='single'){ P.eng.push(tube(zf-L*0.2,zf,[[0,.7,0],[.3,1,0],[.85,1,0],[1,.55,0]],rn,{x,y,n:14})); }
-          P.prop.push(disc(x,y,zf+0.35,pr)); P.dark.push(tube(zf,zf+0.8,[[0,.5,0],[1,.05,0]],rn,{x,y,n:12})); }
+          if(lite){ P.prop.push(disc(x,y,zf+0.35,pr)); }
+          else { const T=[x,y,zf+0.35], nbl=v==='single'?3:v==='otter'?3:6, pos=[], nor=[], idx=[];
+            for(let k=0;k<nbl;k++){ const a=k/nbl*Math.PI*2, c=Math.cos(a), sn=Math.sin(a), w0=pr*0.05, w1=pr*0.11, w2=pr*0.045, b0=pos.length/3;
+              for(const [rr,w,dz] of [[pr*0.1,w0,0.04],[pr*0.55,w1,0.0],[pr*0.98,w2,-0.05]]) for(const sg of [-1,1]){ pos.push(c*rr-sn*w*sg, sn*rr+c*w*sg, dz*sg); nor.push(0,0,1); }
+              idx.push(b0,b0+1,b0+3,b0,b0+3,b0+2,b0+2,b0+3,b0+5,b0+2,b0+5,b0+4); }
+            anim.push({name:'prop'+x,kind:'fan',slow:1,T,axis:[0,0,1],sg:x<0?-1:1,P:{pblade:[{pos,nor,idx}]}});
+            anim.push({name:'pdisc'+x,kind:'pdisc',T,P:{prop:[relT(disc(x,y,zf+0.35,pr),T)]}}); }
+          P.dark.push(tube(zf,zf+0.8,[[0,.5,0],[1,.05,0]],rn,{x,y,n:12})); }
       }
     }
+    // antennes (deux sur le dos, une sous le ventre) et sortie du groupe auxiliaire dans le cône de queue
+    if(!lite&&!conc&&v!=='single'&&v!=='otter'){ P.white.push(box(-0.03,0.03,R*0.98,R*1.2,z1-L*0.3,z1-L*0.3+0.45), box(-0.03,0.03,R*0.98,R*1.16,z1-L*0.52,z1-L*0.52+0.4), box(-0.03,0.03,-R*1.17,-R*0.98,z1-L*0.34,z1-L*0.34+0.4));
+      P.dark.push(disc(0,R*0.55,z0-0.01,R*0.1)); }
     // empennage
     const tTail = v==='rear'||v==='prop'&&m.id!=='SF34';
     const finH = conc? L*0.16 : L*(high?0.17:v==='a380'?0.15:0.16), finC=L*(conc?0.2:0.15), finSweep=conc?0.9:0.75;
@@ -200,11 +225,31 @@ const AC3D=(function(){
     }
     // train d'atterrissage (nœud séparé : rentré en vol)
     const gH = R*(high?0.85:1.05);
-    const legs=[];
-    if(!conc&&v!=='otter'&&v!=='single'){ for(const s of [1,-1]){ const x=s*(high?R*1.1:span*0.12), z=high?z1-L*0.45:z1-L*0.43;
-      legs.push(box(x-0.12,x+0.12,-R-gH*0.9,high?-R*0.3:wingYr,z-0.15,z+0.15)); P.tire.push(wheel(x-0.25,-R-gH,z,gH*0.32,0.35),wheel(x+0.25,-R-gH,z,gH*0.32,0.35)); if(v!=='nb'&&!high) P.tire.push(wheel(x-0.25,-R-gH,z-1.6,gH*0.32,0.35),wheel(x+0.25,-R-gH,z-1.6,gH*0.32,0.35)); } }
-    const nz=z1-L*0.12; legs.push(box(-0.1,0.1,-R-gH*0.9,-R*0.6,nz-0.12,nz+0.12)); P.tire.push(wheel(-0.18,-R-gH,nz,gH*0.25,0.25),wheel(0.18,-R-gH,nz,gH*0.25,0.25));
-    if(v==='otter'||v==='single'){ for(const s of [1,-1]) { legs.push(box(s*R*0.4,s*R*1.6,-R-gH*0.9,-R*0.5,z1-L*0.42,z1-L*0.4)); P.tire.push(wheel(s*R*1.6,-R-gH,z1-L*0.41,gH*0.35,0.3)); } }
+    const legs=[]; let art=false;
+    // cylindre vertical (jambe de train)
+    const vcyl=(x,y0,y1,z,r,n=10)=>{ const ring=y=>{ const o=[]; for(let k=0;k<n;k++){ const t=k/n*Math.PI*2; o.push([x+Math.cos(t)*r,y,z+Math.sin(t)*r]); } return o; }; return loft([ring(y0),ring(y1)],{centers:[[x,y0,z],[x,y1,z]]}); };
+    if(!lite&&!conc&&v!=='otter'&&v!=='single'){ art=true;
+      // train principal : jambe, amortisseur chromé, essieu, roues avec jantes, trappe ; il se replie vers le fuselage
+      const wr=gH*0.32, yw=-R-gH, bogie=v!=='nb'&&!high;
+      for(const sd of [1,-1]){ const x=sd*(high?R*1.1:span*0.12), z=high?z1-L*0.45:z1-L*0.43, top=high?-R*0.3:wingYr, T=[x,top,z], G_=[], Ti=[], Hu=[], Sp=[], Wh=[];
+        G_.push(vcyl(x,yw+wr*0.9,top,z,0.17), box(x-0.5,x+0.5,yw-0.07,yw+0.07,z-0.07,z+0.07), box(x-0.05,x+0.05,yw+wr*0.9,top-(top-yw)*0.25,z-0.55,z-0.45), box(x-0.04,x+0.04,yw+wr*1.0,yw+wr*1.12,z-0.5,z+0.02));
+        Sp.push(vcyl(x,yw,yw+wr*0.95,z,0.1));
+        const zs=bogie?[z+0.8,z-0.8]:[z]; if(bogie) G_.push(box(x-0.1,x+0.1,yw-0.1,yw+0.1,z-0.95,z+0.95));
+        for(const zz of zs) for(const o of [-1,1]){ Ti.push(wheel(x+o*0.33,yw,zz,wr,0.38)); Hu.push(wheel(x+o*0.535,yw,zz,wr*0.56,0.03), wheel(x+o*0.125,yw,zz,wr*0.5,0.03)); }
+        Wh.push(box(x+sd*0.3,x+sd*0.34,yw+wr*1.5,top-0.05,z-0.6,z+0.6));
+        anim.push({name:'gear'+(sd>0?'R':'L'),kind:'gear',T,axis:[0,0,1],sg:sd,ang:1.5,P:{gear:[...G_,...Hu,...Sp,...Wh].map(g=>relT(g,T)),tire:Ti.map(g=>relT(g,T))}}); }
+      // train avant : il se replie vers l'avant, deux trappes
+      { const nz=z1-L*0.12, top=-R*0.6, wr2=gH*0.25, yw2=-R-gH+(gH*0.32-gH*0.25), T=[0,top,nz];
+        const G_=[vcyl(0,yw2+wr2*0.9,top,nz,0.12), box(-0.3,0.3,yw2-0.05,yw2+0.05,nz-0.05,nz+0.05), box(-0.035,0.035,yw2+wr2,top-(top-yw2)*0.3,nz+0.3,nz+0.38)], Sp=[vcyl(0,yw2,yw2+wr2*0.95,nz,0.075)];
+        const Ti=[wheel(-0.2,yw2,nz,wr2,0.22),wheel(0.2,yw2,nz,wr2,0.22)], Hu=[wheel(-0.325,yw2,nz,wr2*0.55,0.03),wheel(0.325,yw2,nz,wr2*0.55,0.03)];
+        const Wh=[box(-0.36,-0.33,top-(top-yw2)*0.45,top,nz-0.7,nz+0.5), box(0.33,0.36,top-(top-yw2)*0.45,top,nz-0.7,nz+0.5)];
+        anim.push({name:'gearN',kind:'gear',T,axis:[1,0,0],sg:1,ang:1.45,P:{gear:[...G_,...Hu,...Sp,...Wh].map(g=>relT(g,T)),tire:Ti.map(g=>relT(g,T))}}); }
+    } else {
+      if(!conc&&v!=='otter'&&v!=='single'){ for(const s of [1,-1]){ const x=s*(high?R*1.1:span*0.12), z=high?z1-L*0.45:z1-L*0.43;
+        legs.push(box(x-0.12,x+0.12,-R-gH*0.9,high?-R*0.3:wingYr,z-0.15,z+0.15)); P.tire.push(wheel(x-0.25,-R-gH,z,gH*0.32,0.35),wheel(x+0.25,-R-gH,z,gH*0.32,0.35)); if(v!=='nb'&&!high) P.tire.push(wheel(x-0.25,-R-gH,z-1.6,gH*0.32,0.35),wheel(x+0.25,-R-gH,z-1.6,gH*0.32,0.35)); } }
+      const nz=z1-L*0.12; legs.push(box(-0.1,0.1,-R-gH*0.9,-R*0.6,nz-0.12,nz+0.12)); P.tire.push(wheel(-0.18,-R-gH,nz,gH*0.25,0.25),wheel(0.18,-R-gH,nz,gH*0.25,0.25));
+      if(v==='otter'||v==='single'){ for(const s of [1,-1]) { legs.push(box(s*R*0.4,s*R*1.6,-R-gH*0.9,-R*0.5,z1-L*0.42,z1-L*0.4)); P.tire.push(wheel(s*R*1.6,-R-gH,z1-L*0.41,gH*0.35,0.3)); } }
+    }
     P.gear.push(...legs);
     if(revs.length) anim.push({name:'rev',kind:'rev',T:[0,0,0],P:{rev:revs}});
     if(wins.length) anim.push({name:'win',kind:'win',T:[0,0,0],P:{lit:wins}});
@@ -226,7 +271,7 @@ const AC3D=(function(){
         parts.push({pos,nor,uv:uvs,idx:[0,1,2,0,2,3]}); }
       deco={parts};
     }
-    return {P, R, gH, L, span, v, anim, deco};
+    return {P, R, gH, L, span, v, anim, deco, art};
   }
 
   /* ---------- assemblage glTF ---------- */
@@ -263,13 +308,13 @@ const AC3D=(function(){
     const lv=(color&&typeof color==='object')? color : {tail:color, stripe:color};
     const key=(m.id||'X')+'|'+JSON.stringify(lv)+(lite?'|L':''); if(_cache[key]) return _cache[key];
     const B=build(m,lv,lite), lc=hexc(lv.tail||'#1e5ba8'), sc=hexc(lv.stripe||lv.tail||'#1e5ba8');
-    const mats={white:lv.body?hexc(lv.body):[0.95,0.96,0.97,1], grey:[0.8,0.82,0.86,1], line:[0.42,0.45,0.5,1], spin:[0.62,0.64,0.68,1], tail:lc, stripe:sc, dark:[0.1,0.12,0.18,1], glass:[0.04,0.07,0.13,1], eng:lv.engine?hexc(lv.engine):[0.86,0.88,0.9,1], fan:[0.12,0.13,0.16,1], prop:[0.15,0.15,0.17,0.32], gear:[0.55,0.57,0.6,1], tire:[0.06,0.06,0.07,1], rev:[0.16,0.17,0.19,1], lit:[0.32,0.27,0.17,1]};
+    const mats={white:lv.body?hexc(lv.body):[0.95,0.96,0.97,1], grey:[0.8,0.82,0.86,1], line:[0.42,0.45,0.5,1], spin:[0.62,0.64,0.68,1], tail:lc, stripe:sc, dark:[0.1,0.12,0.18,1], glass:[0.04,0.07,0.13,1], eng:lv.engine?hexc(lv.engine):[0.86,0.88,0.9,1], fan:[0.12,0.13,0.16,1], prop:[0.15,0.15,0.17,0.32], gear:[0.55,0.57,0.6,1], tire:[0.06,0.06,0.07,1], hub:[0.8,0.82,0.85,1], blade:[0.46,0.48,0.53,1], pblade:[0.13,0.13,0.15,1], rev:[0.16,0.17,0.19,1], lit:[0.32,0.27,0.17,1]};
     const gltf={asset:{version:'2.0',generator:'Sky Empire 3D'}, scene:0, scenes:[{nodes:[]}], nodes:[], meshes:[], materials:[], accessors:[], bufferViews:[], buffers:[]};
     const chunks=[]; let off=0; const matIx={};
     const addView=(arr,target)=>{ const bytes=new Uint8Array(arr.buffer); const pad=(4-bytes.length%4)%4; chunks.push(bytes); if(pad) chunks.push(new Uint8Array(pad));
       gltf.bufferViews.push({buffer:0,byteOffset:off,byteLength:bytes.length,target}); off+=bytes.length+pad; return gltf.bufferViews.length-1; };
     const material=k=>{ if(matIx[k]!==undefined) return matIx[k]; const c=mats[k];
-      gltf.materials.push({pbrMetallicRoughness:{baseColorFactor:c,metallicFactor:k==='glass'?0.6:k==='spin'?0.55:k==='eng'?0.3:k==='grey'?0.15:0.06,roughnessFactor:k==='glass'?0.1:k==='white'||k==='tail'||k==='stripe'?0.3:k==='eng'?0.34:0.48},doubleSided:true, ...(k==='lit'?{emissiveFactor:[1,0.78,0.42]}:{}), ...(c[3]<1?{alphaMode:'BLEND'}:{})});
+      gltf.materials.push({pbrMetallicRoughness:{baseColorFactor:c,metallicFactor:k==='glass'?0.6:k==='spin'||k==='blade'||k==='hub'?0.6:k==='eng'?0.3:k==='grey'?0.15:0.06,roughnessFactor:k==='glass'?0.1:k==='white'||k==='tail'||k==='stripe'?0.3:k==='eng'?0.34:0.48},doubleSided:true, ...(k==='lit'?{emissiveFactor:[1,0.78,0.42]}:{}), ...(c[3]<1?{alphaMode:'BLEND'}:{})});
       return matIx[k]=gltf.materials.length-1; };
     // un maillage par nœud (corps, train, chaque pièce mobile)
     const mesh=parts=>{ const prims=[];
@@ -287,18 +332,18 @@ const AC3D=(function(){
     const node=(name,parts,T,hide)=>{ const m=mesh(parts); if(m<0) return; gltf.nodes.push({mesh:m,name,...(T&&(T[0]||T[1]||T[2])?{translation:T}:{}),...(hide?{scale:[0.001,0.001,0.001]}:{})}); gltf.scene=0; gltf.scenes[0].nodes.push(gltf.nodes.length-1); };
     const body={}, gearP={gear:B.P.gear, tire:B.P.tire}; for(const [k,l] of Object.entries(B.P)) if(k!=='gear'&&k!=='tire') body[k]=l;
     node('body',body); node('gear',gearP);
-    for(const an of B.anim) node(an.name,an.P,an.T,an.kind==='rev'||an.kind==='win');
+    for(const an of B.anim) node(an.name,an.P,an.T,an.kind==='rev'||an.kind==='win'||an.kind==='pdisc');
     if(B.deco) try{ decoNode(gltf,B.deco,lv,addView); }catch(e){ console.warn('décor avion',e); }
     const all=new Uint8Array(off); let o=0; for(const c of chunks){ all.set(c,o); o+=c.length; }
     let bin=''; for(let i=0;i<all.length;i+=0x8000) bin+=String.fromCharCode.apply(null,all.subarray(i,i+0x8000));
     gltf.buffers.push({byteLength:off, uri:'data:application/octet-stream;base64,'+btoa(bin)});
     return _cache[key]={uri:'data:model/gltf+json;base64,'+btoa(unescape(encodeURIComponent(JSON.stringify(gltf)))), R:B.R, gH:B.gH, L:B.L, span:B.span, v:B.v,
-      anim:B.anim.map(a=>({name:a.name,kind:a.kind,sg:a.sg,axis:a.axis,fw:a.fw}))};
+      art:B.art, anim:B.anim.map(a=>({name:a.name,kind:a.kind,sg:a.sg,axis:a.axis,fw:a.fw,ang:a.ang,slow:a.slow}))};
   }
   /* ---------- configuration de vol : volets, train, aérofreins, inverseurs ---------- */
   // ph = phase (0 embarquement … 8 roulage), alt en m au-dessus de l'aéroport, spd en km/h
   function cfg(ph,alt,gnd,spd,hold,push,v){
-    const jet=!(v==='prop'||v==='single'||v==='otter'), r={flap:0,gear:1,spl:0,rev:0};
+    const jet=!(v==='prop'||v==='single'||v==='otter'), r={flap:0,gear:1,spl:0,rev:0,n1:ph===0?0:ph===1?(push?0.12:0.25):ph===2?1:ph===3?0.9:ph===4?0.8:ph===5?0.4:ph===6?0.55:ph===7?(gnd&&(spd===undefined||spd>75)?0.8:0.35):0.25};
     if(ph===1) r.flap=push?0:15;
     else if(ph===2){ r.flap=15; r.gear=alt>12?0:1; }
     else if(ph===3){ r.flap=alt<900?10:alt<1500?5:0; r.gear=0; }
@@ -311,14 +356,19 @@ const AC3D=(function(){
   // mouvement réaliste (vitesses de sortie en temps réel)
   function step(an,tg,dt){
     const mv=(k,rate)=>{ const d=tg[k]-an[k], m=rate*dt; an[k]+=Math.abs(d)<=m?d:Math.sign(d)*m; };
-    mv('flap',6); mv('spl',70); mv('gear',0.16); mv('rev',1.5); return an;
+    mv('flap',6); mv('spl',70); mv('gear',0.16); mv('rev',1.5); if(an.n1===undefined||isNaN(an.n1)) an.n1=tg.n1||0; mv('n1',0.1); return an;
   }
   // transformations des nœuds glTF pour Cesium (objets réutilisés d'une image à l'autre)
   function pose(mi,an,out){
     const C=Cesium; out=out||{}; const trs=k=>out[k]||(out[k]=new C.TranslationRotationScale());
-    const g=an.gear, tg=trs('gear');
-    if(g<0.04) C.Cartesian3.fromElements(0.001,0.001,0.001,tg.scale); else C.Cartesian3.fromElements(0.55+0.45*g,0.2+0.8*g,1,tg.scale);
+    const g=an.gear, n1=an.n1||0, now=performance.now(), dtf=Math.min(0.1,(now-(an.ft||now))/1000); an.ft=now;
+    an.fa=((an.fa||0)+dtf*(n1>0.02?(0.45+n1*2.6)*6.2832:0))%6.283185;     // angle des soufflantes / hélices (un tour au plus)
+    if(!mi.art){ const tg=trs('gear'); if(g<0.04) C.Cartesian3.fromElements(0.001,0.001,0.001,tg.scale); else C.Cartesian3.fromElements(0.55+0.45*g,0.2+0.8*g,1,tg.scale); }
     for(const a of mi.anim||[]){ const t=trs(a.name);
+      if(a.kind==='gear'){ if(!a.ax) a.ax=new C.Cartesian3(a.axis[0],a.axis[1],a.axis[2]); const e=g*g*(3-2*g), sc=g<0.03?0.001:1; C.Quaternion.fromAxisAngle(a.ax,-a.sg*(1-e)*(a.ang||1.5),t.rotation); C.Cartesian3.fromElements(sc,sc,sc,t.scale); continue; }
+      if(a.kind==='fan'){ if(!a.ax) a.ax=new C.Cartesian3(0,0,1); C.Quaternion.fromAxisAngle(a.ax,a.sg*an.fa,t.rotation); if(a.slow){ const sc=n1>0.45?0.001:1; C.Cartesian3.fromElements(sc,sc,sc,t.scale); } continue; }
+      if(a.kind==='pdisc'){ const sc=n1>0.45?1000:1; C.Cartesian3.fromElements(sc,sc,sc,t.scale); continue; }
+      if(a.kind==='slat'){ if(!a.ax) a.ax=new C.Cartesian3(a.axis[0],a.axis[1],a.axis[2]); const k=Math.min(1,an.flap/15); C.Quaternion.fromAxisAngle(a.ax,a.sg*k*0.3,t.rotation); C.Cartesian3.fromElements(a.fw[0]*k,a.fw[1]*k,a.fw[2]*k,t.translation); continue; }
       if(a.kind==='flap'||a.kind==='spl'){ if(!a.ax) a.ax=new C.Cartesian3(a.axis[0],a.axis[1],a.axis[2]);
         if(a.kind==='flap'){ const k=an.flap/35; C.Quaternion.fromAxisAngle(a.ax,-a.sg*an.flap*Math.PI/180,t.rotation); C.Cartesian3.fromElements(a.fw[0]*k,a.fw[1]*k,a.fw[2]*k,t.translation); }
         else C.Quaternion.fromAxisAngle(a.ax,a.sg*an.spl*Math.PI/180,t.rotation); }
