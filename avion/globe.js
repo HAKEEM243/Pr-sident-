@@ -712,7 +712,7 @@ function airportsTick(p){
       const P=(along,side)=>{ const q=destPt(r.thr.lat,r.thr.lon,H,along/1000); return side? destPt(q.lat,q.lon,H+90,side/1000) : q; };
       const corners=[P(0,-W/2),P(L,-W/2),P(L,W/2),P(0,W/2)];
       // piste texturée (asphalte, marquages, numéros) ; à défaut, surface unie
-      let done=false; if(typeof runwayEntity==='function'&&d<45){ try{ N.ents.push(typeof apLit==='function'?apLit(runwayEntity(c,r,W),'rwy'):runwayEntity(c,r,W)); done=true; if(typeof grassEntity==='function'){ const ge=grassEntity(c,r,W); if(ge) N.ents.push(ge); } }catch(e){ console.warn(e); } }
+      let done=false; if(typeof runwayEntity==='function'&&d<45){ try{ N.ents.push(typeof apLit==='function'?apLit(runwayEntity(c,r,W),'rwy'):runwayEntity(c,r,W)); done=true; if(typeof grassEntity==='function'){ const ge=grassEntity(c,r,W); if(ge) N.ents.push(ge); } if(typeof windsockEntity==='function'){ try{ N.ents.push(...windsockEntity(c,r,W)); }catch(e){} } }catch(e){ console.warn(e); } }
       if(!done) surf.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(corners.flatMap(q=>[q.lon,q.lat]))), height:0.5+EL, vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}), attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(r.hard?new C.Color(0.22,0.23,0.25,0.92):new C.Color(0.45,0.38,0.28,0.9))}}));
       // balisage : bords blancs, seuil vert, fin rouge, rampe d'approche
       const nightK=(typeof AP3D!=='undefined'&&AP3D.night)?1.5:1;
