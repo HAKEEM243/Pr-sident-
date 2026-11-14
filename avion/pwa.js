@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261244';
+const GAME_VER='20261245';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🔊 Son réparé','Sur iPhone, le son (moteurs, pluie, radio) se relance tout seul au premier toucher après une coupure (3D qui redémarre, appli en arrière-plan, appel). La pluie de la météo du jeu a aussi son bruit.'],
   ['📱 Pluie et orage stables sur téléphone','Sur téléphone, la pluie et l\'orage sont allégés pour que la 3D ne coupe plus : pas de traits de pluie animés sur l\'écran, éclairs en flash (sans géométrie 3D), moins de nuages d\'orage.'],
   ['📱 3D plus légère sur téléphone','Sur téléphone, l\'herbe des pistes, les véhicules de l\'aire et les manches à air sont désactivés et la pluie est allégée, pour que la 3D s\'ouvre et reste fluide.'],
   ['⛈️ Météo réaliste','La météo 3D suit celle du jeu : vent, rafales, visibilité et orages de chaque aéroport, averses sous les ciels couverts. La pluie tombe de biais selon le vent ; orage : ciel très sombre, éclairs dans les nuages, tonnerre ; brume selon la visibilité ; manches à air au bord des pistes.'],
