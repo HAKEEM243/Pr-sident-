@@ -43,7 +43,7 @@ function wpTick(){
   const f=G.follow&&S.fleet.find(a=>a.id===G.follow), st=f&&f.flight&&flightState(f); WP.cur=wpCompute(st);
   const sc=G.viewer.scene, now=performance.now(), cp=G.viewer.camera.positionCartographic, camH=cp?cp.height:0;
   // pluie : densité selon l'intensité
-  if(FX&&FX.rain){ const em=(typeof GQ!=='undefined'&&GQ.hq?1:0.5)*(WP.cur.storm?1100:250+WP.cur.rain*700); if(Math.abs((FX.rain.emissionRate||0)-em)>20) FX.rain.emissionRate=em;
+  if(FX&&FX.rain){ const em=(typeof GQ!=='undefined'&&GQ.hq?1:GQ.mob?0.3:0.5)*(WP.cur.storm?1100:250+WP.cur.rain*700); if(Math.abs((FX.rain.emissionRate||0)-em)>20) FX.rain.emissionRate=em;
     // vitesse des gouttes (repère terrestre) calculée une fois ici : vers le sol + vent (amplifié pour que la pente se voie)
     const C=Cesium, P=G.viewer.camera.positionWC, up=C.Cartesian3.normalize(P,new C.Cartesian3()), lon=Math.atan2(P.y,P.x), E=new C.Cartesian3(-Math.sin(lon),Math.cos(lon),0), N=C.Cartesian3.cross(up,E,new C.Cartesian3());
     const v=WP.cur.storm?165:130, we=WP.cur.we*2.2, wn=WP.cur.wn*2.2; WP.vel={x:-up.x*v+E.x*we+N.x*wn, y:-up.y*v+E.y*we+N.y*wn, z:-up.z*v+E.z*we+N.z*wn};
@@ -58,7 +58,7 @@ function wpTick(){
 const M_SOCKPOLE=()=>{ const g=C3('#e5e7eb'), d=C3('#4b5563'); return [[-0.6,0.6,0,0.3,-0.6,0.6,d],[-0.07,0.07,0.3,6.2,-0.07,0.07,g],[-0.5,0.5,5.9,6.0,-0.05,0.05,g]]; };
 const M_SOCK=()=>{ const o=C3('#f97316'), w=C3('#f8fafc'), b=[]; for(let k=0;k<5;k++){ const r=0.5-k*0.07; b.push([-r,r,-r,r,k*0.75,k*0.75+0.75,k%2?w:o]); } return b; };
 function windsockEntity(code,r,W){
-  if(typeof apModel!=='function') return []; const C=Cesium, V=G.viewer, EL=typeof gElev==='function'?gElev(code):0, out=[];
+  if(typeof apModel!=='function'||(typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq)) return []; const C=Cesium, V=G.viewer, EL=typeof gElev==='function'?gElev(code):0, out=[];
   for(const [a,side] of [[300,1],[r.len-300,-1]]){ const q=destPt(r.thr.lat,r.thr.lon,r.hdg,a/1000), s=destPt(q.lat,q.lon,r.hdg+90*side,(W/2+80)/1000);
     const base=C.Cartesian3.fromDegrees(s.lon,s.lat,EL+0.1), top=C.Cartesian3.fromDegrees(s.lon,s.lat,EL+5.95);
     out.push(V.entities.add({position:base, model:{uri:apModel('sockpole',M_SOCKPOLE), minimumPixelSize:0, distanceDisplayCondition:new C.DistanceDisplayCondition(0,6000)}}));
