@@ -31,7 +31,7 @@ function grassTexture(W,GW,GL,pad,seed0){
   return cv;
 }
 function grassEntity(code,r,W){
-  if(typeof rwyGlb!=='function') return null;
+  if(typeof rwyGlb!=='function'||(typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq)) return null;   // téléphone : économise la mémoire
   const C=Cesium, side=120, pad=250, GW=W+2*side, GL=r.len+2*pad, key=code+'|'+r.id+'|'+Math.round(r.len);
   let url=GR3D.cache.get(key);
   if(!url){ url=rwyGlb(grassTexture(W,GW,GL,pad,(r.id||'x').charCodeAt(0)*131+Math.round(r.len)),GW,GL); GR3D.cache.set(key,url); }
@@ -53,7 +53,7 @@ function grTraffic(ac,p){
   const V=G.viewer; if(GR3D.viewer!==V){ GR3D.veh={}; GR3D.viewer=V; }
   const st=p.st, inside=G.cam&&(G.cam.mode==='cabin'||G.cam.mode==='cockpit'), lite=typeof P3!=='undefined'&&P3.lvl>=3;
   const code=st.phase<=2?st.from:st.phase>=7?st.to:null, used=new Set();
-  if(code&&!inside&&!lite){ const A=AP(code), ap=apronOf(code), r=ap.rw;
+  if(code&&!inside&&!lite&&!(typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq)){ const A=AP(code), ap=apronOf(code), r=ap.rw;
     if(r&&A){ const s=ap.side, big=A.cls>=3, span=Math.round((big?1900:700)*(1+0.1*(A.xp||0))), a0=ap.a-span/2-40, len=span+80, lane=ap.x-s*55, EL=typeof gElev==='function'?gElev(code):0, t=performance.now()/1000;
       const night=typeof AP3D!=='undefined'&&AP3D.night;
       const fleet=[['fm',M_FOLLOW,9,0.1],['bus',M_APBUS,7,0.45],['tug',M_TUG,6,0.7,3],['fuel',M_FUEL,7,0.25],['bus2',M_APBUS,7,0.85]];
