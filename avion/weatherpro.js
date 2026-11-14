@@ -71,6 +71,14 @@ function windsockEntity(code,r,W){
   return out;
 }
 function wpHook(){ if(wpHook.done) return; wpHook.done=true;
+  // 📱 téléphone : pluie et orage allégés (sinon iOS coupe la 3D) — pas de traits de pluie CSS par-dessus la 3D,
+  // éclairs sans géométrie 3D (flash + tonnerre seulement), moins de nuages d'orage
+  const mob=typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq;
+  if(mob&&typeof wxOverlay==='function'){ const _o=wxOverlay; wxOverlay=function(on,storm,spd,inside){ return _o.call(this,on&&!!inside,false,spd,inside); }; }
+  if(mob&&typeof wxBolt==='function'){ wxBolt=function(c){ const d=3+Math.random()*14; try{ wpCloudFlash(c); }catch(e){}
+      const f=document.createElement('div'); f.className='bolt2'; f.style.setProperty('--a',String(Math.max(0.15,0.55-d*0.03))); (document.getElementById('globe')||document.body).appendChild(f); setTimeout(()=>f.remove(),450); }; }
+  if(mob&&typeof clSpawn==='function'){ const _c=clSpawn; clSpawn=function(c){ const st=(typeof clMode==='function'&&clMode()==='storm')||(typeof stormAt==='function'&&stormAt(c.lat,c.lon)), old=CL.cap;
+      if(st) CL.cap=Math.min(old==null?99:old,12); try{ return _c.apply(this,arguments); } finally{ CL.cap=old; } }; }
   // la pluie suit la météo du jeu (et plus seulement les cellules orageuses)
   if(typeof fxRain==='function'){ const _f=fxRain; fxRain=function(p,on){ const inside=G&&G.cam&&(G.cam.mode==='cabin'||G.cam.mode==='cockpit'); const r=_f.call(this,p,on||(!inside&&WP.cur.rain>0.2));
       try{ if(FX.rain){ const sc=G.viewer.scene, k=WP.cur.storm?1:Math.min(1,WP.cur.rain*1.2);   // ciel plus sombre et brume selon la pluie et la visibilité
