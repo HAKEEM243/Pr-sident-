@@ -39,7 +39,7 @@ function wndPert(ac,st,mi){
   return out;
 }
 function wndSay(ac,st){
-  if(typeof G==='undefined'||!G||G.follow!==ac.id) return; const S_=WND.st[ac.id]; if(!S_) return;
+  if(typeof G==='undefined'||!G||G.follow!==ac.id) return; const S_=WND.st[ac.id]||(WND.st[ac.id]={alt:st.alt||0,touch:0,leg:st.leg});
   if(st.ga&&!S_.said){ S_.said=1; try{ if(typeof toast==='function') toast('🛬↗️ <b>Remise de gaz</b> : vent trop fort en finale, l\'avion refait un tour de piste','warn'); }catch(e){}
     try{ if(typeof fx2Say==='function') fx2Say('Remise de gaz ! Go around, flaps.','fr',1); }catch(e){} }
   if(st.holding==='rto'&&S_.rto!==st.leg){ S_.rto=st.leg; try{ if(typeof toast==='function') toast('🛑 <b>Décollage interrompu</b> : freinage d\'urgence, l\'avion revient au seuil et repartira','warn'); }catch(e){}
