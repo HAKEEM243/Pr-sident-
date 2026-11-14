@@ -419,23 +419,25 @@ function computeProfile(d, m, w=0, tx=[10,6]){
 // hOut = attente au point d'arrêt avant la piste, hIn = circuit d'attente avant l'approche
 const _profH=new WeakMap();
 function legProf(leg,m){
-  const base=legProfile(leg.dist,m,leg.wind,leg.from,leg.to), ho=leg.hOut||0, hi=leg.hIn||0, ga=leg.ga||0;
-  if(!ho&&!hi&&!ga) return base;
-  const key=m.id+'|'+ho+'|'+hi+'|'+ga+'|'+Math.round(leg.dist*10)+'|'+Math.round(leg.wind||0), c=_profH.get(leg); if(c&&c.k===key) return c.p;
+  const base=legProfile(leg.dist,m,leg.wind,leg.from,leg.to), ho=leg.hOut||0, hi=leg.hIn||0, ga=leg.ga||0, rt=leg.rto||0;
+  if(!ho&&!hi&&!ga&&!rt) return base;
+  const key=m.id+'|'+ho+'|'+hi+'|'+ga+'|'+rt+'|'+Math.round(leg.dist*10)+'|'+Math.round(leg.wind||0), c=_profH.get(leg); if(c&&c.k===key) return c.p;
   const segs=[]; let sh=0;
   for(const sg of base.segs){
     if(sg.ph===6&&hi){ segs.push({ph:6,hold:'in',t0:sg.t0+sh,t1:sg.t0+sh+hi,d0:sg.d0,d1:sg.d0,a0:sg.a0,a1:sg.a0,s0:sg.s0,s1:sg.s0}); sh+=hi; }
     segs.push({...sg,t0:sg.t0+sh,t1:sg.t1+sh});
     if(sg.ph===6&&ga){ segs.push({ph:6,ga:true,t0:sg.t1+sh,t1:sg.t1+sh+ga,d0:sg.d1,d1:sg.d1,a0:sg.a1,a1:sg.a1,s0:sg.s1,s1:sg.s1}); sh+=ga; }   // remise de gaz : tour de piste puis nouvelle approche
     if(sg.ph===1&&ho){ segs.push({ph:1,hold:'out',t0:sg.t1+sh,t1:sg.t1+sh+ho,d0:0,d1:0,a0:0,a1:0,s0:0,s1:0}); sh+=ho; }
+    if(sg.ph===1&&rt){ segs.push({ph:1,rto:true,t0:sg.t1+sh,t1:sg.t1+sh+rt,d0:0,d1:0,a0:0,a1:0,s0:0,s1:0}); sh+=rt; }   // décollage interrompu : freinage, retour au seuil
   }
-  const p={segs,total:base.total+ho+hi+ga,airborne:base.airborne+hi+ga};
+  const p={segs,total:base.total+ho+hi+ga+rt,airborne:base.airborne+hi+ga};
   _profH.set(leg,{k:key,p}); return p;
 }
 // remise de gaz : montée dans l'axe, virage, vent arrière, virage, nouvelle finale — revient exactement au point de départ
 function gaLen(r){ return 2*r.len+28000+Math.PI*4000; }
 function gaPt(path,leg,seg,u){
-  const r=path.arr, P0=pointOnPath(path,clamp(seg.d0/leg.dist,0,1)*path.total), a0=toRw(r,P0).a, sd=-1, R=2000, aF=r.len+5000, aB=-9000;
+  const r=path.arr, P0=pointOnPath(path,clamp(seg.d0/leg.dist,0,1)*path.total); return gaLoop(r,toRw(r,P0).a,seg.a1,u); }
+function gaLoop(r,a0,a1,u){ const seg={a1}, sd=-1, R=2000, aF=r.len+5000, aB=-9000;
   const L1=aF-a0, T=Math.PI*R, L2=aF-aB, L3=a0-aB, tot=L1+T+L2+T+L3; let s=u*tot, a,x,h,alt;
   if(s<L1){ a=a0+s; x=0; h=r.hdg; alt=seg.a1+Math.min(600-seg.a1,s*0.09); }
   else if((s-=L1)<T){ const th=s/R; a=aF+R*Math.sin(th); x=sd*R*(1-Math.cos(th)); h=r.hdg+sd*th*180/Math.PI; alt=600; }
@@ -443,6 +445,18 @@ function gaPt(path,leg,seg,u){
   else if((s-=L2)<T){ const th=s/R; a=aB-R*Math.sin(th); x=sd*R*(1+Math.cos(th)); h=r.hdg+180+sd*th*180/Math.PI; alt=600; }
   else { s-=T; a=aB+s; x=0; h=r.hdg; alt=600-(600-seg.a1)*Math.min(1,s/Math.max(1,L3)); }
   const q=fromRw(r,a,x); return {lat:q.lat,lon:q.lon,hdg:(h+720)%360,alt,k:u}; }
+// décollage interrompu : accélération, freinage d'urgence, dégagement, retour au seuil par le taxiway (durée RTO_MS)
+const RTO_MS=290000;
+function rtoPt(path,leg,ms){
+  const r=path.dep, P0=pointOnPath(path,0), a0=toRw(r,P0).a, ap=typeof apronOf==='function'?apronOf(leg.from):null, sd=ap&&ap.rw===r?ap.side:1, xs=sd*Math.max(150,(r.wid||45)/2+120), R=Math.abs(xs)/2, t=ms/1000;
+  let a,x=0,h=r.hdg,v;
+  if(t<25){ a=a0+t*t; v=2*t; } else if(t<40){ const k=t-25; a=a0+625+50*k-1.667*k*k; v=50-3.33*k; } else if(t<70){ a=a0+1000; v=0; }
+  else { let s=(t-70)*8; const T=Math.PI*R, L=1000+60, aE=a0+1000; v=8;
+    if(s<T){ const th=s/R; a=aE+R*Math.sin(th); x=sd*R*(1-Math.cos(th)); h=r.hdg+sd*th*180/Math.PI; }
+    else if((s-=T)<L){ a=aE-s; x=xs; h=r.hdg+180; }
+    else if((s-=L)<T){ const th=s/R, ab=a0-60; a=ab-R*Math.sin(th); x=sd*R*(1+Math.cos(th)); h=r.hdg+180+sd*th*180/Math.PI; }
+    else { s-=T; a=Math.min(a0,a0-60+s); x=0; h=r.hdg; v=a>=a0?0:6; } }
+  const q=fromRw(r,a,x); return {lat:q.lat,lon:q.lon,hdg:(h+720)%360,spd:v*3.6}; }
 const legEnd=(leg,m)=>leg.dep+legProf(leg,m).total;
 // État instantané d'un avion en vol
 function flightState(ac, t=S.time){
@@ -470,6 +484,7 @@ function flightState(ac, t=S.time){
     const f=pointOnPath(path,clamp(seg.d0/leg.dist,0,1)*path.total), r=4.5, dur=seg.t1-seg.t0, orbits=Math.max(1,Math.round(dur/(4*MIN)));
     const c=destPt(f.lat,f.lon,(f.hdg||0)+90,r), b0=bearing(c,f), th=360*orbits*u, q=destPt(c.lat,c.lon,b0+th,r);
     pp={lat:q.lat,lon:q.lon,hdg:(b0+th+90)%360}; holding='in'; alt=seg.a0+Math.min(1830,305*(seg.t1-rel)/(4*MIN))*Math.min(1,(rel-seg.t0)/60000); }
+  else if(seg.rto&&path.dep){ const q=rtoPt(path,leg,rel-seg.t0); pp=q; spd=q.spd; holding='rto'; }
   else if(seg.ga&&path.arr){ const q=gaPt(path,leg,seg,u); pp=q; alt=q.alt; spd=seg.s1+(q.k<0.25?40:20); holding='ga'; }
   else if(seg.ph<=1){ const gp=gateSlot(leg.from,ac,depIntl(ac,fl)); if(seg.ph===0) pp=gp; else { let pts=taxiOutPts(path,gp); if(leg.hOut&&pts.length>4) pts.splice(-3,3,holdPoint(path,gp,Math.min(6,leg.hOut/(2*MIN)))); pts=filletPts(pts,40);
       // repoussage : le tracteur pousse l'avion en arrière (≈ 90 s), puis l'avion tourne vers le taxiway

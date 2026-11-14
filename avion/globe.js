@@ -518,7 +518,7 @@ function renderRfsHud(ac,p){
     <div class="rf-tape left">${tape(kts,10,v=>v)}<b>${kts}</b></div>
     <div class="rf-tape right">${tape(msl,100,v=>v)}<b>${msl}</b></div>
     <div class="rf-dest">${esc(ap?ap.icao||st.to:st.to)}<br>${(st.remain/1.852).toFixed(1).replace('.',',')} NM</div>
-    <div class="rf-bar"><div><b>${wdir}/${wk}kts</b><span>Vent</span></div><div><b>${kts} kts</b><span>IAS (GS ${gs})</span></div><div><b>${msl} ft</b><span>Altitude MSL</span></div><div><b>${agl} ft</b><span>Altitude AGL</span></div><div><b>${fp}% · ${num(fob*0.8)} kg</b><span>Carburant</span></div><div><b>${ft}</b><span>Temps de vol</span></div><div><b>${st.holding?(st.holding==='out'?'Attente piste':st.holding==='ga'?'Remise de gaz':'Attente'):st.phase===0&&typeof AP3D!=='undefined'&&AP3D.gate&&AP3D.gate.stage!=='on'?(AP3D.gate.stage==='off'?'Débarquement':'Nettoyage cabine'):PHASES[st.phase]}</b><span>Phase</span></div></div>`;
+    <div class="rf-bar"><div><b>${wdir}/${wk}kts</b><span>Vent</span></div><div><b>${kts} kts</b><span>IAS (GS ${gs})</span></div><div><b>${msl} ft</b><span>Altitude MSL</span></div><div><b>${agl} ft</b><span>Altitude AGL</span></div><div><b>${fp}% · ${num(fob*0.8)} kg</b><span>Carburant</span></div><div><b>${ft}</b><span>Temps de vol</span></div><div><b>${st.holding?(st.holding==='out'?'Attente piste':st.holding==='ga'?'Remise de gaz':st.holding==='rto'?'Décollage interrompu':'Attente'):st.phase===0&&typeof AP3D!=='undefined'&&AP3D.gate&&AP3D.gate.stage!=='on'?(AP3D.gate.stage==='off'?'Débarquement':'Nettoyage cabine'):PHASES[st.phase]}</b><span>Phase</span></div></div>`;
 }
 async function toggleGoogle3D(on){
   const C=Cesium, key=localStorage.getItem(GKEY);
