@@ -33,12 +33,22 @@ function wndPert(ac,st,mi){
   if(S_.leg!==st.leg){ S_.leg=st.leg; S_.touch=0; S_.said=0; }
   if(st.phase===7&&S_.alt>0.3&&alt<=0.3&&!S_.touch) S_.touch=performance.now();
   S_.alt=alt;
+  // en route : turbulences dans les cellules orageuses (plus fortes sur les petits avions)
+  if(st.phase>=3&&st.phase<=6&&alt>1500){ const cell=typeof stormAt==='function'?stormAt(st.lat,st.lon):null;
+    if(cell){ const k2=0.9*sz*(0.6+0.4*Math.sin(t*0.13+o)), n=(f,p)=>Math.sin(t*f+o+p)+0.6*Math.sin(t*f*2.7+o*1.3+p)+0.4*Math.sin(t*f*6.3+p);
+      out.db+=n(0.8,1)*3*k2; out.dp+=n(1.2,3)*1.2*k2; out.dz+=n(0.9,5)*9*k2; out.sh+=k2; }
+    if(!!cell!==!!S_.cell){ S_.cell=!!cell; S_.turbNew=cell?1:2; } }
   if(S_.touch){ const tau=(performance.now()-S_.touch)/1000;
     if(st.leg&&st.leg.hard&&tau<2.2){ out.dz+=2.6*Math.abs(Math.sin(Math.PI*tau/0.9))*Math.exp(-tau*1.4); out.dp+=2.5*Math.exp(-tau*2); out.db+=Math.sin(tau*9)*2*Math.exp(-tau*2); out.sh+=3*Math.exp(-tau*1.8); }
     else if(tau<0.8) out.sh+=0.6*(1-tau/0.8); }
   return out;
 }
 function wndSay(ac,st){
+  { const S0=WND.st[ac.id]; if(S0&&S0.turbNew&&typeof G!=='undefined'&&G&&G.follow===ac.id){ const k=S0.turbNew; S0.turbNew=0; WND.turbSaid=k;
+      try{ if(typeof fxBurst==='function') fxBurst('chime'); }catch(e){}
+      if(k===1){ try{ toast('💺 <b>Turbulences</b> : zone orageuse, consigne lumineuse « attachez vos ceintures » allumée','warn'); }catch(e){}
+        try{ if(typeof fx2Say==='function') fx2Say('Mesdames et messieurs, nous traversons une zone de turbulences. Veuillez regagner vos sièges et attacher vos ceintures.','fr',0.9); }catch(e){} }
+      else try{ toast('💺 Sortie de la zone de turbulences, consigne ceintures éteinte','info'); }catch(e){} } }
   if(typeof G==='undefined'||!G||G.follow!==ac.id) return; const S_=WND.st[ac.id]||(WND.st[ac.id]={alt:st.alt||0,touch:0,leg:st.leg});
   if(st.ga&&!S_.said){ S_.said=1; try{ if(typeof toast==='function') toast('🛬↗️ <b>Remise de gaz</b> : vent trop fort en finale, l\'avion refait un tour de piste','warn'); }catch(e){}
     try{ if(typeof fx2Say==='function') fx2Say('Remise de gaz ! Go around, flaps.','fr',1); }catch(e){} }
@@ -75,4 +85,13 @@ function wndRivalHook(){ if(wndRivalHook.done||typeof rivalPos!=='function'||typ
           if(k>0) v.alt+=(Math.sin(tt*0.8+o)+0.5*Math.sin(tt*2.1+o*1.3))*3*k*Math.min(1,v.alt/30); } } }catch(e){}
     return v; };
 }
-if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ wndHook(); wndRivalHook(); }catch(e){ console.warn(e); } },0));
+function wndSoundHook(){ if(wndSoundHook.done||typeof fxSound!=='function') return; wndSoundHook.done=true;
+  const _f=fxSound; fxSound=function(ac,st,inside,raining){ const r=_f.apply(this,arguments);
+    try{ const s=FX.sound; if(!s||!FX.soundOn) return r; const t=s.ctx.currentTime, W=typeof WP!=='undefined'&&WP.cur;
+      if(raining&&W){ const k=W.storm?1:Math.max(0.3,W.rain); s.rainG.gain.setTargetAtTime((inside?0.04:0.07)+k*(inside?0.05:0.12),t,1.2); s.dropG.gain.setTargetAtTime((inside?0.05:0.03)+k*0.06,t,1.2); }
+      const d=WND.last&&WND.last[ac.id], now=performance.now();
+      if(d&&d.sh>0.35&&now>(WND.thumpAt||0)){ WND.thumpAt=now+250+Math.random()*(1400/Math.min(3,d.sh));   // chocs sourds dans la carlingue
+        const b=s.ctx.createBufferSource(); b.buffer=s.brown; const fl=s.ctx.createBiquadFilter(); fl.type='lowpass'; fl.frequency.value=110; const g=s.ctx.createGain(), pk=Math.min(0.9,0.18*d.sh)*(inside?1.4:0.8);
+        g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(pk,t+0.03); g.gain.exponentialRampToValueAtTime(0.0001,t+0.35); b.connect(fl); fl.connect(g); g.connect(s.master); b.start(t,Math.random()*2); b.stop(t+0.4); } }catch(e){}
+    return r; }; }
+if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ wndSoundHook(); }catch(e){} try{ wndHook(); wndRivalHook(); }catch(e){ console.warn(e); } },0));
