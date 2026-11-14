@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261239';
+const GAME_VER='20261240';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🌬️ Vent et remise de gaz','Près du sol, l\'avion est secoué selon le vent, les rafales et l\'orage (plus fort sur les petits avions). Vent de travers : arrivée en crabe. Parfois atterrissage dur avec rebond, ou remise de gaz avec tour de piste et nouvelle approche.'],
   ['🌱 Sol de l\'aéroport','Herbe tondue autour des pistes, accotements, prolongements avec chevrons jaunes, et véhicules de service qui circulent sur l\'aire : Follow me, bus, bagages, citerne.'],
   ['✈️ Avions mieux faits','Train d’atterrissage articulé : jambes avec amortisseur chromé, jantes, trappes ; il se replie vraiment dans l’avion après le décollage et ressort en finale (le train avant vers l’avant). Les réacteurs ont leurs aubes de soufflante qui tournent selon la poussée ; les hélices tournent au ralenti et deviennent floues à pleine puissance. Becs de bord d’attaque qui sortent avec les volets, antennes sur le fuselage. Les avions des autres compagnies restent légers et deviennent détaillés quand ils passent près de vous : la 3D reste fluide.'],
   ['☁️ 3D : nuages, nuit et caméra','Nuages redessinés tout en douceur (plus de contours nets), avec une couche de nuages au loin vers l’horizon. La nuit ils s’assombrissent au lieu de rester blancs, et ils se dorent au lever et au coucher du soleil. La nuit, les phares d’atterrissage éclairent le sol devant l’avion au roulage, au décollage et en finale. La caméra glisse d’une vue à l’autre (Arrière, Côté, Avant, Dessus, Loin) au lieu de sauter.'],
