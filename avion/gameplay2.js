@@ -16,6 +16,7 @@ function accidentRisk(ac,leg,m){
   if(ac.condition<55) p*=1+(55-ac.condition)/10;
   if(over) p*=4;
   if(storm) p*=2.5;
+  try{ if(typeof towerWx==='function'){ const w=towerWx(leg.to); if(w.gust) p*=1.3; if(leg.hard) p*=2; if(leg.ga) p*=1.4; } }catch(e){}   // vent et rafales à l'arrivée
   if(B.cls<=2&&!B.ils) p*=1.5;
   if((ac.hours||0)>40000) p*=1.5;
   if(S.recallRisk&&S.recallRisk.fam===m.fam&&S.time<S.recallRisk.until) p*=3;
@@ -24,7 +25,7 @@ function accidentRisk(ac,leg,m){
 }
 function playerAccident(ac,leg,m,pax){
   const A=AP(leg.from), B=AP(leg.to), over=maintOverdue(ac), r=Math.random();
-  const kind=r<0.42?'excursion':r<0.68?'dur':r<0.86?'fatal':'evac';
+  const windy=!!(leg.hard||leg.ga||((typeof stormAt==='function')&&stormAt(B.lat,B.lon))), kind=windy?(r<0.5?'excursion':r<0.85?'dur':r<0.95?'fatal':'evac'):(r<0.42?'excursion':r<0.68?'dur':r<0.86?'fatal':'evac');   // par vent fort : surtout sortie de piste ou atterrissage dur
   const lat=B.lat+(Math.random()-0.5)*0.05, lon=B.lon+(Math.random()-0.5)*0.05, value=m.price*1e6*Math.max(0.25,1-(ac.hours||0)/80000);
   let sev='incident', victims=0, title='', txt='', repair=0, out=0, loss=false, rep=0, comp=0;
   if(kind==='excursion'){ sev='hull'; loss=true; title='Sortie de piste : avion détruit'; txt=`Le ${m.name} ${ac.reg} sort de la piste à l’atterrissage à ${B.city} et prend feu. Passagers et équipage évacués, quelques blessés légers.`; rep=-12; }
