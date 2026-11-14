@@ -43,12 +43,11 @@ function wpTick(){
   const f=G.follow&&S.fleet.find(a=>a.id===G.follow), st=f&&f.flight&&flightState(f); WP.cur=wpCompute(st);
   const sc=G.viewer.scene, now=performance.now(), cp=G.viewer.camera.positionCartographic, camH=cp?cp.height:0;
   // pluie : densité selon l'intensité
-  if(FX&&FX.rain){ const em=(typeof GQ!=='undefined'&&GQ.hq?1:0.45)*(WP.cur.storm?2000:300+WP.cur.rain*1400); if(Math.abs((FX.rain.emissionRate||0)-em)>20) FX.rain.emissionRate=em;
-    if(!FX.rain._wp){ FX.rain._wp=true; const C=Cesium, dn=new C.Cartesian3(), E=new C.Cartesian3(), N=new C.Cartesian3();
-      FX.rain.updateCallback=(pt,dt)=>{ const p=pt.position, up=C.Cartesian3.normalize(p,dn); const lon=Math.atan2(p.y,p.x);
-        E.x=-Math.sin(lon); E.y=Math.cos(lon); E.z=0; C.Cartesian3.cross(up,E,N);
-        const v=WP.cur.storm?165:130, we=WP.cur.we*2.2, wn=WP.cur.wn*2.2;   // vent amplifié à l'écran pour que la pente se voie
-        p.x+=(-up.x*v+E.x*we+N.x*wn)*dt; p.y+=(-up.y*v+E.y*we+N.y*wn)*dt; p.z+=(-up.z*v+E.z*we+N.z*wn)*dt; }; }
+  if(FX&&FX.rain){ const em=(typeof GQ!=='undefined'&&GQ.hq?1:0.5)*(WP.cur.storm?1100:250+WP.cur.rain*700); if(Math.abs((FX.rain.emissionRate||0)-em)>20) FX.rain.emissionRate=em;
+    // vitesse des gouttes (repère terrestre) calculée une fois ici : vers le sol + vent (amplifié pour que la pente se voie)
+    const C=Cesium, P=G.viewer.camera.positionWC, up=C.Cartesian3.normalize(P,new C.Cartesian3()), lon=Math.atan2(P.y,P.x), E=new C.Cartesian3(-Math.sin(lon),Math.cos(lon),0), N=C.Cartesian3.cross(up,E,new C.Cartesian3());
+    const v=WP.cur.storm?165:130, we=WP.cur.we*2.2, wn=WP.cur.wn*2.2; WP.vel={x:-up.x*v+E.x*we+N.x*wn, y:-up.y*v+E.y*we+N.y*wn, z:-up.z*v+E.z*we+N.z*wn};
+    if(!FX.rain._wp){ FX.rain._wp=true; FX.rain.updateCallback=(pt,dt)=>{ const p=pt.position, w=WP.vel; if(!w) return; p.x+=w.x*dt; p.y+=w.y*dt; p.z+=w.z*dt; }; }
   }
   // orage : éclairs dans les nuages (plus fréquents que les éclairs au sol)
   if(WP.cur.storm&&camH<16000&&now>(WP.flNext||0)&&(typeof P3==='undefined'||P3.lvl<3)){ WP.flNext=now+1500+Math.random()*4500;
