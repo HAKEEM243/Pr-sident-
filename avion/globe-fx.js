@@ -226,16 +226,15 @@ function fxTick(ac,p){
   }
   FX.wasAir=air;
   if(FX.puffs.length){ FX.puffs=FX.puffs.filter(u=>{ const age=(now-u.t0)/1000; if(age>3.2){ FX.smoke.remove(u.b); return false; } if(age>0){ u.b.scale=u.s+age*1.6; u.b.color=C.Color.WHITE.withAlpha(Math.max(0,0.85-age*0.27)); } return true; }); }
-  if(typeof groundVehicles==='function') groundVehicles(ac,p);
+  if(typeof groundVehicles==='function') try{ groundVehicles(ac,p); }catch(e){}
   if(typeof gateFx==='function'){ try{ gateFx(ac,p); }catch(e){ console.warn(e); } }
   // --- pluie, ombres, PAPI, son ---
-  const raining=!!(FX.forceRain||(typeof stormAt==='function'&&stormAt(st.lat,st.lon)));
-  fxRain(p,raining&&!inside);
-  fxShadows(!inside&&p.h<2500&&!FX.noShadows&&GQ.hq);
-  fxPapi(ac,p);
+  const raining=!!(FX.forceRain||(typeof stormAt==='function'&&stormAt(st.lat,st.lon))||(typeof WP!=='undefined'&&WP.cur&&WP.cur.rain>0.2));
+  try{ fxRain(p,raining&&!inside); }catch(e){}
+  try{ fxShadows(!inside&&p.h<2500&&!FX.noShadows&&GQ.hq); fxPapi(ac,p); }catch(e){}   // un effet qui plante ne doit jamais couper le son
   if(FX.wasAir===false&&FX._lastAir===true) FX.touchAt=now;
   FX._lastAir=air;
-  if(FX.sound) fxSound(ac,st,inside,raining);
+  if(FX.sound) try{ fxSound(ac,st,inside,raining); }catch(e){}
   if(G.cam.mode==='cabin'&&(!FX.cpAt||now-FX.cpAt>4000)){ FX.cpAt=now; renderCabinPanel(ac); }
 }
 function sunElevAt(lat,lon){ if(typeof sunElev==='function') return sunElev(lat,lon,G.forceDay?fxNoon(lon):S.time); const t=new Date(G.forceDay?fxNoon(lon):S.time), h=t.getUTCHours()+t.getUTCMinutes()/60+lon/15; return 60*Math.cos((h-12)/12*Math.PI); }
@@ -330,6 +329,12 @@ function fxToggleSound(){
   renderGlobeHud();
 }
 FX.soundOn=(()=>{ try{ return localStorage.getItem('se-sound')!=='0'; }catch(e){ return true; } })();
+// iPhone : après une coupure (3D qui redémarre, appli en arrière-plan, appel, alarme…) iOS met le son en pause
+// et ne le relance que pendant un toucher → à chaque toucher, on relance le son s'il est arrêté
+function fxAudioWake(){ try{ const s=FX.sound; if(s&&s.ctx.state==='closed') FX.sound=null;
+    if(!FX.sound||FX.sound.ctx.state!=='running'||(FX._silent&&FX._silent.paused)){ if(FX._silent&&FX._silent.paused) FX._silent.play().catch(()=>{}); if(FX.soundOn) fxAudioUnlock(); } }catch(e){} }
+if(typeof window!=='undefined'){ for(const ev of ['touchend','click','keydown']) window.addEventListener(ev,fxAudioWake,{capture:true,passive:true});
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden) try{ if(FX.sound&&FX.sound.ctx.state!=='running') FX.sound.ctx.resume().catch(()=>{}); }catch(e){} }); }
 
 /* =========================================================
    PLUIE, ORAGE, OMBRES, PAPI, SECOUSSES
