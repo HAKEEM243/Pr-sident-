@@ -37,6 +37,12 @@ function atcPlanLeg(l,m,ac){
   atcList(kD).push({s:l.dep+sTO.t0+l.hOut, e:l.dep+sTO.t0+l.hOut+ATC_TO, ac:ac.id, k:'D', fn, o:l.to});
   atcList(kA).push({s:tLD-ATC_LDG*0.6, e:tLD+ATC_LDG, ac:ac.id, k:'A', fn, o:l.from});
   l.rwD=path.dep&&path.dep.id; l.rwA=path.arr&&path.arr.id;
+  // météo à l'arrivée : vent de travers, rafales, orage → remise de gaz ou atterrissage dur (plus fréquent sur les petits avions)
+  l.ga=0; l.hard=0;
+  try{ if(path.arr&&typeof towerWx==='function'){ const w=towerWx(l.to), xw=Math.abs(w.spd*Math.sin((w.dir-path.arr.hdg)*Math.PI/180)), sz=(m.seats||0)<80?1.35:(m.seats||0)>250?0.75:1;
+      const pGA=(0.004+(w.gust?0.05:0)+(w.st?0.16:0)+Math.max(0,xw-12)*0.012+(w.vis<2500?0.04:0))*sz;
+      if(Math.random()<pGA){ l.ga=Math.round(gaLen(path.arr)/((m.fam==='TURBO'?230:280)/3.6)*1000); atcList(kA).push({s:tLD+l.ga-ATC_LDG*0.6, e:tLD+l.ga+ATC_LDG, ac:ac.id, k:'A', fn, o:l.from}); }
+      else if(Math.random()<(0.02+(w.gust?0.1:0)+(w.st?0.14:0)+Math.max(0,xw-10)*0.008)*sz) l.hard=1; } }catch(e){}
 }
 // avions des autres compagnies : la piste est-elle libre pour eux ?
 const _claims=new Map();

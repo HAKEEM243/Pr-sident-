@@ -419,18 +419,30 @@ function computeProfile(d, m, w=0, tx=[10,6]){
 // hOut = attente au point d'arrêt avant la piste, hIn = circuit d'attente avant l'approche
 const _profH=new WeakMap();
 function legProf(leg,m){
-  const base=legProfile(leg.dist,m,leg.wind,leg.from,leg.to), ho=leg.hOut||0, hi=leg.hIn||0;
-  if(!ho&&!hi) return base;
-  const key=m.id+'|'+ho+'|'+hi+'|'+Math.round(leg.dist*10)+'|'+Math.round(leg.wind||0), c=_profH.get(leg); if(c&&c.k===key) return c.p;
+  const base=legProfile(leg.dist,m,leg.wind,leg.from,leg.to), ho=leg.hOut||0, hi=leg.hIn||0, ga=leg.ga||0;
+  if(!ho&&!hi&&!ga) return base;
+  const key=m.id+'|'+ho+'|'+hi+'|'+ga+'|'+Math.round(leg.dist*10)+'|'+Math.round(leg.wind||0), c=_profH.get(leg); if(c&&c.k===key) return c.p;
   const segs=[]; let sh=0;
   for(const sg of base.segs){
     if(sg.ph===6&&hi){ segs.push({ph:6,hold:'in',t0:sg.t0+sh,t1:sg.t0+sh+hi,d0:sg.d0,d1:sg.d0,a0:sg.a0,a1:sg.a0,s0:sg.s0,s1:sg.s0}); sh+=hi; }
     segs.push({...sg,t0:sg.t0+sh,t1:sg.t1+sh});
+    if(sg.ph===6&&ga){ segs.push({ph:6,ga:true,t0:sg.t1+sh,t1:sg.t1+sh+ga,d0:sg.d1,d1:sg.d1,a0:sg.a1,a1:sg.a1,s0:sg.s1,s1:sg.s1}); sh+=ga; }   // remise de gaz : tour de piste puis nouvelle approche
     if(sg.ph===1&&ho){ segs.push({ph:1,hold:'out',t0:sg.t1+sh,t1:sg.t1+sh+ho,d0:0,d1:0,a0:0,a1:0,s0:0,s1:0}); sh+=ho; }
   }
-  const p={segs,total:base.total+ho+hi,airborne:base.airborne+hi};
+  const p={segs,total:base.total+ho+hi+ga,airborne:base.airborne+hi+ga};
   _profH.set(leg,{k:key,p}); return p;
 }
+// remise de gaz : montée dans l'axe, virage, vent arrière, virage, nouvelle finale — revient exactement au point de départ
+function gaLen(r){ return 2*r.len+28000+Math.PI*4000; }
+function gaPt(path,leg,seg,u){
+  const r=path.arr, P0=pointOnPath(path,clamp(seg.d0/leg.dist,0,1)*path.total), a0=toRw(r,P0).a, sd=-1, R=2000, aF=r.len+5000, aB=-9000;
+  const L1=aF-a0, T=Math.PI*R, L2=aF-aB, L3=a0-aB, tot=L1+T+L2+T+L3; let s=u*tot, a,x,h,alt;
+  if(s<L1){ a=a0+s; x=0; h=r.hdg; alt=seg.a1+Math.min(600-seg.a1,s*0.09); }
+  else if((s-=L1)<T){ const th=s/R; a=aF+R*Math.sin(th); x=sd*R*(1-Math.cos(th)); h=r.hdg+sd*th*180/Math.PI; alt=600; }
+  else if((s-=T)<L2){ a=aF-s; x=sd*2*R; h=r.hdg+180; alt=600; }
+  else if((s-=L2)<T){ const th=s/R; a=aB-R*Math.sin(th); x=sd*R*(1+Math.cos(th)); h=r.hdg+180+sd*th*180/Math.PI; alt=600; }
+  else { s-=T; a=aB+s; x=0; h=r.hdg; alt=600-(600-seg.a1)*Math.min(1,s/Math.max(1,L3)); }
+  const q=fromRw(r,a,x); return {lat:q.lat,lon:q.lon,hdg:(h+720)%360,alt,k:u}; }
 const legEnd=(leg,m)=>leg.dep+legProf(leg,m).total;
 // État instantané d'un avion en vol
 function flightState(ac, t=S.time){
@@ -458,6 +470,7 @@ function flightState(ac, t=S.time){
     const f=pointOnPath(path,clamp(seg.d0/leg.dist,0,1)*path.total), r=4.5, dur=seg.t1-seg.t0, orbits=Math.max(1,Math.round(dur/(4*MIN)));
     const c=destPt(f.lat,f.lon,(f.hdg||0)+90,r), b0=bearing(c,f), th=360*orbits*u, q=destPt(c.lat,c.lon,b0+th,r);
     pp={lat:q.lat,lon:q.lon,hdg:(b0+th+90)%360}; holding='in'; alt=seg.a0+Math.min(1830,305*(seg.t1-rel)/(4*MIN))*Math.min(1,(rel-seg.t0)/60000); }
+  else if(seg.ga&&path.arr){ const q=gaPt(path,leg,seg,u); pp=q; alt=q.alt; spd=seg.s1+(q.k<0.25?40:20); holding='ga'; }
   else if(seg.ph<=1){ const gp=gateSlot(leg.from,ac,depIntl(ac,fl)); if(seg.ph===0) pp=gp; else { let pts=taxiOutPts(path,gp); if(leg.hOut&&pts.length>4) pts.splice(-3,3,holdPoint(path,gp,Math.min(6,leg.hOut/(2*MIN)))); pts=filletPts(pts,40);
       // repoussage : le tracteur pousse l'avion en arrière (≈ 90 s), puis l'avion tourne vers le taxiway
       const pb=Math.min(0.3,90000/Math.max(1,seg.t1-seg.t0)), g0=gp.hdg||0, P1=destPt(gp.lat,gp.lon,g0+180,0.055);
@@ -473,7 +486,7 @@ function flightState(ac, t=S.time){
   const eta = legEnd(last,m);
   const phase = rel>=prof.total? 8 : seg.ph;
   return { lat:p.lat, lon:unwrapLon(p.lon, A.lon), hdg, alt, spd,
-    phase, frac, progress: totalDist? doneDist/totalDist : 1, eta, leg, holding, pushback, holdEnd:holding?leg.dep+seg.t1:0, from:leg.from, to:leg.to, origin:fl.legs[0].from, dest:last.to,
+    phase, frac, progress: totalDist? doneDist/totalDist : 1, eta, leg, holding, pushback, ga:!!seg.ga, holdEnd:holding?leg.dep+seg.t1:0, from:leg.from, to:leg.to, origin:fl.legs[0].from, dest:last.to,
     wind:leg.wind||0, gs:seg.ph===4? Math.max(0,spd+(leg.wind||0)) : spd, depRwy:path.dep&&path.dep.id, arrRwy:path.arr&&path.arr.id, remain:Math.max(0,totalDist-doneDist) };
 }
 
