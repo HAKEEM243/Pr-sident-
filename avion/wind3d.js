@@ -44,6 +44,11 @@ function wndPert(ac,st,mi){
   return out;
 }
 function wndSay(ac,st){
+  // bulletin météo de l'aéroport : au roulage (départ) et en début d'approche (arrivée), pour l'avion suivi
+  try{ if(typeof G!=='undefined'&&G&&G.follow===ac.id&&(st.phase===1||st.phase===6)&&!st.holding){ const key=ac.id+'|'+st.phase+'|'+(st.leg&&st.leg.dep); if(WND.atis!==key){ WND.atis=key;
+        const code=st.phase===1?st.from:st.to, w=wndWx(code), A=AP(code), rw=typeof legPath==='function'?legPath(st.leg,modelOf(ac))[st.phase===1?'dep':'arr']:null;
+        if(w&&A){ const xw=rw?Math.round(Math.abs(w.spd*Math.sin((w.dir-rw.hdg)*Math.PI/180))):0, bad=w.st||w.gust||xw>=12||w.vis<5000;
+          toast(`${w.st?'⛈️':w.gust?'🌬️':w.vis<5000?'🌫️':'🌤️'} <b>${A.city}</b>${rw?' · piste '+rw.id:''} : vent ${String(w.dir).padStart(3,'0')}°/${w.spd} kt${w.gust?', rafales '+w.gust+' kt':''}${xw>=5?' · travers '+xw+' kt':''} · visibilité ${w.vis>=10000?'10 km+':(w.vis/1000).toFixed(1)+' km'}${w.st?' · orage':''}${bad?(st.phase===6?' — approche agitée':' — départ agité'):''}`,bad?'warn':'info'); } } } }catch(e){}
   { const S0=WND.st[ac.id]; if(S0&&S0.turbNew&&typeof G!=='undefined'&&G&&G.follow===ac.id){ const k=S0.turbNew; S0.turbNew=0; WND.turbSaid=k;
       try{ if(typeof fxBurst==='function') fxBurst('chime'); }catch(e){}
       if(k===1){ try{ toast('💺 <b>Turbulences</b> : zone orageuse, consigne lumineuse « attachez vos ceintures » allumée','warn'); }catch(e){}

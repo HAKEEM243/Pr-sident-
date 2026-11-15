@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261247';
+const GAME_VER='20261248';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🌤️ Bulletin météo en 3D','Au roulage et en début d\'approche, un bulletin de l\'aéroport s\'affiche : piste, vent, rafales, vent de travers, visibilité, orage. Vous savez à l\'avance si le décollage ou l\'atterrissage sera agité.'],
   ['🔊 Son moteurs et pluie sur iPhone','Les moteurs et la pluie sont maintenant audibles même avec l\'interrupteur silencieux de l\'iPhone activé (comme la radio). 3D allégée à l\'atterrissage sur téléphone pour éviter le retour à la carte.'],
   ['💺 Turbulences en croisière','En traversant une zone orageuse, l\'avion est secoué en vol (plus fort sur les petits avions) : « ding » et consigne ceintures, annonce en cabine, chocs sourds dans la carlingue. Le bruit de la pluie suit son intensité.'],
   ['🔊 Son réparé','Sur iPhone, le son (moteurs, pluie, radio) se relance tout seul au premier toucher après une coupure (3D qui redémarre, appli en arrière-plan, appel). La pluie de la météo du jeu a aussi son bruit.'],
