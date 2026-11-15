@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261246';
+const GAME_VER='20261247';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🔊 Son moteurs et pluie sur iPhone','Les moteurs et la pluie sont maintenant audibles même avec l\'interrupteur silencieux de l\'iPhone activé (comme la radio). 3D allégée à l\'atterrissage sur téléphone pour éviter le retour à la carte.'],
   ['💺 Turbulences en croisière','En traversant une zone orageuse, l\'avion est secoué en vol (plus fort sur les petits avions) : « ding » et consigne ceintures, annonce en cabine, chocs sourds dans la carlingue. Le bruit de la pluie suit son intensité.'],
   ['🔊 Son réparé','Sur iPhone, le son (moteurs, pluie, radio) se relance tout seul au premier toucher après une coupure (3D qui redémarre, appli en arrière-plan, appel). La pluie de la météo du jeu a aussi son bruit.'],
   ['📱 Pluie et orage stables sur téléphone','Sur téléphone, la pluie et l\'orage sont allégés pour que la 3D ne coupe plus : pas de traits de pluie animés sur l\'écran, éclairs en flash (sans géométrie 3D), moins de nuages d\'orage.'],
