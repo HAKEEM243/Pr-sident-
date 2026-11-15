@@ -256,7 +256,13 @@ function fxAudioUnlock(){
   // appelé pendant le toucher de l'utilisateur (obligatoire sur iPhone)
   try{ if(!FX.sound) FX.sound=fxSoundInit(); if(FX.sound&&FX.sound.ctx.state!=='running') FX.sound.ctx.resume(); }catch(e){}
   // astuce iPhone : un <audio> muet joué pendant le geste permet au son de sortir même interrupteur silencieux activé (selon les versions)
-  try{ if(!FX._silent){ const a=new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='); a.loop=true; a.volume=0.01; a.play().catch(()=>{}); FX._silent=a; } }catch(e){}
+  // iPhone : par défaut, l'interrupteur silencieux coupe moteurs et pluie (mais pas la voix de la radio).
+  // 1) on déclare une session audio « lecture » (iOS 16.4+) ; 2) à défaut, un vrai fichier silencieux joué en boucle produit le même effet.
+  try{ if(navigator.audioSession&&navigator.audioSession.type!=='playback') navigator.audioSession.type='playback'; }catch(e){}
+  try{ if(!FX._silent){ const n=4000, w=new Uint8Array(44+n), dv=new DataView(w.buffer), S4=(o,t)=>{ for(let i=0;i<4;i++) w[o+i]=t.charCodeAt(i); };
+      S4(0,'RIFF'); dv.setUint32(4,36+n,true); S4(8,'WAVE'); S4(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true); dv.setUint32(24,8000,true); dv.setUint32(28,8000,true); dv.setUint16(32,1,true); dv.setUint16(34,8,true); S4(36,'data'); dv.setUint32(40,n,true); w.fill(128,44);
+      const a=new Audio(URL.createObjectURL(new Blob([w],{type:'audio/wav'}))); a.loop=true; a.setAttribute('playsinline',''); a.play().catch(()=>{}); FX._silent=a; }
+    else if(FX._silent.paused) FX._silent.play().catch(()=>{}); }catch(e){}
 }
 function fxSoundInit(){
   const A=window.AudioContext||window.webkitAudioContext; if(!A) return null;

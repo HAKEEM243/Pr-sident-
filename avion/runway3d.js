@@ -9,7 +9,7 @@
 const RWY3D={cache:new Map()};
 function rwyNum(id){ return String(id||'').replace(/^0(?=\d)/,''); }
 function rwyTexture(r,W,L,hard){
-  const cw=256, ch=4096, cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
+  const cw=256, ch=(typeof GQ!=='undefined'&&GQ.mob&&!GQ.hq)?2048:4096, cv=document.createElement('canvas'); cv.width=cw; cv.height=ch;
   const g=cv.getContext('2d'), sx=cw/W, sy=ch/L, X=m=>(m+W/2)*sx, Y=m=>m*sy;
   // fond : asphalte (ou terre battue)
   g.fillStyle=hard?'#5b5e64':'#8a7458'; g.fillRect(0,0,cw,ch);
