@@ -191,19 +191,24 @@ function tripStory(p,rnd,A,B,o){
     default: return `Mission humanitaire à ${city} : ${pick2(rnd,HUM_WHY)}.`;
   }
 }
+// Chaque passager a un numéro fixe dans son vol (0 à total−1) et son identité ne dépend que de ce numéro :
+// manifeste, contrôle aux frontières, aérogare et embarquement en 3D montrent donc LES MÊMES personnes.
 function flightManifest(ac,maxN){
   const fl=ac&&ac.flight; if(!fl) return null;
   const leg=fl.legs[fl.li]; if(!leg) return null;
+  return manifestFor(ac,leg,maxN); }
+const _manC=new Map();
+function manifestFor(ac,leg,maxN){
   const pax=leg.pax; if(!pax) return {leg, cargo:true};
-  const total=pax.f+pax.j+pax.w+pax.y;
-  const pr=paxProfile(leg.from,leg.to), rnd=seeded(hashS(ac.id+'|'+leg.dep+'|'+leg.from+leg.to));
-  const A=AP(leg.from), B=AP(leg.to), rt=ac.flight.routeId&&S.routes.find(r=>r.id===ac.flight.routeId);
+  const total=pax.f+pax.j+pax.w+pax.y, NN=Math.min(total,maxN||total), seedK=ac.id+'|'+leg.dep+'|'+leg.from+leg.to, ck=seedK+'|'+total+'|'+NN;
+  const cached=_manC.get(ck); if(cached) return cached;
+  const pr=paxProfile(leg.from,leg.to);
+  const A=AP(leg.from), B=AP(leg.to), rt=ac.flight&&ac.flight.routeId&&S.routes.find(r=>r.id===ac.flight.routeId);
   const pm=(rt&&rt.pm)||{};
-  const rows=[], N=Math.min(total,maxN||60), classSeq=[]; for(const [k,n] of [['f',pax.f],['j',pax.j],['w',pax.w],['y',pax.y]]) for(let i=0;i<n;i++) classSeq.push(k);
+  const rows=[], N=NN, classSeq=[], cStart={}, cRow={}; let rowAcc=1; for(const [k,n] of [['f',pax.f],['j',pax.j],['w',pax.w],['y',pax.y]]){ cStart[k]=classSeq.length; cRow[k]=rowAcc; rowAcc+=Math.ceil(n/6)+(n?1:0); for(let i=0;i<n;i++) classSeq.push(k); }
   const pool=cc=>NAME_POOLS[cc]||NAME_POOLS[COUNTRIES[cc]&&COUNTRIES[cc][1]]||NAME_POOLS.EU;
-  const seatRow={f:1,j:4,w:12,y:20}; const used={};
-  for(let i=0;i<N;i++){
-    const k=classSeq[Math.floor(i*classSeq.length/N)];
+  for(let j=0;j<N;j++){
+    const i=N===total?j:Math.floor(j*total/N), rnd=seeded(hashS(seedK+'|'+i)), k=classSeq[i];
     const wealth= k==='f'? pickW(rnd,[['rich',.86],['mid',.14]]) : k==='j'? pickW(rnd,[['rich',.55],['mid',.4],['poor',.05]]) : k==='w'? pickW(rnd,[['rich',.1],['mid',.7],['poor',.2]]) : pickW(rnd,[['rich',pr.wealth.rich*.35],['mid',pr.wealth.mid*1.1],['poor',pr.wealth.poor*1.3]]);
     const nat=pickW(rnd,pr.nat.filter(n=>n.cc!=='??').map(n=>[n.cc,n.share])) || A.cc;
     const pmx=purposeMix(wealth,pr.lvlFrom,pr.lvlTo,pr.km,A.cc,B.cc);
@@ -213,7 +218,7 @@ function flightManifest(ac,maxN){
     const fpool=P[0].filter(n=>isFem(n)===fem), first=(fpool.length?fpool:P[0])[Math.floor(rnd()*(fpool.length||P[0].length))], last=P[1][Math.floor(rnd()*P[1].length)], F=isFem(first);
     const trips=Math.max(.3,tripsPerYear(wealth,purp)*(0.6+rnd()*0.8));
     const base=idealPrice(leg.from,leg.to,k==='w'?'y':k)*(k==='w'?1.35:1), mult=(pm[k==='w'?'y':k]??1)*(0.9+rnd()*0.22)*(k==='y'&&wealth==='poor'?0.92:1);
-    const row=(seatRow[k]+((used[k]=(used[k]||0)+1)>>2)), seat=row+'ABCDEF'[(used[k]-1)%6];
+    const loc=i-cStart[k], row=cRow[k]+Math.floor(loc/6), seat=row+'ABCDEF'[loc%6];
     const visaReq = pr.lvlTo>pr.lvlFrom && A.cc!==B.cc && rnd()<0.62;
     const home=cAirports(nat).length? AP(pick2(rnd,cAirports(nat).slice(0,6))).city : (COUNTRIES[nat]?COUNTRIES[nat][0]:'—');
     const field=pick2(rnd,STUDY_WHY);
@@ -235,7 +240,7 @@ function flightManifest(ac,maxN){
       visa:visaReq?'Visa obtenu':'Pas de visa requis', lastTrip:Math.max(1,Math.round(12/trips*(0.5+rnd()))),
       F, avatar:avatarOf(age,F,nat,rnd), ...extraDetails(rnd,{age,F,nat,wealth,purp,k,trips,tier,A,B,mood,home,first,last})});
   }
-  return {leg, from:A, to:B, total, shown:N, pr, rows};
+  const out={leg, from:A, to:B, total, shown:N, pr, rows}; _manC.set(ck,out); if(_manC.size>80) _manC.delete(_manC.keys().next().value); return out;
 }
 const pick2=(rnd,arr)=>arr[Math.floor(rnd()*arr.length)];
 const PX_MONTHS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
@@ -394,16 +399,17 @@ function manifestHtml(ac){
   const advanced=[['family','👨‍👩‍👧 Familles',r=>r.purp==='family'||r.age<18||(r.kids||0)>0],['assist','♿ Assistance',r=>!!r.assist],['check','🛂 Vérification',r=>String(r.control||'').includes('approfondi')],['connect','🔁 Correspondance',r=>!!r.conn],['first','✨ Premier vol',r=>!!r.firstFlight],['bags','🧳 Bagage soute',r=>(r.bags||0)>0]].map(([k,l,test])=>[k,`${l} (${m.rows.filter(test).length})`,test]).filter(x=>m.rows.some(x[2]));
   const F=[['all','Tous'],['f',`👑 1ʳᵉ (${cc.f})`],['j',`💼 Affaires (${cc.j})`],['y',`💺 Éco (${cc.y+cc.w})`],['angry',`😠 Mécontents (${angry})`],['vip','⭐ Fidèles'],...advanced.map(([k,l])=>[k,l])].filter(([k])=>k==='all'||k==='angry'||k==='vip'||advanced.some(x=>x[0]===k)||(k==='y'?cc.y+cc.w:cc[k]));
   const filt=`<div class="chips">${F.map(([k,l])=>`<button class="chip ${f===k?'on':''}" data-act="manF" data-id="${ac.id}" data-k="${k}">${l}</button>`).join('')}</div>`;
-  const rows=m.rows.filter(r=>f==='all'||(f==='angry'?r.mood==='énervé(e)':f==='vip'?r.tier!=='Aucun':f==='y'?(r.cls==='y'||r.cls==='w'):advanced.find(x=>x[0]===f)?advanced.find(x=>x[0]===f)[2](r):r.cls===f));
+  const q=(UI.manQ||'').trim().toLocaleLowerCase('fr'), rows0=m.rows.filter(r=>f==='all'||(f==='angry'?r.mood==='énervé(e)':f==='vip'?r.tier!=='Aucun':f==='y'?(r.cls==='y'||r.cls==='w'):advanced.find(x=>x[0]===f)?advanced.find(x=>x[0]===f)[2](r):r.cls===f));
+  const rowsQ=q?rows0.filter(r=>(r.first+' '+r.last+' '+r.seat+' '+(COUNTRIES[r.nat]?COUNTRIES[r.nat][0]:r.nat)+' '+r.job+' '+r.story).toLocaleLowerCase('fr').includes(q)):rows0, lim=UI.manLim||100, rows=rowsQ.slice(0,lim);
   const clsL={f:'👑 1ʳᵉ',j:'💼 Affaires',w:'💺 Premium',y:'💺 Éco'}, moodI=r=>r.mood==='énervé(e)'?'😠':r.mood==='ravi(e)'?'😄':r.mood==='impatient(e)'?'😬':'🙂';
-  return hdr+leg+`<div class="man-search"><input type="search" data-in="manQ" value="${esc(UI.manQ||'')}" placeholder="Rechercher nom, nationalité, siège…"><span id="manCount" class="small mut">${rows.length} fiche${rows.length>1?'s':''}</span></div>`+filt+`<div class="manifest">${rows.map(r=>`<div class="mrow" data-act="paxCard" data-id="${ac.id}" data-i="${r.i}">
+  return hdr+leg+`<div class="man-search"><input type="search" data-in="manQ" value="${esc(UI.manQ||'')}" placeholder="Rechercher nom, nationalité, siège…"><span id="manCount" class="small mut">${rowsQ.length} fiche${rowsQ.length>1?'s':''}</span></div>`+filt+`<div class="manifest" id="mfList">${rows.map(r=>`<div class="mrow" data-act="paxCard" data-id="${ac.id}" data-i="${r.i}">
     <div class="mr-av">${r.avatar}</div>
     <div class="mr-body"><div class="mh"><b>${esc(r.first)} ${esc(r.last)}</b> <span class="mut">${r.age} ans</span></div>
       <div class="small">${COUNTRIES[r.nat]?COUNTRIES[r.nat][2]:'🌍'} ${esc(r.job)} · <span class="w-${r.wealth}">${WEALTH_LABEL[r.wealth]}</span></div>
       <div class="small mut mr-story">${esc(r.story)}</div>
       <div class="small">${clsL[r.cls]} · <b>${fmtMoney(r.price)}</b> · ${moodI(r)} ${gx(r.mood,r.F)}${r.tier!=='Aucun'?` · ⭐ ${r.tier}`:''}</div></div>
-    <div class="mseat">${r.seat}</div></div>`).join('')||'<div class="mut small">Aucun passager dans ce filtre.</div>'}</div>
-  <div class="small mut">${m.total>m.shown?`${m.shown} fiches affichées sur ${m.total} passagers. `:''}Passagers fictifs générés à partir des statistiques du marché · touchez une fiche pour tout voir.</div>`;
+    <div class="mseat">${r.seat}</div></div>`).join('')||'<div class="mut small">Aucun passager dans ce filtre.</div>'}${rowsQ.length>rows.length?`<button class="btn" data-act="manMore" data-id="${ac.id}" style="width:100%;margin-top:6px">Afficher ${Math.min(150,rowsQ.length-rows.length)} passagers de plus (${rows.length}/${rowsQ.length})</button>`:''}</div>
+  <div class="small mut">Les ${m.total} passagers à bord ont chacun leur fiche. Passagers fictifs générés à partir des statistiques du marché · touchez une fiche pour tout voir.</div>`;
 }
 function passengerCardHtml(ac,i){
   const m=flightManifest(ac); if(!m||!m.rows) return '';
@@ -450,11 +456,12 @@ function registerPaxActions(){ Object.assign(ACTIONS,{
   paxCountry:d=>{ UI.paxCountry=d.cc; renderPanel(); },
   paxUnit:d=>{ UI.paxUnit=d.k; renderPanel(); },
   paxPolicy:d=>{ if(!PAX_POLICIES[d.k]) return; S.paxPolicy=d.k; save(); logMsg(`Politique passagers : ${PAX_POLICIES[d.k].label}.`,'info'); toast('🧳 Politique modifiée : les vols suivants en tiendront compte.','ok'); renderPanel(); },
-  manifest:d=>{ if(UI.manFor!==d.id){ UI.manF='all'; UI.manQ=''; UI.manFor=d.id; } const ac=findAc(d.id); if(ac) showModal(`📋 Manifeste ${ac.reg}`, manifestHtml(ac), true); },
+  manifest:d=>{ if(UI.manFor!==d.id){ UI.manF='all'; UI.manQ=''; UI.manFor=d.id; } UI.manLim=100; const ac=findAc(d.id); if(ac) showModal(`📋 Manifeste ${ac.reg}`, manifestHtml(ac), true); },
+  manMore:d=>{ UI.manLim=(UI.manLim||100)+150; const ac=findAc(d.id); if(!ac) return; const t=document.createElement('div'); t.innerHTML=manifestHtml(ac); const a=document.getElementById('mfList'), b=t.querySelector('#mfList'); if(a&&b) a.innerHTML=b.innerHTML; },
   paxCard:d=>{ const ac=findAc(d.id); if(ac) showModal(`🪪 Fiche passager`, passengerCardHtml(ac,+d.i)+`<div class="btns"><button class="btn" data-act="manifest" data-id="${ac.id}">← Retour au manifeste</button></div>`, true); },
   manF:d=>{ UI.manF=d.k; const ac=findAc(d.id); if(ac) showModal(`📋 Manifeste ${ac.reg}`, manifestHtml(ac), true); },
   paxLine:d=>{ showModal('🛂 Profil des passagers', paxProfileHtml(d.a,d.b), true); },
-}); Object.assign(INPUTS,{ paxCountry:el=>{ UI.paxCountry=el.value; renderPanel(); }, manQ:el=>{ UI.manQ=el.value; const q=el.value.trim().toLocaleLowerCase('fr'), rows=[...document.querySelectorAll('#modal .mrow')]; let shown=0; for(const row of rows){ const match=!q||row.textContent.toLocaleLowerCase('fr').includes(q); row.style.display=match?'':'none'; if(match) shown++; } const out=document.getElementById('manCount'); if(out) out.textContent=`${shown} fiche${shown>1?'s':''}${q?' trouvée'+(shown>1?'s':''):''}`; } }); }
+}); Object.assign(INPUTS,{ paxCountry:el=>{ UI.paxCountry=el.value; renderPanel(); }, manQ:el=>{ UI.manQ=el.value; UI.manLim=100; clearTimeout(UI.manQT); UI.manQT=setTimeout(()=>{ const ac=findAc(UI.manFor); if(!ac) return; const t=document.createElement('div'); t.innerHTML=manifestHtml(ac); const a=document.getElementById('mfList'), b=t.querySelector('#mfList'), c=document.getElementById('manCount'), d=t.querySelector('#manCount'); if(a&&b) a.innerHTML=b.innerHTML; if(c&&d) c.textContent=d.textContent; },250); } }); }
 
 /* ---------- avis des passagers (après chaque vol, quelques-uns laissent une note) ---------- */
 const REV_GOOD=['Équipage adorable, vol à l’heure.','Le repas était excellent, bravo !','Siège confortable, je referai ce trajet.','Embarquement rapide et bagages arrivés tout de suite.','Très bon rapport qualité-prix.','Pilote sympathique, atterrissage tout en douceur.','Personnel au sol aux petits soins.'];

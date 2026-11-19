@@ -183,7 +183,7 @@ function pfHook(){ if(pfHook.done) return; pfHook.done=true;
           PF.snapAt=nowR; const D=pfData(ac,leg,flightManifest(ac,14)), sh=S.time-D.arr;
           // horaires d'arrivée recalés sur l'arrivée réelle (retards compris)
           for(const o of [D.imm,D.bag,D.cus]) for(const f of ['open','close','first','last']) if(o[f]) o[f]+=sh;
-          D.arr=S.time; PF.arr=PF.arr.filter(x=>x.D.key!==D.key); PF.arr.unshift({D,fno:`${S.company.code}${flightNumber(ac)}`}); if(PF.arr.length>8) PF.arr.length=8;
+          D.arr=S.time; PF.arr=PF.arr.filter(x=>x.D.key!==D.key); PF.arr.unshift({D,fno:`${S.company.code}${flightNumber(ac)}`,acId:ac.id,reg:ac.reg,model:modelOf(ac).name,leg:{from:leg.from,to:leg.to,dep:leg.dep,pax:{...leg.pax}}}); if(PF.arr.length>8) PF.arr.length=8;
           pfAuto(D); } }catch(e){ console.warn('aérogare',e); } return _o.apply(this,arguments); }; }
   if(typeof pPax==='function'){ const _pp=pPax; pPax=function(){ const h=_pp.apply(this,arguments); try{ return pfCardHtml()+h; }catch(e){ return h; } }; }
   if(typeof manifestHtml==='function'){ const _mh=manifestHtml; manifestHtml=function(ac){ const h=_mh.apply(this,arguments); try{ const st=ac&&ac.flight&&flightState(ac); if(st&&st.phase<=1) return `<div class="btns"><button class="btn" data-act="pfOpen" data-kind="dep" data-id="${ac.id}">🛃 Aérogare en direct</button></div>`+h; }catch(e){} return h; }; }
