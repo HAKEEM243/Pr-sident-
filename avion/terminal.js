@@ -64,8 +64,9 @@ function tmRivals(code,now,F){
    La taille de l'aéroport change l'équipement : petit aéroport = moins de bornes, de lignes de sûreté,
    de guichets, pas de duty free ; grand aéroport = salon business, plus de commerces. */
 const TW={W:1000,H:1300,top:-170};
-function tmPOI(cls){ const P=[], add=(k,x0,y0,x1,y1,lab,ico,o)=>{ const p={k,x0,y0,x1,y1,lab,ico,...(o||{})}; P.push(p); return p; };
-  const small=cls<=2, big=cls>=4, nK=small?4:10, nL=small?3:6, nB=small?3:6, nA=small?3:5;
+const tmOps=code=>{ S.tmOps=S.tmOps||{}; return S.tmOps[code]||(S.tmOps[code]={sec:0,pol:0,ck:0}); };
+function tmPOI(cls){ const ops=tmOps(TM.code); const P=[], add=(k,x0,y0,x1,y1,lab,ico,o)=>{ const p={k,x0,y0,x1,y1,lab,ico,...(o||{})}; P.push(p); return p; };
+  const small=cls<=2, big=cls>=4, nK=small?4:10, nL=Math.min(8,(small?3:6)+ops.sec), nB=Math.min(8,(small?3:6)+ops.pol), nA=small?3:5;
   for(let i=0;i<nK;i++){ const x=40+i*(560/nK); add('kiosk',x,1176,x+32,1192,'Borne d’enregistrement automatique','🖥️'); }
   add('info',560,1200,630,1228,'Comptoir d’information','ℹ️'); add('wc',8,1196,60,1228,'Toilettes (hall public)','🚻'); add('cafe',70,1198,170,1228,'Café du hall','☕');
   add('fids',250,1196,350,1210,'Écran des départs','📺');
@@ -115,7 +116,7 @@ function tmSched(L){
     for(let i=0;i<N;i++){ const r=pfRng(D.key+'|sc'+i), tIn=D.ci.open+(D.ci.close-D.ci.open)*Math.pow(r(),0.85)*0.97, online=r()<(D.ci.online||0)/Math.max(1,f.N), bags=r()<0.8, kiosk=!(online&&!bags)&&(online||r()<0.3);
       const row=f.man&&f.man.rows&&f.man.rows[i]; const x={i,tIn,online,bags:row?row.bags>0:bags,kiosk,r:r(),wc:r()<0.12,alarm:r()<0.1,row}; if(row){ x.kiosk=!(online&&!x.bags)&&(online||x.r<0.3); } sc.push(x);
       if(online&&!bags){ x.ckStart=x.ckDone=tIn+MIN; } else ckL.push({x,arr:tIn+(kiosk?3.5:1.5)*MIN}); }
-    tmServe(ckL,Math.max(1,Math.min(6,D.ci.desks||Math.ceil(f.N/55))),o=>(o.x.bags?2.2:1.4)*MIN*(0.7+0.6*o.x.r));
+    tmServe(ckL,Math.max(1,Math.min(8,(D.ci.desks||Math.ceil(f.N/55))+tmOps(TM.code).ck)),o=>(o.x.bags?2.2:1.4)*MIN*(0.7+0.6*o.x.r));
     for(const o of ckL){ o.x.ckStart=o.start; o.x.ckDone=o.done; W.ck.push([o.arr,o.start-o.arr]); }
     // embarquement par zones : priorité (affaires, familles), puis zones 1 à 4
     const win=Math.max(MIN,(D.gate.last-D.gate.open)/5);
@@ -190,7 +191,7 @@ function tmArrKF(g,i,L,lost){
 const TM_ROLE={ck:['#1e3a8a','Agent d’enregistrement'],gate:['#1e3a8a','Agent d’embarquement'],sec:['#111827','Agent de sûreté'],pol:['#1d4ed8','Policier aux frontières'],imm:['#1d4ed8','Agent d’immigration'],
   health:['#f8fafc','Agent sanitaire'],cus:['#065f46','Douanier'],lost:['#1e3a8a','Agent litiges bagages'],info:['#0e7490','Agent d’accueil'],clean:['#f59e0b','Agent d’entretien'],patrol:['#1d4ed8','Patrouille de police']};
 function tmStaff(L,now){ const out=[], T0=now-14*HOUR, T1=now+14*HOUR, add=(role,x,y,st)=>out.push({staff:role,i:out.length,K:[{t:T0,x,y,st},{t:T1,x,y,st}],c:TM_ROLE[role][0],sk:TM_SKIN[out.length%TM_SKIN.length],dep:3});
-  for(const g of L.deps){ const D=g.f.D, n=Math.max(1,Math.min(4,D.ci.desks||Math.ceil(g.f.N/55)));
+  for(const g of L.deps){ const D=g.f.D, n=Math.max(1,Math.min(8,(D.ci.desks||Math.ceil(g.f.N/55))+tmOps(TM.code).ck));
     for(let k=0;k<n;k++) add('ck',g.ck.x0+(k+0.5)*(g.ck.x1-g.ck.x0)/n,g.ck.y-2,'au comptoir du vol '+g.f.fn+' → '+D.B.city);
     add('gate',g.desk.x-7,g.desk.y-9,'à la porte '+D.gate.name+' (vol '+g.f.fn+')'); add('gate',g.desk.x+7,g.desk.y-9,'à la porte '+D.gate.name+' (vol '+g.f.fn+')'); }
   for(const p of L.poi){ const cx=(p.x0+p.x1)/2;
@@ -254,7 +255,7 @@ function tmFocus(R){ const cv=TM.cv; if(!cv) return; const w=cv.clientWidth, h=c
 function tmCamStep(){ const c=TM.cam, g=TM.goal; if(!g) return; const k=0.18; c.s+=(g.s-c.s)*k; c.x+=(g.x-c.x)*k; c.y+=(g.y-c.y)*k; if(Math.abs(g.s-c.s)<g.s*0.002&&Math.abs(g.x-c.x)<0.5&&Math.abs(g.y-c.y)<0.5){ Object.assign(c,g); TM.goal=null; } }
 function tmZoomAt(f,sx,sy){ const c=TM.cam, w=TM.cv.clientWidth, h=TM.cv.clientHeight, fit=Math.min(w/TW.W,h/(TW.H-TW.top)), ns=Math.max(fit*0.8,Math.min(fit*14,c.s*f)); const wx=c.x+sx/c.s, wy=c.y+sy/c.s; c.s=ns; c.x=wx-sx/ns; c.y=wy-sy/ns; TM.goal=null; }
 /* ---------- informations (passager, vol, équipement) ---------- */
-function tmInfo(html){ const el=document.getElementById('tmInfo'); if(!el) return; el.innerHTML=html?`<button class="btn" data-tmx style="float:right;padding:2px 8px">✖</button>${html}`:''; el.hidden=!html; const x=el.querySelector('[data-tmx]'); if(x) x.onclick=()=>{ TM.sel=null; TM.selF=null; tmInfo(''); }; }
+function tmInfo(html){ const el=document.getElementById('tmInfo'); if(!el) return; el.innerHTML=html?`<button class="btn" data-tmx style="float:right;padding:2px 8px">✖</button>${html}`:''; el.hidden=!html; const x=el.querySelector('[data-tmx]'); if(x) x.onclick=()=>{ TM.sel=null; TM.selF=null; TM.dash=false; tmInfo(''); }; }
 function tmInfoFlight(g){ const f=g.f, D=f.D, now=tmNow(), st={}; for(const p of TM.ppl) if(p.f===f){ const q=tmAt(p.K,now); if(q) st[q.st]=(st[q.st]||0)+1; }
   const top=Object.entries(st).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>`<div>• ${v} ${esc(k)}</div>`).join('');
   const inc=(TM.inc||[]).filter(x=>x.f===f&&now>=x.at-2*MIN).map(x=>`<div style="color:#fca5a5">⚠️ ${String(x.t).replace(/<[^>]+>/g,'')}</div>`).join('');
@@ -269,7 +270,7 @@ function tmInfoPOI(p){ let n=0; for(const z of TM.pts||[]){ const x=z[0], y=z[1]
   const extra={kiosk:'Imprime cartes d’embarquement et étiquettes bagages.',xray:'Bacs, ordinateurs et liquides scannés.',arch:'Alarme → palpation par un agent.',booth:'Passeport, visa, tampon de sortie ou d’entrée.',egate:'Pour les passeports biométriques.',green:'Passage libre, contrôles aléatoires.',red:'Déclaration obligatoire, fouille des bagages.',lost:'Déclaration de bagage perdu, indemnité, livraison à domicile.',lounge:'Réservé aux passagers en classe affaires.'}[p.k]||'';
   tmInfo(`<b>${p.ico} ${esc(p.lab)}</b><br>👥 environ ${n} personne${n>1?'s':''} autour en ce moment${wt?` · attente ~${wt} min`:''}${extra?'<br><span class="small">'+extra+'</span>':''}`); }
 /* ---------- rendu (phase 4 : personnages animés, mobilier, avions) ---------- */
-function tmPlane(g,x,y,col){ g.save(); g.translate(x,y); g.fillStyle='#f8fafc'; g.strokeStyle='#64748b'; g.lineWidth=1;
+function tmPlane(g,x,y,col,ang){ g.save(); g.translate(x,y); if(ang) g.rotate(ang); g.fillStyle='#f8fafc'; g.strokeStyle='#64748b'; g.lineWidth=1;
   g.beginPath(); g.ellipse(0,-50,7,52,0,0,6.283); g.fill(); g.stroke(); g.beginPath(); g.moveTo(-6,-58); g.lineTo(-52,-40); g.lineTo(-52,-34); g.lineTo(-6,-42); g.moveTo(6,-58); g.lineTo(52,-40); g.lineTo(52,-34); g.lineTo(6,-42); g.fill(); g.stroke();
   g.beginPath(); g.moveTo(-3,-96); g.lineTo(-18,-104); g.lineTo(-18,-100); g.lineTo(-2,-90); g.moveTo(3,-96); g.lineTo(18,-104); g.lineTo(18,-100); g.lineTo(2,-90); g.fill(); g.stroke();
   g.fillStyle='#94a3b8'; g.fillRect(-26,-52,6,10); g.fillRect(20,-52,6,10);   // réacteurs
@@ -293,6 +294,23 @@ function tmAnnounce(now){ const F=TM.F; if(!F) return; const last=TM.annT||now; 
   const due=ev.filter(([t])=>t>last&&t<=now).sort((a,b)=>a[0]-b[0]); if(!due.length) return; const msg=due[due.length-1][1];
   const b=document.getElementById('tmAnn'); if(b){ b.textContent='📢 '+msg; b.hidden=false; clearTimeout(TM.annTO); TM.annTO=setTimeout(()=>{ b.hidden=true; },9000); }
   if(TM.voice&&typeof fx2Say==='function') try{ fx2Say(msg,'fr',0.9); }catch(e){} }
+// avion au départ : au poste → repoussage → virage → roulage ; avion à l'arrivée : roulage → virage → entrée au poste
+function tmDepPlane(d,now){ const D=d.f.D, P=D.P, L=d.door.x<500; if(now<D.gate.open-40*MIN) return null; if(now<P) return {x:d.door.x,y:-60,a:0,at:1};
+  const u=now-P; if(u<2*MIN) return {x:d.door.x,y:-60-60*u/(2*MIN),a:0,push:1}; if(u<2.5*MIN) return {x:d.door.x,y:-120,a:(L?1:-1)*Math.PI/2*(u-2*MIN)/(0.5*MIN)};
+  if(u<6*MIN) return {x:d.door.x+(L?-1:1)*900*(u-2.5*MIN)/(3.5*MIN),y:-120,a:(L?1:-1)*Math.PI/2}; return null; }
+function tmArrPlane(a,now){ const A=a.f.D.arr; if(now<A-5*MIN||now>A+40*MIN) return null; if(now>=A) return {x:a.door.x,y:-60,a:0,at:1};
+  const u=A-now; if(u>1.5*MIN) return {x:a.door.x+900*(u-1.5*MIN)/(3.5*MIN),y:-120,a:Math.PI/2}; if(u>MIN) return {x:a.door.x,y:-120,a:Math.PI/2*(u-MIN)/(0.5*MIN)}; return {x:a.door.x,y:-120+60*(1-u/MIN),a:0}; }
+function tmLocalHour(){ const A=AP(TM.code)||{}, tz=A.utc!=null?A.utc:Math.round((A.lon||0)/15); return (((tmNow()/HOUR+tz)%24)+24)%24; }
+const TM_OPS=[['sec','🔍 Lignes de sûreté',2500],['pol','🛂 Guichets de police (départ)',1800],['ck','🎫 Comptoirs par vol',900]];
+function tmDash(){ const L=TM.L, c=TM.cnt||{}, W=L.W||{}, now=tmNow(), o=tmOps(TM.code);
+  const val={sec:[L.nL,c.sec,tmWait(W.sec||[],now)],pol:[L.nB,c.pol,tmWait(W.pol||[],now)],ck:[o.ck,c.ck,tmWait(W.ck||[],now)]};
+  tmInfo(`<b>📊 Gestion de l’aérogare</b><div class="small mut">Renforcez les équipes : les files raccourcissent tout de suite. Chaque renfort est payé une fois.</div>`+
+    TM_OPS.map(([k,l,cost])=>`<div style="display:flex;align-items:center;gap:6px;margin-top:6px"><div style="flex:1"><b>${l}</b><br><span class="small">${k==='ck'?'+'+val.ck[0]+' en renfort':val[k][0]+' ouvert(e)s'} · ${val[k][1]||0} en file · attente ~${val[k][2]} min</span></div>`+
+      `<button class="btn" data-op="${k}" data-d="-1">➖</button><button class="btn" data-op="${k}" data-d="1">➕ ${fmtMoney(cost)}</button></div>`).join('')+
+    `<div style="margin-top:8px"><button class="btn" data-heat>${TM.heat?'🌡️ Masquer la carte de chaleur':'🌡️ Carte de chaleur de la foule'}</button></div>`);
+  const el=document.getElementById('tmInfo'); el.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ const k=b.dataset.op, d=+b.dataset.d, cap=k==='ck'?4:2; if(d>0&&o[k]>=cap) return toast('Maximum atteint pour cet aéroport','warn'); if(d<0&&o[k]<=0) return;
+      o[k]+=d; if(d>0){ const cost=TM_OPS.find(x=>x[0]===k)[2]; try{ book('admin',-cost); logMsg(`🏢 Renfort à ${AP(TM.code).city} : ${TM_OPS.find(x=>x[0]===k)[1]} (+1) — ${fmtMoney(cost)}`,'info'); }catch(e){} } TM.built=0; TM.dashAt=0; });
+  const h=el.querySelector('[data-heat]'); if(h) h.onclick=()=>{ TM.heat=!TM.heat; TM.dashAt=0; }; }
 function tmDraw(){
   if(!TM.open) return; TM.raf=requestAnimationFrame(tmDraw);
   const cv=TM.cv; if(!cv) return; const w=cv.clientWidth, h=cv.clientHeight; if(!w||!h) return;
@@ -304,6 +322,10 @@ function tmDraw(){
   const font=(px,b)=>{ g.font=`${b?'700 ':''}${px}px system-ui`; }, txt=(t,x,y,px,col,b)=>{ if(px*s<6) return; font(px,b); g.fillStyle=col||'#334155'; g.fillText(t,x,y); };
   // tarmac, chariots à bagages, avions
   g.fillStyle='#475569'; g.fillRect(-40,TW.top,1080,-TW.top+30); g.strokeStyle='#facc15'; g.lineWidth=1.2; g.setLineDash([10,8]); g.beginPath(); g.moveTo(-40,-130); g.lineTo(1040,-130); g.stroke(); g.setLineDash([]);
+  { const hr=tmLocalHour(), night=hr<6||hr>=18.5, dusk=!night&&(hr<7||hr>=17.5); TM.night=night;
+    if(night||dusk){ g.fillStyle=night?'rgba(2,6,23,.6)':'rgba(124,45,18,.25)'; g.fillRect(-40,TW.top,1080,-TW.top+30); if(night){ g.fillStyle='#fde68a'; for(let x=-20;x<1040;x+=60){ g.beginPath(); g.arc(x,-150,2.2,0,6.283); g.fill(); } } }
+    let wx=null; try{ wx=typeof towerWx==='function'?towerWx(TM.code):null; }catch(e){} TM.storm=!!(wx&&wx.st);
+    if(TM.storm){ g.strokeStyle='rgba(191,219,254,.55)'; g.lineWidth=1; g.beginPath(); for(let k=0;k<90;k++){ const x=((k*137+now/9)%1080)-40, y=TW.top+((k*71+now/4)%(-TW.top+30)); g.moveTo(x,y); g.lineTo(x-3,y+9); } g.stroke(); } }
   g.strokeStyle='rgba(148,163,184,.6)'; g.lineWidth=3; g.beginPath(); g.moveTo(-14,978); g.lineTo(-14,-28); g.lineTo(1014,-28); g.lineTo(1014,700); g.stroke();   // circuit du tri bagages
   // bâtiment : sol carrelé, piliers, murs
   g.fillStyle='#e7e5e4'; g.fillRect(0,0,1000,1236); if(s>0.9){ g.strokeStyle='rgba(120,113,108,.12)'; g.lineWidth=0.5; g.beginPath(); for(let x=0;x<=1000;x+=20){ g.moveTo(x,0); g.lineTo(x,1236); } for(let y=0;y<=1236;y+=20){ g.moveTo(0,y); g.lineTo(1000,y); } g.stroke(); }
@@ -323,9 +345,13 @@ function tmDraw(){
     g.strokeStyle='#94a3b8'; g.lineWidth=1; g.strokeRect(d.x0,d.lounge.y0,d.x1-d.x0,d.lounge.y1-d.lounge.y0);
     g.fillStyle='rgba(100,116,139,.45)'; for(const p of d.seats) g.fillRect(p.x-3,p.y-2,6,4);
     if(s>0.9){ g.strokeStyle='rgba(30,41,59,.25)'; g.lineWidth=0.6; const P=d.bq.pts; g.beginPath(); for(let k=0;k<P.length;k+=2){ g.moveTo(P[k].x,P[k].y+5); g.lineTo(P[k+1]?P[k+1].x:P[k].x,P[k].y+5); } g.stroke(); }
-    g.fillStyle='#334155'; g.fillRect(d.desk.x-14,d.desk.y-4,28,8); g.fillStyle='#64748b'; g.fillRect(d.door.x-5,-60,10,62);
+    g.fillStyle='#334155'; g.fillRect(d.desk.x-14,d.desk.y-4,28,8); if(now>=d.f.D.gate.open-40*MIN&&now<d.f.D.P){ g.fillStyle='#64748b'; g.fillRect(d.door.x-5,-60,10,62); }
     g.fillStyle='#0f172a'; g.fillRect(d.x0+4,d.lounge.y0+60,Math.min(46,d.x1-d.x0-8),12); if(s>1.2){ g.fillStyle='#22c55e'; font(6,1); g.fillText((D.B.city+' '+tmHM(D.P)).slice(0,14),d.x0+6,d.lounge.y0+69); }   // écran de porte
-    if(now>D.gate.open-40*MIN&&now<D.P+2*MIN) tmPlane(g,d.door.x,-60,f.col);
+    { const pl=tmDepPlane(d,now); if(pl){ if(pl.at){ if(now>D.ci.open+30*MIN&&now<D.P-3*MIN){ g.fillStyle='#facc15'; g.fillRect(d.door.x+24,-44,8,6); g.fillStyle='#9ca3af'; for(let k=0;k<3;k++) g.fillRect(d.door.x+34+k*9,-44,7,6); }
+          if(now>D.gate.open-35*MIN&&now<D.gate.open-5*MIN){ g.fillStyle='#dc2626'; g.fillRect(d.door.x-44,-84,10,18); } }
+        if(pl.push){ g.fillStyle='#facc15'; g.fillRect(pl.x-4,pl.y+2,8,10); }
+        tmPlane(g,pl.x,pl.y,f.col,pl.a); }
+      if(!(pl&&pl.at)){ g.fillStyle='#64748b'; g.fillRect(d.door.x-5,-14,10,16); } }
     txt(`${D.gate.name} → ${D.B.city}`,d.x0+4,d.lounge.y0+16,11,'#0f172a',1); txt(`${tmHM(D.P)} · ${f.fn}${tmDelay(f)?' · retard':''}`,d.x0+4,d.lounge.y0+30,10,tmDelay(f)?'#b91c1c':'#334155');
     g.fillStyle='#1f2937'; g.fillRect(d.ck.x0,d.ck.y-6,d.ck.x1-d.ck.x0,10); g.fillStyle='#78716c'; g.fillRect(d.ck.x0,d.ck.y-16,d.ck.x1-d.ck.x0,6);
     if(s>0.7){ g.strokeStyle='rgba(30,41,59,.35)'; g.lineWidth=0.8; const P=d.q.pts; g.beginPath(); for(let k=0;k<P.length;k+=2){ g.moveTo(P[k].x,P[k].y+8); g.lineTo(P[k+1]?P[k+1].x:P[k].x,P[k].y+8); } g.stroke(); }
@@ -339,7 +365,7 @@ function tmDraw(){
   g.fillStyle='#57534e'; g.fillRect(660,998,146,4); g.fillRect(854,998,146,4); txt('🚪 Sortie des arrivées',808,994,9,'#0f172a',1);
   g.fillStyle='#78716c'; g.fillRect(666,1236,334,4);
   for(let k=0;k<7;k++){ const ph=(now/90000+k*0.31)%1, x=700+k*42+(ph<0.12?ph*800:0); if(x<1000){ g.fillStyle=k%3===2?'#f8fafc':'#facc15'; g.fillRect(x-9,1278,18,10); g.fillStyle='#1f2937'; g.fillRect(x-6,1280,12,3); } }   // taxis
-  for(const a of L.arrs){ const f=a.f, b=a.belt; g.fillStyle='#64748b'; g.fillRect(a.door.x-5,-60,10,98); if(f.soon?now>f.D.arr-3*MIN:now<f.D.arr+40*MIN) tmPlane(g,a.door.x,-60,f.col);
+  for(const a of L.arrs){ const f=a.f, b=a.belt; { const pl=tmArrPlane(a,now); g.fillStyle='#64748b'; if(pl&&pl.at) g.fillRect(a.door.x-5,-60,10,98); else g.fillRect(a.door.x-5,-14,10,52); if(pl) tmPlane(g,pl.x,pl.y,f.col,pl.a); }
     txt(f.D.A.city,a.x0+2,60,10,'#0f172a',1);
     g.strokeStyle='#334155'; g.lineWidth=10; g.beginPath(); g.ellipse(b.cx,b.cy,b.rx,b.ry,0,0,6.283); g.stroke(); g.strokeStyle=f.col; g.lineWidth=2; g.stroke();
     g.fillStyle='#0f172a'; g.fillRect(b.cx-30,b.cy-b.ry-24,60,13); if(s>1.1){ g.fillStyle=now>f.D.bag.first&&now<f.D.bag.last?'#22c55e':'#facc15'; font(6,1); g.fillText(('Tapis '+b.n+' '+f.fn+' '+f.D.A.city).slice(0,22),b.cx-28,b.cy-b.ry-15); } else txt('Tapis '+b.n,b.cx-14,b.cy-b.ry-14,9,'#facc15',1); }
@@ -374,7 +400,10 @@ function tmDraw(){
     if(!p.dep&&p.hasBag&&now>=p.bagT&&s>1.1){ g.fillStyle='#9ca3af'; g.fillRect(x-r0*1.4,y+r0*1.0,r0*2.8,r0*0.9); }   // chariot
     const carry=s>1.3&&(p.dep?(p.bag&&now<p.ckDone):(p.hasBag&&now>=p.bagT));
     if(carry){ g.fillStyle='#1f2937'; g.fillRect(x+r0*1.1,y-r0*0.2,r0*0.9,r0*1.3); } }
-  TM.pts=pts;
+  TM.pts=pts; TM.cnt=cnt;
+  if(TM.heat){ const G2={}; for(const z of pts){ if(z[2].staff) continue; const k=Math.floor(z[0]/40)+','+Math.floor(z[1]/40); G2[k]=(G2[k]||0)+1; }
+    for(const [k,v] of Object.entries(G2)){ const [cx,cy]=k.split(',').map(Number), a=Math.min(0.75,v/25); g.fillStyle=v>18?`rgba(239,68,68,${a})`:v>8?`rgba(249,115,22,${a})`:`rgba(250,204,21,${a*0.8})`; g.fillRect(cx*40,cy*40,40,40); } }
+  if(TM.dash&&(!TM.dashAt||performance.now()-TM.dashAt>1500)){ TM.dashAt=performance.now(); tmDash(); }
   if(TM.sel){ const hit=pts.find(z=>z[2]===TM.sel); if(hit){ g.strokeStyle='#ef4444'; g.lineWidth=2/s; g.beginPath(); g.arc(hit[0],hit[1],10/s+4,0,6.283); g.stroke(); const q=hit[3], p=hit[2];
       if(!TM.selAt||performance.now()-TM.selAt>700){ TM.selAt=performance.now(); const sc=p.dep&&TM.L.deps.find(d=>d.f===p.f), zz=sc&&sc.sched[p.i];
         if(p.staff){ tmInfo(`<b>${p.staff==='clean'?'🧹':p.staff==='sec'?'🛡️':p.staff==='cus'?'🛃':p.staff==='pol'||p.staff==='imm'||p.staff==='patrol'?'👮':p.staff==='health'?'🩺':'🧑‍💼'} ${TM_ROLE[p.staff][1]}</b><br>En ce moment : <b>${esc(q.st)}</b>`); } else if(p.greet){ tmInfo(`<b>🤗 Accueille un passager</b><br>Vol ${esc(p.f.fn)} de ${esc(p.f.D.A.city)}<br>En ce moment : <b>${esc(q.st)}</b>`); } else if(p.row){ const w=p.row, cl={f:'👑 Première',j:'💼 Affaires',w:'💺 Premium',y:'💺 Économique'}[w.cls]||'';
@@ -401,11 +430,12 @@ function tmOpen(code){
 #tmRes{position:absolute;left:8px;right:8px;top:38px;z-index:5;background:#0f172a;border:1px solid rgba(148,163,184,.35);border-radius:10px;max-height:40vh;overflow:auto}#tmRes button{display:block;width:100%;text-align:left;padding:7px 10px;font:12px system-ui;border-radius:0}
 #tmAnn{position:absolute;left:8px;right:8px;top:8px;background:rgba(250,204,21,.95);color:#111827;border-radius:10px;padding:6px 10px;font:600 12px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 #tmInfo{position:absolute;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));background:rgba(8,14,26,.94);border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:8px 10px;font:13px system-ui;max-height:40%;overflow:auto}</style>
-<header><b>🏢 Aérogare de ${esc(A.city)} (${esc(code)})</b><button class="btn" data-tsp>⏱️</button><button class="btn" data-tvo>🔈</button><button class="btn" data-tz="-">➖</button><button class="btn" data-tz="+">➕</button><button class="btn" data-tm="x">✖</button></header>
+<header><b>🏢 ${esc(A.city)} <span style="color:#94a3b8">${esc(code)}</span></b><button class="btn" data-tdash>📊</button><button class="btn" data-tsp>⏱️</button><button class="btn" data-tvo>🔈</button><button class="btn" data-tz="-">➖</button><button class="btn" data-tz="+">➕</button><button class="btn" data-tm="x">✖</button></header>
 <div id="tmZones">${TM_ZONES.map((z,i)=>`<button class="btn" data-tzn="${i}">${z[0]}</button>`).join('')}</div><div id="tmSearch"><input type="search" placeholder="🔎 Chercher un passager : nom, vol, siège…" data-tms><div id="tmRes" hidden></div></div><div id="tmBoard"></div><div id="tmCount"></div>
 <div id="tmWrap"><canvas id="tmCv"></canvas><div id="tmAnn" hidden></div><div id="tmInfo" hidden></div></div>`;
   document.body.appendChild(ov); TM.cv=ov.querySelector('#tmCv');
   ov.querySelector('[data-tm="x"]').onclick=tmClose;
+  ov.querySelector('[data-tdash]').onclick=()=>{ TM.dash=!TM.dash; TM.sel=null; TM.follow=null; TM.dashAt=0; if(!TM.dash) tmInfo(''); };
   // vitesse du temps (celle du jeu) et voix des annonces
   const SP=[['realiste','×1'],['lent','×30'],['standard','×60'],['rapide','×600']], spB=ov.querySelector('[data-tsp]'), lab=()=>{ const x=SP.find(z=>z[0]===S.speed); spB.textContent='⏱️ '+(x?x[1]:'×?'); }; lab();
   spB.onclick=()=>{ const i=SP.findIndex(z=>z[0]===S.speed); S.speed=SP[(i+1)%SP.length][0]; S.paused=false; lab(); try{ renderTop(); }catch(e){} };
@@ -428,7 +458,7 @@ function tmOpen(code){
   const up=e=>{ const had=P.has(e.pointerId); P.delete(e.pointerId); if(P.size<2) pinch=null; if(!had||moved>8||!TM.cam) return;
     const r=TM.cv.getBoundingClientRect(), wx=TM.cam.x+(e.clientX-r.left)/TM.cam.s, wy=TM.cam.y+(e.clientY-r.top)/TM.cam.s; let best=null, bd=(16/TM.cam.s)**2;
     for(const z of TM.pts||[]){ const d=(z[0]-wx)**2+(z[1]-wy)**2; if(d<bd){ bd=d; best=z[2]; } }
-    if(best){ TM.sel=best; TM.selAt=0; return; } TM.sel=null;
+    if(best){ TM.sel=best; TM.selAt=0; TM.dash=false; return; } TM.sel=null; if(TM.dash) return;
     const g=(TM.L.deps.find(d=>wx>=d.x0&&wx<=d.x1&&wy>=-130&&wy<=d.lounge.y1))||(TM.L.arrs.find(a=>wx>=a.x0&&wx<=a.x1&&wy>=-130&&wy<=60));
     if(g){ TM.selF=g.f; tmInfoFlight(g); return; }
     const p=TM.L.poi.find(p=>wx>=p.x0&&wx<=p.x1&&wy>=p.y0&&wy<=p.y1); if(p){ tmInfoPOI(p); return; } TM.selF=null; tmInfo(''); };
