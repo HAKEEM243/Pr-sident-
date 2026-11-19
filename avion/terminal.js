@@ -186,6 +186,23 @@ function tmArrKF(g,i,L,lost){
   k.walk(tmJ(r,690,980),1258,'monte dans un taxi ou un bus'); k.K[k.K.length-1].out=1;
   return {K:k.K,bags:bags&&!lost,bagT}; }
 // famille et chauffeurs qui attendent derrière la barrière des arrivées
+// PERSONNEL : agents d'enregistrement, agents de porte, sûreté, police, immigration, santé, douane, litiges, nettoyage, patrouilles
+const TM_ROLE={ck:['#1e3a8a','Agent d’enregistrement'],gate:['#1e3a8a','Agent d’embarquement'],sec:['#111827','Agent de sûreté'],pol:['#1d4ed8','Policier aux frontières'],imm:['#1d4ed8','Agent d’immigration'],
+  health:['#f8fafc','Agent sanitaire'],cus:['#065f46','Douanier'],lost:['#1e3a8a','Agent litiges bagages'],info:['#0e7490','Agent d’accueil'],clean:['#f59e0b','Agent d’entretien'],patrol:['#1d4ed8','Patrouille de police']};
+function tmStaff(L,now){ const out=[], T0=now-14*HOUR, T1=now+14*HOUR, add=(role,x,y,st)=>out.push({staff:role,i:out.length,K:[{t:T0,x,y,st},{t:T1,x,y,st}],c:TM_ROLE[role][0],sk:TM_SKIN[out.length%TM_SKIN.length],dep:3});
+  for(const g of L.deps){ const D=g.f.D, n=Math.max(1,Math.min(4,D.ci.desks||Math.ceil(g.f.N/55)));
+    for(let k=0;k<n;k++) add('ck',g.ck.x0+(k+0.5)*(g.ck.x1-g.ck.x0)/n,g.ck.y-2,'au comptoir du vol '+g.f.fn+' → '+D.B.city);
+    add('gate',g.desk.x-7,g.desk.y-9,'à la porte '+D.gate.name+' (vol '+g.f.fn+')'); add('gate',g.desk.x+7,g.desk.y-9,'à la porte '+D.gate.name+' (vol '+g.f.fn+')'); }
+  for(const p of L.poi){ const cx=(p.x0+p.x1)/2;
+    if(p.k==='xray') add('sec',p.x0+30,p.y0-7,'contrôle les bagages au scanner'); else if(p.k==='arch') add('sec',cx,p.y1+9,'au portique : palpations');
+    else if(p.k==='booth') add(p.arr?'imm':'pol',cx,p.arr?p.y0+8:p.y1-8,p.arr?'contrôle les passeports à l’arrivée':'tamponne les passeports au départ');
+    else if(p.k==='health') add('health',cx,p.y0+7,'vérifie les carnets de vaccination'); else if(p.k==='green'||p.k==='red') add('cus',p.k==='red'?p.x1-12:p.x0+12,p.y1+8,'surveille le couloir '+(p.k==='red'?'rouge':'vert'));
+    else if(p.k==='lost') add('lost',cx,p.y0+8,'enregistre les déclarations de bagages perdus'); else if(p.k==='info') add('info',cx,p.y0+8,'renseigne les voyageurs'); }
+  // nettoyage et patrouilles : se déplacent toutes les 3 minutes
+  const zonesW=[[20,1000,620,1220],[20,430,620,690],[680,980,990,1220],[680,440,990,840]];
+  for(let k=0;k<7;k++){ const role=k<5?'clean':'patrol', z=zonesW[k%4], K=[]; for(let t=Math.floor((now-40*MIN)/(3*MIN))*3*MIN;t<now+3*HOUR;t+=3*MIN){ const r=pfRng('st'+k+'|'+t); K.push({t,x:z[0]+r()*(z[2]-z[0]),y:z[1]+r()*(z[3]-z[1]),st:role==='clean'?'nettoie le sol':'patrouille dans l’aérogare',walk:1}); }
+    out.push({staff:role,i:out.length,K,c:TM_ROLE[role][0],sk:TM_SKIN[k%TM_SKIN.length],dep:3}); }
+  return out; }
 function tmGreeters(L){ const out=[]; L.arrs.forEach((g,fi)=>{ const D=g.f.D, n=Math.min(45,Math.round(g.f.N*0.18));
     for(let i=0;i<n;i++){ const r=pfRng(D.key+'|gr'+i), k=tmKF(), x=tmJ(r,672,994); if(x>806&&x<854) continue;
       k.at(D.arr-tmJ(r,10,35)*MIN,tmJ(r,690,980),1258,'arrive pour accueillir un proche').walk(x,tmJ(r,1008,1048),'attend derrière la barrière').stay(D.arr+tmJ(r,25,70)*MIN,(i%3===0?'tient une pancarte « '+(i%2?'Bienvenue':'Taxi / chauffeur')+' »':'attend un passager du vol '+g.f.fn)).walk(tmJ(r,690,980),1258,'repart');
@@ -214,6 +231,7 @@ function tmBuild(){ const F=tmFlights(TM.code), L=tmLayout(F), ppl=[];
   L.arrs.forEach((g,fi)=>{ g.f.col=TM_COL[(fi+5)%TM_COL.length]; if(g.f.soon) return; const nLost=Math.min(3,g.f.D.bag&&g.f.D.bag.lost||0);
     for(let i=0;i<Math.min(g.f.N,1600);i++){ const R=tmArrKF(g,i,L,i<nLost), rw=g.f.man&&g.f.man.rows&&g.f.man.rows[i]; ppl.push({f:g.f,i,row:rw,K:R.K,c:g.f.col,sk:tmSkin(rw,TM_SKIN[(i*5+fi)%TM_SKIN.length]),dep:0,bag:R.bags,hasBag:R.bags,bagT:R.bagT,kid:rw?rw.age<12:i%9===4}); } });
   try{ ppl.push(...tmGreeters(L)); }catch(e){}
+  try{ ppl.push(...tmStaff(L,tmNow())); }catch(e){}
   TM.F=F; TM.L=L; TM.ppl=ppl; TM.bags=tmBags(L); TM.built=performance.now();
   // incidents des vols (Aérogare en direct) : affichés sur le plan au bon moment
   TM.inc=[]; try{ for(const g of L.deps) if(g.f.l&&g.f.D.rows) for(const x of pfIncidents(g.f.D,'dep')) TM.inc.push({x:g.desk.x+18,y:g.desk.y-10,at:x.at,t:x.t,f:g.f});
@@ -256,12 +274,31 @@ function tmPlane(g,x,y,col){ g.save(); g.translate(x,y); g.fillStyle='#f8fafc'; 
   g.beginPath(); g.moveTo(-3,-96); g.lineTo(-18,-104); g.lineTo(-18,-100); g.lineTo(-2,-90); g.moveTo(3,-96); g.lineTo(18,-104); g.lineTo(18,-100); g.lineTo(2,-90); g.fill(); g.stroke();
   g.fillStyle='#94a3b8'; g.fillRect(-26,-52,6,10); g.fillRect(20,-52,6,10);   // réacteurs
   g.fillStyle=col; g.fillRect(-1.5,-102,3,12); g.fillRect(-7,-60,14,3); g.restore(); }
+function tmAfterSel(p,now){ const el=document.getElementById('tmInfo'); if(!el||el.hidden) return; const K=p.K, items=[];
+  for(let k=0;k<K.length;k++){ const lab=K[k].st, t=k===0?K[0].t:K[k-1].t; if(items.length&&items[items.length-1].lab===lab) continue; items.push({lab,t,end:K[k].t}); }
+  const cur=items.findIndex(x=>now>=x.t&&now<=x.end), from=Math.max(0,cur-4), list=items.slice(from,from+12);
+  const tl=list.map((x,j)=>{ const k=from+j, st=k<cur?'✓':k===cur?'●':'○', col=k<cur?'#94a3b8':k===cur?'#facc15':'#64748b'; return `<div style="color:${col}">${st} ${tmHM(x.t)} — ${esc(x.lab)}</div>`; }).join('');
+  const d=document.createElement('div'); d.className='small'; d.style.cssText='margin-top:6px;border-top:1px solid rgba(148,163,184,.25);padding-top:4px';
+  d.innerHTML=`<b>🧭 Parcours</b>${tl}<button class="btn" data-tmfol style="margin-top:6px">${TM.follow===p?'⏹️ Arrêter de suivre':'🎯 Suivre cette personne'}</button>`; el.appendChild(d);
+  d.querySelector('[data-tmfol]').onclick=()=>{ TM.follow=TM.follow===p?null:p; TM.selAt=0; }; }
+// suivi à la caméra
+function tmFollowStep(now,w,h){ const p=TM.follow; if(!p) return; const q=tmAt(p.K,now); if(!q){ TM.follow=null; return; }
+  const c=TM.cam, fit=Math.min(w/TW.W,h/(TW.H-TW.top)), s=Math.max(c.s,fit*4.5), tx=q.x-w/(2*s), ty=q.y-h/(2*s); c.s+=(s-c.s)*0.12; c.x+=(tx-c.x)*0.12; c.y+=(ty-c.y)*0.12; TM.goal=null; }
+// annonces de l'aéroport (bandeau + voix)
+function tmAnnounce(now){ const F=TM.F; if(!F) return; const last=TM.annT||now; TM.annT=now; if(now<=last) return; const ev=[];
+  for(const f of F.deps){ const D=f.D, to=D.B.city, gt=D.gate.name;
+    ev.push([D.gate.open,`Embarquement immédiat du vol ${f.fn} à destination de ${to}, porte ${gt}. Passagers prioritaires d’abord.`],[D.gate.last,`Dernier appel pour le vol ${f.fn} à destination de ${to}. Présentez-vous immédiatement porte ${gt}.`],[D.gate.close,`Le vol ${f.fn} à destination de ${to} est fermé.`]);
+    if(tmDelay(f)) ev.push([D.ci.open+20*MIN,`Le vol ${f.fn} à destination de ${to} est retardé de ${tmDelay(f)} minutes.`]); }
+  for(const f of F.arrs){ const D=f.D; ev.push([D.arr,`Le vol ${f.fn} en provenance de ${D.A.city} vient d’atterrir.`]); if(D.bag) ev.push([D.bag.first,`Les bagages du vol ${f.fn} en provenance de ${D.A.city} sont livrés au tapis numéro ${F.arrs.indexOf(f)+1}.`]); }
+  const due=ev.filter(([t])=>t>last&&t<=now).sort((a,b)=>a[0]-b[0]); if(!due.length) return; const msg=due[due.length-1][1];
+  const b=document.getElementById('tmAnn'); if(b){ b.textContent='📢 '+msg; b.hidden=false; clearTimeout(TM.annTO); TM.annTO=setTimeout(()=>{ b.hidden=true; },9000); }
+  if(TM.voice&&typeof fx2Say==='function') try{ fx2Say(msg,'fr',0.9); }catch(e){} }
 function tmDraw(){
   if(!TM.open) return; TM.raf=requestAnimationFrame(tmDraw);
   const cv=TM.cv; if(!cv) return; const w=cv.clientWidth, h=cv.clientHeight; if(!w||!h) return;
   if(cv.width!==Math.round(w*TM.dpr)||cv.height!==Math.round(h*TM.dpr)){ cv.width=Math.round(w*TM.dpr); cv.height=Math.round(h*TM.dpr); if(!TM.cam||!TM.moved){ TM.cam={s:1,x:0,y:0}; tmFocus(TM_ZONES[0][1]); Object.assign(TM.cam,TM.goal); TM.goal=null; } }
   if(!TM.built||performance.now()-TM.built>15000) tmBuild();
-  tmCamStep(); const c=TM.cam, g=cv.getContext('2d'), L=TM.L, F=TM.F, now=tmNow(), s=c.s;
+  tmFollowStep(tmNow(),w,h); tmCamStep(); const c=TM.cam, g=cv.getContext('2d'), L=TM.L, F=TM.F, now=tmNow(), s=c.s;
   g.setTransform(TM.dpr,0,0,TM.dpr,0,0); g.fillStyle='#1e293b'; g.fillRect(0,0,w,h);
   g.setTransform(TM.dpr*s,0,0,TM.dpr*s,-c.x*TM.dpr*s,-c.y*TM.dpr*s);
   const font=(px,b)=>{ g.font=`${b?'700 ':''}${px}px system-ui`; }, txt=(t,x,y,px,col,b)=>{ if(px*s<6) return; font(px,b); g.fillStyle=col||'#334155'; g.fillText(t,x,y); };
@@ -323,7 +360,7 @@ function tmDraw(){
   for(const x of TM.inc||[]) if(now>=x.at&&now<x.at+20*MIN){ const pr=3+Math.sin(now/300)*1.5; g.fillStyle='rgba(239,68,68,.85)'; g.beginPath(); g.arc(x.x,x.y,7+pr,0,6.283); g.fill(); txt('!',x.x-2,x.y+4,11,'#fff',1); }
   // passagers (animés)
   let n=0, nd=0, na=0; const pts=[], cnt={ck:0,sec:0,pol:0,board:0,imm:0,belt:0}, r00=Math.max(2.2,Math.min(5,3.6/Math.sqrt(Math.max(0.3,s)))), vx0=c.x-10, vy0=c.y-10, vx1=c.x+w/s+10, vy1=c.y+h/s+10, legs=s>1.4;
-  for(const p of TM.ppl){ const q=tmAt(p.K,now); if(!q) continue; if(p.greet){ cnt.greet=(cnt.greet||0)+1; } else { n++; p.dep?nd++:na++; }
+  for(const p of TM.ppl){ const q=tmAt(p.K,now); if(!q) continue; if(p.staff){ cnt.staff=(cnt.staff||0)+1; } else if(p.greet){ cnt.greet=(cnt.greet||0)+1; } else { n++; p.dep?nd++:na++; }
     if(q.q){ const t=q.st; if(/enregistrement/.test(t)) cnt.ck++; else if(/sûreté/.test(t)) cnt.sec++; else if(/police/.test(t)) cnt.pol++; else if(/embarquement/.test(t)) cnt.board++; else if(/passeports/.test(t)) cnt.imm++; } else if(/attend sa valise/.test(q.st)) cnt.belt++;
     const x=q.x+((p.i*13)%7-3)*0.7, y=q.y+((p.i*7)%5-2)*0.7; pts.push([x,y,p,q]); if(x<vx0||x>vx1||y<vy0||y>vy1) continue;
     if(s<0.6){ g.fillStyle=p.c; g.fillRect(x-1.5,y-1.5,3,3); continue; }
@@ -332,6 +369,7 @@ function tmDraw(){
     if(legs&&!q.sit){ g.strokeStyle='#1f2937'; g.lineWidth=r0*0.35; g.beginPath(); g.moveTo(x-r0*0.3,y+r0*0.8); g.lineTo(x-r0*0.3+ph*r0*0.5,y+r0*1.7); g.moveTo(x+r0*0.3,y+r0*0.8); g.lineTo(x+r0*0.3-ph*r0*0.5,y+r0*1.7); g.stroke(); }
     g.fillStyle=p.c; g.beginPath(); g.ellipse(x,y+(q.sit?r0*0.3:0),r0*0.95,q.sit?r0*0.9:r0*1.35,0,0,6.283); g.fill();
     g.fillStyle=p.sk; g.beginPath(); g.arc(x,y-r0*1.25,r0*0.7,0,6.283); g.fill();
+    if(p.staff){ g.fillStyle=p.staff==='clean'?'#fbbf24':p.staff==='health'?'#16a34a':'#0f172a'; g.fillRect(x-r0*0.75,y-r0*1.95,r0*1.5,r0*0.45); if(p.staff==='sec'||p.staff==='clean'){ g.fillStyle='#facc15'; g.fillRect(x-r0*0.9,y-r0*0.2,r0*1.8,r0*0.25); } }   // casquette, bande
     if(p.sign&&s>0.9&&!q.walk){ g.fillStyle='#fff'; g.fillRect(x-r0*1.6,y-r0*3.4,r0*3.2,r0*1.3); g.strokeStyle='#334155'; g.lineWidth=0.4; g.strokeRect(x-r0*1.6,y-r0*3.4,r0*3.2,r0*1.3); }
     if(!p.dep&&p.hasBag&&now>=p.bagT&&s>1.1){ g.fillStyle='#9ca3af'; g.fillRect(x-r0*1.4,y+r0*1.0,r0*2.8,r0*0.9); }   // chariot
     const carry=s>1.3&&(p.dep?(p.bag&&now<p.ckDone):(p.hasBag&&now>=p.bagT));
@@ -339,13 +377,15 @@ function tmDraw(){
   TM.pts=pts;
   if(TM.sel){ const hit=pts.find(z=>z[2]===TM.sel); if(hit){ g.strokeStyle='#ef4444'; g.lineWidth=2/s; g.beginPath(); g.arc(hit[0],hit[1],10/s+4,0,6.283); g.stroke(); const q=hit[3], p=hit[2];
       if(!TM.selAt||performance.now()-TM.selAt>700){ TM.selAt=performance.now(); const sc=p.dep&&TM.L.deps.find(d=>d.f===p.f), zz=sc&&sc.sched[p.i];
-        if(p.greet){ tmInfo(`<b>🤗 Accueille un passager</b><br>Vol ${esc(p.f.fn)} de ${esc(p.f.D.A.city)}<br>En ce moment : <b>${esc(q.st)}</b>`); } else if(p.row){ const w=p.row, cl={f:'👑 Première',j:'💼 Affaires',w:'💺 Premium',y:'💺 Économique'}[w.cls]||'';
+        if(p.staff){ tmInfo(`<b>${p.staff==='clean'?'🧹':p.staff==='sec'?'🛡️':p.staff==='cus'?'🛃':p.staff==='pol'||p.staff==='imm'||p.staff==='patrol'?'👮':p.staff==='health'?'🩺':'🧑‍💼'} ${TM_ROLE[p.staff][1]}</b><br>En ce moment : <b>${esc(q.st)}</b>`); } else if(p.greet){ tmInfo(`<b>🤗 Accueille un passager</b><br>Vol ${esc(p.f.fn)} de ${esc(p.f.D.A.city)}<br>En ce moment : <b>${esc(q.st)}</b>`); } else if(p.row){ const w=p.row, cl={f:'👑 Première',j:'💼 Affaires',w:'💺 Premium',y:'💺 Économique'}[w.cls]||'';
           tmInfo(`<div style="display:flex;gap:8px;align-items:center"><div style="font-size:30px">${w.avatar||'🧍'}</div><div><b>${esc(w.first)} ${esc(w.last)}</b> · ${w.age} ans ${COUNTRIES[w.nat]?COUNTRIES[w.nat][2]:''}<br><span class="small">${esc(w.job)}</span></div></div>`+
             `Vol <b>${esc(p.f.fn)}</b>${p.f.reg?' · '+esc(p.f.reg):''} · ${p.dep?esc(p.f.D.A.city)+' → '+esc(p.f.D.B.city):'arrivé de '+esc(p.f.D.A.city)}<br>Siège <b>${esc(w.seat)}</b> · ${cl}${zz?` · embarquement ${zz.zone===0?'prioritaire':'zone '+zz.zone}`:''}<br>🧳 ${w.bags?w.bags+' bagage'+(w.bags>1?'s':'')+' en soute':'bagage cabine seulement'}${w.assist?' · ♿ '+esc(w.assist):''}<br><span class="small mut">${esc(w.story||'')}</span><br>En ce moment : <b>${esc(q.st)}</b>`+
             (p.f.acId&&(p.f.riv||(p.f.l&&p.f.l===((S.fleet.find(a=>a.id===p.f.acId)||{}).flight||{legs:[]}).legs[(S.fleet.find(a=>a.id===p.f.acId)||{flight:{li:0}}).flight.li]))?`<br><button class="btn" data-tmcard="${esc(p.f.acId)}|${p.i}" style="margin-top:6px">🪪 Fiche complète</button>`:'')); const bt=document.querySelector('[data-tmcard]'); if(bt) bt.onclick=()=>{ const [id,ii]=bt.dataset.tmcard.split('|'); tmClose(); try{ ACTIONS.paxCard({id,i:ii}); }catch(e){} }; }
         else tmInfo(`<b>🧍 Passager${p.kid?' (enfant)':''}${p.f.riv?' · '+esc(p.f.riv.name||''):''}</b><br>Vol ${esc(p.f.fn)} · ${p.dep?esc(p.f.D.A.city)+' → '+esc(p.f.D.B.city):'arrivé de '+esc(p.f.D.A.city)}${zz?` · embarquement ${zz.zone===0?'prioritaire':'zone '+zz.zone}`:''}<br>${p.bag||p.hasBag?'🧳 bagage en soute':'🎒 bagage cabine seulement'}<br>En ce moment : <b>${esc(q.st)}</b>`); } } else { TM.sel=null; tmInfo(''); } }
+  if(TM.sel&&TM.selAt&&performance.now()-TM.selAt<30&&!TM.sel.staff) tmAfterSel(TM.sel,now);
+  tmAnnounce(now);
   const hd=document.getElementById('tmCount'); if(hd&&(!TM.cAt||performance.now()-TM.cAt>800)){ TM.cAt=performance.now(); const W=L.W||{};
-    hd.innerHTML=`👥 ${n.toLocaleString('fr-FR')} personnes · ${nd} départ · ${na} arrivée · ${tmHM(now)}<br><span style="color:#cbd5e1;font-weight:500">🎫 ${cnt.ck} en file (~${tmWait(W.ck||[],now)} min) · 🔍 ${cnt.sec} (~${tmWait(W.sec||[],now)} min) · 🛂 ${cnt.pol} (~${tmWait(W.pol||[],now)} min) · 🚪 ${cnt.board} · 🛂 arrivées ${cnt.imm} · 🧳 ${cnt.belt} au tapis · 🤗 ${cnt.greet||0} accueillent</span>`; if(Math.random()<0.15) tmBoard(); }
+    hd.innerHTML=`👥 ${n.toLocaleString('fr-FR')} personnes · ${nd} départ · ${na} arrivée · ${tmHM(now)}<br><span style="color:#cbd5e1;font-weight:500">🎫 ${cnt.ck} en file (~${tmWait(W.ck||[],now)} min) · 🔍 ${cnt.sec} (~${tmWait(W.sec||[],now)} min) · 🛂 ${cnt.pol} (~${tmWait(W.pol||[],now)} min) · 🚪 ${cnt.board} · 🛂 arrivées ${cnt.imm} · 🧳 ${cnt.belt} au tapis · 🤗 ${cnt.greet||0} accueillent · 👮 ${cnt.staff||0} agents</span>`; if(Math.random()<0.15) tmBoard(); }
 }
 function tmOpen(code){
   code=code||tmNearest(); if(!code||typeof pfData!=='function') return; TM.code=code; TM.open=true; TM.sel=null; TM.selF=null; TM.built=0; TM.cam=null; TM.goal=null; TM.moved=0; TM.dpr=Math.min(2,window.devicePixelRatio||1);
@@ -357,17 +397,31 @@ function tmOpen(code){
 #tmBoard{max-height:17vh;overflow:auto;padding:0 8px 4px;font:12px system-ui}#tmBoard table{width:100%;border-collapse:collapse;margin-bottom:4px}#tmBoard th{text-align:left;color:#facc15;font-weight:600;font-size:11px}
 #tmBoard tr[data-tmf]{cursor:pointer}#tmBoard td{padding:2px 4px;border-top:1px solid rgba(148,163,184,.15);font-family:ui-monospace,monospace;font-size:11px}#tmBoard td i{display:inline-block;width:9px;height:9px;border-radius:2px}
 #tmCount{padding:2px 8px 4px;font:600 12px system-ui;color:#93c5fd}#tmWrap{flex:1;position:relative;min-height:0}#tmCv{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#tmSearch{padding:0 8px 6px;position:relative}#tmSearch input{width:100%;box-sizing:border-box;padding:7px 10px;border-radius:10px;border:1px solid rgba(148,163,184,.35);background:#111827;color:#fff;font:13px system-ui}
+#tmRes{position:absolute;left:8px;right:8px;top:38px;z-index:5;background:#0f172a;border:1px solid rgba(148,163,184,.35);border-radius:10px;max-height:40vh;overflow:auto}#tmRes button{display:block;width:100%;text-align:left;padding:7px 10px;font:12px system-ui;border-radius:0}
+#tmAnn{position:absolute;left:8px;right:8px;top:8px;background:rgba(250,204,21,.95);color:#111827;border-radius:10px;padding:6px 10px;font:600 12px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 #tmInfo{position:absolute;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));background:rgba(8,14,26,.94);border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:8px 10px;font:13px system-ui;max-height:40%;overflow:auto}</style>
-<header><b>🏢 Aérogare de ${esc(A.city)} (${esc(code)})</b><button class="btn" data-tz="-">➖</button><button class="btn" data-tz="+">➕</button><button class="btn" data-tm="x">✖</button></header>
-<div id="tmZones">${TM_ZONES.map((z,i)=>`<button class="btn" data-tzn="${i}">${z[0]}</button>`).join('')}</div><div id="tmBoard"></div><div id="tmCount"></div>
-<div id="tmWrap"><canvas id="tmCv"></canvas><div id="tmInfo" hidden></div></div>`;
+<header><b>🏢 Aérogare de ${esc(A.city)} (${esc(code)})</b><button class="btn" data-tsp>⏱️</button><button class="btn" data-tvo>🔈</button><button class="btn" data-tz="-">➖</button><button class="btn" data-tz="+">➕</button><button class="btn" data-tm="x">✖</button></header>
+<div id="tmZones">${TM_ZONES.map((z,i)=>`<button class="btn" data-tzn="${i}">${z[0]}</button>`).join('')}</div><div id="tmSearch"><input type="search" placeholder="🔎 Chercher un passager : nom, vol, siège…" data-tms><div id="tmRes" hidden></div></div><div id="tmBoard"></div><div id="tmCount"></div>
+<div id="tmWrap"><canvas id="tmCv"></canvas><div id="tmAnn" hidden></div><div id="tmInfo" hidden></div></div>`;
   document.body.appendChild(ov); TM.cv=ov.querySelector('#tmCv');
   ov.querySelector('[data-tm="x"]').onclick=tmClose;
+  // vitesse du temps (celle du jeu) et voix des annonces
+  const SP=[['realiste','×1'],['lent','×30'],['standard','×60'],['rapide','×600']], spB=ov.querySelector('[data-tsp]'), lab=()=>{ const x=SP.find(z=>z[0]===S.speed); spB.textContent='⏱️ '+(x?x[1]:'×?'); }; lab();
+  spB.onclick=()=>{ const i=SP.findIndex(z=>z[0]===S.speed); S.speed=SP[(i+1)%SP.length][0]; S.paused=false; lab(); try{ renderTop(); }catch(e){} };
+  TM.voice=!!(typeof FX!=='undefined'&&FX.soundOn); const voB=ov.querySelector('[data-tvo]'); voB.textContent=TM.voice?'🔈':'🔇'; voB.onclick=()=>{ TM.voice=!TM.voice; voB.textContent=TM.voice?'🔈':'🔇'; if(typeof fxAudioUnlock==='function') fxAudioUnlock(); };
+  // recherche d'un passager
+  const si=ov.querySelector('[data-tms]'), res=ov.querySelector('#tmRes');
+  si.oninput=()=>{ const q=si.value.trim().toLocaleLowerCase('fr'); if(q.length<2){ res.hidden=true; return; } const now=tmNow(), out=[];
+    for(const p of TM.ppl||[]){ if(!p.row) continue; const w=p.row; if((w.first+' '+w.last+' '+p.f.fn+' '+w.seat).toLocaleLowerCase('fr').includes(q)){ out.push(p); if(out.length>=60) break; } }
+    out.sort((a,b)=>(tmAt(b.K,now)?1:0)-(tmAt(a.K,now)?1:0)); out.length=Math.min(out.length,10);
+    res.innerHTML=out.length?out.map((p,k)=>{ const qq=tmAt(p.K,now); return `<button class="btn" data-k="${k}">${p.row.avatar||'🧍'} <b>${esc(p.row.first)} ${esc(p.row.last)}</b> · ${esc(p.f.fn)} · ${esc(p.row.seat)} — <span style="color:${qq?'#86efac':'#94a3b8'}">${qq?esc(qq.st):now<p.K[0].t?'pas encore à l’aéroport':'a quitté l’aérogare'}</span></button>`; }).join(''):'<div class="small" style="padding:8px">Aucune personne trouvée.</div>';
+    res.hidden=false; res.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{ const p=out[+b.dataset.k]; res.hidden=true; si.blur(); if(tmAt(p.K,tmNow())){ TM.sel=p; TM.selAt=0; TM.follow=p; TM.moved=1; } else tmInfo(`<b>${esc(p.row.first)} ${esc(p.row.last)}</b> n’est pas dans l’aérogare en ce moment (vol ${esc(p.f.fn)}).`); }); };
   ov.querySelectorAll('[data-tzn]').forEach(b=>b.onclick=()=>(TM.moved=1)&&tmFocus(TM_ZONES[+b.dataset.tzn][1]));
   ov.querySelectorAll('[data-tz]').forEach(b=>b.onclick=()=>{ if(TM.cam) tmZoomAt(b.dataset.tz==='+'?1.5:1/1.5,TM.cv.clientWidth/2,TM.cv.clientHeight/2); });
   // doigts : déplacer (1 doigt), pincer pour zoomer (2 doigts), toucher pour sélectionner ; molette sur ordinateur
   const P=new Map(); let moved=0, pinch=null;
-  TM.cv.addEventListener('pointerdown',e=>{ TM.moved=1; TM.cv.setPointerCapture(e.pointerId); P.set(e.pointerId,{x:e.clientX,y:e.clientY}); moved=0; TM.goal=null; if(P.size===2){ const [a,b]=[...P.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y)}; } });
+  TM.cv.addEventListener('pointerdown',e=>{ TM.moved=1; TM.follow=null; TM.cv.setPointerCapture(e.pointerId); P.set(e.pointerId,{x:e.clientX,y:e.clientY}); moved=0; TM.goal=null; if(P.size===2){ const [a,b]=[...P.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y)}; } });
   TM.cv.addEventListener('pointermove',e=>{ const o=P.get(e.pointerId); if(!o||!TM.cam) return; const r=TM.cv.getBoundingClientRect();
     if(P.size>=2&&pinch){ P.set(e.pointerId,{x:e.clientX,y:e.clientY}); const [a,b]=[...P.values()], d=Math.hypot(a.x-b.x,a.y-b.y); if(pinch.d>10) tmZoomAt(d/pinch.d,(a.x+b.x)/2-r.left,(a.y+b.y)/2-r.top); pinch.d=d; moved=99; return; }
     const dx=e.clientX-o.x, dy=e.clientY-o.y; moved+=Math.abs(dx)+Math.abs(dy); TM.cam.x-=dx/TM.cam.s; TM.cam.y-=dy/TM.cam.s; P.set(e.pointerId,{x:e.clientX,y:e.clientY}); });
