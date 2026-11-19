@@ -30,8 +30,8 @@ function wndPert(ac,st,mi){
   }
   // atterrissage dur : rebond et choc
   const S_=WND.st[ac.id]||(WND.st[ac.id]={alt:alt,touch:0,leg:null});
-  if(S_.leg!==st.leg){ S_.leg=st.leg; S_.touch=0; S_.said=0; }
-  if(st.phase===7&&S_.alt>0.3&&alt<=0.3&&!S_.touch) S_.touch=performance.now();
+  if(S_.leg!==st.leg){ S_.leg=st.leg; S_.touch=0; S_.said=0; S_.rate=null; S_.rated=0; }
+  if(st.phase===7&&S_.alt>0.3&&alt<=0.3&&!S_.touch){ S_.touch=performance.now(); S_.rate=wndRate(ac,st,w,sz); }
   S_.alt=alt;
   // en route : turbulences dans les cellules orageuses (plus fortes sur les petits avions)
   if(st.phase>=3&&st.phase<=6&&alt>1500){ const cell=typeof stormAt==='function'?stormAt(st.lat,st.lon):null;
@@ -43,6 +43,17 @@ function wndPert(ac,st,mi){
     else if(tau<0.8) out.sh+=0.6*(1-tau/0.8); }
   return out;
 }
+// note d'atterrissage : vitesse verticale au toucher selon vent, rafales, vent de travers, taille de l'avion et atterrissage dur
+function wndRate(ac,st,w,sz){
+  const xw=w?Math.abs(w.spd*Math.sin((w.dir-st.hdg)*Math.PI/180)):0, gust=w&&w.gust?w.gust-w.spd:0, h=wndHash(ac.id+String(st.leg&&st.leg.dep))/50;
+  let fpm=Math.round(70+h*170+xw*7*sz+gust*9*sz+(w&&w.st?120:0)+(st.leg&&st.leg.hard?380+h*200:0));
+  const stars=fpm<160?3:fpm<330?2:fpm<600?1:0, lab=['Atterrissage dur','Ferme','Bon atterrissage','Kiss landing !'][stars];
+  return {fpm,stars,lab,xw:Math.round(xw)}; }
+function wndRateShow(ac,r){
+  try{ S.stats=S.stats||{}; const L=S.stats.land||(S.stats.land={n:0,s3:0,best:9999,sum:0}); L.n++; L.sum+=r.fpm; if(r.stars===3) L.s3++;
+    const rec=r.fpm<L.best; if(rec) L.best=r.fpm;
+    const rep=r.stars===3?0.15:r.stars===2?0.05:r.stars===0?-0.1:0; if(rep) S.reputation=clamp(S.reputation+rep,0,100);
+    toast(`🛬 <b>${'⭐'.repeat(r.stars)||'💥'} ${r.lab}</b> · −${r.fpm} ft/min${r.xw>=8?' · travers '+r.xw+' kt':''}${rec&&L.n>1?' · 🏆 nouveau record !':''}<br><span class="small">Moyenne ${Math.round(L.sum/L.n)} ft/min sur ${L.n} atterrissage${L.n>1?'s':''} · ${L.s3} kiss landing${L.s3>1?'s':''}${rep?` · image ${rep>0?'+':''}${rep}`:''}</span>`,r.stars>=2?'ok':r.stars===1?'info':'warn'); }catch(e){} }
 function wndSay(ac,st){
   // bulletin météo de l'aéroport : au roulage (départ) et en début d'approche (arrivée), pour l'avion suivi
   try{ if(typeof G!=='undefined'&&G&&G.follow===ac.id&&(st.phase===1||st.phase===6)&&!st.holding){ const key=ac.id+'|'+st.phase+'|'+(st.leg&&st.leg.dep); if(WND.atis!==key){ WND.atis=key;
@@ -59,6 +70,7 @@ function wndSay(ac,st){
     try{ if(typeof fx2Say==='function') fx2Say('Remise de gaz ! Go around, flaps.','fr',1); }catch(e){} }
   if(st.holding==='rto'&&S_.rto!==st.leg){ S_.rto=st.leg; try{ if(typeof toast==='function') toast('🛑 <b>Décollage interrompu</b> : freinage d\'urgence, l\'avion revient au seuil et repartira','warn'); }catch(e){}
     try{ if(typeof fx2Say==='function') fx2Say('Stop ! Stop ! Stop ! Décollage interrompu.','fr',1); }catch(e){} }
+  if(S_.touch&&S_.rate&&!S_.rated&&performance.now()-S_.touch>1500){ S_.rated=1; wndRateShow(ac,S_.rate); }
   if(S_.touch&&st.leg&&st.leg.hard&&S_.said!==2&&performance.now()-S_.touch<3000){ S_.said=2; try{ if(typeof toast==='function') toast('💥 Atterrissage dur : rafale au moment du toucher','warn'); }catch(e){} }
 }
 function wndHook(){ if(wndHook.done||typeof acPose!=='function') return; wndHook.done=true;
