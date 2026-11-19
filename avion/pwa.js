@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261258';
+const GAME_VER='20261259';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['✈️ Les autres compagnies, passager par passager','Chaque vol d\'une autre compagnie a son numéro, son immatriculation, son avion et son manifeste complet (mêmes fiches détaillées que vos vols), identique partout : carte 2D (touchez l\'avion → 📋 Manifeste), 3D (touchez l\'avion), intérieur de l\'aérogare (fiche de chaque personne, manifeste du vol) et même contrôle aux frontières. Passagers fictifs générés par le jeu.'],
   ['🪪 Tout coïncide','Chaque passager a maintenant sa fiche (860 passagers = 860 fiches, avec « afficher plus » et recherche sur tout le vol). Ce sont les mêmes personnes partout : manifeste, contrôle aux frontières, intérieur de l\'aérogare (touchez quelqu\'un : nom, âge, siège, classe, bagages, histoire, fiche complète) et embarquement en 3D (les personnes qui montent sont les passagers du manifeste, dans l\'ordre d\'embarquement ; touchez-les). Nationalité, enfants, bagages et zones d\'embarquement viennent de la fiche.'],
   ['🛬 Arrivées refaites','Jetée et tapis roulant, contrôle sanitaire (carnet fièvre jaune, caméra thermique), files séparées passeports nationaux / étrangers, sas automatiques, refus d\'entrée, couloir des arrivées nationales sans contrôle, chariots à bagages, écrans au-dessus des tapis, scanner de la douane, porte des arrivées, familles et chauffeurs qui attendent derrière la barrière avec des pancartes, bureau de change, location de voitures, taxis qui partent.'],
   ['🏢 Aérogare : phases 2, 3 et 4','Files réalistes (comptoirs, lignes de sûreté et guichets en nombre limité, premier arrivé premier servi) avec attente affichée ; embarquement par zones (priorité puis zones 1 à 4) ; incidents des vols signalés sur le plan ; vols annulés (grève) et retards (contrôle aérien, orage). Chaque valise a son trajet : comptoir → tri → soute, puis soute → tapis où elle tourne jusqu\'à son passager ; valises perdues → comptoir litiges. Personnages animés (jambes, enfants, valises à la main), piliers, plantes, écrans, bacs du scanner qui avancent, salon business ; équipement selon la taille de l\'aéroport.'],
