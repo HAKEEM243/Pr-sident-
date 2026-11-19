@@ -284,8 +284,14 @@ function gateFx(ac,p){
   // escale : d'abord le débarquement (les passagers du vol précédent descendent), nettoyage de la cabine, puis l'embarquement
   const now=performance.now(), bs=prof0(st.leg,m), bu=(gSimNow()-st.leg.dep)/Math.max(1,bs), stage=bu<0.3?'off':bu<0.37?'clean':'on';
   G3.stage=stage;
-  if(stage!=='clean'&&now>G3.spawn&&G3.pax.length<26){ G3.spawn=now+(stage==='off'?650:900)+Math.random()*900; const sh=SHIRTS[Math.floor(Math.random()*SHIRTS.length)], sk=SKINS[Math.floor(Math.random()*SKINS.length)], rev=stage==='off';
-    G3.pax.push({e:apLit(V.entities.add({position:rev?path[path.length-1]:path[0], model:{uri:apModel('pax'+sh+sk,M_PAX(sh,sk)), minimumPixelSize:0}})), t0:now, v:(rev?1.35:1.25)+Math.random()*0.35, rev}); }
+  if(stage!=='clean'&&now>G3.spawn&&G3.pax.length<26){ G3.spawn=now+(stage==='off'?650:900)+Math.random()*900; const sh=SHIRTS[Math.floor(Math.random()*SHIRTS.length)], rev=stage==='off'; let sk=SKINS[Math.floor(Math.random()*SKINS.length)], row=null;
+    // à l'embarquement : la personne qui monte est un vrai passager du manifeste, dans l'ordre d'embarquement (priorité puis zones, du fond vers l'avant)
+    if(!rev) try{ const m=typeof flightManifest==='function'&&flightManifest(ac); if(m&&m.rows&&m.rows.length){ if(G3.ordK!==m.leg.dep){ G3.ordK=m.leg.dep; const mx=Math.max(1,...m.rows.map(r=>parseInt(r.seat)||1));
+          const z=r=>(r.cls==='f'||r.cls==='j'||r.assist||r.age<6)?0:1+Math.min(3,Math.floor((1-(parseInt(r.seat)||1)/(mx+1))*4)); G3.ord=m.rows.map((r,i)=>i).sort((a,b)=>z(m.rows[a])-z(m.rows[b])||a-b); }
+        const k=Math.min(m.rows.length-1,Math.floor(Math.max(0,(bu-0.37)/0.63)*m.rows.length)); row=m.rows[G3.ord[k]];
+        const reg=COUNTRIES[row.nat]&&COUNTRIES[row.nat][1]; sk=reg==='AF'?SKINS[row.i%3]:reg==='AS'?'#c99a73':reg==='EU'||reg==='NA'?'#e8c2a0':SKINS[row.i%5]; } }catch(e){}
+    const pe=apLit(V.entities.add({position:rev?path[path.length-1]:path[0], model:{uri:apModel('pax'+sh+sk,M_PAX(sh,sk)), minimumPixelSize:0}})); if(row) pe._pax={name:row.first+' '+row.last,age:row.age,seat:row.seat,nat:row.nat,acId:ac.id,i:row.i,fn:S.company.code+(typeof flightNumber==='function'?flightNumber(ac):'')};
+    G3.pax.push({e:pe, t0:now, v:(rev?1.35:1.25)+Math.random()*0.35, rev}); }
   const paths={f:path, r:path.slice().reverse()}, lens={};
   for(const [k,pa] of Object.entries(paths)){ const L=[]; let tot=0; for(let i=1;i<pa.length;i++){ const d=C.Cartesian3.distance(pa[i-1],pa[i]); L.push(d); tot+=d; } lens[k]={L,tot}; }
   G3.pax=G3.pax.filter(x=>{ const pa=x.rev?paths.r:paths.f, {L,tot}=lens[x.rev?'r':'f']; let sd=(now-x.t0)/1000*x.v; if(sd>=tot){ V.entities.remove(x.e); return false; }
