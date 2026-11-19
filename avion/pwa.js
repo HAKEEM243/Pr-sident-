@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261251';
+const GAME_VER='20261252';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏢 Intérieur de l\'aérogare','En 3D, touchez un terminal ou le bouton 🏢 Aérogare : plan de l\'aérogare avec chaque passager de vos vols (un vol de 800 passagers = 800 personnes). Départs : entrée, enregistrement, sûreté, police, zone d\'attente, porte, embarquement. Arrivées : immigration, bagages, douane, sortie. Tableau des vols en haut, touchez une personne pour voir son vol et son étape.'],
   ['🔊 Moteurs réalistes au sol','À la porte, les moteurs sont éteints : on n\'entend que le sifflement de l\'APU. Ils démarrent pendant le repoussage et montent en régime progressivement, puis s\'arrêtent à l\'arrivée au poste.'],
   ['🛬 Toucher des roues','En 3D, au toucher des roues, la vitesse de descente (ft/min) s\'affiche, comme sur un vrai vol : douce par temps calme, plus ferme par vent de travers ou rafales. Pas de note ni de récompense.'],
   ['🌤️ Bulletin météo en 3D','Au roulage et en début d\'approche, un bulletin de l\'aéroport s\'affiche : piste, vent, rafales, vent de travers, visibilité, orage. Vous savez à l\'avance si le décollage ou l\'atterrissage sera agité.'],
