@@ -306,17 +306,21 @@ function fxSound(ac,st,inside,raining){
   const ground=st.alt<0.6, rev=ph===7&&ground&&st.spd>70;
   const thrust= ph===2?1 : ph===3?(st.alt<1500?0.9:0.75) : ph===4?0.5 : ph===5?0.22 : ph===6?0.38 : rev?0.95 : ph===7?0.3 : ph===1||ph===8?0.28 : 0.12;
   const T=(p,v,k)=>p.setTargetAtTime(v,t,k||0.5);
+  // moteurs éteints à la porte (seul l'APU tourne), démarrage pendant le repoussage, arrêt à l'arrivée au poste ; montée et baisse de régime progressives
+  const L0=s.last, nowp=performance.now(), parked=ph===0||(ph===8&&(st.spd||0)<1), tgtE=parked?0:st.pushback?0.55:1, dtE=Math.min(0.5,(nowp-(L0.et||nowp))/1000); L0.et=nowp;
+  if(L0.eng==null) L0.eng=tgtE; L0.eng+=(tgtE-L0.eng)*Math.min(1,dtE/(tgtE>L0.eng?12:8)); const E=L0.eng, G=(p,v,k)=>T(p,v*E,k);
   T(s.master.gain,FX.soundOn?0.9:0,0.25);
   T(s.cabinLP.frequency,inside?650:20000,0.3);
   if(propPlane){
-    T(s.prop.frequency,70+thrust*45); T(s.propG.gain,0.05+thrust*0.16); T(s.propF.frequency,500+thrust*900);
-    T(s.whineG.gain,0.002); T(s.roarG.gain,0.05+thrust*0.18); T(s.roarF.frequency,350+thrust*500); T(s.rumbleG.gain,0.15+thrust*0.35);
+    T(s.prop.frequency,70+thrust*45); G(s.propG.gain,0.05+thrust*0.16); T(s.propF.frequency,500+thrust*900);
+    G(s.whineG.gain,0.002); G(s.roarG.gain,0.05+thrust*0.18); T(s.roarF.frequency,350+thrust*500); G(s.rumbleG.gain,0.15+thrust*0.35);
   } else {
-    T(s.propG.gain,0);
-    T(s.rumbleG.gain,0.12+thrust*0.75); T(s.rumbleF.frequency,120+thrust*160);
-    T(s.roarG.gain,0.03+thrust*(rev?0.75:0.5)); T(s.roarF.frequency,(rev?500:380)+thrust*900);
-    T(s.w1.frequency,1500+thrust*2100,0.9); T(s.w2.frequency,1512+thrust*2120,0.9); T(s.whineG.gain,inside?0.004:0.004+thrust*0.02);
+    G(s.propG.gain,0);
+    G(s.rumbleG.gain,0.12+thrust*0.75); T(s.rumbleF.frequency,120+thrust*160);
+    G(s.roarG.gain,0.03+thrust*(rev?0.75:0.5)); T(s.roarF.frequency,(rev?500:380)+thrust*900);
+    T(s.w1.frequency,1500+thrust*2100,0.9); T(s.w2.frequency,1512+thrust*2120,0.9); G(s.whineG.gain,inside?0.004:0.004+thrust*0.02);
   }
+  if(E<0.6&&!propPlane){ T(s.w1.frequency,1180+E*600,1.5); T(s.w2.frequency,1186+E*610,1.5); T(s.whineG.gain,(inside?0.003:0.009)*(1-E)+0.004*E,1); }   // APU
   const spd=Math.max(0,st.spd||0);
   T(s.windG.gain,inside?0.004:Math.min(0.12,spd/9000)); T(s.windF.frequency,700+spd*1.4);
   T(s.rainG.gain,raining?(inside?0.05:0.13):0,1.2); T(s.dropG.gain,raining?(inside?0.08:0.05):0,1.2);
