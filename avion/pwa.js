@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261249';
+const GAME_VER='20261250';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,7 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
-  ['🛬 Note d\'atterrissage','Chaque atterrissage regardé en 3D est noté : vitesse verticale au toucher (ft/min) et 1 à 3 étoiles selon le vent, les rafales et le vent de travers. Kiss landing = image de la compagnie en hausse. Battez votre record !'],
+  ['🛬 Toucher des roues','En 3D, au toucher des roues, la vitesse de descente (ft/min) s\'affiche, comme sur un vrai vol : douce par temps calme, plus ferme par vent de travers ou rafales. Pas de note ni de récompense.'],
   ['🌤️ Bulletin météo en 3D','Au roulage et en début d\'approche, un bulletin de l\'aéroport s\'affiche : piste, vent, rafales, vent de travers, visibilité, orage. Vous savez à l\'avance si le décollage ou l\'atterrissage sera agité.'],
   ['🔊 Son moteurs et pluie sur iPhone','Les moteurs et la pluie sont maintenant audibles même avec l\'interrupteur silencieux de l\'iPhone activé (comme la radio). 3D allégée à l\'atterrissage sur téléphone pour éviter le retour à la carte.'],
   ['💺 Turbulences en croisière','En traversant une zone orageuse, l\'avion est secoué en vol (plus fort sur les petits avions) : « ding » et consigne ceintures, annonce en cabine, chocs sourds dans la carlingue. Le bruit de la pluie suit son intensité.'],
