@@ -143,7 +143,7 @@ function airportProps(code,N){
   const xp=A.xp||0, span=Math.round((big?1900:700)*(1+0.1*Math.min(5,xp))), n=(typeof apGates==='function'&&(apGates(code)||[]).length)||Math.min(44,(big?22:8)+(A.gatesX||0));   // portes de tous les terminaux
   // terminal derrière la ligne de portes
   const terms=typeof apTerminals==='function'?apTerminals(code):[{n:'T1',a:a0,x:gx+s*72,L:span}];
-  for(const t of terms){ mk(rwPt(r,t.a,t.x),hdgOut+180,apModel('term2-'+t.L,M_TERMINAL(t.L)));   // terminaux 1 à 4 (agrandissements du joueur)
+  for(const t of terms){ mk(rwPt(r,t.a,t.x),hdgOut+180,apModel('term2-'+t.L,M_TERMINAL(t.L))); try{ N.ents[N.ents.length-1]._term=code; }catch(e){}   // terminaux 1 à 4 (agrandissements du joueur)
     if(terms.length>1) try{ const q=rwPt(r,t.a,t.x+s*20), pos=C.Cartesian3.fromDegrees(q.lon,q.lat,24+EL); N.ents.push(V.entities.add({position:pos, label:{text:'Terminal '+t.n.slice(1), font:'700 13px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, distanceDisplayCondition:new C.DistanceDisplayCondition(0,9000)}})); }catch(e){} }
   // passerelles aux portes (positions de stationnement réelles du jeu)
   AP3D.bridges=AP3D.bridges||{}; AP3D.bridges[code]={};
