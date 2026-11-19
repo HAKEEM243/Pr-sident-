@@ -47,13 +47,10 @@ function wndPert(ac,st,mi){
 function wndRate(ac,st,w,sz){
   const xw=w?Math.abs(w.spd*Math.sin((w.dir-st.hdg)*Math.PI/180)):0, gust=w&&w.gust?w.gust-w.spd:0, h=wndHash(ac.id+String(st.leg&&st.leg.dep))/50;
   let fpm=Math.round(70+h*170+xw*7*sz+gust*9*sz+(w&&w.st?120:0)+(st.leg&&st.leg.hard?380+h*200:0));
-  const stars=fpm<160?3:fpm<330?2:fpm<600?1:0, lab=['Atterrissage dur','Ferme','Bon atterrissage','Kiss landing !'][stars];
+  const stars=fpm<160?3:fpm<330?2:fpm<600?1:0, lab='';
   return {fpm,stars,lab,xw:Math.round(xw)}; }
-function wndRateShow(ac,r){
-  try{ S.stats=S.stats||{}; const L=S.stats.land||(S.stats.land={n:0,s3:0,best:9999,sum:0}); L.n++; L.sum+=r.fpm; if(r.stars===3) L.s3++;
-    const rec=r.fpm<L.best; if(rec) L.best=r.fpm;
-    const rep=r.stars===3?0.15:r.stars===2?0.05:r.stars===0?-0.1:0; if(rep) S.reputation=clamp(S.reputation+rep,0,100);
-    toast(`🛬 <b>${'⭐'.repeat(r.stars)||'💥'} ${r.lab}</b> · −${r.fpm} ft/min${r.xw>=8?' · travers '+r.xw+' kt':''}${rec&&L.n>1?' · 🏆 nouveau record !':''}<br><span class="small">Moyenne ${Math.round(L.sum/L.n)} ft/min sur ${L.n} atterrissage${L.n>1?'s':''} · ${L.s3} kiss landing${L.s3>1?'s':''}${rep?` · image ${rep>0?'+':''}${rep}`:''}</span>`,r.stars>=2?'ok':r.stars===1?'info':'warn'); }catch(e){} }
+function wndRateShow(ac,r){   // simple information de vol, sans note ni récompense
+  try{ toast(`🛬 Toucher des roues : −${r.fpm} ft/min (${['dur','ferme','normal','très doux'][r.stars]})${r.xw>=8?' · vent de travers '+r.xw+' kt':''}`,r.stars===0?'warn':'info'); }catch(e){} }
 function wndSay(ac,st){
   // bulletin météo de l'aéroport : au roulage (départ) et en début d'approche (arrivée), pour l'avion suivi
   try{ if(typeof G!=='undefined'&&G&&G.follow===ac.id&&(st.phase===1||st.phase===6)&&!st.holding){ const key=ac.id+'|'+st.phase+'|'+(st.leg&&st.leg.dep); if(WND.atis!==key){ WND.atis=key;
