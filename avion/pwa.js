@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261256';
+const GAME_VER='20261257';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛬 Arrivées refaites','Jetée et tapis roulant, contrôle sanitaire (carnet fièvre jaune, caméra thermique), files séparées passeports nationaux / étrangers, sas automatiques, refus d\'entrée, couloir des arrivées nationales sans contrôle, chariots à bagages, écrans au-dessus des tapis, scanner de la douane, porte des arrivées, familles et chauffeurs qui attendent derrière la barrière avec des pancartes, bureau de change, location de voitures, taxis qui partent.'],
   ['🏢 Aérogare : phases 2, 3 et 4','Files réalistes (comptoirs, lignes de sûreté et guichets en nombre limité, premier arrivé premier servi) avec attente affichée ; embarquement par zones (priorité puis zones 1 à 4) ; incidents des vols signalés sur le plan ; vols annulés (grève) et retards (contrôle aérien, orage). Chaque valise a son trajet : comptoir → tri → soute, puis soute → tapis où elle tourne jusqu\'à son passager ; valises perdues → comptoir litiges. Personnages animés (jambes, enfants, valises à la main), piliers, plantes, écrans, bacs du scanner qui avancent, salon business ; équipement selon la taille de l\'aéroport.'],
   ['🏢 Aérogare professionnelle (phase 1)','Nouveau plan détaillé : bornes automatiques, comptoirs avec files à poteaux, scanners et portiques, police aux frontières et couloir national, duty free, café, restaurant, pharmacie, presse, toilettes, salle de prière, salles d\'embarquement avec sièges, passerelles et avions, immigration et sas automatiques, tapis à bagages, douane verte/rouge, hall des arrivées, taxis. Les passagers font la queue, s\'assoient, mangent, font du shopping, vont aux toilettes, retrouvent leur famille. Vue générale, boutons de zones, pincer pour zoomer, glisser pour se déplacer ; touchez un passager, un vol (tableau ou porte) ou un équipement. Retards affichés.'],
   ['🏢 Aérogare sans la 3D','L\'intérieur de l\'aérogare s\'ouvre aussi depuis la carte : touchez un aéroport → « Voir l\'intérieur de l\'aérogare », ou dans l\'onglet passagers, carte « Intérieur des aérogares » avec vos hubs.'],
