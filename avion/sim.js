@@ -1303,7 +1303,7 @@ function checkMissions0(){
     if(m.cash) book('admin',m.cash);
     S.reputation=clamp(S.reputation+m.rep,0,100);
     logMsg(`🏆 Objectif atteint : ${m.name}${m.cash?` — prime ${fmtMoney(m.cash)}`:''}${m.rep?`, image +${m.rep}`:''}`,'ok');
-    if(typeof toast==='function' && !(typeof UI!=='undefined'&&UI.silent)) toast(`🏆 <b>${m.name}</b>${m.cash?' — '+fmtMoney(m.cash):''}${m.rep?' · image +'+m.rep:''}`,'ok');
+    if(false) toast(`🏆 <b>${m.name}</b>${m.cash?' — '+fmtMoney(m.cash):''}${m.rep?' · image +'+m.rep:''}`,'ok');
     notify('Objectif atteint', m.name);
   }
 }

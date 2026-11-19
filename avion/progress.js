@@ -39,14 +39,14 @@ function progressTick(){
     const prev=S.daily&&S.daily.day, yest=(()=>{ const d=new Date(); d.setDate(d.getDate()-1); return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate(); })();
     const streak=prev===yest?((S.daily.streak||0)+1):1;
     S.daily={...newDaily(), streak, loginDay:((S.daily&&S.daily.loginDay)||0)%7+1};
-    if(!(typeof UI!=='undefined'&&UI.silent)) setTimeout(()=>{ if(!UI.modal&&!document.body.classList.contains('globe-on')&&!document.body.classList.contains('city-on')&&S.daily&&!S.daily.claimed) openM('daily'); },2500);
+    // défis et récompenses du jour retirés à la demande du joueur : plus de fenêtre au démarrage
   }
   // défis terminés → notification
-  for(const c of S.daily.ch) if(!c.done&&dailyProgress(c)>=c.goal){ c.done=true; toast(`🎯 Défi du jour réussi : <b>${esc(c.label)}</b> — récupérez la prime dans 🎁`,'ok'); }
+  for(const c of S.daily.ch) if(!c.done&&dailyProgress(c)>=c.goal) c.done=true;   // plus de notification de défi
   renderDailyBadge();
 }
 function renderDailyBadge(){
-  const el=document.getElementById('tb-daily'); if(!el||!S||!S.daily) return;
+  const el=document.getElementById('tb-daily'); if(el) el.style.display='none'; return;   // bouton 🎁 retiré
   const n=(S.daily.claimed?0:1)+S.daily.ch.filter(c=>c.done&&!c.got).length+(S.daily.ch.every(c=>c.got)&&!S.daily.chest?1:0);
   el.innerHTML=`🎁${n?`<i>${n}</i>`:''}`; el.classList.toggle('has',n>0);
 }
