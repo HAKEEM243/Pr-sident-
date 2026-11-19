@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261261';
+const GAME_VER='20261262';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏢 Aérogare : avions, nuit et gestion','Les avions bougent aux portes : repoussage par le tracteur, virage, roulage ; à l\'arrivée, roulage puis entrée au poste ; passerelle qui se branche, chariots à bagages et camion de kérosène. Nuit et aube visibles dehors (heure locale), pluie d\'orage sur les pistes. 📊 Gestion : ouvrez des lignes de sûreté, des guichets de police ou des comptoirs en renfort (payés une fois) et voyez les files raccourcir ; 🌡️ carte de chaleur de la foule.'],
   ['🚫 Défis retirés','Plus de défis du jour, de bouton 🎁 ni de fenêtre de récompenses au démarrage, ni de notifications « Défi réussi » ou « Objectif atteint » (les objectifs restent seulement notés dans le journal).'],
   ['🏢 Aérogare vivante','🔎 Cherchez un passager par son nom, son vol ou son siège, puis 🎯 suivez-le à la caméra avec tout son parcours heure par heure. 👮 Le personnel est là : agents d\'enregistrement et de porte, sûreté, police, immigration, santé, douane, litiges, accueil, nettoyage, patrouilles (touchez-les). 📢 Annonces de l\'aéroport (embarquement, dernier appel, porte fermée, retard, atterrissage, bagages) en bandeau et à voix haute (🔈). ⏱️ Vitesse du temps réglable dans l\'aérogare.'],
   ['✈️ Les autres compagnies, passager par passager','Chaque vol d\'une autre compagnie a son numéro, son immatriculation, son avion et son manifeste complet (mêmes fiches détaillées que vos vols), identique partout : carte 2D (touchez l\'avion → 📋 Manifeste), 3D (touchez l\'avion), intérieur de l\'aérogare (fiche de chaque personne, manifeste du vol) et même contrôle aux frontières. Passagers fictifs générés par le jeu.'],
