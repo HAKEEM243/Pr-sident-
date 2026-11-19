@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261253';
+const GAME_VER='20261254';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🏢 Aérogare sans la 3D','L\'intérieur de l\'aérogare s\'ouvre aussi depuis la carte : touchez un aéroport → « Voir l\'intérieur de l\'aérogare », ou dans l\'onglet passagers, carte « Intérieur des aérogares » avec vos hubs.'],
   ['🏢 Aérogare : la vraie foule','L\'intérieur de l\'aérogare montre aussi les passagers des autres compagnies (leurs vrais horaires du jeu, passagers estimés). Zoom 🔍 et déplacement au doigt, boutiques, rangées de sièges aux portes, valises qui tournent sur les tapis.'],
   ['🏢 Intérieur de l\'aérogare','En 3D, touchez un terminal ou le bouton 🏢 Aérogare : plan de l\'aérogare avec chaque passager de vos vols (un vol de 800 passagers = 800 personnes). Départs : entrée, enregistrement, sûreté, police, zone d\'attente, porte, embarquement. Arrivées : immigration, bagages, douane, sortie. Tableau des vols en haut, touchez une personne pour voir son vol et son étape.'],
   ['🔊 Moteurs réalistes au sol','À la porte, les moteurs sont éteints : on n\'entend que le sifflement de l\'APU. Ils démarrent pendant le repoussage et montent en régime progressivement, puis s\'arrêtent à l\'arrivée au poste.'],
