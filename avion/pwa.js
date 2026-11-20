@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261298';
+const GAME_VER='20261299';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,8 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['⚡ Déplacement et zoom plus fluides','Quand vous faites glisser ou zoomez dans l\'aérogare, l\'image déjà dessinée est déplacée au lieu d\'être entièrement redessinée à chaque image (2 fois plus fluide en test) ; la foule vue de loin est recalculée à un rythme adapté à la puissance du téléphone.'],
+  ['🛫 Grand tableau des départs et comptoirs par zone','Dans le hall d\'enregistrement, un grand tableau des départs comme dans les vrais aéroports : heure, vol (couleur de la compagnie), destination, zone des comptoirs puis porte, statut (enregistrement, embarquement, dernier appel, retard (météo), roule, décollé). Les comptoirs de chaque compagnie portent une lettre de zone (A, B, C…) affichée sur le tableau, et s\'affichent « Fermé · ouvre à HH:MM » quand aucun de leurs vols n\'est en enregistrement.'],
   ['🖼️ N\'Djili : un seul portrait','Une seule image dans l\'aérogare de N\'Djili (au lieu de plusieurs) : un grand tableau encadré au sol du hall d\'enregistrement, avec la nouvelle photo, nette et contrastée.'],
   ['🎨 Le portrait de N\'Djili, installé d\'origine','L\'aérogare de N\'Djili (Kinshasa) affiche maintenant d\'origine le portrait choisi par le joueur : grande fresque peinte au sol des halls et portraits encadrés devant et dans les halls, sur tous les appareils. Vous pouvez le remplacer par une autre photo ou le retirer depuis la fiche de l\'aéroport.'],
   ['🎨 Votre photo en grande peinture dans l\'aérogare','La photo choisie pour un aéroport (« Photo dans l\'aérogare ») devient aussi une grande fresque peinte au pinceau sur le sol des halls (enregistrement, commerces, arrivées, hall vers la jetée) : les passagers marchent dessus, comme une œuvre d\'art de l\'aéroport. Elle n\'est jamais à l\'envers, même dans les aérogares en miroir.'],

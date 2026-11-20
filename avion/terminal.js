@@ -104,7 +104,7 @@ function tmPOI(cls){ const ops=tmOps(TM.code); const P=[], add=(k,x0,y0,x1,y1,la
   const small=cls<=2, big=cls>=4, nK=small?4:10, nL=Math.min(8,(small?3:6)+ops.sec), nB=Math.min(8,(small?3:6)+ops.pol), nA=small?3:5;
   for(let i=0;i<nK;i++){ const x=40+i*(560/nK); add('kiosk',x,1176,x+32,1192,'Borne d’enregistrement automatique','🖥️'); }
   add('info',560,1200,630,1228,'Comptoir d’information','ℹ️'); add('wc',8,1196,60,1228,'Toilettes (hall public)','🚻'); add('cafe',70,1198,170,1228,'Café du hall','☕');
-  add('fids',250,1196,350,1210,'Écran des départs','📺');
+  add('fids',232,1194,556,1233,'Grand écran des départs','📺',{big:1});
   for(let i=0;i<nL;i++){ const bw=640/nL, x=bw*i+(bw-80)/2; add('xray',x,846,x+60,862,'Scanner à bagages (rayons X) — ligne '+(i+1),'🧳',{lane:i}); add('arch',x+64,840,x+80,868,'Portique de détection — ligne '+(i+1),'🚪',{lane:i}); }
   for(let i=0;i<nB;i++){ const x=340+i*(300/nB); add('booth',x,736,x+34,756,'Guichet de police aux frontières '+(i+1),'🛂'); }
   { const TH=tmTheme(TM.code), L3=[[14,440,190,520],[310,440,470,540],[200,440,300,500]], o=[[0,1,2],[1,0,2],[2,1,0]][TH.swap], sl=k=>{ const x=TH.shops.find(z=>z[0]===k); return x?x[1]:k; }, sp=t=>[t.replace(/^\S+\s/,''),t.split(' ')[0]];
@@ -156,7 +156,7 @@ function tmLayout(F){
   L.later=(F.later||[]).map(f=>({f,later:1}));
   { const grp=new Map(); for(const g of [...L.deps,...L.later]){ const A=tmAirline(g.f); if(!grp.has(A.name)) grp.set(A.name,{A,fl:[]}); grp.get(A.name).fl.push(g); }
     const G=[...grp.values()].sort((a,b)=>(b.A.own-a.A.own)||a.A.name.localeCompare(b.A.name)), tot=G.reduce((t,x)=>t+Math.min(4,x.fl.length)+1,0); let x=0;
-    L.ckGroups=G.map(gr=>{ const w=640*(Math.min(4,gr.fl.length)+1)/Math.max(1,tot), cx0=x+3, cx1=x+w-3; x+=w; const ck={x0:cx0+4,x1:cx1-4,y:1012}, q=tmPath(tmSnake(ck.x0+2,1032,ck.x1-2,1148,6).reverse()), o={A:gr.A,fl:gr.fl,ck,q,cx0,cx1};
+    L.ckGroups=G.map((gr,ix)=>{ const w=640*(Math.min(4,gr.fl.length)+1)/Math.max(1,tot), cx0=x+3, cx1=x+w-3; x+=w; const ck={x0:cx0+4,x1:cx1-4,y:1012}, q=tmPath(tmSnake(ck.x0+2,1032,ck.x1-2,1148,6).reverse()), o={A:gr.A,fl:gr.fl,ck,q,cx0,cx1,z:'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.min(23,ix)]};
       for(const g of gr.fl){ g.ck=ck; g.q=q; g.cx0=cx0; g.cx1=cx1; g.grp=o; } return o; }); }
   if(shape==='jetee') L.top=Math.min(-300,(L.pierEnd||-200)-150); if(shape==='satellite'){ L.top=-1020; L.bx0=Math.min(-40,(L.satX||[0])[0]-60); L.bx1=Math.max(1040,(L.satX||[0,0])[1]+60); } if(shape==='L') L.bx0=-460;
   if(F.parked&&F.parked.length) L.top-=140;   // postes éloignés pour les avions stationnés
@@ -450,7 +450,24 @@ function tmHuman(g,p,q,x,y,r,now,px,carry){ const L=tmLook(p), k=r*L.sc, sit=q.s
   if(p.dep===1&&p.K.shopT&&now>p.K.shopT&&!sit){ const h=hands[fx>0?0:1]; g.fillStyle='#db2777'; g.fillRect(h[0]-k*0.3,h[1],k*0.6,k*0.65); g.fillStyle='#fbcfe8'; g.fillRect(h[0]-k*0.3,h[1],k*0.6,k*0.12); }
 }
 // écrans d'information : les vrais vols, qui défilent
-function tmFids(p,now,g,fit){ const w=p.x1-p.x0, h=p.y1-p.y0, arr=p.k==='fidsA'; g.fillStyle='#0b1220'; g.fillRect(p.x0,p.y0,w,h); g.strokeStyle='#475569'; g.lineWidth=0.8; g.strokeRect(p.x0,p.y0,w,h);
+// état d'un départ, identique partout (écrans, portes)
+function tmDepStatus(f,now){ const D=f.D; if(now>=D.P&&D.tko&&now<D.tko) return D.hold&&now>=D.hold[0]?['ATTENTE DÉCOLLAGE','#f59e0b']:['ROULE','#94a3b8']; if(D.tko&&now>=D.tko) return ['DÉCOLLÉ','#64748b'];
+  if(now>D.gate.close) return ['FERMÉ','#94a3b8']; if(now>D.gate.last) return ['DERNIER APPEL','#f87171']; if(now>D.gate.open) return ['EMBARQUEMENT','#22c55e'];
+  if(tmDelay(f)) return ['RETARD '+tmDelay(f)+' MIN'+(f.dlw?' (MÉTÉO)':''),'#fb923c']; if(now>D.ci.close) return ['ENREG. CLOS','#cbd5e1']; if(now>D.ci.open) return ['ENREGISTREMENT','#38bdf8']; return ['À L’HEURE','#e5e7eb']; }
+// grand tableau des départs (comme dans les vrais halls) : heure, vol, destination, comptoirs ou porte, état
+function tmFidsBig(p,now,g,fit){ const w=p.x1-p.x0, h=p.y1-p.y0, MX=!!(TM.th&&TM.th.mx); g.fillStyle='#1e293b'; g.fillRect(p.x0-1.5,p.y0-1.5,w+3,h+3); g.fillStyle='#050a14'; g.fillRect(p.x0,p.y0,w,h);
+  const X=(a,b)=>p.x0+w*(MX?1-a-b:a);   /* colonnes dans le bon ordre même dans un plan en miroir */
+  const F=TM.F||{deps:[],later:[]}, L=TM.L||{}, list=[...F.deps,...(F.later||[])].filter(f=>!f.D.tko||now<f.D.tko+2*MIN).sort((a,b)=>a.D.P-b.D.P), rows=6, hh=h/(rows+1.3), C=[[0,0.12],[0.12,0.15],[0.27,0.31],[0.58,0.15],[0.73,0.27]];
+  fit('🛫 DÉPARTS · DEPARTURES',X(0,0.6),p.y0+0.5,w*0.6,hh*1.1,'#facc15',null); fit(tmHM(now),X(0.86,0.13),p.y0+0.5,w*0.13,hh*1.1,'#facc15',null);
+  ['HEURE','VOL','DESTINATION','ENREG./PORTE','STATUT'].forEach((t,k)=>fit(t,X(C[k][0],C[k][1])+1,p.y0+hh*1.15,w*C[k][1]-2,hh*0.55,'#94a3b8',null,1));
+  const page=Math.floor(now/8000)%Math.max(1,Math.ceil(list.length/rows));
+  for(let j=0;j<rows;j++){ const f=list[page*rows+j]; if(!f) break; const y=p.y0+hh*(1.3+j), D=f.D, A=tmAirline(f), gd=(L.deps||[]).find(d=>d.f===f), gr=gd?gd.grp:((L.later||[]).find(d=>d.f===f)||{}).grp, st=tmDepStatus(f,now);
+    if(j%2){ g.fillStyle='rgba(148,163,184,.08)'; g.fillRect(p.x0,y,w,hh); }
+    const where=now>=D.ci.close-5*MIN&&gd?'Porte '+D.gate.name:gr?'Comptoirs '+gr.z:gd?'Porte '+D.gate.name:'—', cx=X(C[1][0],C[1][1]);
+    fit(tmHM(D.P),X(C[0][0],C[0][1])+1,y,w*C[0][1]-2,hh,'#fde68a',null); g.fillStyle=A.col; g.fillRect(MX?cx+w*C[1][1]-hh*0.7:cx+1,y+hh*0.2,hh*0.6,hh*0.6); fit(f.fn,MX?cx:cx+hh*0.75,y,w*C[1][1]-hh*0.8,hh,'#fff',null);
+    fit(D.B.city,X(C[2][0],C[2][1])+1,y,w*C[2][1]-2,hh,'#fff',null); fit(where,X(C[3][0],C[3][1])+1,y,w*C[3][1]-2,hh,'#e5e7eb',null,1); fit(st[0],X(C[4][0],C[4][1])+1,y,w*C[4][1]-2,hh,st[1],null); }
+  if(list.length>rows) fit(`page ${page+1}/${Math.ceil(list.length/rows)}`,X(0.8,0.19),p.y1-hh*0.75,w*0.19,hh*0.7,'#64748b',null,1); }
+function tmFids(p,now,g,fit){ if(p.big) return tmFidsBig(p,now,g,fit); const w=p.x1-p.x0, h=p.y1-p.y0, arr=p.k==='fidsA'; g.fillStyle='#0b1220'; g.fillRect(p.x0,p.y0,w,h); g.strokeStyle='#475569'; g.lineWidth=0.8; g.strokeRect(p.x0,p.y0,w,h);
   const F=TM.F||{deps:[],arrs:[]}, list=arr?[...F.arrs].sort((a,b)=>a.D.arr-b.D.arr):[...F.deps,...(F.later||[])].sort((a,b)=>a.D.P-b.D.P); if(!list.length){ fit(arr?'Arrivées : aucun vol':'Départs : aucun vol',p.x0+1,p.y0+1,w-2,h-2,'#facc15',null); return; }
   const n=3, page=Math.floor(now/6000)%Math.max(1,Math.ceil(list.length/n)), lh=(h-2)/n;
   for(let j=0;j<n;j++){ const f=list[page*n+j]; if(!f) break; const D=f.D; let st, c='#e5e7eb';
@@ -473,7 +490,7 @@ function tmWay(g,L,TH,fit){ const Y=(t,x0,y0,x1,y1)=>{ g.fillStyle='rgba(15,23,4
   const A=AP(TM.code)||{}, C=COUNTRIES[A.cc]||[A.city||''], sub={AF:'Fleuves · forêts · rumba · hospitalité',EU:'Musées · gastronomie · patrimoine',NA:'Grands espaces · villes · culture',AS:'Temples · saveurs · traditions',ME:'Désert · souks · architecture',SA:'Plages · carnaval · nature',OC:'Lagons · récifs · grands espaces'}[TH.reg]||'Tourisme · culture · gastronomie';
   const PIM=typeof myApPicImg==='function'?myApPicImg(TM.code):null, PCAP=typeof myApCap==='function'?myApCap(TM.code):'';
   const portrait=(x0,y0,w,h,cap)=>{ g.fillStyle='rgba(15,23,42,.35)'; g.fillRect(x0+2,y0+2,w,h); g.fillStyle='#b45309'; g.fillRect(x0,y0,w,h); g.fillStyle='#fde68a'; g.fillRect(x0+1.5,y0+1.5,w-3,h-3); const ih=cap?h*0.8:h-5; g.save(); g.translate(x0+w/2,0); if(TH.mx) g.scale(-1,1); g.drawImage(PIM,-w/2+2.5,y0+2.5,w-5,ih-0.5); g.restore(); if(cap) fit(cap,x0+2.5,y0+ih+2.5,w-5,h-ih-5,'#111827',null); };
-  for(const [x0,y0,x1,y1] of [[380,1196,550,1230],[860,1196,996,1230]]){ const gr=g.createLinearGradient(x0,y0,x1,y1); gr.addColorStop(0,'#0e7490'); gr.addColorStop(0.55,'#f59e0b'); gr.addColorStop(1,'#be185d'); g.fillStyle=gr; g.fillRect(x0,y0,x1-x0,y1-y0); g.strokeStyle='#e5e7eb'; g.lineWidth=1.2; g.strokeRect(x0,y0,x1-x0,y1-y0);
+  for(const [x0,y0,x1,y1] of [[860,1196,996,1230]]){ const gr=g.createLinearGradient(x0,y0,x1,y1); gr.addColorStop(0,'#0e7490'); gr.addColorStop(0.55,'#f59e0b'); gr.addColorStop(1,'#be185d'); g.fillStyle=gr; g.fillRect(x0,y0,x1-x0,y1-y0); g.strokeStyle='#e5e7eb'; g.lineWidth=1.2; g.strokeRect(x0,y0,x1-x0,y1-y0);
     fit(`${TH.flag} Découvrez ${C[0]}`,x0+3,y0+3,x1-x0-6,(y1-y0)*0.5,'#fff',null); fit(sub,x0+3,y0+(y1-y0)*0.55,x1-x0-6,(y1-y0)*0.35,'#fef3c7',null,1); }   // affiche lumineuse
   const fl=[...new Set((TM.F?TM.F.arrs:[]).map(f=>f.D&&f.D.A&&f.D.A.cc).filter(Boolean))].slice(0,10).map(cc=>{ try{ return String.fromCodePoint(...[...cc.toUpperCase()].map(c=>127397+c.charCodeAt(0))); }catch(e){ return ''; } }).join(' ');
   if(fl) fit(fl,700,1003,260,9,'#111827',null);   // drapeaux des pays de provenance des vols du jour
@@ -782,7 +799,8 @@ function tmDraw(){
     { g.strokeStyle='rgba(30,64,175,.45)'; g.lineWidth=0.8; const P=d.q.pts; g.beginPath(); for(let k=0;k<P.length;k+=2){ g.moveTo(P[k].x,P[k].y+8); g.lineTo(P[k+1]?P[k+1].x:P[k].x,P[k].y+8); } g.stroke(); g.fillStyle='#475569'; g.beginPath(); for(const q of P){ g.moveTo(q.x+1.1,q.y+8); g.arc(q.x,q.y+8,1.1,0,6.283); } g.fill(); }   // sangles et poteaux
     fit(gr.fl.slice().sort((a,b)=>a.f.D.P-b.f.D.P).map(x=>x.f.fn+' '+x.f.D.B.city).join(' · '),d.ck.x0,d.ck.y-6,d.ck.x1-d.ck.x0,10,'#fff',null);
  }
-  for(const gr of L.ckGroups||[]) fit(gr.A.name+(gr.fl.length>1?` · ${gr.fl.length} vols`:''),gr.ck.x0,983,gr.ck.x1-gr.ck.x0,11,'#fff',gr.A.col);   /* un bandeau par compagnie */
+  for(const gr of L.ckGroups||[]){ fit(gr.z+' · '+gr.A.name+(gr.fl.length>1?` · ${gr.fl.length} vols`:''),gr.ck.x0,983,gr.ck.x1-gr.ck.x0,11,'#fff',gr.A.col);
+    const open=gr.fl.some(x=>now>=x.f.D.ci.open&&now<x.f.D.ci.close); if(!open){ const nx=gr.fl.map(x=>x.f.D.ci.open).filter(t=>t>now).sort((a,b)=>a-b)[0]; g.fillStyle='rgba(71,85,105,.55)'; g.fillRect(gr.ck.x0,gr.ck.y-6,gr.ck.x1-gr.ck.x0,10); fit(nx?'Fermé · ouvre à '+tmHM(nx):'Fermé',gr.ck.x0,gr.ck.y+6,gr.ck.x1-gr.ck.x0,8,'#fff','rgba(30,41,59,.85)'); } }   /* comptoirs fermés quand aucun vol n'est en enregistrement */   /* un bandeau par compagnie */
   if(0){ const cs=[...L.deps].sort((a,b)=>a.ck.x0-b.ck.x0); for(let k=0;k<cs.length;){ const A=tmAirline(cs[k].f); let j=k; while(j+1<cs.length&&tmAirline(cs[j+1].f).name===A.name) j++; const x0=cs[k].ck.x0, x1=cs[j].ck.x1; fit(A.name+(j>k?` · ${j-k+1} vols`:''),x0,983,x1-x0,11,'#fff',A.col); k=j+1; } }   // un bandeau par compagnie
   // arrivées : jetée, tapis roulant, couloir national, barrière d'accueil, taxis
   g.fillStyle='#cbd5e1'; g.fillRect(668,176,322,20); g.fillStyle='#94a3b8'; for(let x=672;x<820;x+=14){ const o=(now/400)%14; g.fillRect(x+o,182,6,8); } for(let x=830;x<986;x+=14){ const o=(now/400)%14; g.fillRect(x+14-o,182,6,8); }
@@ -826,8 +844,10 @@ function tmDraw(){
   const DP=L.deps.map(d=>tmDepPlane(d,now)), AP2=L.arrs.map(a=>tmArrPlane(a,now));
   { const key=[s,c.x,c.y,cv.width,cv.height,TM.built,TM.heat,DP.map(p=>p?(p.at?1:2):0).join(''),AP2.map(p=>p?(p.at?1:2):0).join('')].join('|'), stable=key===TM.camKey, tn=performance.now(); TM.camKey=key; TM.cacheOn=stable;
     if(stable){ if(!TM.sc||TM.sc.width!==cv.width||TM.sc.height!==cv.height){ TM.sc=document.createElement('canvas'); TM.sc.width=cv.width; TM.sc.height=cv.height; TM.scKey=null; }
-      if(TM.scKey!==key||tn-(TM.scAt||0)>1500){ g=TM.sc.getContext('2d'); prep(g,true); drawStatic(); TM.scKey=key; TM.scAt=tn; g=main; }
+      if(TM.scKey!==key||tn-(TM.scAt||0)>1500){ g=TM.sc.getContext('2d'); prep(g,true); drawStatic(); TM.scKey=key; TM.scAt=tn; TM.scCam={s,x:c.x,y:c.y,d:TM.dpr,w:cv.width,h:cv.height}; g=main; }
       main.setTransform(1,0,0,1,0,0); main.drawImage(TM.sc,0,0); prep(main,false); }
+    else if(TM.sc&&TM.scCam&&TM.scCam.w===cv.width&&TM.scCam.h===cv.height&&TM.scKey&&Math.abs(Math.log(s/TM.scCam.s))<0.9){   /* caméra en mouvement : on déplace l'image déjà dessinée (fluide), le décor exact revient dès l'arrêt */
+      const C0=TM.scCam, k=(s*TM.dpr)/(C0.s*C0.d); main.setTransform(1,0,0,1,0,0); main.fillStyle='#1e293b'; main.fillRect(0,0,cv.width,cv.height); main.setTransform(k,0,0,k,(C0.x-c.x)*s*TM.dpr,(C0.y-c.y)*s*TM.dpr); main.drawImage(TM.sc,0,0); prep(main,false); TM.moveDraw=1; }
     else { prep(main,true); drawStatic(); }
     tmCurb(g,now);
     // avions qui roulent ou sont repoussés : position recalculée à chaque image
@@ -843,9 +863,12 @@ function tmDraw(){
   for(const x of TM.inc||[]) if(now>=x.at&&now<x.at+20*MIN){ const pr=3+Math.sin(now/300)*1.5; g.fillStyle='rgba(239,68,68,.85)'; g.beginPath(); g.arc(x.x,x.y,7+pr,0,6.283); g.fill(); txt('!',x.x-2,x.y+4,11,'#fff',1); }
   // passagers (animés)
   // vue de loin : la couche des personnages n'est recalculée que 8 fois par seconde (ce sont de petits points)
-  const toPl=(3.3*s<2.2)&&TM.cacheOn, plSkip=toPl&&TM.pl&&TM.plKey===TM.camKey&&(performance.now()-TM.plAt<(3.3*s<1.8?120:80)||(TM.plF||0)<2); if(plSkip) TM.plF=(TM.plF||0)+1;   // au plus 1 image sur 3 recalcule la foule (évite l'emballement sur un téléphone lent)
+  const toPl=(3.3*s<2.2)&&TM.cacheOn, plSkip=toPl&&TM.pl&&TM.plKey===TM.camKey&&(performance.now()-TM.plAt<Math.max(3.3*s<1.8?120:80,TM.plGap||0)||(TM.plF||0)<2); if(plSkip) TM.plF=(TM.plF||0)+1;   // au plus 1 image sur 3 recalcule la foule (évite l'emballement sur un téléphone lent)
   let n=0, nd=0, na=0; let pts=[], cnt={ck:0,sec:0,pol:0,board:0,imm:0,belt:0}; const FB={}, r00=3.3, vx0=c.x-10, vy0=c.y-10, vx1=c.x+w/s+10, vy1=c.y+h/s+10, legs=true;
-  if(plSkip){ main.setTransform(1,0,0,1,0,0); main.drawImage(TM.pl,0,0); prep(main,false); [n,nd,na]=TM.nn; pts=TM.pts; cnt=TM.cnt; } else {
+  const plMove=!TM.cacheOn&&(3.3*s<2.2)&&TM.pl&&TM.plCam&&TM.plCam.w===cv.width&&TM.plCam.h===cv.height&&TM.pts&&TM.nn&&Math.abs(Math.log(s/TM.plCam.s))<0.9;
+  if(plMove){ const C0=TM.plCam, k=(s*TM.dpr)/(C0.s*C0.d); main.setTransform(k,0,0,k,(C0.x-c.x)*s*TM.dpr,(C0.y-c.y)*s*TM.dpr); main.drawImage(TM.pl,0,0); prep(main,false); [n,nd,na]=TM.nn; pts=TM.pts; cnt=TM.cnt; }   /* foule de loin pendant un déplacement : image précédente déplacée */
+  else if(plSkip){ main.setTransform(1,0,0,1,0,0); main.drawImage(TM.pl,0,0); prep(main,false); [n,nd,na]=TM.nn; pts=TM.pts; cnt=TM.cnt; } else {
+  const _plT0=performance.now();
   if(toPl){ if(!TM.pl||TM.pl.width!==cv.width||TM.pl.height!==cv.height){ TM.pl=document.createElement('canvas'); TM.pl.width=cv.width; TM.pl.height=cv.height; } g=TM.pl.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,cv.width,cv.height); prep(g,false); }
   for(const p of TM.ppl){ const q=tmAt(p.K,now); if(!q) continue; if(p.crew){ cnt.crew=(cnt.crew||0)+1; } else if(p.staff){ cnt.staff=(cnt.staff||0)+1; } else if(p.greet){ cnt.greet=(cnt.greet||0)+1; } else { n++; p.dep?nd++:na++; }
     { const k=tmCat(q.st,q.q); if(k) cnt[k]++; }
@@ -861,9 +884,9 @@ function tmDraw(){
     if(p.staff==='patrol'&&p.i%2&&px>=2.2){ const fx=p.face||1, dx=x+fx*r0*1.6, dy=y+r0*1.25, lg=q.walk?Math.sin(now/90)*r0*0.25:0; g.fillStyle='#78350f'; g.beginPath(); g.ellipse(dx,dy,r0*0.85,r0*0.38,0,0,6.283); g.fill(); g.beginPath(); g.arc(dx+fx*r0*0.85,dy-r0*0.3,r0*0.32,0,6.283); g.fill(); g.strokeStyle='#78350f'; g.lineWidth=r0*0.16; g.beginPath(); g.moveTo(dx-r0*0.5,dy); g.lineTo(dx-r0*0.5+lg,dy+r0*0.55); g.moveTo(dx+r0*0.5,dy); g.lineTo(dx+r0*0.5-lg,dy+r0*0.55); g.moveTo(dx-fx*r0*0.85,dy-r0*0.1); g.lineTo(dx-fx*r0*1.2,dy-r0*0.4); g.stroke(); g.strokeStyle='#111827'; g.lineWidth=0.4; g.beginPath(); g.moveTo(x+fx*r0*0.7,y+r0*0.4); g.lineTo(dx+fx*r0*0.7,dy-r0*0.3); g.stroke(); }   // chien détecteur et sa laisse
     if(rain&&px>=2.2){ const L2=tmLook(p), top=y+r0*1.7-r0*L2.sc*3.9; g.fillStyle=['#111827','#1d4ed8','#b91c1c','#15803d','#7c3aed'][p.i%5]; g.beginPath(); g.arc(x,top,r0*1.5,Math.PI,0); g.fill(); g.strokeStyle='#111'; g.lineWidth=0.4; g.beginPath(); g.moveTo(x,top); g.lineTo(x,top+r0*1.6); g.stroke(); }
     if(p.sign&&!q.walk){ const L2=tmLook(p), top=y+r0*1.7-r0*L2.sc*4.4; g.fillStyle='#fff'; g.fillRect(x-r0*1.6,top-r0*1.3,r0*3.2,r0*1.3); g.strokeStyle='#334155'; g.lineWidth=0.4; g.strokeRect(x-r0*1.6,top-r0*1.3,r0*3.2,r0*1.3); if(px>5&&p.signName){ let fs=r0*0.8; g.font=`700 ${fs}px system-ui`; let tw=g.measureText(p.signName).width; if(tw>r0*3){ fs*=r0*3/tw; g.font=`700 ${fs}px system-ui`; tw=r0*3; } g.fillStyle='#111'; g.fillText(p.signName,x-tw/2,top-r0*0.38); } else if(px>4){ g.fillStyle='#111'; for(let j=0;j<3;j++) g.fillRect(x-r0*1.2+j*r0*0.85,top-r0*0.8,r0*0.6,r0*0.25); } } }
-  for(const c in FB){ const a=FB[c]; g.fillStyle=c; g.beginPath(); if(3.3*s<1.4) for(let j=0;j<a.length;j+=4) g.rect(a[j]-a[j+2],a[j+1]-a[j+3],a[j+2]*2,a[j+3]*2); else for(let j=0;j<a.length;j+=4){ g.moveTo(a[j]+a[j+2],a[j+1]); g.ellipse(a[j],a[j+1],a[j+2],a[j+3],0,0,6.283); } g.fill(); }
+  for(const c in FB){ const a=FB[c]; g.fillStyle=c; g.beginPath(); for(let j=0;j<a.length;j+=4) g.rect(a[j]-a[j+2],a[j+1]-a[j+3],a[j+2]*2,a[j+3]*2); g.fill(); }
   TM.pts=pts; TM.cnt=cnt; TM.nn=[n,nd,na];
-  if(toPl){ g=main; main.setTransform(1,0,0,1,0,0); main.drawImage(TM.pl,0,0); prep(main,false); TM.plKey=TM.camKey; TM.plAt=performance.now(); TM.plF=0; } }
+  if(toPl){ g=main; main.setTransform(1,0,0,1,0,0); main.drawImage(TM.pl,0,0); prep(main,false); TM.plKey=TM.camKey; TM.plAt=performance.now(); TM.plF=0; TM.plCam={s,x:c.x,y:c.y,d:TM.dpr,w:cv.width,h:cv.height}; TM.plGap=Math.min(260,Math.max(0,(TM.plAt-_plT0)*4)); } }   /* foule de loin : au plus ~25 % du temps de calcul */
   if(TM.heat){ const G2={}; for(const z of pts){ if(z[2].staff) continue; const k=Math.floor(z[0]/40)+','+Math.floor(z[1]/40); G2[k]=(G2[k]||0)+1; }
     for(const [k,v] of Object.entries(G2)){ const [cx,cy]=k.split(',').map(Number), a=Math.min(0.75,v/25); g.fillStyle=v>18?`rgba(239,68,68,${a})`:v>8?`rgba(249,115,22,${a})`:`rgba(250,204,21,${a*0.8})`; g.fillRect(cx*40,cy*40,40,40); } }
   if(TM.dash&&(!TM.dashAt||performance.now()-TM.dashAt>1500)){ TM.dashAt=performance.now(); tmDash(); }
