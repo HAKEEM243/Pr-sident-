@@ -64,6 +64,20 @@ function tmRivals(code,now,F){
    La taille de l'aéroport change l'équipement : petit aéroport = moins de bornes, de lignes de sûreté,
    de guichets, pas de duty free ; grand aéroport = salon business, plus de commerces. */
 const TW={W:1000,H:1300,top:-300};
+// THÈME de l'aérogare : dépend de la région, du pays et de l'aéroport (sol, matériaux, couleurs, boutiques, décor)
+const TM_SHOPS={AF:[['dutyfree','🧵 Boutique de pagnes'],['resto','🍗 Maquis — grillades'],['cafe','☕ Café du pays'],['pharma','🎨 Artisanat local'],['press','📚 Presse']],
+  EU:[['dutyfree','💄 Parfumerie — duty free'],['resto','🍷 Brasserie'],['cafe','🥐 Boulangerie'],['pharma','🍫 Chocolatier'],['press','📚 Librairie']],
+  NA:[['dutyfree','🛍️ Duty free'],['resto','🍔 Burgers'],['cafe','☕ Coffee shop'],['pharma','🎧 Électronique'],['press','📰 News & books']],
+  ME:[['dutyfree','💍 Bijouterie — duty free'],['resto','🥙 Grill oriental'],['cafe','☕ Café oriental'],['pharma','🌴 Dattes et douceurs'],['press','🧴 Parfums d’Orient']],
+  AS:[['dutyfree','🛍️ Duty free'],['resto','🍜 Nouilles'],['cafe','🍵 Maison de thé'],['pharma','🍱 Bento'],['press','📚 Presse']]};
+function tmTheme(code){ const A=AP(code)||{}, reg0=(COUNTRIES[A.cc]&&COUNTRIES[A.cc][1])||'EU', me=['MA','DZ','TN','EG','AE','SA','QA','OM','KW','BH','JO','LB','TR','IR','IQ','LY'].includes(A.cc), reg=me?'ME':reg0==='SA'?'NA':reg0==='OC'?'EU':reg0, h=hashStr(code||'X');
+  const P={AF:{floor:['#efe4cc','#eadcc0','#f1e7d3'],acc:['#0e7490','#b45309','#15803d'],pat:['terrazzo','checker','grid'],deco:['palmiers','fontaine','fresque']},
+    EU:{floor:['#eceff3','#e9e7e2','#eef0f2'],acc:['#1d4ed8','#0f172a','#7c3aed'],pat:['grid','diag','grid'],deco:['oeuvre','ecran','jardin']},
+    NA:{floor:['#eef2f7','#e7ebef','#f0ede8'],acc:['#1e40af','#b91c1c','#0369a1'],pat:['grid','checker','diag'],deco:['ecran','oeuvre','fontaine']},
+    ME:{floor:['#f3eadb','#f1e6d0','#efe3cc'],acc:['#b45309','#065f46','#9a3412'],pat:['marbre','marbre','checker'],deco:['fontaine','palmiers','oeuvre']},
+    AS:{floor:['#eef2f1','#f0ece4','#e9eef0'],acc:['#dc2626','#047857','#4338ca'],pat:['bois','grid','bois'],deco:['jardin','oeuvre','ecran']}}[reg]||null;
+  const T=P||{floor:['#e7e5e4'],acc:['#334155'],pat:['grid'],deco:['oeuvre']}, k=n=>T[n][h%T[n].length];
+  return {reg,floor:k('floor'),acc:k('acc'),pat:T.pat[(h>>3)%T.pat.length],deco:T.deco[(h>>5)%T.deco.length],tile:[18,24,30][(h>>7)%3],carpet:['#7c2d12','#1e3a8a','#14532d','#581c87','#9f1239'][(h>>9)%5],shops:TM_SHOPS[reg]||TM_SHOPS.EU,swap:(h>>11)%3,name:A.name||('Aéroport de '+(A.city||code)),city:A.city||code,flag:(COUNTRIES[A.cc]&&COUNTRIES[A.cc][2])||'🌍'}; }
 const tmOps=code=>{ S.tmOps=S.tmOps||{}; return S.tmOps[code]||(S.tmOps[code]={sec:0,pol:0,ck:0}); };
 function tmPOI(cls){ const ops=tmOps(TM.code); const P=[], add=(k,x0,y0,x1,y1,lab,ico,o)=>{ const p={k,x0,y0,x1,y1,lab,ico,...(o||{})}; P.push(p); return p; };
   const small=cls<=2, big=cls>=4, nK=small?4:10, nL=Math.min(8,(small?3:6)+ops.sec), nB=Math.min(8,(small?3:6)+ops.pol), nA=small?3:5;
@@ -72,8 +86,9 @@ function tmPOI(cls){ const ops=tmOps(TM.code); const P=[], add=(k,x0,y0,x1,y1,la
   add('fids',250,1196,350,1210,'Écran des départs','📺');
   for(let i=0;i<nL;i++){ const bw=640/nL, x=bw*i+(bw-80)/2; add('xray',x,846,x+60,862,'Scanner à bagages (rayons X) — ligne '+(i+1),'🧳',{lane:i}); add('arch',x+64,840,x+80,868,'Portique de détection — ligne '+(i+1),'🚪',{lane:i}); }
   for(let i=0;i<nB;i++){ const x=340+i*(300/nB); add('booth',x,736,x+34,756,'Guichet de police aux frontières '+(i+1),'🛂'); }
-  if(!small){ add('dutyfree',14,440,190,520,'Duty free (parfums, alcool, chocolat)','🛍️'); add('resto',310,440,470,540,'Restaurant','🍽️'); add('pharma',480,440,560,490,'Pharmacie','💊'); }
-  add('cafe',200,440,300,500,'Café — viennoiseries','☕'); add('press',570,440,630,490,'Presse — librairie','📚');
+  { const TH=tmTheme(TM.code), L3=[[14,440,190,520],[310,440,470,540],[200,440,300,500]], o=[[0,1,2],[1,0,2],[2,1,0]][TH.swap], sl=k=>{ const x=TH.shops.find(z=>z[0]===k); return x?x[1]:k; }, sp=t=>[t.replace(/^\S+\s/,''),t.split(' ')[0]];
+    if(!small){ const [l1,i1]=sp(sl('dutyfree')), [l2,i2]=sp(sl('resto')); add('dutyfree',...L3[o[0]],l1,i1); add('resto',...L3[o[1]],l2,i2); const [l4,i4]=sp(sl('pharma')); add('pharma',480,440,560,490,l4,i4); }
+    const [l3,i3]=sp(sl('cafe')), [l5,i5]=sp(sl('press')); add('cafe',...(small?[200,440,300,500]:L3[o[2]]),l3,i3); add('press',570,440,630,490,l5,i5); }
   if(big){ add('lounge',480,500,630,590,'Salon business (accès réservé)','🛋️'); add('resto',14,530,190,590,'Restaurant rapide','🍔'); }
   add('wc',14,612,80,690,'Toilettes','🚻'); add('prayer',90,612,170,690,'Salle de prière','🕌'); add('wc',566,612,630,690,'Toilettes','🚻');
   add('seats',190,600,550,690,'Salle d’attente commune','💺'); add('fids',240,560,400,574,'Écran des départs','📺');
@@ -333,18 +348,40 @@ function tmDraw(){
     if(TM.storm){ g.strokeStyle='rgba(191,219,254,.55)'; g.lineWidth=1; g.beginPath(); for(let k=0;k<90;k++){ const x=((k*137+now/9)%1080)-40, y=TW.top+((k*71+now/4)%(-TW.top+30)); g.moveTo(x,y); g.lineTo(x-3,y+9); } g.stroke(); } }
   g.strokeStyle='rgba(148,163,184,.6)'; g.lineWidth=3; g.beginPath(); g.moveTo(-14,978); g.lineTo(-14,-28); g.lineTo(1014,-28); g.lineTo(1014,700); g.stroke();   // circuit du tri bagages
   // bâtiment : sol carrelé, piliers, murs
-  g.fillStyle='#e7e5e4'; g.fillRect(0,0,1000,1236); if(s>0.9){ g.strokeStyle='rgba(120,113,108,.12)'; g.lineWidth=0.5; g.beginPath(); for(let x=0;x<=1000;x+=20){ g.moveTo(x,0); g.lineTo(x,1236); } for(let y=0;y<=1236;y+=20){ g.moveTo(0,y); g.lineTo(1000,y); } g.stroke(); }
+  const TH=TM.th||(TM.th=tmTheme(TM.code));
+  g.fillStyle=TH.floor; g.fillRect(0,0,1000,1236);
+  if(s>0.7){ const t=TH.tile; g.lineWidth=0.5;   // revêtement de sol propre à l'aéroport
+    if(TH.pat==='checker'){ g.fillStyle='rgba(0,0,0,.035)'; for(let x=0;x<1000;x+=t) for(let y=0;y<1236;y+=t) if(((x+y)/t)%2===0) g.fillRect(x,y,t,t); }
+    else if(TH.pat==='diag'){ g.strokeStyle='rgba(0,0,0,.06)'; g.beginPath(); for(let k=-1236;k<1000;k+=t*1.5){ g.moveTo(k,0); g.lineTo(k+1236,1236); } g.stroke(); }
+    else if(TH.pat==='terrazzo'){ g.fillStyle='rgba(120,90,60,.12)'; for(let k=0;k<2600;k++){ const x=(k*97)%1000, y=(k*61)%1236; g.fillRect(x,y,1.6,1.6); } }
+    else if(TH.pat==='marbre'){ g.strokeStyle='rgba(150,120,80,.16)'; g.beginPath(); for(let k=0;k<70;k++){ const x=(k*137)%1000, y=(k*89)%1236; g.moveTo(x,y); g.bezierCurveTo(x+30,y+10,x+50,y+40,x+90,y+35); } g.stroke(); g.strokeStyle='rgba(0,0,0,.05)'; g.beginPath(); for(let x=0;x<=1000;x+=t*2){ g.moveTo(x,0); g.lineTo(x,1236); } g.stroke(); }
+    else if(TH.pat==='bois'){ g.strokeStyle='rgba(120,80,40,.10)'; g.beginPath(); for(let y=0;y<=1236;y+=6){ g.moveTo(0,y); g.lineTo(1000,y); } g.stroke(); }
+    else { g.strokeStyle='rgba(0,0,0,.06)'; g.beginPath(); for(let x=0;x<=1000;x+=t){ g.moveTo(x,0); g.lineTo(x,1236); } for(let y=0;y<=1236;y+=t){ g.moveTo(0,y); g.lineTo(1000,y); } g.stroke(); } }
   g.fillStyle='#d6d3d1'; g.fillRect(0,1236,1000,64); txt('🚶 Parvis — dépose minute',8,1258,12,'#44403c',1);
-  const zone=(x0,y0,x1,y1,col,lab,ico)=>{ g.fillStyle=col; g.fillRect(x0,y0,x1-x0,y1-y0); if(lab) txt((ico?ico+' ':'')+lab,x0+6,y0+14,12,'#0f172a',1); };
-  zone(0,990,640,1236,'#f5f5f4','Hall d’enregistrement','🎫'); zone(0,820,640,965,'#dbeafe','Contrôle de sûreté','🔍'); zone(0,700,320,815,'#f1f5f9','Couloir — vols nationaux','🇨🇩');
-  zone(320,700,640,815,'#ede9fe','Police aux frontières — zone internationale','🛂'); zone(0,420,640,700,'#fafaf9','Zone d’embarquement · commerces','🛍️'); zone(0,0,640,410,'#f8fafc','',null);
+  // enseigne lisible à toutes les échelles (taille constante à l'écran)
+  const sign=(t,x,y,col)=>{ const px=Math.max(7,Math.min(18,12/s)); g.font=`700 ${px}px system-ui`; const w=g.measureText(t).width+px*0.9, hh=px*1.5; g.fillStyle=col||TH.acc; g.globalAlpha=0.92; g.beginPath(); if(g.roundRect) g.roundRect(x,y,w,hh,hh*0.3); else g.rect(x,y,w,hh); g.fill(); g.globalAlpha=1; g.fillStyle='#fff'; g.fillText(t,x+px*0.45,y+px*1.1); return hh; };
+  TM.signs=[];
+  const zone=(x0,y0,x1,y1,col,lab,ico)=>{ g.fillStyle=col; g.globalAlpha=0.55; g.fillRect(x0,y0,x1-x0,y1-y0); g.globalAlpha=1; if(lab) TM.signs.push([(ico?ico+' ':'')+lab,x0+6,y0+5]); };
+  zone(0,990,640,1236,'#f5f5f4','Hall d’enregistrement','🎫'); zone(0,820,640,965,'#dbeafe','Contrôle de sûreté','🔍'); zone(0,700,320,815,'#f1f5f9','Couloir — vols nationaux',TH.flag);
+  zone(320,700,640,815,'#ede9fe','Police aux frontières — zone internationale','🛂'); zone(0,420,640,700,'#fafaf9','',null); TM.signs.push(['🛍️ Commerces et salle d’attente',300,548]); zone(0,0,640,410,'#f8fafc','',null);
   zone(660,0,1000,240,'#f1f5f9','Couloir des arrivées','🛬'); zone(660,240,1000,420,'#ede9fe','Immigration','🛂'); zone(660,420,1000,860,'#f8fafc','Salle de livraison des bagages','🧳');
   zone(660,860,1000,960,'#dcfce7','Douane','🛃'); zone(660,960,1000,1236,'#fef9c3','Hall des arrivées · accueil','🤝');
-  g.fillStyle='#57534e'; g.fillRect(640,0,20,1236); g.fillRect(0,410,640,10); g.fillRect(0,965,640,25); g.fillRect(0,815,640,5); g.fillRect(660,240,340,4); g.fillRect(660,420,340,4); g.fillRect(660,860,340,4); g.fillRect(660,960,340,4);
+  const walls=[[640,0,20,1236],[0,410,640,10],[0,965,640,25],[0,815,640,5],[660,240,340,4],[660,420,340,4],[660,860,340,4],[660,960,340,4]];
+  g.fillStyle='rgba(0,0,0,.12)'; for(const w of walls) g.fillRect(w[0]+3,w[1]+3,w[2],w[3]);   // ombre des murs
+  g.fillStyle='#57534e'; for(const w of walls) g.fillRect(...w); g.fillStyle=TH.acc; g.fillRect(645,0,10,1236);   // mur central à la couleur de l'aéroport
   g.fillStyle='#78716c'; g.fillRect(0,975,640,6); txt('↔ tapis vers le tri bagages',8,972,8,'#e7e5e4');
   if(s>0.8){ g.fillStyle='#a8a29e'; for(let x=80;x<640;x+=160){ for(const y of [1100,600]) g.fillRect(x-3,y-3,6,6); } for(let x=740;x<1000;x+=120) g.fillRect(x-3,1150-3,6,6);   // piliers
     g.fillStyle='#4d7c0f'; for(const [x,y] of [[6,1000],[634,1000],[6,700],[634,705],[666,1100],[994,1100],[300,1232],[340,1232]]){ g.beginPath(); g.arc(x,y,5,0,6.283); g.fill(); } }   // plantes
-  g.strokeStyle='#38bdf8'; g.lineWidth=4; g.beginPath(); g.moveTo(0,1); g.lineTo(1000,1); g.stroke();
+  { const gr=g.createLinearGradient(0,-4,0,8); gr.addColorStop(0,'#7dd3fc'); gr.addColorStop(1,'rgba(125,211,252,0)'); g.fillStyle=gr; g.fillRect(0,-3,1000,11); }   // façade vitrée
+  // décor propre à l'aéroport : dans le hall des arrivées et le hall d'enregistrement
+  { const dx=830, dy=1112; if(TH.deco==='fontaine'){ g.fillStyle='#bae6fd'; g.beginPath(); g.arc(dx,dy,22,0,6.283); g.fill(); g.strokeStyle='#64748b'; g.lineWidth=2; g.stroke(); g.strokeStyle='rgba(255,255,255,.8)'; g.lineWidth=1; for(let k=0;k<3;k++){ g.beginPath(); g.arc(dx,dy,6+k*5+((now/300)%5),0,6.283); g.stroke(); } }
+    else if(TH.deco==='palmiers'){ for(const [x,y] of [[dx-24,dy],[dx+24,dy],[dx,dy-18],[310,1206]]){ g.fillStyle='#78350f'; g.beginPath(); g.arc(x,y,3,0,6.283); g.fill(); g.fillStyle='#15803d'; for(let a=0;a<6;a++){ g.beginPath(); g.ellipse(x+Math.cos(a)*8,y+Math.sin(a)*8,9,3.5,a,0,6.283); g.fill(); } } }
+    else if(TH.deco==='jardin'){ g.fillStyle='#86efac'; g.fillRect(dx-34,dy-16,68,32); g.fillStyle='#166534'; for(let k=0;k<9;k++){ g.beginPath(); g.arc(dx-28+k*7,dy-8+((k*5)%16),3.5,0,6.283); g.fill(); } g.fillStyle='#a8a29e'; g.fillRect(dx-2,dy-16,4,32); }
+    else if(TH.deco==='ecran'){ g.fillStyle='#0f172a'; g.fillRect(dx-40,dy-14,80,28); const hue=(now/80)%360; g.fillStyle=`hsl(${hue},70%,55%)`; g.fillRect(dx-36,dy-10,72,20); if(s>0.8){ g.fillStyle='#fff'; g.font='700 7px system-ui'; g.fillText('Bienvenue à '+TH.city,dx-34,dy+3); } }
+    else if(TH.deco==='fresque'){ const cols=['#dc2626','#facc15','#16a34a','#2563eb','#ea580c']; for(let k=0;k<5;k++){ g.fillStyle=cols[k]; g.fillRect(668+k*66,1196,62,10); } }
+    else { g.fillStyle=TH.acc; g.beginPath(); g.moveTo(dx,dy-24); g.lineTo(dx+18,dy+14); g.lineTo(dx-18,dy+14); g.closePath(); g.fill(); g.fillStyle='#e7e5e4'; g.beginPath(); g.arc(dx,dy+2,6,0,6.283); g.fill(); } }
+  // tapis des salles d'embarquement (couleur de l'aéroport)
+  g.fillStyle=TH.carpet; g.globalAlpha=0.12; g.fillRect(0,40,640,360); g.globalAlpha=1;
   // portes au départ
   for(const d of L.deps){ const f=d.f, D=f.D, sel=TM.selF===f; g.fillStyle=f.col; g.globalAlpha=sel?0.28:0.13; g.fillRect(d.x0,d.lounge.y0,d.x1-d.x0,d.lounge.y1-d.lounge.y0); g.fillRect(d.x0,1000,d.x1-d.x0,160); g.globalAlpha=1;
     g.strokeStyle='#94a3b8'; g.lineWidth=1; g.strokeRect(d.x0,d.lounge.y0,d.x1-d.x0,d.lounge.y1-d.lounge.y0);
@@ -381,7 +418,12 @@ function tmDraw(){
     if(p.k==='seats'||p.k==='lounge'){ g.fillStyle='rgba(100,116,139,.4)'; for(let y=p.y0+12;y<p.y1-4;y+=12) g.fillRect(p.x0+8,y,p.x1-p.x0-16,3); }
     if(p.k==='xray'&&s>0.8){ g.fillStyle='#1e293b'; g.fillRect(p.x0+18,p.y0+3,24,10); g.fillStyle='#64748b'; for(let k=0;k<3;k++) g.fillRect(p.x0+2+((now/1500+k*7)%16),p.y0+5,4,6); }   // bacs qui avancent
     if(p.k==='fids'&&s>1){ for(let k=0;k<3;k++){ g.fillStyle=['#facc15','#22c55e','#38bdf8'][k]; g.fillRect(p.x0+3,p.y0+3+k*3.5,(p.x1-p.x0)*0.6,1.5); } continue; }
-    const big=p.x1-p.x0>45; if(big) txt(p.ico+' '+p.lab.split(' (')[0].split(' —')[0],p.x0+3,p.y0+12,9,'#1f2937',1); else if(s>1.6) txt(p.ico,p.x0+2,p.y0+12,9); }
+    const big=p.x1-p.x0>45, nm=p.lab.split(' (')[0].split(' —')[0];
+    if(big&&!['seats','fids'].includes(p.k)){ const px=Math.max(5,Math.min(10,9.5/s)); g.font=`700 ${px}px system-ui`; const t=p.ico+' '+nm, w=Math.min(p.x1-p.x0-4,g.measureText(t).width+px*0.6); g.fillStyle='rgba(255,255,255,.88)'; g.fillRect(p.x0+2,p.y0+2,w,px*1.35); g.fillStyle='#111827'; g.save(); g.beginPath(); g.rect(p.x0+2,p.y0+2,w,px*1.4); g.clip(); g.fillText(t,p.x0+2+px*0.3,p.y0+2+px*1.05); g.restore(); }
+    else if(s>1.2) txt(p.ico,p.x0+2,p.y0+12,9); }
+  // enseignes des zones (lisibles à toutes les échelles) + compteurs d'activité en vue générale
+  { const C2=TM.cnt||{}, badge={'🎫':C2.ck,'🔍':C2.sec,'🛂':null,'🧳':C2.belt}; for(const [t,x,y] of TM.signs){ const k=t.split(' ')[0], v=t.startsWith('🛂 Police')?C2.pol:t.startsWith('🛂 Immigration')?C2.imm:badge[k]; sign(t+(s<1.1&&v?` · ${v} en file`:''),x,y); } }
+  sign(`${TH.flag} ${TH.name}`,8,1240,'#0f172a');
   // valises : tapis, tri, soutes, tapis de livraison
   for(const b of TM.bags||[]){ let q=null;
     if(now>=b.t0&&now<b.t0+b.dur) q=tmPathAt(b.P,(now-b.t0)/b.dur);
@@ -394,11 +436,11 @@ function tmDraw(){
   for(const p of TM.ppl){ const q=tmAt(p.K,now); if(!q) continue; if(p.staff){ cnt.staff=(cnt.staff||0)+1; } else if(p.greet){ cnt.greet=(cnt.greet||0)+1; } else { n++; p.dep?nd++:na++; }
     if(q.q){ const t=q.st; if(/enregistrement/.test(t)) cnt.ck++; else if(/sûreté/.test(t)) cnt.sec++; else if(/police/.test(t)) cnt.pol++; else if(/embarquement/.test(t)) cnt.board++; else if(/passeports/.test(t)) cnt.imm++; } else if(/attend sa valise/.test(q.st)) cnt.belt++;
     const x=q.x+((p.i*13)%7-3)*0.7, y=q.y+((p.i*7)%5-2)*0.7; pts.push([x,y,p,q]); if(x<vx0||x>vx1||y<vy0||y>vy1) continue;
-    if(s<0.6){ g.fillStyle=p.c; g.fillRect(x-1.5,y-1.5,3,3); continue; }
+    if(s<0.38){ g.fillStyle=p.c; g.fillRect(x-2.2,y-2.2,4.4,4.4); continue; }
     const r0=p.kid?r00*0.7:r00, ph=q.walk?Math.sin(now/140+p.i):0;
     g.fillStyle='rgba(0,0,0,.15)'; g.beginPath(); g.ellipse(x,y+r0*1.6,r0*1.1,r0*0.45,0,0,6.283); g.fill();
     if(legs&&!q.sit){ g.strokeStyle='#1f2937'; g.lineWidth=r0*0.35; g.beginPath(); g.moveTo(x-r0*0.3,y+r0*0.8); g.lineTo(x-r0*0.3+ph*r0*0.5,y+r0*1.7); g.moveTo(x+r0*0.3,y+r0*0.8); g.lineTo(x+r0*0.3-ph*r0*0.5,y+r0*1.7); g.stroke(); }
-    g.fillStyle=p.c; g.beginPath(); g.ellipse(x,y+(q.sit?r0*0.3:0),r0*0.95,q.sit?r0*0.9:r0*1.35,0,0,6.283); g.fill();
+    g.fillStyle=p.c; g.beginPath(); g.ellipse(x,y+(q.sit?r0*0.3:0),r0*0.95,q.sit?r0*0.9:r0*1.35,0,0,6.283); g.fill(); if(s>0.9){ g.strokeStyle='rgba(15,23,42,.45)'; g.lineWidth=Math.min(0.8,0.6/s*1.5); g.stroke(); }
     g.fillStyle=p.sk; g.beginPath(); g.arc(x,y-r0*1.25,r0*0.7,0,6.283); g.fill();
     if(p.staff){ g.fillStyle=p.staff==='clean'?'#fbbf24':p.staff==='health'?'#16a34a':'#0f172a'; g.fillRect(x-r0*0.75,y-r0*1.95,r0*1.5,r0*0.45); if(p.staff==='sec'||p.staff==='clean'){ g.fillStyle='#facc15'; g.fillRect(x-r0*0.9,y-r0*0.2,r0*1.8,r0*0.25); } }   // casquette, bande
     if(p.sign&&s>0.9&&!q.walk){ g.fillStyle='#fff'; g.fillRect(x-r0*1.6,y-r0*3.4,r0*3.2,r0*1.3); g.strokeStyle='#334155'; g.lineWidth=0.4; g.strokeRect(x-r0*1.6,y-r0*3.4,r0*3.2,r0*1.3); }
@@ -419,10 +461,10 @@ function tmDraw(){
   if(TM.sel&&TM.selAt&&performance.now()-TM.selAt<30&&!TM.sel.staff) tmAfterSel(TM.sel,now);
   tmAnnounce(now);
   const hd=document.getElementById('tmCount'); if(hd&&(!TM.cAt||performance.now()-TM.cAt>800)){ TM.cAt=performance.now(); const W=L.W||{};
-    hd.innerHTML=`👥 ${n.toLocaleString('fr-FR')} personnes · ${nd} départ · ${na} arrivée · ${tmHM(now)}<br><span style="color:#cbd5e1;font-weight:500">🎫 ${cnt.ck} en file (~${tmWait(W.ck||[],now)} min) · 🔍 ${cnt.sec} (~${tmWait(W.sec||[],now)} min) · 🛂 ${cnt.pol} (~${tmWait(W.pol||[],now)} min) · 🚪 ${cnt.board} · 🛂 arrivées ${cnt.imm} · 🧳 ${cnt.belt} au tapis · 🤗 ${cnt.greet||0} accueillent · 👮 ${cnt.staff||0} agents</span>`; if(Math.random()<0.15) tmBoard(); }
+    hd.innerHTML=`${document.getElementById('tmBoard')&&document.getElementById('tmBoard').hidden?'▼':'▲'} 👥 ${n.toLocaleString('fr-FR')} personnes · ${nd} départ · ${na} arrivée · ${tmHM(now)}<br><span style="color:#cbd5e1;font-weight:500">🎫 ${cnt.ck} en file (~${tmWait(W.ck||[],now)} min) · 🔍 ${cnt.sec} (~${tmWait(W.sec||[],now)} min) · 🛂 ${cnt.pol} (~${tmWait(W.pol||[],now)} min) · 🚪 ${cnt.board} · 🛂 arrivées ${cnt.imm} · 🧳 ${cnt.belt} au tapis · 🤗 ${cnt.greet||0} accueillent · 👮 ${cnt.staff||0} agents</span>`; if(Math.random()<0.15) tmBoard(); }
 }
 function tmOpen(code){
-  code=code||tmNearest(); if(!code||typeof pfData!=='function') return; TM.code=code; TM.open=true; TM.sel=null; TM.selF=null; TM.built=0; TM.cam=null; TM.goal=null; TM.moved=0; TM.dpr=Math.min(2,window.devicePixelRatio||1);
+  code=code||tmNearest(); if(!code||typeof pfData!=='function') return; TM.code=code; TM.th=null; TM.open=true; TM.sel=null; TM.selF=null; TM.built=0; TM.cam=null; TM.goal=null; TM.moved=0; TM.dpr=Math.min(2,window.devicePixelRatio||1);
   let ov=document.getElementById('tmOv'); if(ov) ov.remove();
   ov=document.createElement('div'); ov.id='tmOv'; const A=AP(code);
   ov.innerHTML=`<style>#tmOv{position:fixed;inset:0;z-index:2000;background:#0b1220;display:flex;flex-direction:column;color:#e2e8f0;padding-top:env(safe-area-inset-top)}
@@ -436,10 +478,11 @@ function tmOpen(code){
 #tmAnn{position:absolute;left:8px;right:8px;top:8px;background:rgba(250,204,21,.95);color:#111827;border-radius:10px;padding:6px 10px;font:600 12px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.4)}
 #tmInfo{position:absolute;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));background:rgba(8,14,26,.94);border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:8px 10px;font:13px system-ui;max-height:40%;overflow:auto}</style>
 <header><b>🏢 ${esc(A.city)} <span style="color:#94a3b8">${esc(code)}</span></b><button class="btn" data-tdash>📊</button><button class="btn" data-tsp>⏱️</button><button class="btn" data-tvo>🔈</button><button class="btn" data-tz="-">➖</button><button class="btn" data-tz="+">➕</button><button class="btn" data-tm="x">✖</button></header>
-<div id="tmZones">${TM_ZONES.map((z,i)=>`<button class="btn" data-tzn="${i}">${z[0]}</button>`).join('')}</div><div id="tmSearch"><input type="search" placeholder="🔎 Chercher un passager : nom, vol, siège…" data-tms><div id="tmRes" hidden></div></div><div id="tmBoard"></div><div id="tmCount"></div>
+<div id="tmZones">${TM_ZONES.map((z,i)=>`<button class="btn" data-tzn="${i}">${z[0]}</button>`).join('')}</div><div id="tmSearch"><input type="search" placeholder="🔎 Chercher un passager : nom, vol, siège…" data-tms><div id="tmRes" hidden></div></div><div id="tmBoard"></div><div id="tmCount" title="Toucher pour replier / déplier le tableau"></div>
 <div id="tmWrap"><canvas id="tmCv"></canvas><div id="tmAnn" hidden></div><div id="tmInfo" hidden></div></div>`;
   document.body.appendChild(ov); TM.cv=ov.querySelector('#tmCv');
   ov.querySelector('[data-tm="x"]').onclick=tmClose;
+  { const cnt=ov.querySelector('#tmCount'), bd=ov.querySelector('#tmBoard'); cnt.style.cursor='pointer'; cnt.onclick=()=>{ bd.hidden=!bd.hidden; TM.moved=0; }; }
   ov.querySelector('[data-tdash]').onclick=()=>{ TM.dash=!TM.dash; TM.sel=null; TM.follow=null; TM.dashAt=0; if(!TM.dash) tmInfo(''); };
   // vitesse du temps (celle du jeu) et voix des annonces
   const SP=[['realiste','×1'],['lent','×30'],['standard','×60'],['rapide','×600']], spB=ov.querySelector('[data-tsp]'), lab=()=>{ const x=SP.find(z=>z[0]===S.speed); spB.textContent='⏱️ '+(x?x[1]:'×?'); }; lab();
