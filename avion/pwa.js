@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261275';
+const GAME_VER='20261276';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛂 Étrangers, compagnies, coupe-file','Un étranger passe toujours par la police aux frontières, même sur un vol national (au départ comme à l\'arrivée), et un couple ne la saute plus en suivant son conjoint. Les comptoirs d\'enregistrement sont regroupés par compagnie sous un seul bandeau : chaque passager s\'enregistre au comptoir de SA compagnie. La fiche de chaque personne affiche sa compagnie. Coupe-file à la sûreté pour les passagers prioritaires (affaires, familles, assistance).'],
   ['🛬 L\'avion reste au poste à l\'arrivée','L\'avion arrivé reste garé à son poste tant que ses passagers et ses valises ne sont pas tous sortis (au moins 1 heure), puis il est repoussé et remorqué. Plus de passagers ni de valises qui sortent d\'un poste vide.'],
   ['🧍 Personnages humains et aérogare réaliste','Chaque personne a maintenant un vrai corps : jambes, bras qui balancent, cheveux, visage, tenue tirée de sa fiche (costume-cravate pour les voyages d\'affaires, pagne et foulard, voile, boubou, sac à dos, canne, poussette, téléphone). Le personnel porte son uniforme, les pilotes leurs galons. Les personnes âgées marchent plus lentement. On monte et descend de l\'avion par la passerelle. Chariots à bagages, porteurs, distributeurs de billets, écrans avec les vrais vols, bandeaux des compagnies aux comptoirs, boutiques fermées la nuit, parapluies et « sol glissant » sous la pluie, curieux à la baie vitrée, poubelles et fontaines. Passagers fictifs ; non testé sur un vrai iPhone.'],
   ['🧑‍🤝‍🧑 Aérogare plus réaliste','Les familles voyagent ensemble (enfants avec leurs parents, couples côte à côte) ; les passagers en fauteuil roulant sont poussés par un agent d\'assistance ; pilotes et personnel de cabine arrivent à la porte, font leur briefing et embarquent avant les passagers, puis ressortent après eux à l\'arrivée ; ceux qui font du shopping repartent avec un sac ; annonces en français et en anglais dans les grands aéroports et pour les vols internationaux.'],
