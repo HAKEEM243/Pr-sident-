@@ -389,7 +389,7 @@ function boot(){
     if(typeof globeNoteSim==='function') globeNoteSim();
     pilotBackground(dt);
     // vue 3D ouverte : la carte 2D (cachée) n'est rafraîchie que toutes les 2 s, pour laisser le téléphone dessiner la 3D
-    const g3=document.body.classList.contains('globe-on'); UI.g3n=(UI.g3n||0)+1;
+    const g3=document.body.classList.contains('globe-on')||(typeof TM!=='undefined'&&TM.open); UI.g3n=(UI.g3n||0)+1;   // aérogare ouverte : la carte cachée se repose aussi
     if(!g3||UI.g3n%10===0) updatePlanes();
     acc1+=dt; acc2+=dt; acc30+=dt; acc10+=dt;
     if(acc1>=1000){ acc1=0; checkMissions(); if(typeof progressTick==='function') progressTick(); renderTop(); if(!g3){ updateRival(); drawWeather(); } if(typeof maybeShowDecision==='function') maybeShowDecision(); }
