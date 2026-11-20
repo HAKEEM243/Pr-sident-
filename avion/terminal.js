@@ -46,7 +46,7 @@ function tmFlights(code){
   const F={deps,arrs,cancel:[]}; try{ tmRivals(code,now,F); }catch(e){}
   try{ for(const a of S.fleet) if(a.loc===code&&a.status!=='flight'&&a.blocked&&/grève|annul/i.test(a.blocked)) F.cancel.push({fn:S.company.code+(typeof flightNumber==='function'?flightNumber(a):''),dest:a.reg||'',why:a.blocked}); }catch(e){}
   try{ const w=typeof towerWx==='function'?towerWx(code):null; if(w&&w.st) for(const f of F.deps) if(f.riv){ const dl=25+hashStr(f.D.key)%50; f.dl=dl; f.dlw='orage'; for(const k of ['P']) f.D[k]+=dl*MIN; f.D.gate.open+=dl*MIN; f.D.gate.last+=dl*MIN; f.D.gate.close+=dl*MIN; } }catch(e){}
-  F.deps.sort((x,y)=>x.D.P-y.D.P); F.deps=F.deps.slice(0,14); F.arrs.sort((x,y)=>x.D.arr-y.D.arr); F.arrs=F.arrs.slice(0,8); return F;
+  F.deps=tmMix(F.deps,14,x=>x.D.P); F.arrs=tmMix(F.arrs,8,x=>x.D.arr); return F;
 }
 // vols des autres compagnies : horaires réels du jeu (rivalSched), passagers estimés selon l'avion
 function tmFakeD(key,A,B,P,arr,N){ const intl=A.cc!==B.cc, h=hashStr(key);
@@ -55,14 +55,26 @@ function tmFakeD(key,A,B,P,arr,N){ const intl=A.cc!==B.cc, h=hashStr(key);
     imm:{open:arr+6*MIN,close:arr+(N>200?55:40)*MIN},bag:{first:arr+(14+h%6)*MIN,last:arr+(30+h%14)*MIN},cus:{close:arr+70*MIN}}; }
 function tmFakeMan(D,N,m){ try{ const j=Math.round(N*0.08); return manifestFor({id:'R'+D.key},{from:D.A.code,to:D.B.code,dep:D.P,pax:{f:0,j,w:0,y:N-j}}); }catch(e){ return null; } }
 function tmRivals(code,now,F){
-  if(typeof rivFlight!=='function') return; const A0=AP(code); let nd=0, na=0;
-  for(const R of S.rivals||[]) for(const r of R.routes||[]){ if(nd>=14&&na>=8) return; if(r.a!==code&&r.b!==code) continue; const K=rivalSched(r); if(!K) continue; const fromA=r.a===code;
+  if(typeof rivFlight!=='function') return; const A0=AP(code); let nd=0, na=0; const L=[], seen=new Set();
+  // les compagnies concurrentes du jeu, puis toutes les compagnies réelles qui desservent l'aéroport (les mêmes avions que sur la carte)
+  for(const R of S.rivals||[]) for(const r of R.routes||[]) if(r.a===code||r.b===code){ const k=(r.c||R.code)+pairKey(r.a,r.b); if(!seen.has(k)){ seen.add(k); L.push([R,r]); } }
+  try{ if(typeof AP_ROUTES!=='undefined'&&AP_ROUTES[code]&&typeof carriersOn==='function') for(const b of AP_ROUTES[code]) for(const c of carriersOn(code,b)){ if(c===S.company.code) continue; const k=c+pairKey(code,b); if(seen.has(k)) continue; seen.add(k); const R=ghostAirline(c); if(R) L.push([R,ghostRouteOf(c,code,b)]); } }catch(e){}
+  for(const [R,r] of L){ if(nd>=40&&na>=24) break; const K=rivalSched(r); if(!K) continue; const fromA=r.a===code;
     for(let i=0;i<K.nP;i++) for(const kind of ['d','a']){ const dir=kind==='d'?(fromA?'AB':'BA'):(fromA?'BA':'AB'), x0=rivFlight(R,r,i,dir,0); if(!x0) continue;
       const ref=kind==='d'?x0.P:x0.arr, c0=Math.floor((now+(kind==='d'?180*MIN:0)-ref)/K.P);
       for(const cyc of [c0,c0-1]){ const fl=rivFlight(R,r,i,dir,cyc); if(!fl) continue; const other=AP(kind==='d'?fl.to:fl.from); if(!other) continue;
-        if(kind==='d'&&nd<14&&now>=fl.P-185*MIN&&now<=fl.P+3*MIN){ const D=tmFakeD(fl.key,A0,other,fl.P,fl.arr,fl.N); F.deps.push({a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,man:fl.man,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id}); nd++; }
-        if(kind==='a'&&na<8&&now>=fl.arr-20*MIN&&now<=fl.arr+70*MIN){ const D=tmFakeD(fl.key,other,A0,fl.P,fl.arr,fl.N); F.arrs.push({a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,man:fl.man,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id,soon:now<fl.arr}); na++; } } } }
+        if(kind==='d'&&nd<40&&now>=fl.P-185*MIN&&now<=fl.P+3*MIN){ const D=tmFakeD(fl.key,A0,other,fl.P,fl.arr,fl.N); F.deps.push({a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,man:fl.man,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id}); nd++; }
+        if(kind==='a'&&na<24&&now>=fl.arr-20*MIN&&now<=fl.arr+70*MIN){ const D=tmFakeD(fl.key,other,A0,fl.P,fl.arr,fl.N); F.arrs.push({a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,man:fl.man,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id,soon:now<fl.arr}); na++; } } } }
 }
+// garde un mélange réaliste : vos vols n'occupent pas toutes les portes quand d'autres compagnies partent aussi
+function tmMix(list,n,key){ list.sort((x,y)=>key(x)-key(y)); const own=list.filter(f=>!f.riv), riv=list.filter(f=>f.riv); if(!riv.length||!own.length) return list.slice(0,n);
+  const nOwn=Math.min(own.length,Math.max(Math.ceil(n*0.5),n-riv.length)); return [...own.slice(0,nOwn),...riv.slice(0,n-nOwn)].sort((x,y)=>key(x)-key(y)); }
+// vols des autres compagnies : horaires réels du jeu (rivalSched), passagers estimés selon l'avion
+function tmFakeD(key,A,B,P,arr,N){ const intl=A.cc!==B.cc, h=hashStr(key);
+  return {key,A,B,intl,P,arr,total:N,ci:{open:P-(intl?180:120)*MIN,close:P-(intl?60:40)*MIN,online:Math.round(N*0.3)},sec:{close:P-25*MIN},pol:{close:P-20*MIN},
+    gate:{name:String.fromCharCode(66+h%5)+(1+h%28),open:P-40*MIN,last:P-14*MIN,close:P-6*MIN,noShow:h%3},
+    imm:{open:arr+6*MIN,close:arr+(N>200?55:40)*MIN},bag:{first:arr+(14+h%6)*MIN,last:arr+(30+h%14)*MIN},cus:{close:arr+70*MIN}}; }
+function tmFakeMan(D,N,m){ try{ const j=Math.round(N*0.08); return manifestFor({id:'R'+D.key},{from:D.A.code,to:D.B.code,dep:D.P,pax:{f:0,j,w:0,y:N-j}}); }catch(e){ return null; } }
 /* ---------- PLAN DE L'AÉROGARE (coordonnées « monde » fixes : 1 unité ≈ 0,6 m) ----------
    x 0–640 : départs (bas → haut : parvis, hall d'enregistrement, sûreté, police / couloir national,
    zone d'embarquement avec commerces, portes) ; x 660–1000 : arrivées (haut → bas : couloir,
@@ -162,7 +174,7 @@ function tmSched(L){
     for(const x of sc){ const rw=x.row; x.zone=rw?((rw.cls==='f'||rw.cls==='j'||rw.assist||rw.age<6)?0:1+Math.min(3,Math.floor((1-(parseInt(rw.seat)||1)/(maxRow+1))*4))):(x.i<f.N*0.08?0:1+Math.floor((x.i/Math.max(1,f.N))*4)); x.board=D.gate.open+x.zone*win+x.r*win*0.9;
       secL.push({x,arr:x.ckDone+(x.wc?7:3)*MIN,D}); }
     g.sched=sc; }
-  const depN=L.deps.reduce((a,g)=>a+g.sched.length,0), intlN=polL.length||L.deps.filter(g=>g.f.D.intl).reduce((a,g)=>a+g.sched.length,0); L.secCap=Math.max(L.nL,Math.min(40,Math.ceil(depN/260))); L.polCap=Math.max(L.nB,Math.min(30,Math.ceil(intlN/380)));
+  const depN=L.deps.reduce((a,g)=>a+g.sched.length,0), intlN=L.deps.reduce((a,g)=>a+g.sched.filter(x=>g.f.D.intl||(x.row&&g.f.D.A&&x.row.nat!==g.f.D.A.cc)).length,0); L.secCap=Math.max(L.nL,Math.min(40,Math.ceil(depN/260))); L.polCap=Math.max(L.nB,Math.min(30,Math.ceil(intlN/120)));
   { const pr=secL.filter(o=>o.x.zone===0), nm=secL.filter(o=>o.x.zone!==0); tmServe(pr,1,o=>0.3*MIN*(0.6+0.8*o.x.r)); tmServe(nm,Math.max(1,L.secCap-1),o=>0.35*MIN*(0.6+0.8*o.x.r)); } for(const o of secL){ o.x.secStart=o.start; o.x.secDone=o.done+(o.x.alarm?2.5*MIN:0)+0.6*MIN; W.sec.push([o.arr,o.start-o.arr]); if(o.D.intl||(o.x.row&&o.D.A&&o.x.row.nat!==o.D.A.cc)) polL.push({x:o.x,arr:o.x.secDone+1.5*MIN}); }
   tmServe(polL,L.polCap||L.nB,o=>0.5*MIN*(0.6+0.8*o.x.r)); for(const o of polL){ o.x.polStart=o.start; o.x.polDone=o.done; W.pol.push([o.arr,o.start-o.arr]); }
   L.W=W; }
@@ -424,7 +436,7 @@ function tmDecor(L,now,g,fit){
   for(const [x,y] of bins){ g.fillStyle='#475569'; g.beginPath(); g.arc(x,y,3.2,0,6.283); g.fill(); g.fillStyle='#22c55e'; g.beginPath(); g.arc(x,y,1.6,0,6.283); g.fill(); }
   for(const p of L.poi) if(p.k==='wc'){ const x=p.x1+5, y=(p.y0+p.y1)/2; g.fillStyle='#e2e8f0'; g.fillRect(x-3,y-4,6,8); g.fillStyle='#38bdf8'; g.fillRect(x-2,y-3,4,2.5); }
   if(TM.rain) for(const [x,y] of [[160,1224],[480,1224],[760,1224],[930,1224]]){ g.fillStyle='#facc15'; g.beginPath(); g.moveTo(x,y-7); g.lineTo(x+5,y+3); g.lineTo(x-5,y+3); g.closePath(); g.fill(); g.strokeStyle='#111827'; g.lineWidth=0.6; g.stroke(); fit('Sol glissant',x-14,y+4,28,6,'#111827','rgba(250,204,21,.9)'); } }
-function tmAirline(f){ if(f._al) return f._al; const code=String(f.fn||'').replace(/\d+$/,''), own=!f.riv, R=own?null:((S.rivals||[]).find(x=>x.code===code)||null);
+function tmAirline(f){ if(f._al) return f._al; const own=!f.riv, code=own?((S.company&&S.company.code)||String(f.fn||'').replace(/\d+$/,'')):String(f.fn||'').replace(/\d{3}$/,''), R=own?null:((S.rivals||[]).find(x=>x.code===code)||(f.riv&&f.riv.code===code?f.riv:null));
   const name=own?((S.company&&S.company.name)||code):(R&&R.name)||(typeof airlineName==='function'?airlineName(code):'')||(f.riv&&f.riv.name)||code;
   const col=own?((S.company&&S.company.color)||'#b91c1c'):(R&&R.color)||['#0f766e','#7c2d12','#1e3a8a','#6d28d9','#9d174d','#166534','#b45309','#0e7490'][hashStr(code)%8];
   return (f._al={code,name,col,own}); }
