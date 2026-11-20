@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261282';
+const GAME_VER='20261283';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🤗 Retrouvailles, rotation des avions, pensées','Au hall des arrivées, chaque personne qui attend attend un vrai passager du vol (sa pancarte porte son nom) : à sa sortie, le passager (et sa famille) va vers elle, ils se retrouvent et repartent ensemble jusqu\'au taxi. Touchez une porte ou un avion : la rotation au sol s\'affiche étape par étape avec l\'avancement en direct (nettoyage, traiteur, carburant, bagages, embarquement, portes fermées, repoussage ; à l\'arrivée : débarquement, déchargement, tapis). La passerelle se retire quand les portes sont fermées. Touchez une personne : son trajet est tracé sur le plan (déjà parcouru en gris, à venir en pointillés rouges) et on voit ce qu\'elle pense selon ce qu\'elle vit.'],
   ['⚡ Aérogare sans à-coups + nouveaux détails','La mise à jour de la foule (quand les vols changent) se fait maintenant en petits morceaux, sans figer l\'écran. Si le téléphone peine, l\'image devient un peu moins fine pour rester fluide. Nouveau : l\'état de chaque porte (enregistrement, embarquement, dernier appel, fermé, retard) comme sur les écrans ; les chauffeurs au hall des arrivées tiennent une pancarte au nom d\'un vrai passager du vol ; taxis, voitures, navettes et bus devant l\'aérogare ; tarmac mouillé sous la pluie ; immatriculation des avions aux postes.'],
   ['✈️ Avions et piste plus réalistes','Les avions aux postes ont la taille de leur modèle (régional, moyen-courrier, gros porteur), les couleurs de leur compagnie (dérive, bande, capots des réacteurs), une ombre, un cockpit et leurs feux de position ; le feu rouge clignotant s\'allume quand ils roulent. Autour de chaque avion, les véhicules arrivent à la bonne heure selon l\'horaire du vol : groupe électrique, tapis à bagages avec tracteur et chariots, camion traiteur, camion-citerne, camion des eaux, plots et cales. Passerelles télescopiques avec rotonde et cabine. Dans l\'aérogare : rayons du soleil par la façade le jour, éclairage chaud la nuit et projecteurs sur le tarmac, sièges avec dossier, vitrines et rayons des boutiques, poteaux et sangles des files.'],
   ['📱 Aérogares à l\'endroit','Plus aucune aérogare n\'est à l\'envers : les avions sont toujours en haut et l\'entrée en bas, plus besoin de tourner le téléphone. Les aéroports restent différents (forme du terminal, sens gauche-droite, sol, couleurs, boutiques).'],
