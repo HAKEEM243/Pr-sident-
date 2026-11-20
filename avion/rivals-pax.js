@@ -11,7 +11,9 @@
 'use strict';
 const RIV_AC=new Map();
 // nombre de passagers d'un vol : même estimation que la fiche de l'avion sur la carte
-function rivPax(R,r,K,from,to){
+const _rivPaxC=new Map();
+function rivPax(R,r,K,from,to){ const ck=(R.code||'')+'|'+(r.c||'')+from+to+'|'+((K&&K.m&&K.m.id)||''), hit=_rivPaxC.get(ck), now=(typeof S!=='undefined'&&S)?S.time:0; if(hit&&Math.abs(now-hit.at)<6*HOUR) return hit.v; const v=rivPax0(R,r,K,from,to); _rivPaxC.set(ck,{v,at:now}); if(_rivPaxC.size>3000) _rivPaxC.clear(); return v; }
+function rivPax0(R,r,K,from,to){
   const seats=Number(K&&K.m&&K.m.seats)||150; let pax=null;
   try{ const code=r.c||R.code, c=typeof lineAirlines==='function'?lineAirlines(from,to).find(x=>x.code===code):null, dem=typeof marketDemand==='function'?Math.max(0,marketDemand(from,to)):0,
       freq=Math.max(0,Number(c&&c.freq)||Number(r.freq)||Number(K&&K.nP)||0); if(c&&freq>0) pax=Math.min(seats,Math.max(0,Math.round(dem*(c.share||0)/freq))); }catch(e){}
@@ -31,6 +33,8 @@ function rivFlight(R,r,i,dir,cyc){
     ac={id,reg:rivReg(R,r,i),flight:{legs:[leg],li:0},_riv:1,_fn:fn,_R:R,model:K.m&&K.m.id,modelName:K.m&&K.m.name,status:'flight',condition:90,hub:from,loc:from,cfg:null}; RIV_AC.set(id,ac); if(RIV_AC.size>5000) RIV_AC.delete(RIV_AC.keys().next().value); }
   return {R,r,i,dir,cyc,K,P,arr,from,to,N,fn,key,ac,...tim,get man(){ try{ return manifestFor(ac,ac.flight.legs[0]); }catch(e){ return null; } }}; }
 // le vol en cours (ou le prochain) de la rotation i à l'instant t
+function rivTimes(K,r,i,dir,cyc){ const ab=dir==='AB', t0=K.anchors[i]-K.bA+cyc*K.P+(ab?0:K.pA.total+K.turn), dl=typeof rivDelays==='function'?rivDelays(r,i,dir,cyc):{dep:0,hIn:0,ga:0}, base=ab?K.pA:K.pB, pr=typeof rivProf==='function'?rivProf(base,dl):base;
+  return {P:t0+(ab?K.bA:K.bB)+dl.dep, arr:t0+pr.total}; }
 function rivFlightAt(R,r,i,t){ const K=rivalSched(r); if(!K) return null; i=Math.min(i,K.nP-1);
   const x=t-K.anchors[i]+K.bA, cyc=Math.floor(x/K.P), rel=((x%K.P)+K.P)%K.P; return rivFlight(R,r,i,rel>=K.pA.total+K.turn?'BA':'AB',cyc); }
 function rivOpenManifest(c,a,b,i){
@@ -56,15 +60,17 @@ function rivRoutesAt(code){ const L=[], seen=new Set();
   for(const R of S.rivals||[]) for(const r of R.routes||[]) if(r.a===code||r.b===code){ const k=(r.c||R.code)+pairKey(r.a,r.b); if(!seen.has(k)){ seen.add(k); L.push([R,r]); } }
   try{ if(typeof AP_ROUTES!=='undefined'&&AP_ROUTES[code]&&typeof carriersOn==='function') for(const b of AP_ROUTES[code]) for(const c of carriersOn(code,b)){ if(c===S.company.code) continue; const k=c+pairKey(code,b); if(seen.has(k)) continue; seen.add(k); const R=ghostAirline(c); if(R) L.push([R,ghostRouteOf(c,code,b)]); } }catch(e){}
   return L; }
-function rivPresent(code,t){ const out=[]; if(typeof rivalSched!=='function'||typeof rivalPos!=='function') return out;
+const _rivPresC=new Map();
+function rivPresent(code,t){ const ck=code+'|'+Math.floor(t/15000); let c=_rivPresC.get(ck); if(c) return c; c=rivPresent0(code,t); _rivPresC.set(ck,c); if(_rivPresC.size>40) _rivPresC.delete(_rivPresC.keys().next().value); return c; }
+function rivPresent0(code,t){ const out=[]; if(typeof rivalSched!=='function') return out;
   for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue;
-    for(let i=0;i<K.nP;i++){ let mv=null; try{ mv=rivalPos(r,i,t); }catch(e){} if(mv) continue;   // en mouvement : la 3D le dessine déjà
-      const T=K.P, rel=((t-K.anchors[i]+K.bA)%T+T)%T, cyc=Math.floor((t-K.anchors[i]+K.bA)/T); let at;
+    for(let i=0;i<K.nP;i++){ const T=K.P, rel=((t-K.anchors[i]+K.bA)%T+T)%T, cyc=Math.floor((t-K.anchors[i]+K.bA)/T); let at;
+      { const ab=rel<K.pA.total+K.turn, dir=ab?'AB':'BA', rr=ab?rel:rel-(K.pA.total+K.turn), dl=rivDelays(r,i,dir,cyc), b0=ab?K.bA:K.bB, tot=rivProf(ab?K.pA:K.pB,dl).total; if(rr>=b0+dl.dep&&rr<tot) continue; }   // en mouvement (roulage, vol) : même règle que rivalPos
       let nx=null, lr=null;   /* prochain départ et dernière arrivée de cet avion, pour classer les plus utiles d'abord */
       if(rel<K.pA.total+K.turn){ const dl=rivDelays(r,i,'AB',cyc); if(rel<K.bA+dl.dep){ at=r.a; nx=['AB',cyc]; lr=['BA',cyc-1]; } else { at=r.b; nx=['BA',cyc]; lr=['AB',cyc]; } }
       else { const dl=rivDelays(r,i,'BA',cyc); if((rel-(K.pA.total+K.turn))<K.bB+dl.dep){ at=r.b; nx=['BA',cyc]; lr=['AB',cyc]; } else { at=r.a; nx=['AB',cyc+1]; lr=['BA',cyc]; } }
       if(at!==code) continue;
-      let nP=t+DAY, lA=t-DAY; try{ const a=rivFlight(R,r,i,nx[0],nx[1]); if(a) nP=a.P; const b=rivFlight(R,r,i,lr[0],lr[1]); if(b) lA=b.arr; }catch(e){}
+      let nP=t+DAY, lA=t-DAY; try{ nP=rivTimes(K,r,i,nx[0],nx[1]).P; lA=rivTimes(K,r,i,lr[0],lr[1]).arr; }catch(e){}
       const intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc, gate=typeof gateSlot==='function'?gateSlot(code,{id:r.a+r.b+i},intl):null;
       out.push({R,r,i,reg:rivReg(R,r,i),col:R.color||'#64748b',name:R.name||R.code,cat:K.cat,gate,nextDep:nP,lastArr:lA,prio:Math.min(nP-t,t-lA)}); } }
   return out.sort((a,b)=>a.prio-b.prio||(a.reg<b.reg?-1:1)); }
@@ -88,4 +94,4 @@ function riv3dTick(){ try{ if(typeof G==='undefined'||!G||!G.viewer||!document.b
       e._rv={R:x.R,r:x.r,i:x.i}; try{ if(typeof apLit==='function') apLit(e); }catch(_){} RIV3D.ents.set(x.reg,e); }
     for(const [k,e] of RIV3D.ents) if(!want.has(k)){ V.entities.remove(e); RIV3D.ents.delete(k); }   // parti (repoussé : il roule maintenant)
   }catch(e){ console.warn('avions garés 3D',e); } }
-if(typeof window!=='undefined') setInterval(riv3dTick,2000);
+if(typeof window!=='undefined') setInterval(riv3dTick,3000);

@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261303';
+const GAME_VER='20261304';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['⚡ Plus fluide sur iPhone','Correction d\'une saccade toutes les 15 secondes dans l\'aérogare : la mise à jour de la liste des vols est 3 fois plus rapide (le nombre de passagers des autres compagnies est gardé en mémoire, les vols hors de la fenêtre horaire ne sont plus calculés). Le calcul des avions garés (3D et aérogare) est 8 fois plus rapide. Les personnes hors de l\'écran sont recalculées moins souvent. Sur téléphone, l\'image démarre un peu moins fine et s\'affine toute seule si l\'iPhone suit. En test : déplacement 50 % plus fluide.'],
   ['✈️ 3D = aérogare, aussi pour les autres compagnies','En 3D, les avions décoratifs garés aux portes sont remplacés par les VRAIS avions des autres compagnies présents à l\'aéroport : chacun à la porte où il arrive en roulant, à sa couleur, avec son immatriculation et sa compagnie (« 9Q-MBC · flyCAA »), et il disparaît de la porte quand il est repoussé. Un seul calcul décide pour la 3D et l\'aérogare quels avions sont là : dans l\'aérogare, ceux qui ne sont pas à une porte du plan attendent sur les postes éloignés (autant de rangées que nécessaire, jusqu\'à 90 avions à Addis-Abeba), et un avion ne peut plus être à sa porte de départ avant d\'avoir atterri. Correction : le modèle détaillé des avions des autres compagnies en 3D sur ordinateur.'],
   ['🎫 Chacun passe par les comptoirs de SA compagnie','Correction : les files d\'attente étaient dans le mauvais sens (on entrait côté comptoir), et pour les rejoindre les passagers traversaient les files des autres compagnies. Maintenant chacun entre au bout de la file de SA compagnie par l\'allée du hall, avance vers le comptoir, puis repart par le côté et rejoint la sûreté par un couloir le long du hall — jamais à travers les comptoirs d\'une autre compagnie. Les files de la sûreté, de la police et de l\'embarquement avancent aussi dans le bon sens.'],
   ['🔎 Plus de détails en zoomant','Passagers : côté à l\'ombre des vêtements, col et boutons de chemise, ceinture à boucle, oreilles, sourcils, nez, reflet de lumière. Valises : 5 formes (valise rigide à nervures et roulettes, grande valise souple, sac de voyage avec sangle, sac à dos, carton scotché) avec l\'étiquette à la couleur du vol, au tri et sur les tapis ; valise tirée avec poignée télescopique. Avions : volets et ailerons, carénages, portes, issues de secours, lignes de panneaux, nom de la compagnie sur le toit et immatriculation sur l\'aile. Les détails n\'apparaissent qu\'en zoomant : la vue de loin reste aussi rapide.'],

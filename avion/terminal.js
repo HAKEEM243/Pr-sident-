@@ -66,7 +66,8 @@ function tmRivals(code,now,F){
   for(const [R,r] of L){ if(nd>=40&&na>=24) break; const K=rivalSched(r); if(!K) continue; const fromA=r.a===code;
     for(let i=0;i<K.nP;i++) for(const kind of ['d','a']){ const dir=kind==='d'?(fromA?'AB':'BA'):(fromA?'BA':'AB'), x0=rivFlight(R,r,i,dir,0); if(!x0) continue;
       const ref=kind==='d'?x0.P:x0.arr, c0=Math.floor((now+(kind==='d'?180*MIN:0)-ref)/K.P);
-      for(const cyc of [c0,c0-1]){ const fl=rivFlight(R,r,i,dir,cyc); if(!fl) continue; const other=AP(kind==='d'?fl.to:fl.from); if(!other) continue;
+      for(const cyc of [c0,c0-1]){ { const tt=rivTimes(K,r,i,dir,cyc); if(kind==='d'?(now<tt.P-190*MIN||now>tt.P+45*MIN):(now<tt.arr-60*MIN||now>tt.arr+75*MIN)) continue; }   /* hors de la fenêtre affichée : pas besoin de tout calculer */
+        const fl=rivFlight(R,r,i,dir,cyc); if(!fl) continue; const other=AP(kind==='d'?fl.to:fl.from); if(!other) continue;
         if(kind==='d'&&nd<40&&now>=fl.P-185*MIN-(fl.depLate||0)*MIN&&now<=Math.max(fl.P+3*MIN,(fl.tko||0)+4*MIN)){ const D=tmFakeD(fl.key,A0,other,fl.P,fl.arr,fl.N,fl); try{ const pv=rivFlight(R,r,i,dir==='AB'?'BA':'AB',dir==='AB'?cyc-1:cyc); if(pv) D.prevArr=pv.arr; }catch(e){} F.deps.push(tmLazy({rr:fl.r,ri:fl.i,dl:fl.depLate||0,dlw:fl.depLate&&fl.wxD?'météo':'',a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id},fl)); nd++; }
         if(kind==='a'&&na<24&&now>=Math.min(fl.arr-20*MIN,fl.holdIn?fl.holdIn[0]-5*MIN:Infinity)&&now<=fl.arr+70*MIN){ const D=tmFakeD(fl.key,other,A0,fl.P,fl.arr,fl.N,fl); F.arrs.push(tmLazy({rr:fl.r,ri:fl.i,a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id,soon:now<fl.arr},fl)); na++; } } } }
 }
@@ -928,9 +929,10 @@ function tmDraw(){
   else if(plSkip){ main.setTransform(1,0,0,1,0,0); main.drawImage(TM.pl,0,0); prep(main,false); [n,nd,na]=TM.nn; pts=TM.pts; cnt=TM.cnt; } else {
   const _plT0=performance.now();
   if(toPl){ if(!TM.pl||TM.pl.width!==cv.width||TM.pl.height!==cv.height){ TM.pl=document.createElement('canvas'); TM.pl.width=cv.width; TM.pl.height=cv.height; } g=TM.pl.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,cv.width,cv.height); prep(g,false); }
-  for(const p of TM.ppl){ const q=tmAt(p.K,now); if(!q) continue; if(p.crew){ cnt.crew=(cnt.crew||0)+1; } else if(p.staff){ cnt.staff=(cnt.staff||0)+1; } else if(p.greet){ cnt.greet=(cnt.greet||0)+1; } else { n++; p.dep?nd++:na++; }
+  const rtN=performance.now();
+  for(const p of TM.ppl){ let q; if(!toPl&&p._off&&rtN-p._qr<320&&p._qt<=now) q=p._q; else { q=tmAt(p.K,now); p._q=q; p._qr=rtN; p._qt=now; p._off=false; } if(!q) continue;   /* hors de l'écran : position recalculée ~3 fois/s seulement */ if(p.crew){ cnt.crew=(cnt.crew||0)+1; } else if(p.staff){ cnt.staff=(cnt.staff||0)+1; } else if(p.greet){ cnt.greet=(cnt.greet||0)+1; } else { n++; p.dep?nd++:na++; }
     { const k=tmCat(q.st,q.q); if(k) cnt[k]++; }
-    const x=q.x+((p.i*13)%7-3)*0.7, y=q.y+((p.i*7)%5-2)*0.7; pts.push([x,y,p,q]); { const X=tmFx(x), Y=tmFy(y); if(X<vx0||X>vx1||Y<vy0||Y>vy1) continue; }
+    const x=q.x+((p.i*13)%7-3)*0.7, y=q.y+((p.i*7)%5-2)*0.7; pts.push([x,y,p,q]); { const X=tmFx(x), Y=tmFy(y); if(X<vx0||X>vx1||Y<vy0||Y>vy1){ if(p._qr===rtN) p._off=X<vx0-60||X>vx1+60||Y<vy0-60||Y>vy1+60; continue; } }
     const r0=r00, px=r0*s, ph=q.walk?Math.sin(now/140+p.i):0, carry=(p.dep===1?(p.bag&&now<p.ckDone):(p.dep===0&&p.hasBag&&now>=p.bagT&&!p.trol)), L=tmLook(p);
     const trol=p.staff==='porter'||(p.dep===1&&p.row&&p.row.bags>=2&&now<p.ckDone)||(!p.dep&&p.hasBag&&now>=p.bagT);   // chariot à bagages poussé devant soi
     if(trol&&px>=2.2){ const fx=p.face||1, tx=x+fx*r0*1.6, ty=y+r0*1.0; g.fillStyle='#94a3b8'; g.fillRect(tx-r0*0.9,ty-r0*0.35,r0*1.8,r0*0.7); g.fillStyle=TM_BAGC[p.i%8]; g.fillRect(tx-r0*0.75,ty-r0*1.05,r0*1.5,r0*0.75); if(p.row&&p.row.bags>=2){ g.fillStyle=TM_BAGC[(p.i+3)%8]; g.fillRect(tx-r0*0.6,ty-r0*1.6,r0*1.2,r0*0.6); } g.fillStyle='#111'; g.beginPath(); g.arc(tx-r0*0.7,ty+r0*0.45,r0*0.16,0,6.283); g.arc(tx+r0*0.7,ty+r0*0.45,r0*0.16,0,6.283); g.fill(); }
@@ -963,7 +965,7 @@ function tmDraw(){
     hd.innerHTML=tmClockHtml(now)+`${document.getElementById('tmPanel')&&document.getElementById('tmPanel').hidden?'📋':'✖'} 👥 ${n.toLocaleString('fr-FR')} personnes · ${nd} départ · ${na} arrivée<br><span style="color:#cbd5e1;font-weight:500">🎫 ${cnt.ck} en file (~${tmWait(W.ck||[],now)} min) · 🔍 ${cnt.sec} (~${tmWait(W.sec||[],now)} min) · 🛂 ${cnt.pol} (~${tmWait(W.pol||[],now)} min) · 🚪 ${cnt.board} · 🛂 arrivées ${cnt.imm} · 🧳 ${cnt.belt} au tapis · 🤗 ${cnt.greet||0} accueillent · 👮 ${cnt.staff||0} agents · 👨‍✈️ ${cnt.crew||0} équipage</span>`; if(Math.random()<0.15) tmBoard(); }
 }
 function tmOpen(code){
-  code=code||tmNearest(); if(!code||typeof pfData!=='function') return; TM.code=code; TM.th=null; TM.open=true; TM.sel=null; TM.selF=null; TM.built=0; TM.cam=null; TM.goal=null; TM.moved=0; TM.dpr=TM.dprMax=Math.min(2,window.devicePixelRatio||1); TM.job=null; TM.fa=33;
+  code=code||tmNearest(); if(!code||typeof pfData!=='function') return; TM.code=code; TM.th=null; TM.open=true; TM.sel=null; TM.selF=null; TM.built=0; TM.cam=null; TM.goal=null; TM.moved=0; TM.dprMax=Math.min(2,window.devicePixelRatio||1); TM.dpr=('ontouchstart' in window)&&TM.dprMax>1.5?1.5:TM.dprMax; TM.dprHi=0; TM.dprAt=performance.now(); TM.job=null; TM.fa=33;
   let ov=document.getElementById('tmOv'); if(ov) ov.remove();
   ov=document.createElement('div'); ov.id='tmOv'; const A=AP(code);
   ov.innerHTML=`<style>#tmOv{position:fixed;inset:0;z-index:2000;background:#0b1220;color:#e2e8f0;overflow:hidden}
