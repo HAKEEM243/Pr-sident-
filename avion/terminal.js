@@ -133,7 +133,11 @@ function tmPath(pts){ let L=0; const seg=[]; for(let i=1;i<pts.length;i++){ cons
 function tmPathAt(P,u){ let d=Math.max(0,Math.min(1,u))*P.L; for(let i=0;i<P.seg.length;i++){ if(d<=P.seg[i]){ const a=P.pts[i], b=P.pts[i+1], k=P.seg[i]?d/P.seg[i]:0; return {x:a.x+(b.x-a.x)*k,y:a.y+(b.y-a.y)*k}; } d-=P.seg[i]; } return P.pts[P.pts.length-1]; }
 function tmLayout(F){
   const nd=Math.max(1,F.deps.length), na=Math.max(1,F.arrs.length), cls=(AP(TM.code)||{}).cls||3, Q=tmPOI(cls), L={poi:Q.P, nL:Q.nL, nB:Q.nB, small:Q.small, big:Q.big, deps:[], arrs:[]};
-  TM.th=TM.th||tmTheme(TM.code); const shape=L.small?'lineaire':TM.th.shape; L.shape=shape; L.top=-300; L.bx0=-40; L.bx1=1040;
+  TM.th=TM.th||tmTheme(TM.code); const shape=L.small?'lineaire':TM.th.shape; L.shape=shape;
+  // jetée ou satellite : le grand hall vers les portes devient un vrai hall (restauration, duty free, détente, jeux, tapis roulant)
+  if(shape==='jetee'||shape==='satellite'){ const H=(k,x0,y0,x1,y1,lab,ico)=>L.poi.push({k,x0,y0,x1,y1,lab,ico,hall:1});
+    H('resto',20,56,284,170,'Food court · cuisines du monde','🍲'); H('seats',20,188,284,300,'Espace détente','🛋️'); H('kids',20,318,150,392,'Aire de jeux pour enfants','🧸'); H('wc',164,318,284,392,'Toilettes','🚻');
+    H('dutyfree',356,56,620,170,'Grand duty free','🛍️'); H('cafe',356,188,620,284,'Café panoramique','☕'); H('press',356,302,476,392,'Librairie · presse','📚'); H('pharma',496,302,620,392,'Pharmacie','💊'); L.hall=1; } L.top=-300; L.bx0=-40; L.bx1=1040;
   const seatGrid=(x0,x1,y0,y1)=>{ const out=[]; if(TM.th.seat==='ilots'){ for(let yy=y0+18;yy<y1-12;yy+=40) for(let xx=x0+18;xx<x1-12;xx+=32) for(let k=0;k<8;k++){ const a=k/8*6.283; out.push({x:xx+Math.cos(a)*11,y:yy+Math.sin(a)*11}); } }
     if(!out.length) for(let yy=y0+6;yy<y1-6;yy+=15) for(let xx=x0+8;xx<x1-8;xx+=9) out.push({x:xx,y:yy}); return out; };
   // porte « en haut » (façade, aile, satellite) : avion nez vers le bâtiment, passerelle au milieu
@@ -208,10 +212,10 @@ function tmDepKF(g,i,L){
   if(sc.polStart){ const fo=!intl; const bs=L.poi.filter(p=>p.k==='booth'&&!p.arr), b=bs[Math.floor(r()*bs.length)];
     k.queue(L.polQ,sc.polStart,'fait la queue à la police aux frontières').walk((b.x0+b.x1)/2,b.y0-6,'au guichet de police').stay(Math.max(k.t+30000,sc.polDone),fo?'étranger sur un vol national : contrôle du passeport et du visa par la police':'contrôle du passeport'); if(fo) k.walk(tmJ(r,40,300),760,'rejoint le couloir des vols nationaux'); }
   else k.walk(tmJ(r,40,300),760,'couloir des vols nationaux');
-  const noShow=i>=N-(D.gate.noShow||0); let board=sc.board, gateA=Math.max(k.t+4*MIN,D.gate.open-(5+r()*30)*MIN); if(board<gateA+2*MIN) gateA=board-2*MIN;
+  const noShow=i>=N-(D.gate.noShow||0); let board=sc.board, gateA=Math.max(k.t+4*MIN,D.gate.open-(2+r()*16)*MIN); if(board<gateA+2*MIN) gateA=board-2*MIN;
   if(tmDelay(f)&&r()<0.14&&k.t<gateA-14*MIN){ const tr=L.poi.find(p=>p.k==='transfer'), q=tr&&tmIn(tr,r); if(q) k.walk(q.x,q.y-12,'vol retardé : va se renseigner').stay(k.t+(2+r()*3)*MIN,'demande des nouvelles du vol retardé au comptoir de la compagnie'); }
-  const acts=['dutyfree','cafe','resto','wc','pharma','press','seats','prayer','lounge'], W={dutyfree:'fait du shopping au duty free',cafe:'prend un café',resto:'mange au restaurant',wc:'aux toilettes',pharma:'à la pharmacie',press:'achète un journal',seats:'attend dans la salle commune',prayer:'à la salle de prière',lounge:'se détend au salon business'};
-  let guard=0; while(k.t<gateA-6*MIN&&guard++<5){ let a=acts[Math.floor(r()*acts.length)]; if(a==='lounge'&&sc.zone!==0) a='seats'; const p=tmPick(L,a,r); if(!p||tmClosed(a,k.t)) continue; const q=tmIn(p,r), dur=(a==='resto'?20:a==='cafe'?10:a==='wc'?4:a==='seats'||a==='lounge'?18:7)*(0.6+r()*0.8)*MIN;
+  const acts=['dutyfree','cafe','resto','wc','pharma','press','seats','prayer','lounge',...(L.hall&&sc.row&&sc.row.purp==='family'?['kids','kids']:[])], W={kids:'avec les enfants à l’aire de jeux',dutyfree:'fait du shopping au duty free',cafe:'prend un café',resto:'mange au restaurant',wc:'aux toilettes',pharma:'à la pharmacie',press:'achète un journal',seats:'attend dans la salle commune',prayer:'à la salle de prière',lounge:'se détend au salon business'};
+  let guard=0; while(k.t<gateA-6*MIN&&guard++<12){ /* flâne côté piste jusqu'à l'approche de l'embarquement */ let a=acts[Math.floor(r()*acts.length)]; if(a==='lounge'&&sc.zone!==0) a='seats'; const p=tmPick(L,a,r); if(!p||tmClosed(a,k.t)) continue; const q=tmIn(p,r), dur=(a==='resto'?20:a==='cafe'?10:a==='wc'?4:a==='seats'||a==='lounge'||a==='kids'?18:7)*(0.6+r()*0.8)*MIN;
     k.walk(q.x,q.y,'se dirige vers : '+p.lab).stay(Math.min(gateA-3*MIN,k.t+dur),W[a]||p.lab,a==='resto'||a==='cafe'||a==='seats'||a==='lounge'); if(a==='dutyfree'||a==='pharma'||a==='press') k.K.shopT=k.K.shopT||k.t; }
   if(noShow){ k.stay(D.gate.close+20*MIN,'⚠️ ne s’est pas présenté à la porte'); return k.K; }
   const s=g.seats[(i*37)%Math.max(1,g.seats.length)]||{x:(g.x0+g.x1)/2,y:200}, zl=sc.zone===0?'priorité (affaires, familles)':'zone '+sc.zone;
@@ -778,10 +782,11 @@ function tmDraw(){
     g.strokeStyle='#334155'; g.lineWidth=10; g.beginPath(); g.ellipse(b.cx,b.cy,b.rx,b.ry,0,0,6.283); g.stroke(); g.strokeStyle=f.col; g.lineWidth=2; g.stroke();
     fit(('Tapis '+b.n+' · '+f.fn+' · '+f.D.A.city),b.cx-34,b.cy-b.ry-24,68,13,now>f.D.bag.first&&now<f.D.bag.last?'#22c55e':'#facc15','#0f172a');  }
   // équipements et commerces
-  for(const p of L.poi){ const col={kiosk:'#0ea5e9',xray:'#475569',arch:'#94a3b8',booth:'#7c3aed',egate:'#6d28d9',wc:'#cbd5e1',cafe:'#fde68a',resto:'#fed7aa',dutyfree:'#fbcfe8',pharma:'#bbf7d0',press:'#e9d5ff',prayer:'#e0e7ff',seats:'#f1f5f9',info:'#bae6fd',green:'#86efac',red:'#fca5a5',change:'#fde68a',taxi:'#facc15',car:'#cbd5e1',lost:'#fecaca',lounge:'#d6d3d1',fids:'#0f172a',transfer:'#bae6fd',health:'#fef08a',trolley:'#d1d5db',xrayc:'#475569',atm:'#cbd5e1',fidsA:'#0f172a'}[p.k]||'#e5e7eb';
+  for(const p of L.poi){ const col={kiosk:'#0ea5e9',xray:'#475569',arch:'#94a3b8',booth:'#7c3aed',egate:'#6d28d9',wc:'#cbd5e1',cafe:'#fde68a',resto:'#fed7aa',dutyfree:'#fbcfe8',pharma:'#bbf7d0',press:'#e9d5ff',prayer:'#e0e7ff',seats:'#f1f5f9',info:'#bae6fd',green:'#86efac',red:'#fca5a5',change:'#fde68a',taxi:'#facc15',car:'#cbd5e1',lost:'#fecaca',lounge:'#d6d3d1',fids:'#0f172a',transfer:'#bae6fd',health:'#fef08a',trolley:'#d1d5db',xrayc:'#475569',atm:'#cbd5e1',fidsA:'#0f172a',kids:'#bbf7d0'}[p.k]||'#e5e7eb';
     g.fillStyle=col; g.fillRect(p.x0,p.y0,p.x1-p.x0,p.y1-p.y0); g.strokeStyle='rgba(51,65,85,.5)'; g.lineWidth=0.6; g.strokeRect(p.x0,p.y0,p.x1-p.x0,p.y1-p.y0);
     if(/^(dutyfree|cafe|resto|pharma|press|lounge|change|car)$/.test(p.k)){ const sh=p.k==='pharma'?'#16a34a':p.k==='dutyfree'?'#be185d':p.k==='press'?'#7c3aed':p.k==='lounge'?'#44403c':'#b45309'; g.fillStyle=sh; g.fillRect(p.x0,p.y1-3,p.x1-p.x0,3); g.fillStyle='rgba(255,255,255,.55)'; for(let x=p.x0+3;x<p.x1-3;x+=8) g.fillRect(x,p.y1-2.4,4,1.8);   // devanture
       if(/dutyfree|pharma|press/.test(p.k)){ g.fillStyle='rgba(51,65,85,.28)'; g.beginPath(); for(let y=p.y0+20;y<p.y1-10;y+=12) g.rect(p.x0+8,y,p.x1-p.x0-16,3); g.fill(); } }   // rayons
+    if(p.k==='kids'){ g.fillStyle='#f472b6'; g.beginPath(); g.arc(p.x0+30,p.y0+40,10,0,6.283); g.fill(); g.fillStyle='#60a5fa'; g.fillRect(p.x0+60,p.y0+28,40,8); g.fillStyle='#facc15'; g.beginPath(); g.moveTo(p.x0+90,p.y1-10); g.lineTo(p.x0+110,p.y1-40); g.lineTo(p.x0+118,p.y1-10); g.fill(); }   // toboggan, balles, tunnel
     if(p.k==='resto'||p.k==='cafe'){ g.fillStyle='rgba(120,53,15,.35)'; g.beginPath(); for(let x=p.x0+10;x<p.x1-6;x+=18) for(let y=p.y0+16;y<p.y1-6;y+=16){ g.moveTo(x+3.5,y); g.arc(x,y,3.5,0,6.283); } g.fill(); }
     if(p.k==='seats'||p.k==='lounge'){ g.fillStyle='rgba(100,116,139,.4)'; for(let y=p.y0+12;y<p.y1-4;y+=12) g.fillRect(p.x0+8,y,p.x1-p.x0-16,3); }
     if(p.k==='xray'){ g.fillStyle='#1e293b'; g.fillRect(p.x0+18,p.y0+3,24,10); g.fillStyle='#64748b'; for(let k=0;k<3;k++) g.fillRect(p.x0+2+((now/1500+k*7)%16),p.y0+5,4,6); }   // bacs qui avancent
@@ -796,6 +801,7 @@ function tmDraw(){
   tmLight(g,L,TH);
   tmWay(g,L,TH,fit);
   tmParked(g,L,now);
+  if(L.hall){ g.fillStyle='#94a3b8'; g.fillRect(304,40,32,356); g.fillStyle='#cbd5e1'; for(let y=48;y<392;y+=14){ g.beginPath(); g.moveTo(310,y+8); g.lineTo(320,y); g.lineTo(330,y+8); g.lineTo(326,y+8); g.lineTo(320,y+4); g.lineTo(314,y+8); g.closePath(); g.fill(); } fit('⇡ tapis roulant vers les portes',300,396,40,6,'#334155',null); }   // tapis roulant du hall
   if(TM.rain){ g.fillStyle='rgba(148,197,255,.10)'; g.fillRect(L.bx0,TW.top,L.bx1-L.bx0,-TW.top-2); g.strokeStyle='rgba(226,232,240,.10)'; g.lineWidth=2; g.beginPath(); for(let k=0;k<60;k++){ const x=L.bx0+((k*157)%(L.bx1-L.bx0)), y=TW.top+((k*89)%(-TW.top)); g.moveTo(x,y); g.lineTo(x+1,y+14); } g.stroke(); }   // tarmac mouillé, reflets
   tmDecor(L,now,g,fit);
   { g.strokeStyle='#b45309'; g.lineWidth=1; g.beginPath(); g.moveTo(14,946); g.lineTo(14,876); g.moveTo(50,946); g.lineTo(50,906); g.stroke(); fit('⭐ Coupe-file prioritaire',4,866,96,9,'#fff','#b45309'); }
