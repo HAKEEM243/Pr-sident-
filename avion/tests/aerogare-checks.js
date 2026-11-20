@@ -69,6 +69,14 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     ok(st.n>=1&&st.job==='écrivain renommé','Passager vedette : prochain vol annoncé, identité fixe',`${st.n} vol(s), ${st.age} ans`);
 
     ok(!errs.length,'Aucune erreur JavaScript dans le jeu',errs.slice(0,3).join(' | '));
+
+    // 9. sauvegarde puis rechargement (comme quand on ferme et rouvre le jeu) : tout doit continuer sans erreur
+    await p.evaluate(()=>{ for(const R of S.rivals||[]) for(const r of R.routes||[]){ const K=rivalSched(r); if(K) for(let i=0;i<K.nP;i++) for(let t=S.time;t<S.time+DAY;t+=20*MIN) rivalPos(r,i,t); } save(); });
+    const e0=errs.length; await p.reload(); await p.waitForTimeout(4000);
+    const rl=await p.evaluate(async()=>{ const o={}; o.loaded=!!(typeof S!=='undefined'&&S&&S.fleet&&S.fleet.length); let n=0;
+      for(const R of S.rivals||[]) for(const r of R.routes||[]){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++) for(let t=S.time;t<S.time+DAY;t+=15*MIN){ rivalPos(r,i,t); n++; } }
+      o.n=n; try{ closeModal(); }catch(e){} TM.code=null; tmOpen('FIH'); await new Promise(r=>setTimeout(r,2500)); o.vis=(TM.pts||[]).length; tmClose(); return o; });
+    ok(rl.loaded&&rl.vis>50&&errs.length===e0,'Après sauvegarde et rechargement : carte, 3D et aérogare sans erreur',`${rl.n} positions calculées, ${rl.vis} passagers visibles${errs.length>e0?' · '+errs.slice(e0,e0+2).join(' | '):''}`);
   }catch(e){ ok(false,'Le test lui-même a planté',e.message); }
   finally{ try{ b&&await b.close(); }catch(e){} srv.close(); console.log(fails?`\n❌ ${fails} contrôle(s) en échec : NE PAS mettre en ligne.`:'\n✅ Tous les contrôles sont bons.'); process.exit(fails?1:0); }
 })();

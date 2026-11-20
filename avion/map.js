@@ -488,7 +488,7 @@ function rivDelays(r,i,dir,cyc){ const K=rivalSched(r); if(!K) return {dep:0,hIn
   if(lock){ store[kk]=[dep,hIn,ga,P0,wf&&(wf.st||wf.gust||wf.vis<3000)?1:0,wt&&(wt.st||wt.gust||wt.vis<2500)?1:0]; const ks=Object.keys(store); if(ks.length>8000){ for(const k of ks) if(store[k][3]<S.time-2*DAY) delete store[k]; } }   // figé dans la sauvegarde
   return {dep,hIn,ga,wxD:!!(wf&&(wf.st||wf.gust||wf.vis<3000)),wxA:!!(wt&&(wt.st||wt.gust||wt.vis<2500))}; }
 // profil du vol avec ses retards (embarquement prolongé, attente, remise de gaz) : mêmes segments que pour vos avions
-function rivProf(base,dl){ if(!dl||(!dl.dep&&!dl.hIn&&!dl.ga)) return base; base._dc=base._dc||new Map(); const k=dl.dep+'|'+dl.hIn+'|'+dl.ga; let p=base._dc.get(k); if(p) return p;
+function rivProf(base,dl){ if(!dl||(!dl.dep&&!dl.hIn&&!dl.ga)) return base; if(!(base._dc instanceof Map)) Object.defineProperty(base,'_dc',{value:new Map(),enumerable:false,writable:true,configurable:true});   /* mémoire de calcul jamais enregistrée dans la sauvegarde (sinon elle revient abîmée au rechargement) */ const k=dl.dep+'|'+dl.hIn+'|'+dl.ga; let p=base._dc.get(k); if(p) return p;
   const segs=[]; let sh=0; for(const sg of base.segs){
     if(sg.ph===0&&dl.dep){ segs.push({...sg,t1:sg.t1+dl.dep}); sh+=dl.dep; continue; }
     if(sg.ph===6&&dl.hIn){ segs.push({ph:6,hold:'in',t0:sg.t0+sh,t1:sg.t0+sh+dl.hIn,d0:sg.d0,d1:sg.d0,a0:sg.a0,a1:sg.a0,s0:sg.s0,s1:sg.s0}); sh+=dl.hIn; }
