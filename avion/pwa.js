@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261280';
+const GAME_VER='20261281';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['✈️ Avions et piste plus réalistes','Les avions aux postes ont la taille de leur modèle (régional, moyen-courrier, gros porteur), les couleurs de leur compagnie (dérive, bande, capots des réacteurs), une ombre, un cockpit et leurs feux de position ; le feu rouge clignotant s\'allume quand ils roulent. Autour de chaque avion, les véhicules arrivent à la bonne heure selon l\'horaire du vol : groupe électrique, tapis à bagages avec tracteur et chariots, camion traiteur, camion-citerne, camion des eaux, plots et cales. Passerelles télescopiques avec rotonde et cabine. Dans l\'aérogare : rayons du soleil par la façade le jour, éclairage chaud la nuit et projecteurs sur le tarmac, sièges avec dossier, vitrines et rayons des boutiques, poteaux et sangles des files.'],
   ['📱 Aérogares à l\'endroit','Plus aucune aérogare n\'est à l\'envers : les avions sont toujours en haut et l\'entrée en bas, plus besoin de tourner le téléphone. Les aéroports restent différents (forme du terminal, sens gauche-droite, sol, couleurs, boutiques).'],
   ['🚀 Aérogare beaucoup plus fluide','Le décor (sol, murs, comptoirs, boutiques, textes) est dessiné une fois et gardé en mémoire ; seuls les personnages, les valises et les avions qui roulent sont redessinés. Vue de loin, la foule est mise à jour 8 fois par seconde. La carte cachée derrière se met en pause. En test (téléphone simulé) : environ 30 images par seconde au lieu de 6 à 14.'],
   ['⚡ Aérogare : ouverture rapide','L\'aérogare s\'ouvre environ 3 fois plus vite et ne se fige plus toutes les 15 secondes : les fiches des passagers ne sont calculées que pour les vols affichés, et tout n\'est recalculé que quand la liste des vols change.'],
