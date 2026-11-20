@@ -70,6 +70,8 @@ const TM_SHOPS={AF:[['dutyfree','🧵 Boutique de pagnes'],['resto','🍗 Maquis
   NA:[['dutyfree','🛍️ Duty free'],['resto','🍔 Burgers'],['cafe','☕ Coffee shop'],['pharma','🎧 Électronique'],['press','📰 News & books']],
   ME:[['dutyfree','💍 Bijouterie — duty free'],['resto','🥙 Grill oriental'],['cafe','☕ Café oriental'],['pharma','🌴 Dattes et douceurs'],['press','🧴 Parfums d’Orient']],
   AS:[['dutyfree','🛍️ Duty free'],['resto','🍜 Nouilles'],['cafe','🍵 Maison de thé'],['pharma','🍱 Bento'],['press','📚 Presse']]};
+// orientation du plan : départs à gauche ou à droite, pistes en haut ou en bas (symétries autour du centre du monde)
+const tmFx=x=>TM.th&&TM.th.mx?1000-x:x, tmFy=y=>TM.th&&TM.th.my?1000-y:y;
 function tmTheme(code){ const A=AP(code)||{}, reg0=(COUNTRIES[A.cc]&&COUNTRIES[A.cc][1])||'EU', me=['MA','DZ','TN','EG','AE','SA','QA','OM','KW','BH','JO','LB','TR','IR','IQ','LY'].includes(A.cc), reg=me?'ME':reg0==='SA'?'NA':reg0==='OC'?'EU':reg0, h=hashStr(code||'X');
   const P={AF:{floor:['#efe4cc','#eadcc0','#f1e7d3'],acc:['#0e7490','#b45309','#15803d'],pat:['terrazzo','checker','grid'],deco:['palmiers','fontaine','fresque']},
     EU:{floor:['#eceff3','#e9e7e2','#eef0f2'],acc:['#1d4ed8','#0f172a','#7c3aed'],pat:['grid','diag','grid'],deco:['oeuvre','ecran','jardin']},
@@ -77,7 +79,7 @@ function tmTheme(code){ const A=AP(code)||{}, reg0=(COUNTRIES[A.cc]&&COUNTRIES[A
     ME:{floor:['#f3eadb','#f1e6d0','#efe3cc'],acc:['#b45309','#065f46','#9a3412'],pat:['marbre','marbre','checker'],deco:['fontaine','palmiers','oeuvre']},
     AS:{floor:['#eef2f1','#f0ece4','#e9eef0'],acc:['#dc2626','#047857','#4338ca'],pat:['bois','grid','bois'],deco:['jardin','oeuvre','ecran']}}[reg]||null;
   const T=P||{floor:['#e7e5e4'],acc:['#334155'],pat:['grid'],deco:['oeuvre']}, k=n=>T[n][h%T[n].length];
-  return {reg,floor:k('floor'),acc:k('acc'),pat:T.pat[(h>>3)%T.pat.length],deco:T.deco[(h>>5)%T.deco.length],tile:[18,24,30][(h>>7)%3],carpet:['#7c2d12','#1e3a8a','#14532d','#581c87','#9f1239'][(h>>9)%5],shops:TM_SHOPS[reg]||TM_SHOPS.EU,swap:(h>>11)%3,name:A.name||('Aéroport de '+(A.city||code)),city:A.city||code,flag:(COUNTRIES[A.cc]&&COUNTRIES[A.cc][2])||'🌍'}; }
+  return {reg,floor:k('floor'),acc:k('acc'),pat:T.pat[(h>>3)%T.pat.length],deco:T.deco[(h>>5)%T.deco.length],tile:[18,24,30][(h>>7)%3],carpet:['#7c2d12','#1e3a8a','#14532d','#581c87','#9f1239'][(h>>9)%5],mx:(h>>13)&1,my:(h>>14)&1,facade:['droite','courbe','dents'][(h>>15)%3],seat:['rangees','ilots'][(h>>17)%2],canopy:['plat','ondule','arcs'][(h>>18)%3],shops:TM_SHOPS[reg]||TM_SHOPS.EU,swap:(h>>11)%3,name:A.name||('Aéroport de '+(A.city||code)),city:A.city||code,flag:(COUNTRIES[A.cc]&&COUNTRIES[A.cc][2])||'🌍'}; }
 const tmOps=code=>{ S.tmOps=S.tmOps||{}; return S.tmOps[code]||(S.tmOps[code]={sec:0,pol:0,ck:0}); };
 function tmPOI(cls){ const ops=tmOps(TM.code); const P=[], add=(k,x0,y0,x1,y1,lab,ico,o)=>{ const p={k,x0,y0,x1,y1,lab,ico,...(o||{})}; P.push(p); return p; };
   const small=cls<=2, big=cls>=4, nK=small?4:10, nL=Math.min(8,(small?3:6)+ops.sec), nB=Math.min(8,(small?3:6)+ops.pol), nA=small?3:5;
@@ -113,7 +115,9 @@ function tmLayout(F){
   const nd=Math.max(1,F.deps.length), na=Math.max(1,F.arrs.length), cls=(AP(TM.code)||{}).cls||3, Q=tmPOI(cls), L={poi:Q.P, nL:Q.nL, nB:Q.nB, small:Q.small, big:Q.big, deps:[], arrs:[]};
   F.deps.forEach((f,i)=>{ const bw=640/nd, x0=i*bw+3, x1=(i+1)*bw-3;
     const ck={x0:x0+4,x1:x1-4,y:1012}, q=tmPath(tmSnake(ck.x0+2,1032,ck.x1-2,1148,6).reverse());
-    const lounge={x0,x1,y0:44,y1:392}, seats=[]; for(let yy=lounge.y0+92;yy<lounge.y1-30;yy+=16) for(let xx=x0+8;xx<x1-8;xx+=9) seats.push({x:xx,y:yy});
+    const lounge={x0,x1,y0:44,y1:392}, seats=[]; TM.th=TM.th||tmTheme(TM.code);
+    if(TM.th.seat==='ilots'){ for(let yy=lounge.y0+110;yy<lounge.y1-30;yy+=46) for(let xx=x0+20;xx<x1-14;xx+=34) for(let k=0;k<8;k++){ const a=k/8*6.283; seats.push({x:xx+Math.cos(a)*12,y:yy+Math.sin(a)*12}); } }
+    if(!seats.length) for(let yy=lounge.y0+92;yy<lounge.y1-30;yy+=16) for(let xx=x0+8;xx<x1-8;xx+=9) seats.push({x:xx,y:yy});
     const desk={x:(x0+x1)/2,y:lounge.y0+40}, bq=tmPath(tmSnake(x0+8,desk.y+10,x1-8,desk.y+44,2).reverse());   // file d'embarquement devant le comptoir de porte
     L.deps.push({f,x0,x1,ck,q,lounge,seats,desk,bq,door:{x:(x0+x1)/2,y:lounge.y0-2}}); });
   F.arrs.forEach((f,i)=>{ const bw=340/na, x0=660+i*bw+3, x1=660+(i+1)*bw-3, cx=(x0+x1)/2;
@@ -265,7 +269,7 @@ function tmBoard(){ const el=document.getElementById('tmBoard'); if(!el||!TM.F) 
 /* ---------- caméra : vue générale, zones, zoom, déplacement ---------- */
 const TM_ZONES=[['🗺️ Vue générale',{x0:0,y0:-300,x1:1000,y1:1300}],['🛫 Pistes et postes',{x0:-40,y0:-300,x1:1040,y1:60}],['🎫 Enregistrement',{x0:0,y0:990,x1:640,y1:1300}],['🔍 Sûreté',{x0:0,y0:820,x1:640,y1:960}],['🛂 Police',{x0:300,y0:700,x1:640,y1:820}],
   ['🛍️ Boutiques',{x0:0,y0:420,x1:640,y1:700}],['🚪 Portes',{x0:0,y0:-200,x1:640,y1:400}],['🛬 Arrivées',{x0:660,y0:-200,x1:1000,y1:240}],['🛂 Immigration',{x0:660,y0:230,x1:1000,y1:430}],['🧳 Bagages',{x0:660,y0:420,x1:1000,y1:860}],['🛃 Douane',{x0:660,y0:850,x1:1000,y1:970}],['🤗 Hall des arrivées',{x0:660,y0:960,x1:1000,y1:1300}]];
-function tmFocus(R){ const cv=TM.cv; if(!cv) return; const w=cv.clientWidth, h=cv.clientHeight, s=Math.min(w/(R.x1-R.x0),h/(R.y1-R.y0))*0.96;
+function tmFocus(R0){ const cv=TM.cv; if(!cv) return; const xa=tmFx(R0.x0), xb=tmFx(R0.x1), ya=tmFy(R0.y0), yb=tmFy(R0.y1), R={x0:Math.min(xa,xb),x1:Math.max(xa,xb),y0:Math.min(ya,yb),y1:Math.max(ya,yb)}; const w=cv.clientWidth, h=cv.clientHeight, s=Math.min(w/(R.x1-R.x0),h/(R.y1-R.y0))*0.96;
   TM.goal={s,x:(R.x0+R.x1)/2-w/(2*s),y:(R.y0+R.y1)/2-h/(2*s)}; }
 function tmCamStep(){ const c=TM.cam, g=TM.goal; if(!g) return; const k=0.18; c.s+=(g.s-c.s)*k; c.x+=(g.x-c.x)*k; c.y+=(g.y-c.y)*k; if(Math.abs(g.s-c.s)<g.s*0.002&&Math.abs(g.x-c.x)<0.5&&Math.abs(g.y-c.y)<0.5){ Object.assign(c,g); TM.goal=null; } }
 function tmZoomAt(f,sx,sy){ const c=TM.cam, w=TM.cv.clientWidth, h=TM.cv.clientHeight, fit=Math.min(w/TW.W,h/(TW.H-TW.top)), ns=Math.max(fit*0.8,Math.min(fit*14,c.s*f)); const wx=c.x+sx/c.s, wy=c.y+sy/c.s; c.s=ns; c.x=wx-sx/ns; c.y=wy-sy/ns; TM.goal=null; }
@@ -299,7 +303,7 @@ function tmAfterSel(p,now){ const el=document.getElementById('tmInfo'); if(!el||
   d.querySelector('[data-tmfol]').onclick=()=>{ TM.follow=TM.follow===p?null:p; TM.selAt=0; }; }
 // suivi à la caméra
 function tmFollowStep(now,w,h){ const p=TM.follow; if(!p) return; const q=tmAt(p.K,now); if(!q){ TM.follow=null; return; }
-  const c=TM.cam, fit=Math.min(w/TW.W,h/(TW.H-TW.top)), s=Math.max(c.s,fit*4.5), tx=q.x-w/(2*s), ty=q.y-h/(2*s); c.s+=(s-c.s)*0.12; c.x+=(tx-c.x)*0.12; c.y+=(ty-c.y)*0.12; TM.goal=null; }
+  const c=TM.cam, fit=Math.min(w/TW.W,h/(TW.H-TW.top)), s=Math.max(c.s,fit*4.5), tx=tmFx(q.x)-w/(2*s), ty=tmFy(q.y)-h/(2*s); c.s+=(s-c.s)*0.12; c.x+=(tx-c.x)*0.12; c.y+=(ty-c.y)*0.12; TM.goal=null; }
 // annonces de l'aéroport (bandeau + voix)
 function tmAnnounce(now){ const F=TM.F; if(!F) return; const last=TM.annT||now; TM.annT=now; if(now<=last) return; const ev=[];
   for(const f of F.deps){ const D=f.D, to=D.B.city, gt=D.gate.name;
@@ -336,6 +340,9 @@ function tmDraw(){
   tmFollowStep(tmNow(),w,h); tmCamStep(); const c=TM.cam, g=cv.getContext('2d'), L=TM.L, F=TM.F, now=tmNow(), s=c.s;
   g.setTransform(TM.dpr,0,0,TM.dpr,0,0); g.fillStyle='#1e293b'; g.fillRect(0,0,w,h);
   g.setTransform(TM.dpr*s,0,0,TM.dpr*s,-c.x*TM.dpr*s,-c.y*TM.dpr*s);
+  { const T0=TM.th||(TM.th=tmTheme(TM.code)); if(!TM._ft) TM._ft=CanvasRenderingContext2D.prototype.fillText; g.fillText=TM._ft;
+    if(T0.mx||T0.my){ g.translate(T0.mx?1000:0,T0.my?1000:0); g.scale(T0.mx?-1:1,T0.my?-1:1); const ft=TM._ft;
+      g.fillText=function(t,x,y){ this.save(); this.translate(x,y); this.scale(T0.mx?-1:1,T0.my?-1:1); if(T0.mx) this.textAlign='right'; ft.call(this,t,0,0); this.restore(); }; } }
   const font=(px,b)=>{ g.font=`${b?'700 ':''}${px}px system-ui`; }, txt=(t,x,y,px,col,b)=>{ if(px*s<6) return; font(px,b); g.fillStyle=col||'#334155'; g.fillText(t,x,y); };
   // tarmac, chariots à bagages, avions
   g.fillStyle='#475569'; g.fillRect(-40,TW.top,1080,-TW.top+30); g.strokeStyle='#facc15'; g.lineWidth=1.2; g.setLineDash([]); g.beginPath(); g.moveTo(-40,TM_TWY); g.lineTo(1040,TM_TWY); g.stroke();   // axe de la voie de circulation
@@ -372,7 +379,9 @@ function tmDraw(){
   g.fillStyle='#78716c'; g.fillRect(0,975,640,6); txt('↔ tapis vers le tri bagages',8,972,8,'#e7e5e4');
   if(s>0.8){ g.fillStyle='#a8a29e'; for(let x=80;x<640;x+=160){ for(const y of [1100,600]) g.fillRect(x-3,y-3,6,6); } for(let x=740;x<1000;x+=120) g.fillRect(x-3,1150-3,6,6);   // piliers
     g.fillStyle='#4d7c0f'; for(const [x,y] of [[6,1000],[634,1000],[6,700],[634,705],[666,1100],[994,1100],[300,1232],[340,1232]]){ g.beginPath(); g.arc(x,y,5,0,6.283); g.fill(); } }   // plantes
-  { const gr=g.createLinearGradient(0,-4,0,8); gr.addColorStop(0,'#7dd3fc'); gr.addColorStop(1,'rgba(125,211,252,0)'); g.fillStyle=gr; g.fillRect(0,-3,1000,11); }   // façade vitrée
+  { const gr=g.createLinearGradient(0,-4,0,8); gr.addColorStop(0,'#7dd3fc'); gr.addColorStop(1,'rgba(125,211,252,0)'); g.fillStyle=gr; g.fillRect(0,-3,1000,11);   // façade vitrée
+    g.strokeStyle='#0ea5e9'; g.lineWidth=3; g.beginPath(); if(TH.facade==='courbe'){ g.moveTo(0,0); g.quadraticCurveTo(500,-26,1000,0); } else if(TH.facade==='dents'){ for(let x=0;x<=1000;x+=50){ g.lineTo(x,x%100?-10:0); } } else { g.moveTo(0,0); g.lineTo(1000,0); } g.stroke();
+    g.fillStyle='rgba(30,41,59,.25)'; g.beginPath(); if(TH.canopy==='ondule'){ g.moveTo(0,1236); for(let x=0;x<=1000;x+=25) g.lineTo(x,1242+Math.sin(x/40)*5); g.lineTo(1000,1236); } else if(TH.canopy==='arcs'){ g.moveTo(0,1236); for(let x=0;x<1000;x+=100) g.quadraticCurveTo(x+50,1256,x+100,1236); } else { g.rect(0,1236,1000,10); } g.fill(); }   // auvent du parvis
   // décor propre à l'aéroport : dans le hall des arrivées et le hall d'enregistrement
   { const dx=830, dy=1112; if(TH.deco==='fontaine'){ g.fillStyle='#bae6fd'; g.beginPath(); g.arc(dx,dy,22,0,6.283); g.fill(); g.strokeStyle='#64748b'; g.lineWidth=2; g.stroke(); g.strokeStyle='rgba(255,255,255,.8)'; g.lineWidth=1; for(let k=0;k<3;k++){ g.beginPath(); g.arc(dx,dy,6+k*5+((now/300)%5),0,6.283); g.stroke(); } }
     else if(TH.deco==='palmiers'){ for(const [x,y] of [[dx-24,dy],[dx+24,dy],[dx,dy-18],[310,1206]]){ g.fillStyle='#78350f'; g.beginPath(); g.arc(x,y,3,0,6.283); g.fill(); g.fillStyle='#15803d'; for(let a=0;a<6;a++){ g.beginPath(); g.ellipse(x+Math.cos(a)*8,y+Math.sin(a)*8,9,3.5,a,0,6.283); g.fill(); } } }
@@ -385,7 +394,7 @@ function tmDraw(){
   // portes au départ
   for(const d of L.deps){ const f=d.f, D=f.D, sel=TM.selF===f; g.fillStyle=f.col; g.globalAlpha=sel?0.28:0.13; g.fillRect(d.x0,d.lounge.y0,d.x1-d.x0,d.lounge.y1-d.lounge.y0); g.fillRect(d.x0,1000,d.x1-d.x0,160); g.globalAlpha=1;
     g.strokeStyle='#94a3b8'; g.lineWidth=1; g.strokeRect(d.x0,d.lounge.y0,d.x1-d.x0,d.lounge.y1-d.lounge.y0);
-    g.fillStyle='rgba(100,116,139,.45)'; for(const p of d.seats) g.fillRect(p.x-3,p.y-2,6,4);
+    g.fillStyle='rgba(100,116,139,.45)'; if(TH.seat==='ilots'){ for(const p of d.seats){ g.beginPath(); g.arc(p.x,p.y,2.6,0,6.283); g.fill(); } } else for(const p of d.seats) g.fillRect(p.x-3,p.y-2,6,4);
     if(s>0.9){ g.strokeStyle='rgba(30,41,59,.25)'; g.lineWidth=0.6; const P=d.bq.pts; g.beginPath(); for(let k=0;k<P.length;k+=2){ g.moveTo(P[k].x,P[k].y+5); g.lineTo(P[k+1]?P[k+1].x:P[k].x,P[k].y+5); } g.stroke(); }
     g.fillStyle='#334155'; g.fillRect(d.desk.x-14,d.desk.y-4,28,8); if(now>=d.f.D.gate.open-40*MIN&&now<d.f.D.P){ g.fillStyle='#64748b'; g.fillRect(d.door.x-5,-60,10,62); }
     g.fillStyle='#0f172a'; g.fillRect(d.x0+4,d.lounge.y0+60,Math.min(46,d.x1-d.x0-8),12); if(s>1.2){ g.fillStyle='#22c55e'; font(6,1); g.fillText((D.B.city+' '+tmHM(D.P)).slice(0,14),d.x0+6,d.lounge.y0+69); }   // écran de porte
@@ -504,7 +513,7 @@ function tmOpen(code){
     if(P.size>=2&&pinch){ P.set(e.pointerId,{x:e.clientX,y:e.clientY}); const [a,b]=[...P.values()], d=Math.hypot(a.x-b.x,a.y-b.y); if(pinch.d>10) tmZoomAt(d/pinch.d,(a.x+b.x)/2-r.left,(a.y+b.y)/2-r.top); pinch.d=d; moved=99; return; }
     const dx=e.clientX-o.x, dy=e.clientY-o.y; moved+=Math.abs(dx)+Math.abs(dy); TM.cam.x-=dx/TM.cam.s; TM.cam.y-=dy/TM.cam.s; P.set(e.pointerId,{x:e.clientX,y:e.clientY}); });
   const up=e=>{ const had=P.has(e.pointerId); P.delete(e.pointerId); if(P.size<2) pinch=null; if(!had||moved>8||!TM.cam) return;
-    const r=TM.cv.getBoundingClientRect(), wx=TM.cam.x+(e.clientX-r.left)/TM.cam.s, wy=TM.cam.y+(e.clientY-r.top)/TM.cam.s; let best=null, bd=(16/TM.cam.s)**2;
+    const r=TM.cv.getBoundingClientRect(), wx=tmFx(TM.cam.x+(e.clientX-r.left)/TM.cam.s), wy=tmFy(TM.cam.y+(e.clientY-r.top)/TM.cam.s); let best=null, bd=(16/TM.cam.s)**2;
     for(const z of TM.pts||[]){ const d=(z[0]-wx)**2+(z[1]-wy)**2; if(d<bd){ bd=d; best=z[2]; } }
     if(best){ TM.sel=best; TM.selAt=0; TM.dash=false; return; } TM.sel=null; if(TM.dash) return;
     const g=(TM.L.deps.find(d=>wx>=d.x0&&wx<=d.x1&&wy>=-130&&wy<=d.lounge.y1))||(TM.L.arrs.find(a=>wx>=a.x0&&wx<=a.x1&&wy>=-130&&wy<=60));
