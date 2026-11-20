@@ -23,7 +23,7 @@ const TM_SKIN=['#5b3a24','#7a4a2a','#3f2516','#8d5a3b','#c99a73','#e8c2a0'];
 const tmNow=()=>typeof gSimNow==='function'&&typeof G!=='undefined'&&G?gSimNow():S.time;
 const tmHM=t=>{ try{ return fmtTime(t).split(' ').pop(); }catch(e){ const d=new Date(t); return d.getUTCHours()+':'+String(d.getUTCMinutes()).padStart(2,'0'); } };
 function tmD(a,l){ const k=a.id+'|'+l.dep, c=TM.cache[k]; if(c&&performance.now()-c.at<20000) return c.D;
-  let D=null; try{ D=pfData(a,l); }catch(e){} TM.cache[k]={D,at:performance.now()}; return D; }
+  let D=null; try{ D=pfData(a,l); const s2=legProf(l,modelOf(a)).segs.find(x=>x.ph===2); if(D&&s2) D.tko=l.dep+s2.t0; const s8=legProf(l,modelOf(a)).segs.find(x=>x.ph===8); if(D&&s8) D.td=l.dep+s8.t0; }catch(e){} TM.cache[k]={D,at:performance.now()}; return D; }   // tko : décollage réel (comme en 3D)
 // vols de vos avions qui passent par cet aéroport en ce moment
 function tmFlights(code){
   const now=tmNow(), deps=[], arrs=[];
@@ -31,7 +31,7 @@ function tmFlights(code){
     fl.legs.forEach((l,i)=>{ if(i<fl.li) return; if(l.from!==code&&l.to!==code) return; const D=tmD(a,l); if(!D) return;
       const N=D.total||Math.round((modelOf(a).seats||150)*0.8), fn=S.company.code+(typeof flightNumber==='function'?flightNumber(a):'');
       const man=()=>{ try{ return typeof manifestFor==='function'?manifestFor(a,l):null; }catch(e){ return null; } }, info={reg:a.reg,model:modelOf(a).name,acId:a.id};
-      if(l.from===code&&now>=D.ci.open-5*MIN&&now<=D.P+3*MIN) deps.push({a,l,D,N,fn,man:man(),...info});
+      if(l.from===code&&now>=D.ci.open-5*MIN&&now<=Math.max(D.P+3*MIN,(D.tko||0)+MIN)) deps.push({a,l,D,N,fn,man:man(),...info});
       if(l.to===code&&i===fl.li&&now>=D.arr-25*MIN&&now<D.arr) arrs.push({a,l,D,N,fn,soon:true,...info}); }); }
   // vols posés récemment (tous) : passagers à l'immigration, aux bagages, à la douane, puis sortie
   const seen=new Set();
@@ -46,7 +46,9 @@ function tmFlights(code){
   const F={deps,arrs,cancel:[]}; try{ tmRivals(code,now,F); }catch(e){}
   try{ for(const a of S.fleet) if(a.loc===code&&a.status!=='flight'&&a.blocked&&/grève|annul/i.test(a.blocked)) F.cancel.push({fn:S.company.code+(typeof flightNumber==='function'?flightNumber(a):''),dest:a.reg||'',why:a.blocked}); }catch(e){}
   try{ const w=typeof towerWx==='function'?towerWx(code):null; if(w&&w.st) for(const f of F.deps) if(f.riv){ const dl=25+hashStr(f.D.key)%50; f.dl=dl; f.dlw='orage'; for(const k of ['P']) f.D[k]+=dl*MIN; f.D.gate.open+=dl*MIN; f.D.gate.last+=dl*MIN; f.D.gate.close+=dl*MIN; } }catch(e){}
-  F.deps=tmMix(F.deps,14,x=>x.D.P); F.arrs=tmMix(F.arrs,8,x=>x.D.arr); return F;
+  F.deps=tmMix(F.deps,14,x=>x.D.P); F.arrs=tmMix(F.arrs,8,x=>x.D.arr);
+  try{ const shown=new Set([...F.deps,...F.arrs].map(f=>f.acId)); F.parked=S.fleet.filter(a=>{ if(shown.has(a.id)) return false; const fl=a.flight, lg=fl&&fl.legs&&fl.legs[fl.li]; if(a.status==='flight'&&lg) return lg.from===code&&now<lg.dep; return a.loc===code; }).slice(0,10).map(a=>({a,reg:a.reg,model:modelOf(a).name,why:a.status==='maint'?'en maintenance':a.status==='flight'?'en attente de son prochain vol':'stationné'})); }catch(e){ F.parked=[]; }
+  return F;
 }
 // vols des autres compagnies : horaires réels du jeu (rivalSched), passagers estimés selon l'avion
 function tmFakeD(key,A,B,P,arr,N){ const intl=A.cc!==B.cc, h=hashStr(key);
@@ -148,6 +150,7 @@ function tmLayout(F){
     const bw2=640/nd, cx0=ckPos[i]*bw2+3, cx1=(ckPos[i]+1)*bw2-3; g.ck={x0:cx0+4,x1:cx1-4,y:1012}; g.q=tmPath(tmSnake(g.ck.x0+2,1032,g.ck.x1-2,1148,6).reverse()); g.cx0=cx0; g.cx1=cx1;
     L.deps.push(g); });
   if(shape==='jetee') L.top=Math.min(-300,(L.pierEnd||-200)-150); if(shape==='satellite'){ L.top=-1020; L.bx0=Math.min(-40,(L.satX||[0])[0]-60); L.bx1=Math.max(1040,(L.satX||[0,0])[1]+60); } if(shape==='L') L.bx0=-460;
+  if(F.parked&&F.parked.length) L.top-=140;   // postes éloignés pour les avions stationnés
   TW.top=L.top;
   F.arrs.forEach((f,i)=>{ const bw=340/na, x0=660+i*bw+3, x1=660+(i+1)*bw-3, cx=(x0+x1)/2;
     const BP=[(i%2)?915:745,492+Math.floor((i%8)/2)*92]; L.arrs.push({f,x0,x1,door:{x:cx,y:38},sy:na>3&&i%2?-112:-60,belt:{cx:BP[0],cy:BP[1],rx:56,ry:24,n:i+1}}); });
@@ -456,6 +459,8 @@ function tmWay(g,L,TH,fit){ const Y=(t,x0,y0,x1,y1)=>{ g.fillStyle='rgba(15,23,4
   const fl=[...new Set((TM.F?TM.F.arrs:[]).map(f=>f.D&&f.D.A&&f.D.A.cc).filter(Boolean))].slice(0,10).map(cc=>{ try{ return String.fromCodePoint(...[...cc.toUpperCase()].map(c=>127397+c.charCodeAt(0))); }catch(e){ return ''; } }).join(' ');
   if(fl) fit(fl,700,1003,260,9,'#111827',null);   // drapeaux des pays de provenance des vols du jour
 }
+function tmParked(g,L,now){ const P=(TM.F&&TM.F.parked)||[]; if(!P.length) return; const y=L.top+22, x0=L.bx0+60, col=(S.company&&S.company.color)||'#b91c1c';
+  P.forEach((p,k)=>{ const x=x0+k*84; if(x>L.bx1-40) return; const sc=tmPSc({model:p.model,N:modelOf(p.a).seats}); tmPlane(g,x,y,col,Math.PI,sc); g.fillStyle='#f8fafc'; g.font='700 7px system-ui'; g.fillText(p.reg+(p.a.status==='maint'?' 🔧':''),x-14,y-8); }); }   // postes éloignés
 function tmLight(g,L,TH){ const hr=tmLocalHour(), night=hr<6||hr>=18.5;
   if(!night){ const k=(hr-12)/6, a=Math.max(0.03,0.09-Math.abs(k)*0.04); g.fillStyle=`rgba(255,247,214,${a})`; g.beginPath(); for(let x=-40;x<1000;x+=48){ g.moveTo(x,2); g.lineTo(x+26,2); g.lineTo(x+26+k*70,150); g.lineTo(x+k*70,150); } g.fill(); }   // rayons du soleil par la façade vitrée
   else { for(let x=40;x<1000;x+=90) for(let y=70;y<1220;y+=130){ if(x>636&&x<664) continue; const gr=g.createRadialGradient(x,y,0,x,y,46); gr.addColorStop(0,'rgba(253,224,141,.16)'); gr.addColorStop(1,'rgba(253,224,141,0)'); g.fillStyle=gr; g.fillRect(x-46,y-46,92,92); }   // éclairage intérieur
@@ -487,7 +492,11 @@ function* tmBuildGen(F0){ const F=F0||tmFlights(TM.code), L=tmLayout(F), ppl=[];
   TM.F=F; TM.L=L; TM.ppl=ppl; TM.bags=tmBags(L);
   try{ const st=ppl.find(p=>p.row&&p.row.star&&p.f); if(st&&TM.starKey!==st.f.D.key){ TM.starKey=st.f.D.key; toast(`⭐ <b>Merveil Hakeem Dianzenza</b> est dans l’aérogare (vol ${esc(st.f.fn)} ${st.dep?'vers Paris':'en provenance de Paris'}) : cherchez l’étoile dorée !`); } }catch(e){}
   // l'avion arrivé reste au poste tant que ses passagers et ses valises ne sont pas tous sortis
-  for(const a of L.arrs){ if(a.f.soon) continue; const D=a.f.D; let u=Math.max(D.arr+60*MIN,(D.bag&&D.bag.last||0)+10*MIN); for(const p of ppl) if(p.f===a.f&&p.dep!==1&&p.K.length) u=Math.max(u,p.K[p.K.length-1].t); for(const b of TM.bags) if(b.belt===a.belt) u=Math.max(u,b.t0+5*MIN); a.until=Math.min(u,D.arr+4*HOUR); } TM.built=performance.now();
+  for(const d of L.deps){ d.showFrom=d.f.D.gate.open-40*MIN; try{ const ac=d.f.a, l=d.f.l; if(ac&&l&&ac.flight){ const legs=ac.flight.legs, i=legs.indexOf(l), pv=i>0?legs[i-1]:null; d.showFrom=pv&&pv.to===TM.code?pv.dep+legProf(pv,modelOf(ac)).total:-Infinity; } }catch(e){} }
+  for(const a of L.arrs){ if(!a.f.soon||!a.f.reg) continue; const nx=L.deps.find(d=>d.f.reg===a.f.reg&&d.f.D.P>a.f.D.arr); if(nx) nx.showFrom=Math.max(nx.showFrom===-Infinity?0:(nx.showFrom||0),a.f.D.arr+45*MIN); }   // pas encore posé : il ne peut pas déjà être à sa porte de départ
+  for(const a of L.arrs){ if(a.f.soon) continue; const D=a.f.D; let u=Math.max(D.arr+60*MIN,(D.bag&&D.bag.last||0)+10*MIN); for(const p of ppl) if(p.f===a.f&&p.dep!==1&&p.K.length) u=Math.max(u,p.K[p.K.length-1].t); for(const b of TM.bags) if(b.belt===a.belt) u=Math.max(u,b.t0+5*MIN); a.until=Math.min(u,D.arr+4*HOUR);
+    const own=a.f.acId&&S.fleet.find(x=>x.id===a.f.acId); if(own) a.until=D.arr+4*HOUR;
+    const nx=a.f.reg&&L.deps.find(d=>d.f.reg===a.f.reg&&d.f.D.P>D.arr); if(nx){ let lb=0; for(const b of TM.bags) if(b.belt===a.belt) lb=Math.max(lb,b.t0); a.until=Math.min(a.until,Math.max(D.arr+25*MIN,lb+2*MIN,Math.min(nx.f.D.gate.open-15*MIN,D.arr+45*MIN))); nx.showFrom=Math.max(nx.showFrom===-Infinity?0:nx.showFrom,Math.max(D.arr+40*MIN,a.until)+4*MIN+30000); a.next=nx; } } TM.built=performance.now();
   // incidents des vols (Aérogare en direct) : affichés sur le plan au bon moment
   TM.inc=[]; try{ for(const g of L.deps) if(g.f.l&&g.f.D.rows) for(const x of pfIncidents(g.f.D,'dep')) TM.inc.push({x:g.desk.x+18,y:g.desk.y-10,at:x.at,t:x.t,f:g.f});
     for(const a of L.arrs) if(a.f.D.rows) for(const x of pfIncidents(a.f.D,'arr')) TM.inc.push({x:x.id==='lost'?925:a.door.x,y:x.id==='lost'?790:60,at:x.at,t:x.t,f:a.f}); }catch(e){}
@@ -624,17 +633,23 @@ function tmAnnounce(now){ const F=TM.F; if(!F) return; const last=TM.annT||now; 
   if(TM.voice&&typeof fx2Say==='function') try{ fx2Say(msg,'fr',0.9); if(en&&en!==msg) fx2Say(en,'en',0.9); }catch(e){} }
 // avion au départ : au poste → repoussage → virage → roulage ; avion à l'arrivée : roulage → virage → entrée au poste
 const TM_TWY=-250;
-function tmDepPlane(d,now){ const D=d.f.D, P=D.P, st=d.stand, n={x:-Math.sin(st.a),y:Math.cos(st.a)}; if(now<D.gate.open-40*MIN) return null; if(now<P) return {x:st.x,y:st.y,a:st.a,at:1};
+function tmDepPlane(d,now){ const D=d.f.D, P=D.P, st=d.stand, n={x:-Math.sin(st.a),y:Math.cos(st.a)}; if(now<(d.showFrom!=null?d.showFrom:D.gate.open-40*MIN)) return null; if(now<P) return {x:st.x,y:st.y,a:st.a,at:1};
   const u=now-P, px=st.x-n.x*d.push, py=st.y-n.y*d.push; if(u<2.5*MIN){ const k=u/(2.5*MIN); return {x:st.x-n.x*d.push*k,y:st.y-n.y*d.push*k,a:st.a,push:1}; }
-  if(u<3*MIN) return {x:px,y:py,a:st.a+d.turn*Math.PI/2*(u-2.5*MIN)/(0.5*MIN)}; const a2=st.a+d.turn*Math.PI/2, k=(u-3*MIN)/(4*MIN);
-  if(u<7*MIN) return {x:px-Math.sin(a2)*1100*k,y:py+Math.cos(a2)*1100*k,a:a2}; return null; }
-function tmArrPlane(a,now){ const A=a.f.D.arr, sy=a.sy||-60, U=Math.max(A+40*MIN,a.until||0); if(now<A-6*MIN||now>U+4*MIN) return null;
+  if(u<3*MIN) return {x:px,y:py,a:st.a+d.turn*Math.PI/2*(u-2.5*MIN)/(0.5*MIN)}; const a2=st.a+d.turn*Math.PI/2, tx=Math.max(4*MIN,(D.tko||P+7*MIN)-P-3*MIN), k=(u-3*MIN)/tx;   // roule jusqu'au décollage réel
+  if(u<3*MIN+tx) return {x:px-Math.sin(a2)*1100*k,y:py+Math.cos(a2)*1100*k,a:a2}; return null; }
+function tmArrPlane(a,now){ const A=a.f.D.arr, sy=a.sy||-60, U=Math.max(A+40*MIN,a.until||0), T0=Math.min(A-MIN,a.f.D.td||A-6*MIN), TX=A-T0; if(now<T0||now>U+4*MIN) return null;
   if(now>U){ const u=(now-U)/(4*MIN); return u<0.5?{x:a.door.x,y:sy+(TM_TWY-sy)*u*2,a:0,push:1}:{x:a.door.x+700*(u-0.5)*2,y:TM_TWY,a:Math.PI/2}; }   // repoussé puis remorqué une fois vide
   if(now>=A) return {x:a.door.x,y:sy,a:0,at:1};
-  const u=A-now; if(u>2*MIN) return {x:a.door.x+700*(u-2*MIN)/(4*MIN),y:TM_TWY,a:Math.PI/2}; if(u>1.5*MIN) return {x:a.door.x,y:TM_TWY,a:Math.PI/2*(u-1.5*MIN)/(0.5*MIN)};
+  const u=A-now; if(u>2*MIN) return {x:a.door.x+700*(u-2*MIN)/Math.max(MIN,TX-2*MIN),y:TM_TWY,a:Math.PI/2}; if(u>1.5*MIN) return {x:a.door.x,y:TM_TWY,a:Math.PI/2*(u-1.5*MIN)/(0.5*MIN)};   // roule depuis le toucher des roues (comme en 3D)
   return {x:a.door.x,y:TM_TWY+(sy-TM_TWY)*(1-u/(1.5*MIN)),a:0}; }
 function tmClosed(k,t){ const A=AP(TM.code)||{}, tz=A.utc!=null?A.utc:Math.round((A.lon||0)/15), h=((((t||tmNow())/HOUR+tz)%24)+24)%24, big=(A.cls||2)>=4;
   if(big) return (k==='press'||k==='pharma')&&h>=1&&h<5; return {dutyfree:h<5.5||h>=23,resto:h<5||h>=23.5,cafe:h>=0.5&&h<4.5,pharma:h<6||h>=22,press:h<6||h>=21}[k]||false; }
+// horloge et calendrier bien visibles : jour de la semaine, date, heure et minute ; heure locale de l'aéroport
+const TM_JOURS=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'], TM_MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+function tmClockHtml(t){ const d=new Date(t), A=AP(TM.code)||{}, tz=A.utc!=null?A.utc:Math.round((A.lon||0)/15), L=new Date(t+tz*HOUR), hm=x=>String(x.getUTCHours()).padStart(2,'0')+':'+String(x.getUTCMinutes()).padStart(2,'0');
+  if(!document.getElementById('tmBlinkCss')){ const st=document.createElement('style'); st.id='tmBlinkCss'; st.textContent='@keyframes tmblink{50%{opacity:.25}}.tmblink{animation:tmblink 1s steps(1) infinite}'; document.head.appendChild(st); }
+  const big=hm(d).replace(':','<span class="tmblink">:</span>');
+  return `<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:2px"><span style="font:800 22px/1 ui-monospace,Menlo,monospace;color:#fde047;letter-spacing:1px">${big}</span><span style="font-weight:800;color:#fff;text-transform:capitalize">${TM_JOURS[d.getUTCDay()]} ${d.getUTCDate()} ${TM_MOIS[d.getUTCMonth()]} ${d.getUTCFullYear()}</span>${tz?`<span style="color:#93c5fd;font-weight:600">· ${esc(A.city||'')} ${hm(L)} (heure locale)</span>`:''}</div>`; }
 function tmLocalHour(){ const A=AP(TM.code)||{}, tz=A.utc!=null?A.utc:Math.round((A.lon||0)/15); return (((tmNow()/HOUR+tz)%24)+24)%24; }
 const TM_OPS=[['sec','🔍 Lignes de sûreté',2500],['pol','🛂 Guichets de police (départ)',1800],['ck','🎫 Comptoirs par vol',900]];
 function tmDash(){ const L=TM.L, c=TM.cnt||{}, W=L.W||{}, now=tmNow(), o=tmOps(TM.code);
@@ -773,6 +788,7 @@ function tmDraw(){
   fit(`${TH.flag} ${TH.name}`,4,1240,640,22,'#fff','#0f172a');
   tmLight(g,L,TH);
   tmWay(g,L,TH,fit);
+  tmParked(g,L,now);
   if(TM.rain){ g.fillStyle='rgba(148,197,255,.10)'; g.fillRect(L.bx0,TW.top,L.bx1-L.bx0,-TW.top-2); g.strokeStyle='rgba(226,232,240,.10)'; g.lineWidth=2; g.beginPath(); for(let k=0;k<60;k++){ const x=L.bx0+((k*157)%(L.bx1-L.bx0)), y=TW.top+((k*89)%(-TW.top)); g.moveTo(x,y); g.lineTo(x+1,y+14); } g.stroke(); }   // tarmac mouillé, reflets
   tmDecor(L,now,g,fit);
   { g.strokeStyle='#b45309'; g.lineWidth=1; g.beginPath(); g.moveTo(14,946); g.lineTo(14,876); g.moveTo(50,946); g.lineTo(50,906); g.stroke(); fit('⭐ Coupe-file prioritaire',4,866,96,9,'#fff','#b45309'); }
@@ -798,7 +814,7 @@ function tmDraw(){
   for(const x of TM.inc||[]) if(now>=x.at&&now<x.at+20*MIN){ const pr=3+Math.sin(now/300)*1.5; g.fillStyle='rgba(239,68,68,.85)'; g.beginPath(); g.arc(x.x,x.y,7+pr,0,6.283); g.fill(); txt('!',x.x-2,x.y+4,11,'#fff',1); }
   // passagers (animés)
   // vue de loin : la couche des personnages n'est recalculée que 8 fois par seconde (ce sont de petits points)
-  const toPl=(3.3*s<2.2)&&TM.cacheOn, plSkip=toPl&&TM.pl&&TM.plKey===TM.camKey&&performance.now()-TM.plAt<(3.3*s<1.8?120:80);
+  const toPl=(3.3*s<2.2)&&TM.cacheOn, plSkip=toPl&&TM.pl&&TM.plKey===TM.camKey&&(performance.now()-TM.plAt<(3.3*s<1.8?120:80)||(TM.plF||0)<2); if(plSkip) TM.plF=(TM.plF||0)+1;   // au plus 1 image sur 3 recalcule la foule (évite l'emballement sur un téléphone lent)
   let n=0, nd=0, na=0; let pts=[], cnt={ck:0,sec:0,pol:0,board:0,imm:0,belt:0}; const FB={}, r00=3.3, vx0=c.x-10, vy0=c.y-10, vx1=c.x+w/s+10, vy1=c.y+h/s+10, legs=true;
   if(plSkip){ main.setTransform(1,0,0,1,0,0); main.drawImage(TM.pl,0,0); prep(main,false); [n,nd,na]=TM.nn; pts=TM.pts; cnt=TM.cnt; } else {
   if(toPl){ if(!TM.pl||TM.pl.width!==cv.width||TM.pl.height!==cv.height){ TM.pl=document.createElement('canvas'); TM.pl.width=cv.width; TM.pl.height=cv.height; } g=TM.pl.getContext('2d'); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,cv.width,cv.height); prep(g,false); }
@@ -818,7 +834,7 @@ function tmDraw(){
     if(p.sign&&!q.walk){ const L2=tmLook(p), top=y+r0*1.7-r0*L2.sc*4.4; g.fillStyle='#fff'; g.fillRect(x-r0*1.6,top-r0*1.3,r0*3.2,r0*1.3); g.strokeStyle='#334155'; g.lineWidth=0.4; g.strokeRect(x-r0*1.6,top-r0*1.3,r0*3.2,r0*1.3); if(px>5&&p.signName){ let fs=r0*0.8; g.font=`700 ${fs}px system-ui`; let tw=g.measureText(p.signName).width; if(tw>r0*3){ fs*=r0*3/tw; g.font=`700 ${fs}px system-ui`; tw=r0*3; } g.fillStyle='#111'; g.fillText(p.signName,x-tw/2,top-r0*0.38); } else if(px>4){ g.fillStyle='#111'; for(let j=0;j<3;j++) g.fillRect(x-r0*1.2+j*r0*0.85,top-r0*0.8,r0*0.6,r0*0.25); } } }
   for(const c in FB){ const a=FB[c]; g.fillStyle=c; g.beginPath(); if(3.3*s<1.4) for(let j=0;j<a.length;j+=4) g.rect(a[j]-a[j+2],a[j+1]-a[j+3],a[j+2]*2,a[j+3]*2); else for(let j=0;j<a.length;j+=4){ g.moveTo(a[j]+a[j+2],a[j+1]); g.ellipse(a[j],a[j+1],a[j+2],a[j+3],0,0,6.283); } g.fill(); }
   TM.pts=pts; TM.cnt=cnt; TM.nn=[n,nd,na];
-  if(toPl){ g=main; main.setTransform(1,0,0,1,0,0); main.drawImage(TM.pl,0,0); prep(main,false); TM.plKey=TM.camKey; TM.plAt=performance.now(); } }
+  if(toPl){ g=main; main.setTransform(1,0,0,1,0,0); main.drawImage(TM.pl,0,0); prep(main,false); TM.plKey=TM.camKey; TM.plAt=performance.now(); TM.plF=0; } }
   if(TM.heat){ const G2={}; for(const z of pts){ if(z[2].staff) continue; const k=Math.floor(z[0]/40)+','+Math.floor(z[1]/40); G2[k]=(G2[k]||0)+1; }
     for(const [k,v] of Object.entries(G2)){ const [cx,cy]=k.split(',').map(Number), a=Math.min(0.75,v/25); g.fillStyle=v>18?`rgba(239,68,68,${a})`:v>8?`rgba(249,115,22,${a})`:`rgba(250,204,21,${a*0.8})`; g.fillRect(cx*40,cy*40,40,40); } }
   if(TM.dash&&(!TM.dashAt||performance.now()-TM.dashAt>1500)){ TM.dashAt=performance.now(); tmDash(); }
@@ -833,7 +849,7 @@ function tmDraw(){
   if(TM.sel&&TM.selAt&&performance.now()-TM.selAt<30&&!TM.sel.staff) tmAfterSel(TM.sel,now);
   tmAnnounce(now);
   const hd=document.getElementById('tmCount'); if(hd&&(!TM.cAt||performance.now()-TM.cAt>800)){ TM.cAt=performance.now(); const W=L.W||{};
-    hd.innerHTML=`${document.getElementById('tmPanel')&&document.getElementById('tmPanel').hidden?'📋':'✖'} 👥 ${n.toLocaleString('fr-FR')} personnes · ${nd} départ · ${na} arrivée · ${tmHM(now)}<br><span style="color:#cbd5e1;font-weight:500">🎫 ${cnt.ck} en file (~${tmWait(W.ck||[],now)} min) · 🔍 ${cnt.sec} (~${tmWait(W.sec||[],now)} min) · 🛂 ${cnt.pol} (~${tmWait(W.pol||[],now)} min) · 🚪 ${cnt.board} · 🛂 arrivées ${cnt.imm} · 🧳 ${cnt.belt} au tapis · 🤗 ${cnt.greet||0} accueillent · 👮 ${cnt.staff||0} agents · 👨‍✈️ ${cnt.crew||0} équipage</span>`; if(Math.random()<0.15) tmBoard(); }
+    hd.innerHTML=tmClockHtml(now)+`${document.getElementById('tmPanel')&&document.getElementById('tmPanel').hidden?'📋':'✖'} 👥 ${n.toLocaleString('fr-FR')} personnes · ${nd} départ · ${na} arrivée<br><span style="color:#cbd5e1;font-weight:500">🎫 ${cnt.ck} en file (~${tmWait(W.ck||[],now)} min) · 🔍 ${cnt.sec} (~${tmWait(W.sec||[],now)} min) · 🛂 ${cnt.pol} (~${tmWait(W.pol||[],now)} min) · 🚪 ${cnt.board} · 🛂 arrivées ${cnt.imm} · 🧳 ${cnt.belt} au tapis · 🤗 ${cnt.greet||0} accueillent · 👮 ${cnt.staff||0} agents · 👨‍✈️ ${cnt.crew||0} équipage</span>`; if(Math.random()<0.15) tmBoard(); }
 }
 function tmOpen(code){
   code=code||tmNearest(); if(!code||typeof pfData!=='function') return; TM.code=code; TM.th=null; TM.open=true; TM.sel=null; TM.selF=null; TM.built=0; TM.cam=null; TM.goal=null; TM.moved=0; TM.dpr=TM.dprMax=Math.min(2,window.devicePixelRatio||1); TM.job=null; TM.fa=33;
