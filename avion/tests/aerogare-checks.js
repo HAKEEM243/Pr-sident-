@@ -40,6 +40,10 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       return {n,fd,fp,late}; });
     ok(r.fd===r.fp,'Étrangers des vols nationaux contrôlés par la police',`${r.fp}/${r.fd}`); ok(r.late===0,'Aucun passager vers une porte fermée',`${r.late} sur ${r.n}`);
 
+    // 4 bis. chaque vol reçoit sa porte avant l'ouverture de son embarquement
+    const gt=await p.evaluate(()=>{ const T0=S.time; let n=0,bad=0; for(const code of ['FIH','ADD']) for(let t=T0;t<T0+6*HOUR;t+=20*MIN){ S.time=t; TM.code=code; TM.cache={}; const F=tmFlights(code); for(const f of F.later||[]){ n++; if(t>=f.D.gate.open-MIN) bad++; } } S.time=T0; return {n,bad}; });
+    ok(gt.bad===0,'Chaque vol a sa porte avant l’embarquement',`${gt.bad} vol(s) sans porte à l’embarquement sur ${gt.n} vols en attente`);
+
     // 5. vos avions : l'aérogare montre ce que montre la 3D (départ et arrivée, avec retards)
     const c3=await p.evaluate(id=>{ const ac=S.fleet.find(a=>a.id===id), l=ac.flight.legs[0], T0=S.time; l.hOut=15*MIN; l.hIn=20*MIN; l.ga=6*MIN; const ARR=l.dep+legProf(l,modelOf(ac)).total; let bad=0,n=0,done=false; S.tmRecent=S.tmRecent||[];
       for(const code of ['FIH','BZV']) for(let t=T0-30*MIN;t<T0+5*HOUR;t+=10*MIN){ S.time=t; if(code==='BZV'&&!done&&t>=ARR){ done=true; S.tmRecent.push({acId:ac.id,reg:ac.reg,model:modelOf(ac).name,fn:S.company.code+flightNumber(ac),leg:{from:l.from,to:l.to,dep:l.dep,pax:l.pax,dist:l.dist},t:ARR}); ac.status='idle'; ac.loc='BZV'; }
