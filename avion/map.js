@@ -474,12 +474,19 @@ function rivalSched(r){
 }
 // ⏱️ retards des autres compagnies : UN seul calcul (déterministe, par vol) utilisé par la carte, la 3D, le contrôle aérien et l'aérogare
 // dep = retard au départ (embarquement prolongé), hIn = circuit d'attente avant l'atterrissage, ga = remise de gaz ; le retard de l'aller se répercute sur le retour
-function rivDelays(r,i,dir,cyc){ const K=rivalSched(r); if(!K) return {dep:0,hIn:0,ga:0}; K.dl=K.dl||new Map(); const key=i+dir+cyc; let v=K.dl.get(key); if(v) return v;
-  const kk=(r.c||'')+r.a+r.b+'|dl|'+i+dir+cyc, u=(hashStr(kk+'d')%10007)/10007, u2=(hashStr(kk+'h')%10007)/10007, u3=(hashStr(kk+'g')%10007)/10007;
-  let dep=u<0.22?Math.round((10+Math.pow(u/0.22,1.6)*35))*MIN:0, hIn=u2<0.10?Math.round(6+u2/0.10*14)*MIN:0, ga=u3<0.025?7*MIN:0;
-  if(dir==='BA'){ const a=rivDelays(r,i,'AB',cyc), late=a.dep+a.hIn+a.ga; dep=Math.max(dep,late-20*MIN); }   // escale trop courte pour rattraper le retard de l'aller
+function rivDelays(r,i,dir,cyc){ const K=rivalSched(r); if(!K) return {dep:0,hIn:0,ga:0}; i=Math.min(i,K.nP-1);
+  const kk=(r.c||'')+r.a+r.b+'|'+i+dir+cyc, store=(typeof S!=='undefined'&&S)?(S.rivDl||(S.rivDl={})):null, sv=store&&store[kk]; if(sv) return {dep:sv[0],hIn:sv[1],ga:sv[2],wxD:!!sv[4],wxA:!!sv[5]};
+  // heure prévue de repoussage de ce vol
+  const ab=dir==='AB', base=K.anchors[i]-K.bA+cyc*K.P, t0=base+(ab?0:K.pA.total+K.turn), P0=t0+(ab?K.bA:K.bB), from=ab?r.a:r.b, to=ab?r.b:r.a;
+  const u=(hashStr(kk+'d')%10007)/10007, u2=(hashStr(kk+'h')%10007)/10007, u3=(hashStr(kk+'g')%10007)/10007, u4=(hashStr(kk+'m')%10007)/10007;
+  // météo réelle des deux aéroports (comme vos vols : décidé à la programmation, puis figé) — seulement à l'approche du vol
+  const lock=store&&S.time>=P0-190*MIN; let wf=null, wt=null; if(lock&&typeof towerWx==='function'){ try{ wf=towerWx(from); wt=towerWx(to); }catch(e){} }
+  const pDep=0.18+(wf?(wf.st?0.55:0)+(wf.gust?0.12:0)+(wf.vis<3000?0.15:0):0), pHold=0.08+(wt?(wt.st?0.5:0)+(wt.gust?0.1:0)+(wt.vis<2500?0.15:0):0), pGA=0.015+(wt?(wt.st?0.08:0)+(wt.gust?0.03:0)+(wt.vis<2500?0.02:0):0);
+  let dep=u<pDep?Math.round(10+Math.pow(u4,1.4)*30+(wf&&wf.st?15:0))*MIN:0, hIn=u2<pHold?Math.round(6+((u2*7919)%1)*12+(wt&&wt.st?6:0))*MIN:0, ga=u3<pGA?7*MIN:0;
+  if(!ab){ const a=rivDelays(r,i,'AB',cyc), late=a.dep+a.hIn+a.ga; dep=Math.max(dep,late-20*MIN); }   // escale trop courte pour rattraper le retard de l'aller
   const cap=40*MIN; dep=Math.min(dep,cap); hIn=Math.min(hIn,cap-dep); ga=Math.min(ga,Math.max(0,cap-dep-hIn));
-  v={dep,hIn,ga}; K.dl.set(key,v); if(K.dl.size>4000) K.dl.clear(); return v; }
+  if(lock){ store[kk]=[dep,hIn,ga,P0,wf&&(wf.st||wf.gust||wf.vis<3000)?1:0,wt&&(wt.st||wt.gust||wt.vis<2500)?1:0]; const ks=Object.keys(store); if(ks.length>8000){ for(const k of ks) if(store[k][3]<S.time-2*DAY) delete store[k]; } }   // figé dans la sauvegarde
+  return {dep,hIn,ga,wxD:!!(wf&&(wf.st||wf.gust||wf.vis<3000)),wxA:!!(wt&&(wt.st||wt.gust||wt.vis<2500))}; }
 // profil du vol avec ses retards (embarquement prolongé, attente, remise de gaz) : mêmes segments que pour vos avions
 function rivProf(base,dl){ if(!dl||(!dl.dep&&!dl.hIn&&!dl.ga)) return base; base._dc=base._dc||new Map(); const k=dl.dep+'|'+dl.hIn+'|'+dl.ga; let p=base._dc.get(k); if(p) return p;
   const segs=[]; let sh=0; for(const sg of base.segs){
