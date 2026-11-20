@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261284';
+const GAME_VER='20261285';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['⭐ Merveil Hakeem Dianzenza, écrivain renommé','Une seule identité sur tous les vols Air France Paris ⇄ Kinshasa : 25 ans (il prend un an à chaque nouvelle année du jeu), écrivain renommé, siège 2A en classe Affaires, même passeport, même date et lieu de naissance (Kinshasa), carte Platinum. Vers Paris : rencontres littéraires et dédicaces pour son nouveau roman ; vers Kinshasa : retour de tournée.'],
   ['⭐ Merveil Hakeem Dianzenza à bord','Sur chaque vol Air France Paris ⇄ Kinshasa, Merveil Hakeem Dianzenza est à bord (siège 1F, classe Affaires) : le même passager dans le manifeste, sa fiche complète, la carte, la 3D et l\'aérogare. Dans l\'aérogare, une étoile dorée flotte au-dessus de lui (visible même de loin) et le vol Air France est toujours affiché. Correction : la fiche complète et le manifeste des vols des autres compagnies ne se perdent plus.'],
   ['🤗 Retrouvailles, rotation des avions, pensées','Au hall des arrivées, chaque personne qui attend attend un vrai passager du vol (sa pancarte porte son nom) : à sa sortie, le passager (et sa famille) va vers elle, ils se retrouvent et repartent ensemble jusqu\'au taxi. Touchez une porte ou un avion : la rotation au sol s\'affiche étape par étape avec l\'avancement en direct (nettoyage, traiteur, carburant, bagages, embarquement, portes fermées, repoussage ; à l\'arrivée : débarquement, déchargement, tapis). La passerelle se retire quand les portes sont fermées. Touchez une personne : son trajet est tracé sur le plan (déjà parcouru en gris, à venir en pointillés rouges) et on voit ce qu\'elle pense selon ce qu\'elle vit.'],
   ['⚡ Aérogare sans à-coups + nouveaux détails','La mise à jour de la foule (quand les vols changent) se fait maintenant en petits morceaux, sans figer l\'écran. Si le téléphone peine, l\'image devient un peu moins fine pour rester fluide. Nouveau : l\'état de chaque porte (enregistrement, embarquement, dernier appel, fermé, retard) comme sur les écrans ; les chauffeurs au hall des arrivées tiennent une pancarte au nom d\'un vrai passager du vol ; taxis, voitures, navettes et bus devant l\'aérogare ; tarmac mouillé sous la pluie ; immatriculation des avions aux postes.'],

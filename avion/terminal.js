@@ -907,9 +907,15 @@ if(typeof window!=='undefined') window.addEventListener('load',()=>{
         return `<div class="card"><b>🏢 Intérieur des aérogares</b> <span class="small mut">— la foule en direct, sans passer par la 3D</span><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${hubs.map(c=>`<button class="btn" data-act="termOpen" data-code="${esc(c)}">🏢 ${esc(AP(c).city)}</button>`).join('')}</div></div>`+h; }catch(e){ return h; } }; }
 });
 
-// ⭐ Passager vedette : Merveil Hakeem Dianzenza voyage sur chaque vol Air France Paris ⇄ Kinshasa
+// ⭐ Passager vedette : Merveil Hakeem Dianzenza, écrivain renommé, voyage sur chaque vol Air France Paris ⇄ Kinshasa.
+// Une seule identité : 25 ans au début (il vieillit d'un an à chaque nouvelle année du jeu), même siège, même passeport, même profil sur tous les vols.
+function tmStarId(leg){ const yr=new Date(S.time).getUTCFullYear(); if(!S.starBY) S.starBY=yr-25; const age=yr-S.starBY, nr='non renseigné', toP=leg.to==='CDG';
+  return {star:true,first:'Merveil Hakeem',last:'Dianzenza ⭐',name:'Merveil Hakeem Dianzenza ⭐',F:false,age,nat:'CD',passportCC:'CD',home:'Kinshasa',born:'Kinshasa',dob:'1er janvier '+S.starBY,avatar:'👨🏾',
+    job:'écrivain renommé',purp:'business',wealth:'rich',cls:'j',seat:'2A',bags:1,bag:18,meal:'Repas standard',assist:'',tier:'Platinum',miles:186400,langs:'français, lingala, anglais',marital:nr,mood:'ravi(e)',moodWhy:'',
+    story:toP?'Rencontres littéraires et séances de dédicaces à Paris pour son nouveau roman.':'Retour à Kinshasa après une tournée littéraire à Paris.',
+    visa:toP?'Visa Schengen valide (passeport talent)':'Pas de visa requis (Congolais)',phone:nr,mail:nr,emerg:nr,health:nr,social:nr,passNo:'CD'+String(hashStr('MHD'+S.starBY)%10000000).padStart(7,'0'),passExp:S.starBY+35,
+    allergy:'',pet:'',fear:'',hobbies:['écriture','lecture'],income:0,kids:0,anecdote:'signe des autographes en attendant son vol',music:nr,food:nr,seatmate:nr,study:'lettres',with_:'seul',conn:'',ent:'relit le manuscrit de son prochain livre'}; }
 if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ if(typeof manifestFor!=='function'||manifestFor._star) return; const _m=manifestFor;
-  manifestFor=function(ac,leg){ const out=_m.apply(this,arguments); try{ const fn=ac&&(ac._fn||''); if(out&&out.rows&&out.rows.length>6&&leg&&/^AF\d/.test(fn)&&((leg.from==='CDG'&&leg.to==='FIH')||(leg.from==='FIH'&&leg.to==='CDG'))){ const w=out.rows[5];
-      if(!w.star){ const nr='non renseigné', toP=leg.to==='CDG'; for(const k of ['phone','mail','emerg','health','social','dob','born','passNo','anecdote','music','food','seatmate','study']) if(typeof w[k]==='string') w[k]=nr; w.allergy=''; w.pet=''; w.fear=''; w.hobbies=[]; w.income=0; w.kids=0; if(typeof w.with_==='string') w.with_=w.with_.replace(/\bseule\b/,'seul'); if(typeof w.conn==='string') w.conn='';
-        Object.assign(w,{age:30,job:'voyageur habitué de la ligne Paris ⇄ Kinshasa',marital:nr,story:toP?'Voyage de Kinshasa à Paris.':'Retour à Kinshasa depuis Paris.',langs:'français, lingala',moodWhy:'',tier:'Gold',star:true,first:'Merveil Hakeem',last:'Dianzenza ⭐',name:'Merveil Hakeem Dianzenza ⭐',F:false,nat:'CD',passportCC:'CD',home:'Kinshasa',avatar:'👨🏾',visa:leg.to==='CDG'?'Visa Schengen valide':'Pas de visa requis (Congolais)',assist:'',mood:'ravi(e)'}); } } }catch(e){} return out; };
+  manifestFor=function(ac,leg){ const out=_m.apply(this,arguments); try{ const fn=ac&&(ac._fn||''); if(out&&out.rows&&out.rows.length>6&&leg&&/^AF\d/.test(fn)&&((leg.from==='CDG'&&leg.to==='FIH')||(leg.from==='FIH'&&leg.to==='CDG'))){
+      Object.assign(out.rows[5],tmStarId(leg)); } }catch(e){} return out; };
   manifestFor._star=true; }catch(e){ console.warn('passager vedette',e); } },30));
