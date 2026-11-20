@@ -61,7 +61,8 @@ function myApBuy(code){ const a=AP(code); if(!a) return 'aéroport inconnu'; S.o
 function myApSell(code){ const o=(S.ownedAp||{})[code], a=AP(code); if(!o||!a) return 'pas à vous'; const p=Math.round(myApPrice(a)*0.85); book('investissements',p); delete S.ownedAp[code]; logMsg(`🏦 Concession de ${esc(a.name||a.city)} revendue ${fmtMoney(p)}.`,'good'); return true; }
 /* ---------- photo dans l'aérogare (choisie sur le téléphone) ---------- */
 const myApPicKey=c=>'se-appic-'+c, myApCapKey=c=>'se-appcap-'+c;
-function myApPic(code){ try{ return localStorage.getItem(myApPicKey(code)); }catch(e){ return null; } }
+const MYAP_DEFAULT_PIC={FIH:'img/portrait-fih.jpg'};   /* portrait installé d'origine à N'Djili (Kinshasa) */
+function myApPic(code){ let v=null; try{ v=localStorage.getItem(myApPicKey(code)); }catch(e){} if(v==='none') return null; return v||MYAP_DEFAULT_PIC[code]||null; }
 function myApCap(code){ try{ return localStorage.getItem(myApCapKey(code))||''; }catch(e){ return ''; } }
 function myApChoosePic(code){ const i=document.createElement('input'); i.type='file'; i.accept='image/*';
   i.onchange=()=>{ const f=i.files&&i.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ const im=new Image(); im.onload=()=>{ try{
@@ -71,7 +72,7 @@ function myApChoosePic(code){ const i=document.createElement('input'); i.type='f
         const cap=prompt('Texte sous la photo (par exemple le nom de la personne) :',myApCap(code)||''); if(cap!=null) localStorage.setItem(myApCapKey(code),String(cap).slice(0,60));
         if(typeof TM!=='undefined'){ TM.picImg=null; TM.mural=null; TM.scKey=null; } toast('🖼️ Photo installée dans l’aérogare de '+esc(AP(code).city),'good'); try{ closeModal(); }catch(e){} }catch(e){ toast('Impossible d’enregistrer cette photo (mémoire du téléphone pleine ?)','bad'); } }; im.onerror=()=>toast('Image illisible','bad'); im.src=rd.result; }; rd.readAsDataURL(f); };
   i.click(); }
-function myApRemovePic(code){ try{ localStorage.removeItem(myApPicKey(code)); localStorage.removeItem(myApCapKey(code)); }catch(e){} if(typeof TM!=='undefined'){ TM.picImg=null; TM.mural=null; TM.scKey=null; } toast('Photo retirée'); try{ closeModal(); }catch(e){} }
+function myApRemovePic(code){ try{ if(MYAP_DEFAULT_PIC[code]) localStorage.setItem(myApPicKey(code),'none'); else localStorage.removeItem(myApPicKey(code)); localStorage.removeItem(myApCapKey(code)); }catch(e){} if(typeof TM!=='undefined'){ TM.picImg=null; TM.mural=null; TM.scKey=null; } toast('Photo retirée'); try{ closeModal(); }catch(e){} }
 // image prête pour l'aérogare (chargée une fois, puis le décor est redessiné)
 function myApPicImg(code){ if(typeof TM==='undefined') return null; if(TM.picImg&&TM.picImg.code===code) return TM.picImg.ok?TM.picImg.im:null; const url=myApPic(code); TM.picImg={code,ok:false,im:null}; if(!url) return null;
   const im=new Image(); im.onload=()=>{ if(TM.picImg&&TM.picImg.code===code){ TM.picImg.ok=true; TM.picImg.im=im; TM.scKey=null; } }; im.src=url; return null; }

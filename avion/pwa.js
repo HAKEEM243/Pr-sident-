@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261296';
+const GAME_VER='20261297';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🎨 Le portrait de N\'Djili, installé d\'origine','L\'aérogare de N\'Djili (Kinshasa) affiche maintenant d\'origine le portrait choisi par le joueur : grande fresque peinte au sol des halls et portraits encadrés devant et dans les halls, sur tous les appareils. Vous pouvez le remplacer par une autre photo ou le retirer depuis la fiche de l\'aéroport.'],
   ['🎨 Votre photo en grande peinture dans l\'aérogare','La photo choisie pour un aéroport (« Photo dans l\'aérogare ») devient aussi une grande fresque peinte au pinceau sur le sol des halls (enregistrement, commerces, arrivées, hall vers la jetée) : les passagers marchent dessus, comme une œuvre d\'art de l\'aéroport. Elle n\'est jamais à l\'envers, même dans les aérogares en miroir.'],
   ['🏗️ Mes aéroports : construire, racheter, photo','Touchez un aéroport de votre pays → « Construire un nouvel aéroport », puis touchez l\'endroit sur la carte : régional (60 M$, 4 mois), national (220 M$, 8 mois) ou international (650 M$, 14 mois). Le chantier s\'affiche sur la carte ; une fois ouvert, l\'aéroport existe partout (carte, 3D, lignes, aérogare) et reste dans la sauvegarde. Dans n\'importe quel pays, vous pouvez racheter la concession d\'un aéroport (redevances chaque jour, revente possible). Et pour chaque aéroport : « Photo dans l\'aérogare » — choisissez une image sur votre téléphone, elle s\'affiche en grand portrait encadré devant les halls et dans les halls des départs et des arrivées.'],
   ['👥 Passagers du départ : tous les vols, comme un vrai aéroport','Avant, l\'aérogare ne simulait que les 16 prochains départs : leurs passagers étaient déjà à la porte, et l\'enregistrement, la sûreté et les boutiques restaient vides. Maintenant, TOUS les vols dont l\'enregistrement est ouvert ont leurs passagers (enregistrement, sûreté, police, boutiques, hall). L\'enregistrement se fait par compagnie (comptoirs et file communs à tous ses vols) ; la porte est attribuée à l\'approche du départ (en attendant, les passagers patientent en regardant les écrans, et l\'avion attend sur un poste éloigné). En test : environ 2 fois plus de passagers visibles au départ.'],
