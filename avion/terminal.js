@@ -48,6 +48,7 @@ function tmFlights(code){
   try{ for(const a of S.fleet) if(a.loc===code&&a.status!=='flight'&&a.blocked&&/grève|annul/i.test(a.blocked)) F.cancel.push({fn:S.company.code+(typeof flightNumber==='function'?flightNumber(a):''),dest:a.reg||'',why:a.blocked}); }catch(e){}
   try{ const w=null; if(w&&w.st) for(const f of F.deps) if(f.riv){ const dl=25+hashStr(f.D.key)%50; f.dl=dl; f.dlw='orage'; for(const k of ['P']) f.D[k]+=dl*MIN; f.D.gate.open+=dl*MIN; f.D.gate.last+=dl*MIN; f.D.gate.close+=dl*MIN; } }catch(e){}
   const allD=F.deps.slice(); F.deps=tmMix(F.deps,16,x=>x.D.P<now-2*MIN?1e13+x.D.P:x.D.P).sort((x,y)=>x.D.P-y.D.P); { const gs=new Set(F.deps); F.later=allD.filter(f=>!gs.has(f)&&f.D.P>now).sort((x,y)=>x.D.P-y.D.P).slice(0,24); } /* départs : d'abord les vols encore à la porte (passagers dans l'aérogare) */ F.arrs=tmMix(F.arrs,8,x=>Math.abs(x.D.arr-(now-20*MIN))).sort((x,y)=>x.D.arr-y.D.arr); /* arrivées : les vols qui viennent d'atterrir, pas les plus anciens */
+  try{ F.rivN=typeof rivPresentShown==='function'?rivPresentShown(code,now).length:0; }catch(e){ F.rivN=0; }
   try{ const shown=new Set([...F.deps,...F.arrs].map(f=>f.acId)); F.parked=S.fleet.filter(a=>{ if(shown.has(a.id)) return false; const fl=a.flight, lg=fl&&fl.legs&&fl.legs[fl.li]; if(a.status==='flight'&&lg) return lg.from===code&&now<lg.dep; return a.loc===code; }).slice(0,10).map(a=>({a,reg:a.reg,model:modelOf(a).name,why:a.status==='maint'?'en maintenance':a.status==='flight'?'en attente de son prochain vol':'stationné'})); }catch(e){ F.parked=[]; }
   return F;
 }
@@ -60,15 +61,13 @@ function tmFakeMan(D,N,m){ try{ const j=Math.round(N*0.08); return manifestFor({
 // le manifeste n'est calculé que pour les vols vraiment affichés (sinon l'ouverture est très lente)
 function tmLazy(o,fl){ let m; Object.defineProperty(o,'man',{get(){ return m!==undefined?m:(m=fl.man||null); },set(v){ m=v; },enumerable:true,configurable:true}); return o; }
 function tmRivals(code,now,F){
-  if(typeof rivFlight!=='function') return; const A0=AP(code); let nd=0, na=0; const L=[], seen=new Set();
+  if(typeof rivFlight!=='function') return; const A0=AP(code); let nd=0, na=0; const L=typeof rivRoutesAt==='function'?rivRoutesAt(code):[], seen=new Set();
   // les compagnies concurrentes du jeu, puis toutes les compagnies réelles qui desservent l'aéroport (les mêmes avions que sur la carte)
-  for(const R of S.rivals||[]) for(const r of R.routes||[]) if(r.a===code||r.b===code){ const k=(r.c||R.code)+pairKey(r.a,r.b); if(!seen.has(k)){ seen.add(k); L.push([R,r]); } }
-  try{ if(typeof AP_ROUTES!=='undefined'&&AP_ROUTES[code]&&typeof carriersOn==='function') for(const b of AP_ROUTES[code]) for(const c of carriersOn(code,b)){ if(c===S.company.code) continue; const k=c+pairKey(code,b); if(seen.has(k)) continue; seen.add(k); const R=ghostAirline(c); if(R) L.push([R,ghostRouteOf(c,code,b)]); } }catch(e){}
   for(const [R,r] of L){ if(nd>=40&&na>=24) break; const K=rivalSched(r); if(!K) continue; const fromA=r.a===code;
     for(let i=0;i<K.nP;i++) for(const kind of ['d','a']){ const dir=kind==='d'?(fromA?'AB':'BA'):(fromA?'BA':'AB'), x0=rivFlight(R,r,i,dir,0); if(!x0) continue;
       const ref=kind==='d'?x0.P:x0.arr, c0=Math.floor((now+(kind==='d'?180*MIN:0)-ref)/K.P);
       for(const cyc of [c0,c0-1]){ const fl=rivFlight(R,r,i,dir,cyc); if(!fl) continue; const other=AP(kind==='d'?fl.to:fl.from); if(!other) continue;
-        if(kind==='d'&&nd<40&&now>=fl.P-185*MIN-(fl.depLate||0)*MIN&&now<=Math.max(fl.P+3*MIN,(fl.tko||0)+4*MIN)){ const D=tmFakeD(fl.key,A0,other,fl.P,fl.arr,fl.N,fl); F.deps.push(tmLazy({rr:fl.r,ri:fl.i,dl:fl.depLate||0,dlw:fl.depLate&&fl.wxD?'météo':'',a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id},fl)); nd++; }
+        if(kind==='d'&&nd<40&&now>=fl.P-185*MIN-(fl.depLate||0)*MIN&&now<=Math.max(fl.P+3*MIN,(fl.tko||0)+4*MIN)){ const D=tmFakeD(fl.key,A0,other,fl.P,fl.arr,fl.N,fl); try{ const pv=rivFlight(R,r,i,dir==='AB'?'BA':'AB',dir==='AB'?cyc-1:cyc); if(pv) D.prevArr=pv.arr; }catch(e){} F.deps.push(tmLazy({rr:fl.r,ri:fl.i,dl:fl.depLate||0,dlw:fl.depLate&&fl.wxD?'météo':'',a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id},fl)); nd++; }
         if(kind==='a'&&na<24&&now>=Math.min(fl.arr-20*MIN,fl.holdIn?fl.holdIn[0]-5*MIN:Infinity)&&now<=fl.arr+70*MIN){ const D=tmFakeD(fl.key,other,A0,fl.P,fl.arr,fl.N,fl); F.arrs.push(tmLazy({rr:fl.r,ri:fl.i,a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id,soon:now<fl.arr},fl)); na++; } } } }
 }
 // garde un mélange réaliste : vos vols n'occupent pas toutes les portes quand d'autres compagnies partent aussi
@@ -159,7 +158,7 @@ function tmLayout(F){
     L.ckGroups=G.map((gr,ix)=>{ const w=610*(Math.min(4,gr.fl.length)+1)/Math.max(1,tot), cx0=x+3, cx1=x+w-3; x+=w; const ck={x0:cx0+4,x1:cx1-4,y:1012}, q=tmPath(tmSnake(ck.x0+2,1032,ck.x1-2,1148,6)), o={A:gr.A,fl:gr.fl,ck,q,cx0,cx1,z:'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.min(23,ix)]};
       for(const g of gr.fl){ g.ck=ck; g.q=q; g.cx0=cx0; g.cx1=cx1; g.grp=o; } return o; }); }
   if(shape==='jetee') L.top=Math.min(-300,(L.pierEnd||-200)-150); if(shape==='satellite'){ L.top=-1020; L.bx0=Math.min(-40,(L.satX||[0])[0]-60); L.bx1=Math.max(1040,(L.satX||[0,0])[1]+60); } if(shape==='L') L.bx0=-460;
-  if(F.parked&&F.parked.length) L.top-=140;   // postes éloignés pour les avions stationnés
+  { const np=Math.round(((F.parked||[]).length+(F.rivN||0))*1.15)+1, per=Math.max(1,Math.floor((L.bx1-40-(L.bx0+60))/74)+1), rows=Math.min(8,Math.ceil(np/per)); if(np>1) L.top-=58+rows*82; L.parkRows=rows; }   /* assez de rangées de postes éloignés pour tous les avions présents (comme en 3D) */   // postes éloignés pour les avions stationnés
   TW.top=L.top;
   F.arrs.forEach((f,i)=>{ const bw=340/na, x0=660+i*bw+3, x1=660+(i+1)*bw-3, cx=(x0+x1)/2;
     const BP=[(i%2)?915:745,492+Math.floor((i%8)/2)*92]; L.arrs.push({f,x0,x1,door:{x:cx,y:38},sy:na>3&&i%2?-112:-60,belt:{cx:BP[0],cy:BP[1],rx:56,ry:24,n:i+1}}); });
@@ -507,8 +506,12 @@ function tmWay(g,L,TH,fit){ const Y=(t,x0,y0,x1,y1)=>{ g.fillStyle='rgba(15,23,4
   const fl=[...new Set((TM.F?TM.F.arrs:[]).map(f=>f.D&&f.D.A&&f.D.A.cc).filter(Boolean))].slice(0,10).map(cc=>{ try{ return String.fromCodePoint(...[...cc.toUpperCase()].map(c=>127397+c.charCodeAt(0))); }catch(e){ return ''; } }).join(' ');
   if(fl) fit(fl,700,1003,260,9,'#111827',null);   // drapeaux des pays de provenance des vols du jour
 }
-function tmParked(g,L,now){ const P=(TM.F&&TM.F.parked)||[]; if(!P.length) return; const y=L.top+22, x0=L.bx0+60, col=(S.company&&S.company.color)||'#b91c1c';
-  P.forEach((p,k)=>{ const x=x0+k*84; if(x>L.bx1-40) return; const sc=tmPSc({model:p.model,N:modelOf(p.a).seats}); tmPlane(g,x,y,col,Math.PI,sc); g.fillStyle='#f8fafc'; g.font='700 7px system-ui'; g.fillText(p.reg+(p.a.status==='maint'?' 🔧':''),x-14,y-8); }); }   // postes éloignés
+// postes éloignés : vos avions stationnés + les avions des autres compagnies présents à l'aéroport mais pas à une porte du plan (comme en 3D)
+function tmParked(g,L,now){ const P=((TM.F&&TM.F.parked)||[]).map(p=>({reg:p.reg,col:(S.company&&S.company.color)||'#b91c1c',sc:tmPSc({model:p.model,N:modelOf(p.a).seats}),tag:p.a.status==='maint'?' 🔧':''}));
+  try{ if(typeof rivPresent==='function'){ const onStand=new Set(); for(const d of L.deps||[]) if(d.f.reg&&tmDepPlane(d,now)) onStand.add(d.f.reg); for(const a of L.arrs||[]) if(a.f.reg&&tmArrPlane(a,now)) onStand.add(a.f.reg);
+      for(const x of rivPresentShown(TM.code,now)) if(!onStand.has(x.reg)) P.push({reg:x.reg,col:x.col,sc:x.cat==='prop'?0.5:x.cat==='wb'?1:0.66,tag:''}); TM.remote=P.map(p=>p.reg); } }catch(e){ console.warn(e); }
+  if(!P.length) return; const x0=L.bx0+60, step=74, per=Math.max(1,Math.floor((L.bx1-40-x0)/step)+1);
+  P.forEach((p,k)=>{ const row=Math.floor(k/per); if(row>7) return; const x=x0+(k%per)*step, y=L.top+22+row*82; tmPlane(g,x,y,p.col,Math.PI,p.sc); g.fillStyle='#f8fafc'; g.font='700 7px system-ui'; g.fillText(p.reg+p.tag,x-14,y-8); }); }
 // une valise vue de dessus : valise rigide (nervures, poignée, roulettes), sac de voyage (sangle), sac à dos, carton scotché, étiquette du vol
 function tmBagDraw(g,x,y,b,s){ const i=(b.p&&b.p.i)||(b.c?b.c.length:0)+Math.round(x*7+y*3), t=((b.p?b.p.i:0)+Math.floor(b.t0/1000))%7, c=b.c||'#1f2937';
   g.fillStyle='rgba(15,23,42,.25)'; g.fillRect(x-2.6,y-1.6,6.4,5);
@@ -549,7 +552,7 @@ function* tmBuildGen(F0){ TM.builtT=tmNow(); const F=F0||tmFlights(TM.code), L=t
   TM.F=F; TM.L=L; TM.ppl=ppl; TM.bags=tmBags(L);
   try{ const st=ppl.find(p=>p.row&&p.row.star&&p.f); if(st&&TM.starKey!==st.f.D.key){ TM.starKey=st.f.D.key; toast(`⭐ <b>Merveil Hakeem Dianzenza</b> est dans l’aérogare (vol ${esc(st.f.fn)} ${st.dep?'vers Paris':'en provenance de Paris'}) : cherchez l’étoile dorée !`); } }catch(e){}
   // l'avion arrivé reste au poste tant que ses passagers et ses valises ne sont pas tous sortis
-  for(const d of L.deps){ d.showFrom=d.f.D.gate.open-40*MIN; try{ const ac=d.f.a, l=d.f.l; if(ac&&l&&ac.flight){ const legs=ac.flight.legs, i=legs.indexOf(l), pv=i>0?legs[i-1]:null; d.showFrom=pv&&pv.to===TM.code?pv.dep+legProf(pv,modelOf(ac)).total:-Infinity; } }catch(e){} }
+  for(const d of L.deps){ d.showFrom=Math.max(d.f.D.gate.open-40*MIN,(d.f.D.prevArr||0)+2*MIN); try{ const ac=d.f.a, l=d.f.l; if(ac&&l&&ac.flight){ const legs=ac.flight.legs, i=legs.indexOf(l), pv=i>0?legs[i-1]:null; d.showFrom=pv&&pv.to===TM.code?pv.dep+legProf(pv,modelOf(ac)).total:-Infinity; } }catch(e){} }
   for(const a of L.arrs){ if(!a.f.soon||!a.f.reg) continue; const nx=L.deps.find(d=>d.f.reg===a.f.reg&&d.f.D.P>a.f.D.arr); if(nx) nx.showFrom=Math.max(nx.showFrom===-Infinity?0:(nx.showFrom||0),a.f.D.arr+45*MIN); }   // pas encore posé : il ne peut pas déjà être à sa porte de départ
   for(const a of L.arrs){ if(a.f.soon) continue; const D=a.f.D; let u=Math.max(D.arr+60*MIN,(D.bag&&D.bag.last||0)+10*MIN); for(const p of ppl) if(p.f===a.f&&p.dep!==1&&p.K.length) u=Math.max(u,p.K[p.K.length-1].t); for(const b of TM.bags) if(b.belt===a.belt) u=Math.max(u,b.t0+5*MIN); a.until=Math.min(u,D.arr+4*HOUR);
     const own=a.f.acId&&S.fleet.find(x=>x.id===a.f.acId); if(own) a.until=D.arr+4*HOUR;

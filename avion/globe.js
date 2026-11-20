@@ -416,7 +416,7 @@ function drawGlobeRivals(){
 
 // tout près de l'avion suivi (moins de 2,5 km), un avion d'une autre compagnie passe en modèle détaillé (3 au plus)
 function rivalUri(re,mi,R,q0){
-  if(!re||!G.followPos||acLite()||(typeof P3!=='undefined'&&P3.lvl>=2)) return mi.uri;   // téléphone : jamais de modèle détaillé pour les autres avions (mémoire) const now=performance.now();
+  if(!re||!G.followPos||acLite()||(typeof P3!=='undefined'&&P3.lvl>=2)) return mi.uri;   /* téléphone : jamais de modèle détaillé pour les autres avions (mémoire) */ const now=performance.now();
   if(!re._lodAt||now-re._lodAt>700){ re._lodAt=now; let p=null; try{ p=re.position.getValue(G.viewer.clock.currentTime); }catch(e){}
     const d=p?Cesium.Cartesian3.distance(p,G.followPos):1e9, hi=re._hi?d<4000:d<2500&&G.rivals.filter(x=>x._hi).length<3;
     if(hi&&!re._miHi) try{ re._miHi=modelInfo(getModel(REP_MODEL[q0.cat]||'A20N')||getModel('A20N'),{tail:R.color,stripe:R.color,title:R.name},false); }catch(e){}

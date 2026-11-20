@@ -48,3 +48,44 @@ function rivHook(){ if(rivHook.done) return; rivHook.done=true;
   Object.assign(ACTIONS,{ rivMan:d=>{ try{ closeModal(); }catch(e){} rivOpenManifest(d.c,d.a,d.b,d.i); } });
 }
 if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ rivHook(); }catch(e){ console.warn('vols des autres compagnies',e); } },20));
+
+/* ---------- ✈️ avions des autres compagnies PRÉSENTS à un aéroport (un seul calcul pour la 3D et l'aérogare) ----------
+   Un avion concurrent est soit en mouvement (rivalPos le donne : roulage, vol), soit garé à l'aéroport où il s'est posé
+   en dernier. Ici on liste ceux qui sont garés à « code » à l'instant t, avec leur porte 3D (la même que celle où ils roulent). */
+function rivRoutesAt(code){ const L=[], seen=new Set();
+  for(const R of S.rivals||[]) for(const r of R.routes||[]) if(r.a===code||r.b===code){ const k=(r.c||R.code)+pairKey(r.a,r.b); if(!seen.has(k)){ seen.add(k); L.push([R,r]); } }
+  try{ if(typeof AP_ROUTES!=='undefined'&&AP_ROUTES[code]&&typeof carriersOn==='function') for(const b of AP_ROUTES[code]) for(const c of carriersOn(code,b)){ if(c===S.company.code) continue; const k=c+pairKey(code,b); if(seen.has(k)) continue; seen.add(k); const R=ghostAirline(c); if(R) L.push([R,ghostRouteOf(c,code,b)]); } }catch(e){}
+  return L; }
+function rivPresent(code,t){ const out=[]; if(typeof rivalSched!=='function'||typeof rivalPos!=='function') return out;
+  for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue;
+    for(let i=0;i<K.nP;i++){ let mv=null; try{ mv=rivalPos(r,i,t); }catch(e){} if(mv) continue;   // en mouvement : la 3D le dessine déjà
+      const T=K.P, rel=((t-K.anchors[i]+K.bA)%T+T)%T, cyc=Math.floor((t-K.anchors[i]+K.bA)/T); let at;
+      let nx=null, lr=null;   /* prochain départ et dernière arrivée de cet avion, pour classer les plus utiles d'abord */
+      if(rel<K.pA.total+K.turn){ const dl=rivDelays(r,i,'AB',cyc); if(rel<K.bA+dl.dep){ at=r.a; nx=['AB',cyc]; lr=['BA',cyc-1]; } else { at=r.b; nx=['BA',cyc]; lr=['AB',cyc]; } }
+      else { const dl=rivDelays(r,i,'BA',cyc); if((rel-(K.pA.total+K.turn))<K.bB+dl.dep){ at=r.b; nx=['BA',cyc]; lr=['AB',cyc]; } else { at=r.a; nx=['AB',cyc+1]; lr=['BA',cyc]; } }
+      if(at!==code) continue;
+      let nP=t+DAY, lA=t-DAY; try{ const a=rivFlight(R,r,i,nx[0],nx[1]); if(a) nP=a.P; const b=rivFlight(R,r,i,lr[0],lr[1]); if(b) lA=b.arr; }catch(e){}
+      const intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc, gate=typeof gateSlot==='function'?gateSlot(code,{id:r.a+r.b+i},intl):null;
+      out.push({R,r,i,reg:rivReg(R,r,i),col:R.color||'#64748b',name:R.name||R.code,cat:K.cat,gate,nextDep:nP,lastArr:lA,prio:Math.min(nP-t,t-lA)}); } }
+  return out.sort((a,b)=>a.prio-b.prio||(a.reg<b.reg?-1:1)); }
+// nombre d'avions garés montrés : le même pour la 3D et l'aérogare (téléphone : moins, pour la fluidité)
+function rivPresentCap(){ try{ if(typeof GQ!=='undefined'&&GQ&&GQ.mob&&!GQ.hq) return 26; }catch(e){} try{ if(typeof UI!=='undefined'&&UI.mobile) return 26; }catch(e){} return 34; }
+function rivPresentShown(code,t){ const all=rivPresent(code,t), must=all.filter(x=>x.nextDep-t<95*MIN||t-x.lastArr<110*MIN), rest=all.filter(x=>!must.includes(x)); return must.concat(rest).slice(0,Math.max(rivPresentCap(),must.length)); }   /* toujours ceux que l'aérogare peut mettre à une porte */
+
+/* ---------- 3D : ces avions garés aux vraies portes (remplacent les avions décoratifs) ---------- */
+const RIV3D={ents:new Map(),code:null,at:0};
+function riv3dClear(){ try{ for(const e of RIV3D.ents.values()) G.viewer.entities.remove(e); }catch(e){} RIV3D.ents.clear(); RIV3D.code=null; }
+function riv3dTick(){ try{ if(typeof G==='undefined'||!G||!G.viewer||!document.body.classList.contains('globe-on')){ if(RIV3D.ents.size) riv3dClear(); return; }
+    const C=Cesium, V=G.viewer, cg=V.camera.positionCartographic; if(!cg) return; const lat=C.Math.toDegrees(cg.latitude), lon=C.Math.toDegrees(cg.longitude);
+    let code=null, bd=1e9; if(cg.height<40000) for(const c of AIRPORT_CODES){ const a=AP(c); if(!a||Math.abs(a.lat-lat)>0.3||Math.abs(a.lon-lon)>0.3) continue; const d=gcDist(a,{lat,lon}); if(d<bd&&d<18){ bd=d; code=c; } }
+    if(code!==RIV3D.code){ riv3dClear(); RIV3D.code=code; } if(!code) return;
+    const t=typeof gSimNow==='function'?gSimNow():S.time, list=rivPresentShown(code,t).filter(x=>x.gate), want=new Set(), used=new Set(), EL=typeof gElev==='function'?gElev(code):0;
+    for(const x of list){ let g=x.gate; const gk=g.lat.toFixed(5)+','+g.lon.toFixed(5); if(used.has(gk)){ const gs=typeof apGates==='function'?apGates(code):null; if(gs&&gs.length){ for(const y of gs){ const k2=y.lat.toFixed(5)+','+y.lon.toFixed(5); if(!used.has(k2)){ g=y; break; } } } } used.add(g.lat.toFixed(5)+','+g.lon.toFixed(5));
+      want.add(x.reg); if(RIV3D.ents.has(x.reg)) continue;
+      const m=getModel((typeof REP_MODEL!=='undefined'&&REP_MODEL[x.cat])||'A20N')||getModel('A20N'), lt=typeof acLite==='function'&&acLite(), mi=AC3D.uri(m,lt?x.col:{tail:x.col,stripe:x.col,title:x.name},lt), pos=C.Cartesian3.fromDegrees(g.lon,g.lat,mi.R+mi.gH+0.4+EL);
+      const e=V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians((g.hdg||0)-90),0,0)), model:{uri:mi.uri, shadows:C.ShadowMode.CAST_ONLY, distanceDisplayCondition:new C.DistanceDisplayCondition(0,26000)},
+        label:{text:x.reg+' · '+x.name, font:'600 12px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new C.Cartesian2(0,-26), distanceDisplayCondition:new C.DistanceDisplayCondition(0,1600), disableDepthTestDistance:Number.POSITIVE_INFINITY}});
+      e._rv={R:x.R,r:x.r,i:x.i}; try{ if(typeof apLit==='function') apLit(e); }catch(_){} RIV3D.ents.set(x.reg,e); }
+    for(const [k,e] of RIV3D.ents) if(!want.has(k)){ V.entities.remove(e); RIV3D.ents.delete(k); }   // parti (repoussé : il roule maintenant)
+  }catch(e){ console.warn('avions garés 3D',e); } }
+if(typeof window!=='undefined') setInterval(riv3dTick,2000);

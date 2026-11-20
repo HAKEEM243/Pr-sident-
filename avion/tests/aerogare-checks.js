@@ -67,6 +67,16 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       atcRivalBlocked=_b; return {n,bad}; });
     ok(rv.bad===0,'Autres compagnies : heures identiques carte / 3D / aérogare',`${rv.bad} écart(s) sur ${rv.n} vols`);
 
+    // 6 bis. avions des autres compagnies : ceux de l'aérogare sont ceux de la 3D (garés à leur porte ou en train de rouler), et inversement
+    const r3=await p.evaluate(()=>{ const code='FIH', T0=S.time, A=AP(code); let n=0,bad=0,miss=0;
+      for(let t=T0;t<T0+3*HOUR;t+=15*MIN){ S.time=t; TM.code=code; TM.cache={}; TM.built=0; tmBuild(); const sh=rivPresentShown(code,t), pres=new Set(sh.map(x=>x.reg)), mov=new Set();
+        for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++){ const q=rivalPos(r,i,t); if(q&&q.gnd&&gcDist(q.p,A)<12) mov.add(rivReg(R,r,i)); } }
+        const stand=new Set(); for(const d of TM.L.deps) if(d.f.riv&&d.f.reg&&tmDepPlane(d,t)) stand.add(d.f.reg); for(const a of TM.L.arrs) if(a.f.riv&&a.f.reg&&tmArrPlane(a,t)) stand.add(a.f.reg);
+        for(const r of stand){ n++; if(!pres.has(r)&&!mov.has(r)) bad++; }
+        const per=Math.max(1,Math.floor((TM.L.bx1-40-(TM.L.bx0+60))/74)+1), rem=sh.filter(x=>!stand.has(x.reg)).length+(TM.F.parked||[]).length; if(rem>Math.min(8,TM.L.parkRows||0)*per) miss++; }
+      S.time=T0; return {n,bad,miss}; });
+    ok(r3.bad===0&&r3.miss===0,'Autres compagnies : mêmes avions garés dans l’aérogare et en 3D',`${r3.bad} avion(s) de l’aérogare absents en 3D sur ${r3.n} ; ${r3.miss} débordement(s) des postes éloignés`);
+
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
         for(const d of TM.L.deps){ if(tmDepPlane(d,t)&&d.f.reg) regs[d.f.reg]=(regs[d.f.reg]||0)+1; } for(const a of TM.L.arrs){ if(tmArrPlane(a,t)&&a.f.reg) regs[a.f.reg]=(regs[a.f.reg]||0)+1; }
