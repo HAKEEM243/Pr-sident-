@@ -40,6 +40,23 @@ function grassEntity(code,r,W){
     model:{uri:url, minimumPixelSize:0, shadows:C.ShadowMode.RECEIVE_ONLY, distanceDisplayCondition:new C.DistanceDisplayCondition(0,30000)}});
   return typeof apLit==='function'?apLit(e,'rwy'):e;
 }
+/* ---------- voies de circulation et aire de stationnement (modèles texturés, comme les pistes) ---------- */
+function paveTex(kind,W,L){ const cw=kind==='apron'?512:64, ch=kind==='apron'?256:1024, cv=document.createElement('canvas'); cv.width=cw; cv.height=ch; const g=cv.getContext('2d');
+  g.fillStyle=kind==='apron'?'#a8a8a2':'#4f5257'; g.fillRect(0,0,cw,ch); const img=g.getImageData(0,0,cw,ch), d=img.data; for(let i=0;i<d.length;i+=4){ const n=(Math.random()-0.5)*14; d[i]+=n; d[i+1]+=n; d[i+2]+=n; } g.putImageData(img,0,0);
+  if(kind==='apron'){ g.strokeStyle='rgba(60,60,60,.25)'; g.lineWidth=1; for(let x=0;x<cw;x+=cw*7.5/W){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,ch); g.stroke(); } for(let y=0;y<ch;y+=ch*7.5/L){ g.beginPath(); g.moveTo(0,y); g.lineTo(cw,y); g.stroke(); } }
+  else { g.fillStyle='#facc15'; g.fillRect(cw/2-1.5,0,3,ch); g.fillStyle='rgba(250,204,21,.8)'; g.fillRect(2,0,2,ch); g.fillRect(cw-4,0,2,ch); }
+  return cv; }
+function paveEnt(kind,pos,hdg,W,L,EL,N){ const C=Cesium, key='pave|'+kind+'|'+Math.round(W)+'|'+Math.round(L); let url=GR3D.cache.get(key);
+  if(!url){ url=rwyGlb(paveTex(kind,W,L),W,L); GR3D.cache.set(key,url); }
+  const p=C.Cartesian3.fromDegrees(pos.lon,pos.lat,EL), e=G.viewer.entities.add({position:p, orientation:C.Transforms.headingPitchRollQuaternion(p,new C.HeadingPitchRoll(C.Math.toRadians(hdg-90),0,0)),
+    model:{uri:url, minimumPixelSize:0, shadows:C.ShadowMode.RECEIVE_ONLY, distanceDisplayCondition:new C.DistanceDisplayCondition(0,30000)}}); if(typeof apLit==='function') apLit(e,'rwy'); N.ents.push(e); return e; }
+function taxiModels(code,N,EL){
+  if(typeof rwyGlb!=='function'||typeof apTaxi!=='function') return; const T=apTaxi(code), A=AP(code); if(!T) return; const M=T.M, s=T.s, ap=apronOf(code), gx=ap.x, span=Math.round((A.cls>=3?1900:700)*(1+0.1*Math.min(5,A.xp||0))), edge=gx-s*70, h=EL+0.22, wid=(M.wid||45)/2;
+  paveEnt('apron',fromRw(M,ap.a-span/2-60,gx),M.hdg,140,span+120,h,N);                                   // aire de stationnement devant l'aérogare
+  paveEnt('twy',fromRw(M,40,T.twM),M.hdg,24,Math.max(100,M.len-80),h+0.02,N);                           // voie parallèle à la piste
+  for(const aC of T.conns) paveEnt('twy',fromRw(M,aC,T.twM),(M.hdg+90*s+360)%360,24,Math.abs(edge-T.twM)+4,h+0.02,N);   // bretelles vers l'aire
+  for(const aC of [60,M.len-60,...T.conns.slice(0,1)]) paveEnt('twy',fromRw(M,aC,wid*s),(M.hdg+90*s+360)%360,24,Math.abs(T.twM)-wid,h+0.02,N);   // sorties de piste
+}
 /* ---------- véhicules de service sur l'aire de trafic ---------- */
 const M_FOLLOW=()=>{ const y=C3('#facc15'), k=C3('#111827'), gl=C3('#1f2a3a'), o=C3('#f97316'), w=C3('#0b0f17');
   return [[-0.9,0.9,0.35,0.95,-2.2,2.2,y],[-0.8,0.8,0.95,1.45,-1.2,0.9,y],[-0.82,0.82,1.0,1.4,-1.1,0.8,gl],

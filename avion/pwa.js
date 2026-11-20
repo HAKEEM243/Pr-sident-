@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261262';
+const GAME_VER='20261263';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛬 Arrivées au poste corrigées','En 3D, les aéroports ont maintenant une vraie voie de circulation parallèle à la piste, des bretelles et une aire de stationnement en béton (même en 3D allégée sur téléphone, où elle manquait). Les avions dégagent la piste, roulent sur la voie, prennent une bretelle puis la ligne jaune de l\'aire jusqu\'à leur porte ; au départ, même chemin à l\'envers jusqu\'au point d\'attente. Plus de roulage en diagonale dans l\'herbe ni de maisons sur le terrain de l\'aéroport. Dans l\'aérogare : voie de circulation au-delà des avions garés, lignes d\'entrée et barres d\'arrêt des postes, nouvelle vue « Pistes et postes ».'],
   ['🏢 Aérogare : avions, nuit et gestion','Les avions bougent aux portes : repoussage par le tracteur, virage, roulage ; à l\'arrivée, roulage puis entrée au poste ; passerelle qui se branche, chariots à bagages et camion de kérosène. Nuit et aube visibles dehors (heure locale), pluie d\'orage sur les pistes. 📊 Gestion : ouvrez des lignes de sûreté, des guichets de police ou des comptoirs en renfort (payés une fois) et voyez les files raccourcir ; 🌡️ carte de chaleur de la foule.'],
   ['🚫 Défis retirés','Plus de défis du jour, de bouton 🎁 ni de fenêtre de récompenses au démarrage, ni de notifications « Défi réussi » ou « Objectif atteint » (les objectifs restent seulement notés dans le journal).'],
   ['🏢 Aérogare vivante','🔎 Cherchez un passager par son nom, son vol ou son siège, puis 🎯 suivez-le à la caméra avec tout son parcours heure par heure. 👮 Le personnel est là : agents d\'enregistrement et de porte, sûreté, police, immigration, santé, douane, litiges, accueil, nettoyage, patrouilles (touchez-les). 📢 Annonces de l\'aéroport (embarquement, dernier appel, porte fermée, retard, atterrissage, bagages) en bandeau et à voix haute (🔈). ⏱️ Vitesse du temps réglable dans l\'aérogare.'],

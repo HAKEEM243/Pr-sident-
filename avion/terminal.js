@@ -63,7 +63,7 @@ function tmRivals(code,now,F){
    immigration, salle des bagages, douane, hall des arrivées, parvis). Les avions sont au-dessus (y < 0).
    La taille de l'aéroport change l'équipement : petit aéroport = moins de bornes, de lignes de sûreté,
    de guichets, pas de duty free ; grand aéroport = salon business, plus de commerces. */
-const TW={W:1000,H:1300,top:-170};
+const TW={W:1000,H:1300,top:-300};
 const tmOps=code=>{ S.tmOps=S.tmOps||{}; return S.tmOps[code]||(S.tmOps[code]={sec:0,pol:0,ck:0}); };
 function tmPOI(cls){ const ops=tmOps(TM.code); const P=[], add=(k,x0,y0,x1,y1,lab,ico,o)=>{ const p={k,x0,y0,x1,y1,lab,ico,...(o||{})}; P.push(p); return p; };
   const small=cls<=2, big=cls>=4, nK=small?4:10, nL=Math.min(8,(small?3:6)+ops.sec), nB=Math.min(8,(small?3:6)+ops.pol), nA=small?3:5;
@@ -248,8 +248,8 @@ function tmBoard(){ const el=document.getElementById('tmBoard'); if(!el||!TM.F) 
     +(F.arrs.length?`<table><tr><th></th><th>Arrivée</th><th>Provenance</th><th>Tapis</th><th>Statut</th></tr>${F.arrs.map((f,i)=>row(f.col,tmHM(f.D.arr)+' '+esc(f.fn),esc(f.D.A.city)+' · '+f.N+' pax'+own(f),String(i+1),f.soon?'🛬 Atterrit bientôt':now<f.D.bag.first?'🛂 Immigration':now<f.D.bag.last?'🧳 Bagages en livraison':'🛃 Douane / sortie','a'+i)).join('')}</table>`:'');
   el.querySelectorAll('[data-tmf]').forEach(tr=>tr.onclick=()=>{ const k=tr.dataset.tmf, g=k[0]==='d'?TM.L.deps[+k.slice(1)]:TM.L.arrs[+k.slice(1)]; if(g){ TM.selF=g.f; tmInfoFlight(g); tmFocus(k[0]==='d'?{x0:g.x0,y0:-150,x1:g.x1,y1:400}:{x0:660,y0:-150,x1:1000,y1:800}); TM.moved=1; } }); }
 /* ---------- caméra : vue générale, zones, zoom, déplacement ---------- */
-const TM_ZONES=[['🗺️ Vue générale',{x0:0,y0:-170,x1:1000,y1:1300}],['🎫 Enregistrement',{x0:0,y0:990,x1:640,y1:1300}],['🔍 Sûreté',{x0:0,y0:820,x1:640,y1:960}],['🛂 Police',{x0:300,y0:700,x1:640,y1:820}],
-  ['🛍️ Boutiques',{x0:0,y0:420,x1:640,y1:700}],['🚪 Portes',{x0:0,y0:-170,x1:640,y1:400}],['🛬 Arrivées',{x0:660,y0:-170,x1:1000,y1:240}],['🛂 Immigration',{x0:660,y0:230,x1:1000,y1:430}],['🧳 Bagages',{x0:660,y0:420,x1:1000,y1:860}],['🛃 Douane',{x0:660,y0:850,x1:1000,y1:970}],['🤗 Hall des arrivées',{x0:660,y0:960,x1:1000,y1:1300}]];
+const TM_ZONES=[['🗺️ Vue générale',{x0:0,y0:-300,x1:1000,y1:1300}],['🛫 Pistes et postes',{x0:-40,y0:-300,x1:1040,y1:60}],['🎫 Enregistrement',{x0:0,y0:990,x1:640,y1:1300}],['🔍 Sûreté',{x0:0,y0:820,x1:640,y1:960}],['🛂 Police',{x0:300,y0:700,x1:640,y1:820}],
+  ['🛍️ Boutiques',{x0:0,y0:420,x1:640,y1:700}],['🚪 Portes',{x0:0,y0:-200,x1:640,y1:400}],['🛬 Arrivées',{x0:660,y0:-200,x1:1000,y1:240}],['🛂 Immigration',{x0:660,y0:230,x1:1000,y1:430}],['🧳 Bagages',{x0:660,y0:420,x1:1000,y1:860}],['🛃 Douane',{x0:660,y0:850,x1:1000,y1:970}],['🤗 Hall des arrivées',{x0:660,y0:960,x1:1000,y1:1300}]];
 function tmFocus(R){ const cv=TM.cv; if(!cv) return; const w=cv.clientWidth, h=cv.clientHeight, s=Math.min(w/(R.x1-R.x0),h/(R.y1-R.y0))*0.96;
   TM.goal={s,x:(R.x0+R.x1)/2-w/(2*s),y:(R.y0+R.y1)/2-h/(2*s)}; }
 function tmCamStep(){ const c=TM.cam, g=TM.goal; if(!g) return; const k=0.18; c.s+=(g.s-c.s)*k; c.x+=(g.x-c.x)*k; c.y+=(g.y-c.y)*k; if(Math.abs(g.s-c.s)<g.s*0.002&&Math.abs(g.x-c.x)<0.5&&Math.abs(g.y-c.y)<0.5){ Object.assign(c,g); TM.goal=null; } }
@@ -295,11 +295,13 @@ function tmAnnounce(now){ const F=TM.F; if(!F) return; const last=TM.annT||now; 
   const b=document.getElementById('tmAnn'); if(b){ b.textContent='📢 '+msg; b.hidden=false; clearTimeout(TM.annTO); TM.annTO=setTimeout(()=>{ b.hidden=true; },9000); }
   if(TM.voice&&typeof fx2Say==='function') try{ fx2Say(msg,'fr',0.9); }catch(e){} }
 // avion au départ : au poste → repoussage → virage → roulage ; avion à l'arrivée : roulage → virage → entrée au poste
+const TM_TWY=-250;
 function tmDepPlane(d,now){ const D=d.f.D, P=D.P, L=d.door.x<500; if(now<D.gate.open-40*MIN) return null; if(now<P) return {x:d.door.x,y:-60,a:0,at:1};
-  const u=now-P; if(u<2*MIN) return {x:d.door.x,y:-60-60*u/(2*MIN),a:0,push:1}; if(u<2.5*MIN) return {x:d.door.x,y:-120,a:(L?1:-1)*Math.PI/2*(u-2*MIN)/(0.5*MIN)};
-  if(u<6*MIN) return {x:d.door.x+(L?-1:1)*900*(u-2.5*MIN)/(3.5*MIN),y:-120,a:(L?1:-1)*Math.PI/2}; return null; }
-function tmArrPlane(a,now){ const A=a.f.D.arr; if(now<A-5*MIN||now>A+40*MIN) return null; if(now>=A) return {x:a.door.x,y:-60,a:0,at:1};
-  const u=A-now; if(u>1.5*MIN) return {x:a.door.x+900*(u-1.5*MIN)/(3.5*MIN),y:-120,a:Math.PI/2}; if(u>MIN) return {x:a.door.x,y:-120,a:Math.PI/2*(u-MIN)/(0.5*MIN)}; return {x:a.door.x,y:-120+60*(1-u/MIN),a:0}; }
+  const u=now-P; if(u<2.5*MIN) return {x:d.door.x,y:-60+(TM_TWY+60)*u/(2.5*MIN),a:0,push:1}; if(u<3*MIN) return {x:d.door.x,y:TM_TWY,a:(L?1:-1)*Math.PI/2*(u-2.5*MIN)/(0.5*MIN)};
+  if(u<7*MIN) return {x:d.door.x+(L?-1:1)*1000*(u-3*MIN)/(4*MIN),y:TM_TWY,a:(L?1:-1)*Math.PI/2}; return null; }
+function tmArrPlane(a,now){ const A=a.f.D.arr; if(now<A-6*MIN||now>A+40*MIN) return null; if(now>=A) return {x:a.door.x,y:-60,a:0,at:1};
+  const u=A-now; if(u>2*MIN) return {x:a.door.x+700*(u-2*MIN)/(4*MIN),y:TM_TWY,a:Math.PI/2}; if(u>1.5*MIN) return {x:a.door.x,y:TM_TWY,a:Math.PI/2*(u-1.5*MIN)/(0.5*MIN)};
+  return {x:a.door.x,y:TM_TWY+(-60-TM_TWY)*(1-u/(1.5*MIN)),a:0}; }
 function tmLocalHour(){ const A=AP(TM.code)||{}, tz=A.utc!=null?A.utc:Math.round((A.lon||0)/15); return (((tmNow()/HOUR+tz)%24)+24)%24; }
 const TM_OPS=[['sec','🔍 Lignes de sûreté',2500],['pol','🛂 Guichets de police (départ)',1800],['ck','🎫 Comptoirs par vol',900]];
 function tmDash(){ const L=TM.L, c=TM.cnt||{}, W=L.W||{}, now=tmNow(), o=tmOps(TM.code);
@@ -321,9 +323,12 @@ function tmDraw(){
   g.setTransform(TM.dpr*s,0,0,TM.dpr*s,-c.x*TM.dpr*s,-c.y*TM.dpr*s);
   const font=(px,b)=>{ g.font=`${b?'700 ':''}${px}px system-ui`; }, txt=(t,x,y,px,col,b)=>{ if(px*s<6) return; font(px,b); g.fillStyle=col||'#334155'; g.fillText(t,x,y); };
   // tarmac, chariots à bagages, avions
-  g.fillStyle='#475569'; g.fillRect(-40,TW.top,1080,-TW.top+30); g.strokeStyle='#facc15'; g.lineWidth=1.2; g.setLineDash([10,8]); g.beginPath(); g.moveTo(-40,-130); g.lineTo(1040,-130); g.stroke(); g.setLineDash([]);
+  g.fillStyle='#475569'; g.fillRect(-40,TW.top,1080,-TW.top+30); g.strokeStyle='#facc15'; g.lineWidth=1.2; g.setLineDash([]); g.beginPath(); g.moveTo(-40,TM_TWY); g.lineTo(1040,TM_TWY); g.stroke();   // axe de la voie de circulation
+  txt('— Voie de circulation A —',430,TM_TWY-8,10,'#facc15',1);
+  { const doors=[...L.deps.map(d=>[d.door.x,d.f.D.gate.name]),...L.arrs.map(a=>[a.door.x,'A'+a.belt.n])]; g.strokeStyle='#facc15'; g.lineWidth=1;
+    for(const [x,nm] of doors){ g.beginPath(); g.moveTo(x,TM_TWY); g.lineTo(x,-6); g.stroke(); g.fillStyle='#f8fafc'; g.fillRect(x-10,-8,20,2.5); txt(nm,x+12,-14,8,'#f8fafc',1); } }   // ligne d'entrée au poste, barre d'arrêt
   { const hr=tmLocalHour(), night=hr<6||hr>=18.5, dusk=!night&&(hr<7||hr>=17.5); TM.night=night;
-    if(night||dusk){ g.fillStyle=night?'rgba(2,6,23,.6)':'rgba(124,45,18,.25)'; g.fillRect(-40,TW.top,1080,-TW.top+30); if(night){ g.fillStyle='#fde68a'; for(let x=-20;x<1040;x+=60){ g.beginPath(); g.arc(x,-150,2.2,0,6.283); g.fill(); } } }
+    if(night||dusk){ g.fillStyle=night?'rgba(2,6,23,.6)':'rgba(124,45,18,.25)'; g.fillRect(-40,TW.top,1080,-TW.top+30); if(night){ g.fillStyle='#4ade80'; for(let x=-20;x<1040;x+=30){ g.beginPath(); g.arc(x,TM_TWY,1.8,0,6.283); g.fill(); } g.fillStyle='#fde68a'; for(let x=-20;x<1040;x+=80){ g.beginPath(); g.arc(x,TW.top+12,2.4,0,6.283); g.fill(); } } }
     let wx=null; try{ wx=typeof towerWx==='function'?towerWx(TM.code):null; }catch(e){} TM.storm=!!(wx&&wx.st);
     if(TM.storm){ g.strokeStyle='rgba(191,219,254,.55)'; g.lineWidth=1; g.beginPath(); for(let k=0;k<90;k++){ const x=((k*137+now/9)%1080)-40, y=TW.top+((k*71+now/4)%(-TW.top+30)); g.moveTo(x,y); g.lineTo(x-3,y+9); } g.stroke(); } }
   g.strokeStyle='rgba(148,163,184,.6)'; g.lineWidth=3; g.beginPath(); g.moveTo(-14,978); g.lineTo(-14,-28); g.lineTo(1014,-28); g.lineTo(1014,700); g.stroke();   // circuit du tri bagages
