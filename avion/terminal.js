@@ -270,7 +270,7 @@ function tmStaff(L,now){ const out=[], T0=now-14*HOUR, T1=now+14*HOUR, add=(role
 function tmFamilies(ppl){ let prev=null;
   for(const p of ppl){ if(p.dep!==0&&p.dep!==1){ prev=null; continue; } const w=p.row;
     if(prev&&prev.f===p.f&&w&&prev.row&&!prev.kid&&(()=>{ const cc=p.dep?p.f.D.A.cc:p.f.D.B.cc; return (w.nat===cc)===(prev.row.nat===cc); })()&&(w.age<16||(w.purp==='family'&&prev.row.purp==='family'&&(p.i*7)%10<4))){ const dx=w.age<16?3.5:4.5, dy=w.age<16?2.5:0.5, lead=prev;
-      p.K=lead.K.map(k=>({...k,x:k.x+dx,y:k.y+dy,st:k.st+(w.age<16?' (avec sa famille)':' (en couple)')})); p.K.shopT=lead.K.shopT; p.ckDone=lead.ckDone; if(p.dep===0){ p.bagT=lead.bagT; p.hasBag=false; p.bag=false; } else p.bag=false; p.fam=1; continue; }
+      p.lead=lead; p.fdx=dx; p.fdy=dy; p.fsuf=w.age<16?' (avec sa famille)':' (en couple)'; p.K=lead.K.map(k=>({...k,x:k.x+dx,y:k.y+dy,st:k.st+p.fsuf})); p.K.shopT=lead.K.shopT; p.ckDone=lead.ckDone; if(p.dep===0){ p.bagT=lead.bagT; p.hasBag=false; p.bag=false; } else p.bag=false; p.fam=1; continue; }
     prev=p; } }
 // équipages : pilotes et personnel de cabine (briefing à la porte, embarquement avant les passagers ; sortie après eux à l'arrivée)
 function tmCrews(L){ const out=[];
@@ -283,10 +283,19 @@ function tmCrews(L){ const out=[];
     for(let i=0;i<n;i++){ const pil=i<2, k=tmKF(); k.at(D.arr+19*MIN+i*12000,a.door.x,a.door.y,'équipage du vol '+a.f.fn+' : quitte l’avion après les passagers').walk(985,226,'équipage : couloir réservé',2.6).walk(985,1250,'équipage : sortie par le couloir du personnel',2.6); k.K[k.K.length-1].out=1;
       out.push({crew:pil?(i===0?'Commandant de bord':'Copilote'):'Personnel de cabine',f:a.f,i,K:k.K,c:pil?'#0f172a':(a.f.riv&&a.f.riv.color)||'#b91c1c',sk:TM_SKIN[(i*5+2)%TM_SKIN.length],dep:4}); } }
   return out; }
-function tmGreeters(L){ const out=[]; L.arrs.forEach((g,fi)=>{ const D=g.f.D, n=Math.min(45,Math.round(g.f.N*0.18));
+function tmGreeters(L,ppl){ const out=[], byF=new Map(); for(const p of ppl||[]) if(p.dep===0&&!p.fam&&p.row){ const j=p.K.findIndex(k=>/^retrouve sa famille/.test(k.st)); if(j>1){ (byF.get(p.f)||byF.set(p.f,[]).get(p.f)).push([p,j]); } }
+  L.arrs.forEach((g,fi)=>{ const D=g.f.D, n=Math.min(45,Math.round(g.f.N*0.18)), cand=byF.get(g.f)||[];
     for(let i=0;i<n;i++){ const r=pfRng(D.key+'|gr'+i), k=tmKF(), x=tmJ(r,672,994); if(x>806&&x<854) continue;
       k.at(D.arr-tmJ(r,10,35)*MIN,tmJ(r,690,980),1258,'arrive pour accueillir un proche').walk(x,tmJ(r,1008,1048),'attend derrière la barrière').stay(D.arr+tmJ(r,25,70)*MIN,(i%3===0?'tient une pancarte « '+(i%2?'Bienvenue':'Taxi / chauffeur')+' »':'attend un passager du vol '+g.f.fn)).walk(tmJ(r,690,980),1258,'repart');
-      k.K[k.K.length-1].out=1; const mr=g.f.man&&g.f.man.rows, nm=mr&&mr.length?String(mr[(i*7)%mr.length].last||'').toUpperCase():''; out.push({signName:nm,f:g.f,i,K:k.K,c:TM_COL[(i*3)%TM_COL.length],sk:TM_SKIN[i%TM_SKIN.length],dep:2,sign:i%3===0,greet:1}); } }); return out; }
+      const tg=cand[i]&&cand[i][0].K[cand[i][1]-1].t>k.K[1].t+MIN?cand[i]:null; let nm='';
+      if(tg){ const [p,j]=tg, w=p.row, who=w.first+' '+w.last, sign=i%3===0, K=k.K, wait=K[1]; nm=String(w.last||'').toUpperCase();
+        // le passager vient vers la personne qui l'attend…
+        p.K[j-1].x=wait.x+3; p.K[j-1].y=wait.y+5; p.K[j].x=wait.x+3; p.K[j].y=wait.y+5; p.K[j].st=(sign?'retrouve son chauffeur':'retrouve sa famille')+' 🤗'; p._gm=1;
+        // …qui l'attend jusqu'à son arrivée, le serre dans ses bras, puis repart avec lui jusqu'au taxi
+        K.length=2; K.push({t:p.K[j-1].t,x:wait.x,y:wait.y,st:sign?'tient une pancarte « '+nm+' »':'attend '+who+' (vol '+g.f.fn+')'},{t:p.K[j].t,x:wait.x,y:wait.y,st:(sign?'accueille ':'serre dans ses bras ')+who+' 🤗'});
+        for(let m=j+1;m<p.K.length;m++){ const a=p.K[m]; K.push({t:a.t,x:a.x-4,y:a.y+2,st:'repart avec '+who,walk:a.walk}); } K[K.length-1].out=1; }
+      else { k.K[k.K.length-1].out=1; }
+      out.push({signName:nm,f:g.f,i,K:k.K,c:TM_COL[(i*3)%TM_COL.length],sk:TM_SKIN[i%TM_SKIN.length],dep:2,sign:i%3===0,greet:1}); } }); return out; }
 const TM_CAT=new Map();
 function tmCat(st,q){ const key=(q?'q':'-')+st; let v=TM_CAT.get(key); if(v===undefined){ v=q?(/enregistrement/.test(st)?'ck':/sûreté|coupe-file/.test(st)?'sec':/police/.test(st)?'pol':/embarquement/.test(st)?'board':/passeports/.test(st)?'imm':''):(/attend sa valise/.test(st)?'belt':''); if(TM_CAT.size>5000) TM_CAT.clear(); TM_CAT.set(key,v); } return v; }
 function tmAt(K,now){ if(now<K[0].t||now>K[K.length-1].t) return null;
@@ -459,7 +468,7 @@ function* tmBuildGen(F0){ const F=F0||tmFlights(TM.code), L=tmLayout(F), ppl=[];
   for(let fi=0;fi<L.arrs.length;fi++){ const g=L.arrs[fi]; g.f.col=TM_COL[(fi+5)%TM_COL.length]; if(g.f.soon) continue; const nLost=Math.min(3,g.f.D.bag&&g.f.D.bag.lost||0);
     for(let i=0;i<Math.min(g.f.N,1600);i++){ const R=tmArrKF(g,i,L,i<nLost), rw=g.f.man&&g.f.man.rows&&g.f.man.rows[i]; ppl.push({f:g.f,i,row:rw,K:R.K,c:g.f.col,sk:tmSkin(rw,TM_SKIN[(i*5+fi)%TM_SKIN.length]),dep:0,bag:R.bags,hasBag:R.bags,bagT:R.bagT,kid:rw?rw.age<12:i%9===4}); } yield; }
   try{ tmFamilies(ppl); }catch(e){}
-  try{ ppl.push(...tmGreeters(L)); }catch(e){}
+  try{ ppl.push(...tmGreeters(L,ppl)); for(const p of ppl) if(p.fam&&p.lead&&p.lead._gm){ const sh=p.K.shopT; p.K=p.lead.K.map(k=>({...k,x:k.x+p.fdx,y:k.y+p.fdy,st:k.st+p.fsuf})); p.K.shopT=sh; } }catch(e){ console.warn(e); }   // la famille suit le passager vers la personne qui l'attend
   try{ ppl.push(...tmStaff(L,tmNow())); }catch(e){}
   try{ ppl.push(...tmCrews(L)); }catch(e){}
   try{ for(const p of ppl.slice()) if(p.row&&/fauteuil/.test(p.row.assist||'')){ p.wheel=1; ppl.push({staff:'assist',i:ppl.length,K:p.K.map(k=>({...k,x:k.x-5,y:k.y+3,st:'pousse le fauteuil roulant de '+p.row.first+' '+p.row.last})),c:'#0e7490',sk:TM_SKIN[p.i%TM_SKIN.length],dep:3}); } }catch(e){}
@@ -491,13 +500,41 @@ function tmCamStep(){ const c=TM.cam, g=TM.goal; if(!g) return; const k=0.18; c.
 function tmZoomAt(f,sx,sy){ const c=TM.cam, w=TM.cv.clientWidth, h=TM.cv.clientHeight, LL=TM.L||{bx0:-40,bx1:1040}, fit=Math.min(w/(LL.bx1-LL.bx0),Math.max(100,h-146)/(TW.H-TW.top)), ns=Math.max(fit*0.95,Math.min(fit*14,c.s*f)); const wx=c.x+sx/c.s, wy=c.y+sy/c.s; c.s=ns; c.x=wx-sx/ns; c.y=wy-sy/ns; TM.goal=null; }
 /* ---------- informations (passager, vol, équipement) ---------- */
 function tmInfo(html){ const el=document.getElementById('tmInfo'); if(!el) return; el.innerHTML=html?`<button class="btn" data-tmx style="float:right;padding:2px 8px">✖</button>${html}`:''; el.hidden=!html; const x=el.querySelector('[data-tmx]'); if(x) x.onclick=()=>{ TM.sel=null; TM.selF=null; TM.dash=false; tmInfo(''); }; }
+// rotation de l'avion au sol, étape par étape, avec l'avancement en direct
+function tmTurn(f,dep,now){ const D=f.D, L=dep?[['🅿️ Avion au poste, cales et groupe électrique',D.ci.open-60*MIN,D.P-4*MIN],['🧹 Nettoyage de la cabine',D.gate.open-95*MIN,D.gate.open-70*MIN],['🍱 Camion traiteur : chargement des repas',D.gate.open-75*MIN,D.gate.open-25*MIN],['⛽ Avitaillement en carburant',D.P-60*MIN,D.P-22*MIN],['💧 Eau potable et vidange des toilettes',D.gate.open-40*MIN,D.gate.open-8*MIN],['🧳 Chargement des bagages en soute',D.ci.open+20*MIN,D.P-8*MIN],['🚶 Embarquement des passagers',D.gate.open,D.gate.close],['🚪 Portes fermées, passerelle retirée',D.gate.close,D.P-MIN],['🚜 Repoussage et mise en route',D.P,D.P+3*MIN]]
+    :[['🛬 Atterrissage et roulage',D.arr-6*MIN,D.arr],['🅿️ Arrivée au poste, passerelle accolée',D.arr,D.arr+4*MIN],['🚶 Débarquement des passagers',D.arr+5*MIN,D.arr+20*MIN],['🧳 Déchargement des bagages',D.arr+3*MIN,(D.bag&&D.bag.last)||D.arr+40*MIN],['🛄 Livraison au tapis',(D.bag&&D.bag.first)||D.arr+15*MIN,(D.bag&&D.bag.last)||D.arr+40*MIN],['🧹 Nettoyage et préparation du vol suivant',D.arr+20*MIN,D.arr+50*MIN]];
+  L.sort((a,b)=>a[1]-b[1]); return '<div class="small" style="margin-top:6px"><b>Rotation au sol</b>'+L.map(([t,a,b])=>{ const done=now>=b, on=now>=a&&now<b, pc=on?Math.round((now-a)/Math.max(1,b-a)*100):0; return `<div style="color:${done?'#94a3b8':on?'#facc15':'#cbd5e1'}">${done?'✓':on?'●':'○'} ${tmHM(a)} ${t}${on?` · ${pc} %`:''}</div>`; }).join('')+'</div>'; }
+// ce que pense la personne, selon ce qu'elle vit en ce moment (et son humeur dans sa fiche)
+function tmThought(p,q){ const st=q.st||'', w=p.row, angry=w&&/énerv|impatient/.test(w.mood||''), D=p.f&&p.f.D, now=tmNow(); let t='';
+  if(p.staff||p.crew) return '';
+  if(p.greet) t=/serre|accueille/.test(st)?'Enfin ! Tu as fait bon voyage ?':/repart/.test(st)?'On rentre, la voiture est garée devant.':'Il devrait sortir d’une minute à l’autre…';
+  else if(/raté|trop tard|clôturé/.test(st)) t='Je n’y crois pas… il va falloir trouver un autre vol.';
+  else if(/pas présenté/.test(st)) t='Je n’ai pas vu l’heure passer… mon vol !';
+  else if(/enregistrement/.test(st)) t=w&&w.bags>1?'Pourvu que mes valises ne dépassent pas 23 kg…':'J’espère que ça va avancer plus vite.';
+  else if(/sûreté|coupe-file/.test(st)) t='Ai-je bien enlevé la bouteille d’eau de mon sac ?';
+  else if(/alarme|palpation/.test(st)) t='C’est sûrement ma ceinture…';
+  else if(/police|passeport|immigration|visa/.test(st)) t=w&&D&&w.nat!==(p.dep?D.A.cc:D.B.cc)?'Passeport, visa… j’espère que tout est en ordre.':'Ça devrait aller vite avec mon passeport.';
+  else if(/attend l’appel|assis à la porte/.test(st)&&D) t=`Encore ${Math.max(0,Math.round((D.gate.open-now)/MIN))} min avant l’embarquement.`+(tmDelay(p.f)?' Et ce retard…':'');
+  else if(/embarquement|carte d’embarquement/.test(st)) t='Siège '+(w?w.seat:'')+', j’espère qu’il y aura de la place pour mon sac.';
+  else if(/passerelle/.test(st)) t=p.dep?'C’est parti !':'Enfin arrivé.';
+  else if(/attend sa valise/.test(st)) t='Elle est où, ma valise ?';
+  else if(/perdue|pas arrivée/.test(st)) t='Ma valise n’est pas arrivée… super.';
+  else if(/douane/.test(st)) t='Rien à déclarer, j’espère qu’ils ne vont pas fouiller.';
+  else if(/retrouve/.test(st)) t='Ça fait du bien de vous revoir !';
+  else if(/duty free|shopping/.test(st)) t='Un petit cadeau pour la famille…';
+  else if(/café|restaurant|mange/.test(st)) t='J’ai le temps de manger quelque chose.';
+  else if(/toilettes/.test(st)) t='Avant le vol, c’est plus prudent.';
+  else if(/baie vitrée/.test(st)) t='Regarde, c’est peut-être notre avion !';
+  else if(/taxi|bus/.test(st)) t='Direction la maison.';
+  else if(/arrive à l’aéroport/.test(st)) t='Bon, où est l’enregistrement ?';
+  if(!t) return ''; if(angry&&!/raté|perdue/.test(st)) t+=' (et j’en ai déjà marre)'; return `<br><span class="small" style="color:#cbd5e1">💭 « ${esc(t)} »</span>`; }
 function tmInfoFlight(g){ const f=g.f, D=f.D, now=tmNow(), st={}; for(const p of TM.ppl) if(p.f===f){ const q=tmAt(p.K,now); if(q) st[q.st]=(st[q.st]||0)+1; }
   const top=Object.entries(st).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>`<div>• ${v} ${esc(k)}</div>`).join('');
   const inc=(TM.inc||[]).filter(x=>x.f===f&&now>=x.at-2*MIN).map(x=>`<div style="color:#fca5a5">⚠️ ${String(x.t).replace(/<[^>]+>/g,'')}</div>`).join('');
   const bg=(TM.bags||[]).filter(b=>g.sched?b.g===g:b.p&&b.p.f===f), loaded=g.sched?bg.filter(b=>now>=b.t0+b.dur).length:bg.filter(b=>now>=b.tB).length;
-  tmInfo(`<b>✈️ ${esc(f.fn)}</b> ${f.riv?esc(f.riv.name||''):'(votre compagnie)'}${f.reg?' · '+esc(f.reg):''}${f.model?' · '+esc(f.model):''}<br>${esc(D.A.city)} → ${esc(D.B.city)} · ${f.N} passagers${D.intl?' · international':' · national'}<br>`+
+  tmInfo(`<b>✈️ ${esc(f.fn)}</b> ${esc(tmAirline(f).name)}${f.riv?'':' (votre compagnie)'}${f.reg?' · '+esc(f.reg):''}${f.model?' · '+esc(f.model):''}<br>${esc(D.A.city)} → ${esc(D.B.city)} · ${f.N} passagers${D.intl?' · international':' · national'}<br>`+
     (g.sched?`Porte ${esc(D.gate.name)} · embarquement ${tmHM(D.gate.open)} · fermeture ${tmHM(D.gate.close)}${tmDelay(f)?` · <b style="color:#f87171">retard +${tmDelay(f)} min</b>`:''}<br>🧳 ${loaded}/${bg.length} valises chargées en soute<br>`:`🧳 ${loaded}/${bg.length} valises livrées sur le tapis ${g.belt.n}<br>`)+
-    `<div class="small" style="margin-top:4px">${top||'Aucun passager dans l’aérogare pour l’instant.'}</div>${inc?'<div class="small" style="margin-top:4px">'+inc+'</div>':''}`+
+    tmTurn(f,!!g.sched,now)+`<div class="small" style="margin-top:4px">${top||'Aucun passager dans l’aérogare pour l’instant.'}</div>${inc?'<div class="small" style="margin-top:4px">'+inc+'</div>':''}`+
     (f.acId&&(f.riv||(f.l&&(S.fleet.find(a=>a.id===f.acId)||{flight:null}).flight&&(S.fleet.find(a=>a.id===f.acId)).flight.legs[(S.fleet.find(a=>a.id===f.acId)).flight.li]===f.l))?`<button class="btn" data-tmman="${esc(f.acId)}" style="margin-top:6px">📋 Manifeste complet (${f.N} passagers)</button>`:''));
   const bt=document.querySelector('[data-tmman]'); if(bt) bt.onclick=()=>{ const id=bt.dataset.tmman; tmClose(); try{ ACTIONS.manifest({id}); }catch(e){} }; }
 function tmInfoPOI(p){ let n=0; for(const z of TM.pts||[]){ const x=z[0], y=z[1]; if(x>=p.x0-40&&x<=p.x1+40&&y>=p.y0-40&&y<=p.y1+60) n++; }
@@ -684,7 +721,7 @@ function tmDraw(){
     if(d.lounge.y1-d.lounge.y0>150) fit(D.B.city+' '+tmHM(D.P),d.lounge.x0+4,d.lounge.y0+60,Math.min(56,d.lounge.x1-d.lounge.x0-8),12,'#22c55e','#0f172a');   // écran de porte
     { const pl=tmDepPlane(d,now), st=d.stand, n={x:-Math.sin(st.a),y:Math.cos(st.a)}, nx=st.x+n.x*2, ny=st.y+n.y*2;
       if(pl&&pl.at){ tmPlane(g,pl.x,pl.y,col0(f),pl.a,tmPSc(f)); tmGSE(g,pl,f,now,0); }
-      { const ex=pl&&pl.at?nx:d.door.x+(nx-d.door.x)*0.3, ey=pl&&pl.at?ny:d.door.y+(ny-d.door.y)*0.3; tmBridge(g,d.door.x,d.door.y,ex,ey); } }
+      { const rt=pl&&pl.at?Math.min(1,Math.max(0,(now-D.gate.close)/(2*MIN))):1, fr=1-0.7*rt, ex=d.door.x+(nx-d.door.x)*fr, ey=d.door.y+(ny-d.door.y)*fr; tmBridge(g,d.door.x,d.door.y,ex,ey); } }
     { const lw=d.lounge.x1-d.lounge.x0-4; fit(`${D.gate.name} → ${D.B.city}`,d.lounge.x0+2,d.lounge.y0+2,lw,13,'#0f172a','rgba(255,255,255,.8)'); const gs=now>D.gate.close?['FERMÉ','#64748b']:now>D.gate.last?['DERNIER APPEL','#dc2626']:now>D.gate.open?['EMBARQUEMENT','#16a34a']:tmDelay(f)?['RETARD '+tmDelay(f)+' MIN','#d97706']:now>D.ci.open?['ENREGISTREMENT','#2563eb']:['À L’HEURE','#334155'];
       fit(`${tmHM(D.P)} · ${f.fn}`,d.lounge.x0+2,d.lounge.y0+15,lw*0.45,10,'#334155','rgba(255,255,255,.6)',1); fit(gs[0],d.lounge.x0+2+lw*0.47,d.lounge.y0+15,lw*0.53,10,'#fff',gs[1]); }
     g.fillStyle='#1f2937'; g.fillRect(d.ck.x0,d.ck.y-6,d.ck.x1-d.ck.x0,10); g.fillStyle='#78716c'; g.fillRect(d.ck.x0,d.ck.y-16,d.ck.x1-d.ck.x0,6);
@@ -769,13 +806,14 @@ function tmDraw(){
   if(TM.heat){ const G2={}; for(const z of pts){ if(z[2].staff) continue; const k=Math.floor(z[0]/40)+','+Math.floor(z[1]/40); G2[k]=(G2[k]||0)+1; }
     for(const [k,v] of Object.entries(G2)){ const [cx,cy]=k.split(',').map(Number), a=Math.min(0.75,v/25); g.fillStyle=v>18?`rgba(239,68,68,${a})`:v>8?`rgba(249,115,22,${a})`:`rgba(250,204,21,${a*0.8})`; g.fillRect(cx*40,cy*40,40,40); } }
   if(TM.dash&&(!TM.dashAt||performance.now()-TM.dashAt>1500)){ TM.dashAt=performance.now(); tmDash(); }
-  if(TM.sel){ const hit=pts.find(z=>z[2]===TM.sel); if(hit){ g.strokeStyle='#ef4444'; g.lineWidth=2/s; g.beginPath(); g.arc(hit[0],hit[1],10/s+4,0,6.283); g.stroke(); const q=hit[3], p=hit[2];
+  if(TM.sel){ const hit=pts.find(z=>z[2]===TM.sel); if(hit&&TM.sel.K){ const K=TM.sel.K; g.lineWidth=1.6/s+0.6; g.strokeStyle='rgba(100,116,139,.7)'; g.setLineDash([]); g.beginPath(); let started=false; for(const k of K){ if(k.t>now) break; started?g.lineTo(k.x,k.y):g.moveTo(k.x,k.y); started=true; } g.lineTo(hit[0],hit[1]); g.stroke(); g.strokeStyle='rgba(239,68,68,.85)'; g.setLineDash([5/s+2,4/s+2]); g.beginPath(); g.moveTo(hit[0],hit[1]); for(const k of K) if(k.t>now) g.lineTo(k.x,k.y); g.stroke(); g.setLineDash([]); }
+    if(hit){ g.strokeStyle='#ef4444'; g.lineWidth=2/s; g.beginPath(); g.arc(hit[0],hit[1],10/s+4,0,6.283); g.stroke(); const q=hit[3], p=hit[2];
       if(!TM.selAt||performance.now()-TM.selAt>700){ TM.selAt=performance.now(); const sc=p.dep&&TM.L.deps.find(d=>d.f===p.f), zz=sc&&sc.sched[p.i];
-        if(p.crew){ tmInfo(`<b>👨‍✈️ ${esc(p.crew)}</b> · ${esc(tmAirline(p.f).name)} · vol ${esc(p.f.fn)}<br>${p.dep===4&&p.f.D?esc(p.f.D.A.city)+' → '+esc(p.f.D.B.city):''}<br>En ce moment : <b>${esc(q.st)}</b>`); } else if(p.staff==='assist'){ tmInfo(`<b>♿ Agent d’assistance</b><br>En ce moment : <b>${esc(q.st)}</b>`); } else if(p.staff){ tmInfo(`<b>${p.staff==='clean'?'🧹':p.staff==='sec'?'🛡️':p.staff==='cus'?'🛃':p.staff==='pol'||p.staff==='imm'||p.staff==='patrol'?'👮':p.staff==='health'?'🩺':'🧑‍💼'} ${TM_ROLE[p.staff][1]}</b><br>En ce moment : <b>${esc(q.st)}</b>`); } else if(p.greet){ tmInfo(`<b>🤗 Accueille un passager</b><br>Vol ${esc(p.f.fn)} de ${esc(p.f.D.A.city)}<br>En ce moment : <b>${esc(q.st)}</b>`); } else if(p.row){ const w=p.row, cl={f:'👑 Première',j:'💼 Affaires',w:'💺 Premium',y:'💺 Économique'}[w.cls]||'';
+        if(p.crew){ tmInfo(`<b>👨‍✈️ ${esc(p.crew)}</b> · ${esc(tmAirline(p.f).name)} · vol ${esc(p.f.fn)}<br>${p.dep===4&&p.f.D?esc(p.f.D.A.city)+' → '+esc(p.f.D.B.city):''}<br>En ce moment : <b>${esc(q.st)}</b>${tmThought(p,q)}`); } else if(p.staff==='assist'){ tmInfo(`<b>♿ Agent d’assistance</b><br>En ce moment : <b>${esc(q.st)}</b>${tmThought(p,q)}`); } else if(p.staff){ tmInfo(`<b>${p.staff==='clean'?'🧹':p.staff==='sec'?'🛡️':p.staff==='cus'?'🛃':p.staff==='pol'||p.staff==='imm'||p.staff==='patrol'?'👮':p.staff==='health'?'🩺':'🧑‍💼'} ${TM_ROLE[p.staff][1]}</b><br>En ce moment : <b>${esc(q.st)}</b>${tmThought(p,q)}`); } else if(p.greet){ tmInfo(`<b>🤗 Accueille un passager</b><br>Vol ${esc(p.f.fn)} de ${esc(p.f.D.A.city)}<br>En ce moment : <b>${esc(q.st)}</b>${tmThought(p,q)}`); } else if(p.row){ const w=p.row, cl={f:'👑 Première',j:'💼 Affaires',w:'💺 Premium',y:'💺 Économique'}[w.cls]||'';
           tmInfo(`<div style="display:flex;gap:8px;align-items:center"><div style="font-size:30px">${w.avatar||'🧍'}</div><div><b>${esc(w.first)} ${esc(w.last)}</b> · ${w.age} ans ${COUNTRIES[w.nat]?COUNTRIES[w.nat][2]:''}<br><span class="small">${esc(w.job)}</span></div></div>`+
-            `✈️ <b>${esc(tmAirline(p.f).name)}</b> · vol <b>${esc(p.f.fn)}</b>${p.f.reg?' · '+esc(p.f.reg):''} · ${p.dep?esc(p.f.D.A.city)+' → '+esc(p.f.D.B.city):'arrivé de '+esc(p.f.D.A.city)}<br>Siège <b>${esc(w.seat)}</b> · ${cl}${zz?` · embarquement ${zz.zone===0?'prioritaire':'zone '+zz.zone}`:''}<br>🧳 ${w.bags?w.bags+' bagage'+(w.bags>1?'s':'')+' en soute':'bagage cabine seulement'}${w.assist?' · ♿ '+esc(w.assist):''}<br><span class="small mut">${esc(w.story||'')}</span><br>En ce moment : <b>${esc(q.st)}</b>`+
+            `✈️ <b>${esc(tmAirline(p.f).name)}</b> · vol <b>${esc(p.f.fn)}</b>${p.f.reg?' · '+esc(p.f.reg):''} · ${p.dep?esc(p.f.D.A.city)+' → '+esc(p.f.D.B.city):'arrivé de '+esc(p.f.D.A.city)}<br>Siège <b>${esc(w.seat)}</b> · ${cl}${zz?` · embarquement ${zz.zone===0?'prioritaire':'zone '+zz.zone}`:''}<br>🧳 ${w.bags?w.bags+' bagage'+(w.bags>1?'s':'')+' en soute':'bagage cabine seulement'}${w.assist?' · ♿ '+esc(w.assist):''}<br><span class="small mut">${esc(w.story||'')}</span><br>En ce moment : <b>${esc(q.st)}</b>${tmThought(p,q)}`+
             (p.f.acId&&(p.f.riv||(p.f.l&&p.f.l===((S.fleet.find(a=>a.id===p.f.acId)||{}).flight||{legs:[]}).legs[(S.fleet.find(a=>a.id===p.f.acId)||{flight:{li:0}}).flight.li]))?`<br><button class="btn" data-tmcard="${esc(p.f.acId)}|${p.i}" style="margin-top:6px">🪪 Fiche complète</button>`:'')); const bt=document.querySelector('[data-tmcard]'); if(bt) bt.onclick=()=>{ const [id,ii]=bt.dataset.tmcard.split('|'); tmClose(); try{ ACTIONS.paxCard({id,i:ii}); }catch(e){} }; }
-        else tmInfo(`<b>🧍 Passager${p.kid?' (enfant)':''}</b><br>✈️ <b>${esc(tmAirline(p.f).name)}</b> · vol ${esc(p.f.fn)} · ${p.dep?esc(p.f.D.A.city)+' → '+esc(p.f.D.B.city):'arrivé de '+esc(p.f.D.A.city)}${zz?` · embarquement ${zz.zone===0?'prioritaire':'zone '+zz.zone}`:''}<br>${p.bag||p.hasBag?'🧳 bagage en soute':'🎒 bagage cabine seulement'}<br>En ce moment : <b>${esc(q.st)}</b>`); } } else { TM.sel=null; tmInfo(''); } }
+        else tmInfo(`<b>🧍 Passager${p.kid?' (enfant)':''}</b><br>✈️ <b>${esc(tmAirline(p.f).name)}</b> · vol ${esc(p.f.fn)} · ${p.dep?esc(p.f.D.A.city)+' → '+esc(p.f.D.B.city):'arrivé de '+esc(p.f.D.A.city)}${zz?` · embarquement ${zz.zone===0?'prioritaire':'zone '+zz.zone}`:''}<br>${p.bag||p.hasBag?'🧳 bagage en soute':'🎒 bagage cabine seulement'}<br>En ce moment : <b>${esc(q.st)}</b>${tmThought(p,q)}`); } } else { TM.sel=null; tmInfo(''); } }
   if(TM.sel&&TM.selAt&&performance.now()-TM.selAt<30&&!TM.sel.staff) tmAfterSel(TM.sel,now);
   tmAnnounce(now);
   const hd=document.getElementById('tmCount'); if(hd&&(!TM.cAt||performance.now()-TM.cAt>800)){ TM.cAt=performance.now(); const W=L.W||{};
