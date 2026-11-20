@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261266';
+const GAME_VER='20261267';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['📱 Aérogare en plein écran','Le plan prend tout l\'écran, bien cadré, avec des boutons qui flottent par-dessus (📋 vols et recherche, 📊 gestion, ⏱️, 🔈, zoom) et les zones en bas. Même rendu quel que soit le zoom : toujours de vrais personnages, textes et panneaux à taille fixe. Sûreté et police dimensionnées selon le trafic : plus de files de plusieurs heures dans les grands aéroports.'],
   ['🛰️ Vraies formes d\'aérogare','Chaque aéroport a sa forme de bâtiment : 🏢 linéaire (portes le long de la façade), 📐 en L (aile des portes), 🛬 jetée (couloir qui avance sur les pistes, avions garés des deux côtés, tapis roulants) ou 🛰️ satellite (bâtiment au milieu des pistes, relié par une navette automatique). Les passagers marchent jusqu\'à leur porte par la jetée, l\'aile ou la navette ; les avions se garent, repoussent et roulent selon la forme ; les valises vont jusqu\'à leur soute. Les petits aéroports restent linéaires.'],
   ['🏗️ Disposition propre à chaque aérogare','Le plan lui-même change selon l\'aéroport : départs à gauche ou à droite, pistes en haut ou en bas (4 dispositions), façade droite, courbe ou en dents de scie, auvent du parvis plat, ondulé ou en arcs, sièges des portes en rangées ou en îlots — en plus du sol, des couleurs, des boutiques, du décor et de l\'équipement selon la taille. Les passagers, les avions et les touchers suivent la disposition.'],
   ['🏢 Chaque aérogare est différente','L\'intérieur change selon l\'aéroport : sol (carrelage, damier, marbre, terrazzo, parquet), couleur de l\'aéroport, tapis des salles d\'embarquement, boutiques locales (pagnes et maquis en Afrique, boulangerie et parfumerie en Europe, dattes et café oriental au Moyen-Orient, maison de thé en Asie…), décor central (fontaine, palmiers, jardin, grand écran, fresque, œuvre d\'art), nom de l\'aéroport et drapeau. Plus lisible : panneaux des zones toujours visibles (avec les files en vue générale), étiquettes des boutiques et équipements, personnages contournés et visibles de plus loin, ombres des murs, façade vitrée ; touchez le compteur pour replier le tableau des vols et agrandir le plan.'],

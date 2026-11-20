@@ -154,8 +154,9 @@ function tmSched(L){
     for(const x of sc){ const rw=x.row; x.zone=rw?((rw.cls==='f'||rw.cls==='j'||rw.assist||rw.age<6)?0:1+Math.min(3,Math.floor((1-(parseInt(rw.seat)||1)/(maxRow+1))*4))):(x.i<f.N*0.08?0:1+Math.floor((x.i/Math.max(1,f.N))*4)); x.board=D.gate.open+x.zone*win+x.r*win*0.9;
       secL.push({x,arr:x.ckDone+(x.wc?7:3)*MIN,D}); }
     g.sched=sc; }
-  tmServe(secL,L.nL,o=>0.7*MIN*(0.6+0.8*o.x.r)); for(const o of secL){ o.x.secStart=o.start; o.x.secDone=o.done+(o.x.alarm?2.5*MIN:0)+0.6*MIN; W.sec.push([o.arr,o.start-o.arr]); if(o.D.intl) polL.push({x:o.x,arr:o.x.secDone+1.5*MIN}); }
-  tmServe(polL,L.nB,o=>0.9*MIN*(0.6+0.8*o.x.r)); for(const o of polL){ o.x.polStart=o.start; o.x.polDone=o.done; W.pol.push([o.arr,o.start-o.arr]); }
+  const depN=L.deps.reduce((a,g)=>a+g.sched.length,0), intlN=polL.length||L.deps.filter(g=>g.f.D.intl).reduce((a,g)=>a+g.sched.length,0); L.secCap=Math.max(L.nL,Math.min(40,Math.ceil(depN/260))); L.polCap=Math.max(L.nB,Math.min(30,Math.ceil(intlN/380)));
+  tmServe(secL,L.secCap,o=>0.35*MIN*(0.6+0.8*o.x.r)); for(const o of secL){ o.x.secStart=o.start; o.x.secDone=o.done+(o.x.alarm?2.5*MIN:0)+0.6*MIN; W.sec.push([o.arr,o.start-o.arr]); if(o.D.intl) polL.push({x:o.x,arr:o.x.secDone+1.5*MIN}); }
+  tmServe(polL,L.polCap||L.nB,o=>0.5*MIN*(0.6+0.8*o.x.r)); for(const o of polL){ o.x.polStart=o.start; o.x.polDone=o.done; W.pol.push([o.arr,o.start-o.arr]); }
   L.W=W; }
 function tmWait(list,now){ let s=0,n=0; for(const [a,w] of list) if(a>now-25*MIN&&a<=now){ s+=w; n++; } return n?Math.round(s/n/MIN):0; }
 // ---------- passagers : itinéraire complet avec comportements ----------
@@ -284,10 +285,10 @@ const TM_ZONES=[['🗺️ Vue générale',{x0:0,y0:-300,x1:1000,y1:1300}],['🛫
 function tmZoneRect(i){ const z=TM_ZONES[i], L=TM.L; if(!L) return z[1]; const nm=z[0];
   if(nm.includes('Vue générale')) return {x0:L.bx0,y0:L.top,x1:L.bx1,y1:1300}; if(nm.includes('Pistes')) return {x0:L.bx0,y0:L.top,x1:L.bx1,y1:60};
   if(nm.includes('Portes')){ let a=1e9,b=-1e9,c=1e9,e=-1e9; for(const d of L.deps){ a=Math.min(a,d.lounge.x0,d.stand.x-110); b=Math.max(b,d.lounge.x1,d.stand.x+110); c=Math.min(c,d.lounge.y0,d.stand.y-110); e=Math.max(e,d.lounge.y1); } return a<b?{x0:a,y0:c,x1:b,y1:e}:z[1]; } return z[1]; }
-function tmFocus(R0){ const cv=TM.cv; if(!cv) return; const xa=tmFx(R0.x0), xb=tmFx(R0.x1), ya=tmFy(R0.y0), yb=tmFy(R0.y1), R={x0:Math.min(xa,xb),x1:Math.max(xa,xb),y0:Math.min(ya,yb),y1:Math.max(ya,yb)}; const w=cv.clientWidth, h=cv.clientHeight, s=Math.min(w/(R.x1-R.x0),h/(R.y1-R.y0))*0.96;
-  TM.goal={s,x:(R.x0+R.x1)/2-w/(2*s),y:(R.y0+R.y1)/2-h/(2*s)}; }
+function tmFocus(R0){ const cv=TM.cv; if(!cv) return; const PT=96, PB=50; const xa=tmFx(R0.x0), xb=tmFx(R0.x1), ya=tmFy(R0.y0), yb=tmFy(R0.y1), R={x0:Math.min(xa,xb),x1:Math.max(xa,xb),y0:Math.min(ya,yb),y1:Math.max(ya,yb)}; const w=cv.clientWidth, h=cv.clientHeight, hu=Math.max(100,h-PT-PB), s=Math.min(w/(R.x1-R.x0),hu/(R.y1-R.y0))*0.97;
+  TM.goal={s,x:(R.x0+R.x1)/2-w/(2*s),y:(R.y0+R.y1)/2-(PT+hu/2)/s}; }
 function tmCamStep(){ const c=TM.cam, g=TM.goal; if(!g) return; const k=0.18; c.s+=(g.s-c.s)*k; c.x+=(g.x-c.x)*k; c.y+=(g.y-c.y)*k; if(Math.abs(g.s-c.s)<g.s*0.002&&Math.abs(g.x-c.x)<0.5&&Math.abs(g.y-c.y)<0.5){ Object.assign(c,g); TM.goal=null; } }
-function tmZoomAt(f,sx,sy){ const c=TM.cam, w=TM.cv.clientWidth, h=TM.cv.clientHeight, LL=TM.L||{bx0:-40,bx1:1040}, fit=Math.min(w/(LL.bx1-LL.bx0),h/(TW.H-TW.top)), ns=Math.max(fit*0.8,Math.min(fit*14,c.s*f)); const wx=c.x+sx/c.s, wy=c.y+sy/c.s; c.s=ns; c.x=wx-sx/ns; c.y=wy-sy/ns; TM.goal=null; }
+function tmZoomAt(f,sx,sy){ const c=TM.cam, w=TM.cv.clientWidth, h=TM.cv.clientHeight, LL=TM.L||{bx0:-40,bx1:1040}, fit=Math.min(w/(LL.bx1-LL.bx0),Math.max(100,h-146)/(TW.H-TW.top)), ns=Math.max(fit*0.95,Math.min(fit*14,c.s*f)); const wx=c.x+sx/c.s, wy=c.y+sy/c.s; c.s=ns; c.x=wx-sx/ns; c.y=wy-sy/ns; TM.goal=null; }
 /* ---------- informations (passager, vol, équipement) ---------- */
 function tmInfo(html){ const el=document.getElementById('tmInfo'); if(!el) return; el.innerHTML=html?`<button class="btn" data-tmx style="float:right;padding:2px 8px">✖</button>${html}`:''; el.hidden=!html; const x=el.querySelector('[data-tmx]'); if(x) x.onclick=()=>{ TM.sel=null; TM.selF=null; TM.dash=false; tmInfo(''); }; }
 function tmInfoFlight(g){ const f=g.f, D=f.D, now=tmNow(), st={}; for(const p of TM.ppl) if(p.f===f){ const q=tmAt(p.K,now); if(q) st[q.st]=(st[q.st]||0)+1; }
@@ -359,7 +360,7 @@ function tmDraw(){
   { const T0=TM.th||(TM.th=tmTheme(TM.code)); if(!TM._ft) TM._ft=CanvasRenderingContext2D.prototype.fillText; g.fillText=TM._ft;
     if(T0.mx||T0.my){ g.translate(T0.mx?1000:0,T0.my?1000:0); g.scale(T0.mx?-1:1,T0.my?-1:1); const ft=TM._ft;
       g.fillText=function(t,x,y){ this.save(); this.translate(x,y); this.scale(T0.mx?-1:1,T0.my?-1:1); if(T0.mx) this.textAlign='right'; ft.call(this,t,0,0); this.restore(); }; } }
-  const font=(px,b)=>{ g.font=`${b?'700 ':''}${px}px system-ui`; }, txt=(t,x,y,px,col,b)=>{ if(px*s<6) return; font(px,b); g.fillStyle=col||'#334155'; g.fillText(t,x,y); };
+  const font=(px,b)=>{ g.font=`${b?'700 ':''}${px}px system-ui`; }, txt=(t,x,y,px0,col,b)=>{ if(s<0.9) return; const px=px0*0.9/s; font(px,b); g.fillStyle=col||'#334155'; g.fillText(t,x,y); };
   // tarmac, chariots à bagages, avions
   g.fillStyle='#475569'; g.fillRect(L.bx0,TW.top,L.bx1-L.bx0,-TW.top+30); if(L.shape==='L'){ g.fillRect(L.bx0,0,460,420); } g.strokeStyle='#facc15'; g.lineWidth=1.2; g.setLineDash([]); g.beginPath(); g.moveTo(-40,TM_TWY); g.lineTo(1040,TM_TWY); g.stroke();   // axe de la voie de circulation
   txt('— Voie de circulation A —',430,TM_TWY-8,10,'#facc15',1);
@@ -385,12 +386,12 @@ function tmDraw(){
     else { g.strokeStyle='rgba(0,0,0,.06)'; g.beginPath(); for(let x=0;x<=1000;x+=t){ g.moveTo(x,0); g.lineTo(x,1236); } for(let y=0;y<=1236;y+=t){ g.moveTo(0,y); g.lineTo(1000,y); } g.stroke(); } }
   g.fillStyle='#d6d3d1'; g.fillRect(0,1236,1000,64); txt('🚶 Parvis — dépose minute',8,1258,12,'#44403c',1);
   // enseigne lisible à toutes les échelles (taille constante à l'écran)
-  const sign=(t,x,y,col)=>{ const px=Math.max(7,Math.min(18,12/s)); g.font=`700 ${px}px system-ui`; const w=g.measureText(t).width+px*0.9, hh=px*1.5; g.fillStyle=col||TH.acc; g.globalAlpha=0.92; g.beginPath(); if(g.roundRect) g.roundRect(x,y,w,hh,hh*0.3); else g.rect(x,y,w,hh); g.fill(); g.globalAlpha=1; g.fillStyle='#fff'; g.fillText(t,x+px*0.45,y+px*1.1); return hh; };
+  const sign=(t,x,y,col)=>{ const px=(s<0.9?9.5:11)/s; g.font=`700 ${px}px system-ui`; const w=g.measureText(t).width+px*0.9, hh=px*1.5; g.fillStyle=col||TH.acc; g.globalAlpha=0.92; g.beginPath(); if(g.roundRect) g.roundRect(x,y,w,hh,hh*0.3); else g.rect(x,y,w,hh); g.fill(); g.globalAlpha=1; g.fillStyle='#fff'; g.fillText(t,x+px*0.45,y+px*1.1); return hh; };
   TM.signs=[];
   const zone=(x0,y0,x1,y1,col,lab,ico)=>{ g.fillStyle=col; g.globalAlpha=0.55; g.fillRect(x0,y0,x1-x0,y1-y0); g.globalAlpha=1; if(lab) TM.signs.push([(ico?ico+' ':'')+lab,x0+6,y0+5]); };
   zone(0,990,640,1236,'#f5f5f4','Hall d’enregistrement','🎫'); zone(0,820,640,965,'#dbeafe','Contrôle de sûreté','🔍'); zone(0,700,320,815,'#f1f5f9','Couloir — vols nationaux',TH.flag);
   zone(320,700,640,815,'#ede9fe','Police aux frontières — zone internationale','🛂'); zone(0,420,640,700,'#fafaf9','',null); TM.signs.push(['🛍️ Commerces et salle d’attente',300,548]); zone(0,0,640,410,'#f8fafc','',null);
-  zone(660,0,1000,240,'#f1f5f9','Couloir des arrivées','🛬'); zone(660,240,1000,420,'#ede9fe','Immigration','🛂'); zone(660,420,1000,860,'#f8fafc','Salle de livraison des bagages','🧳');
+  zone(660,0,1000,240,'#f1f5f9','Couloir des arrivées','🛬'); zone(660,240,1000,420,'#ede9fe','Immigration','🛂'); zone(660,420,1000,860,'#f8fafc','Livraison des bagages','🧳');
   zone(660,860,1000,960,'#dcfce7','Douane','🛃'); zone(660,960,1000,1236,'#fef9c3','Hall des arrivées · accueil','🤝');
   const walls=[[640,0,20,1236],[0,410,640,10],[0,965,640,25],[0,815,640,5],[660,240,340,4],[660,420,340,4],[660,860,340,4],[660,960,340,4]];
   g.fillStyle='rgba(0,0,0,.12)'; for(const w of walls) g.fillRect(w[0]+3,w[1]+3,w[2],w[3]);   // ombre des murs
@@ -455,10 +456,10 @@ function tmDraw(){
     if(p.k==='xray'&&s>0.8){ g.fillStyle='#1e293b'; g.fillRect(p.x0+18,p.y0+3,24,10); g.fillStyle='#64748b'; for(let k=0;k<3;k++) g.fillRect(p.x0+2+((now/1500+k*7)%16),p.y0+5,4,6); }   // bacs qui avancent
     if(p.k==='fids'&&s>1){ for(let k=0;k<3;k++){ g.fillStyle=['#facc15','#22c55e','#38bdf8'][k]; g.fillRect(p.x0+3,p.y0+3+k*3.5,(p.x1-p.x0)*0.6,1.5); } continue; }
     const big=p.x1-p.x0>45, nm=p.lab.split(' (')[0].split(' —')[0];
-    if(big&&!['seats','fids'].includes(p.k)){ const px=Math.max(5,Math.min(10,9.5/s)); g.font=`700 ${px}px system-ui`; const t=p.ico+' '+nm, w=Math.min(p.x1-p.x0-4,g.measureText(t).width+px*0.6); g.fillStyle='rgba(255,255,255,.88)'; g.fillRect(p.x0+2,p.y0+2,w,px*1.35); g.fillStyle='#111827'; g.save(); g.beginPath(); g.rect(p.x0+2,p.y0+2,w,px*1.4); g.clip(); g.fillText(t,p.x0+2+px*0.3,p.y0+2+px*1.05); g.restore(); }
+    if(big&&!['seats','fids'].includes(p.k)&&(p.x1-p.x0)*s>=30){ const px=9/s; g.font=`700 ${px}px system-ui`; const t=p.ico+' '+nm, w=Math.min(p.x1-p.x0-4,g.measureText(t).width+px*0.6); g.fillStyle='rgba(255,255,255,.88)'; g.fillRect(p.x0+2,p.y0+2,w,px*1.35); g.fillStyle='#111827'; g.save(); g.beginPath(); g.rect(p.x0+2,p.y0+2,w,px*1.4); g.clip(); g.fillText(t,p.x0+2+px*0.3,p.y0+2+px*1.05); g.restore(); }
     else if(s>1.2) txt(p.ico,p.x0+2,p.y0+12,9); }
   // enseignes des zones (lisibles à toutes les échelles) + compteurs d'activité en vue générale
-  { const C2=TM.cnt||{}, badge={'🎫':C2.ck,'🔍':C2.sec,'🛂':null,'🧳':C2.belt}; for(const [t,x,y] of TM.signs){ const k=t.split(' ')[0], v=t.startsWith('🛂 Police')?C2.pol:t.startsWith('🛂 Immigration')?C2.imm:badge[k]; sign(t+(s<1.1&&v?` · ${v} en file`:''),x,y); } }
+  { const C2=TM.cnt||{}, badge={'🎫':C2.ck,'🔍':C2.sec,'🛂':null,'🧳':C2.belt}; for(const [t,x,y] of TM.signs){ const k=t.split(' ')[0], v=t.startsWith('🛂 Police')?C2.pol:t.startsWith('🛂 Immigration')?C2.imm:badge[k]; sign((s<0.9?t.split(' — ')[0].split(' · ')[0]:t)+(v?` · ${v}`:''),x,y); } }
   sign(`${TH.flag} ${TH.name}`,8,1240,'#0f172a');
   // valises : tapis, tri, soutes, tapis de livraison
   for(const b of TM.bags||[]){ let q=null;
@@ -472,9 +473,8 @@ function tmDraw(){
   for(const p of TM.ppl){ const q=tmAt(p.K,now); if(!q) continue; if(p.staff){ cnt.staff=(cnt.staff||0)+1; } else if(p.greet){ cnt.greet=(cnt.greet||0)+1; } else { n++; p.dep?nd++:na++; }
     if(q.q){ const t=q.st; if(/enregistrement/.test(t)) cnt.ck++; else if(/sûreté/.test(t)) cnt.sec++; else if(/police/.test(t)) cnt.pol++; else if(/embarquement/.test(t)) cnt.board++; else if(/passeports/.test(t)) cnt.imm++; } else if(/attend sa valise/.test(q.st)) cnt.belt++;
     const x=q.x+((p.i*13)%7-3)*0.7, y=q.y+((p.i*7)%5-2)*0.7; pts.push([x,y,p,q]); if(x<vx0||x>vx1||y<vy0||y>vy1) continue;
-    if(s<0.38){ g.fillStyle=p.c; g.fillRect(x-2.2,y-2.2,4.4,4.4); continue; }
     const r0=p.kid?r00*0.7:r00, ph=q.walk?Math.sin(now/140+p.i):0;
-    g.fillStyle='rgba(0,0,0,.15)'; g.beginPath(); g.ellipse(x,y+r0*1.6,r0*1.1,r0*0.45,0,0,6.283); g.fill();
+    if(s>0.5){ g.fillStyle='rgba(0,0,0,.15)'; g.beginPath(); g.ellipse(x,y+r0*1.6,r0*1.1,r0*0.45,0,0,6.283); g.fill(); }
     if(legs&&!q.sit){ g.strokeStyle='#1f2937'; g.lineWidth=r0*0.35; g.beginPath(); g.moveTo(x-r0*0.3,y+r0*0.8); g.lineTo(x-r0*0.3+ph*r0*0.5,y+r0*1.7); g.moveTo(x+r0*0.3,y+r0*0.8); g.lineTo(x+r0*0.3-ph*r0*0.5,y+r0*1.7); g.stroke(); }
     g.fillStyle=p.c; g.beginPath(); g.ellipse(x,y+(q.sit?r0*0.3:0),r0*0.95,q.sit?r0*0.9:r0*1.35,0,0,6.283); g.fill(); if(s>0.9){ g.strokeStyle='rgba(15,23,42,.45)'; g.lineWidth=Math.min(0.8,0.6/s*1.5); g.stroke(); }
     g.fillStyle=p.sk; g.beginPath(); g.arc(x,y-r0*1.25,r0*0.7,0,6.283); g.fill();
@@ -497,28 +497,36 @@ function tmDraw(){
   if(TM.sel&&TM.selAt&&performance.now()-TM.selAt<30&&!TM.sel.staff) tmAfterSel(TM.sel,now);
   tmAnnounce(now);
   const hd=document.getElementById('tmCount'); if(hd&&(!TM.cAt||performance.now()-TM.cAt>800)){ TM.cAt=performance.now(); const W=L.W||{};
-    hd.innerHTML=`${document.getElementById('tmBoard')&&document.getElementById('tmBoard').hidden?'▼':'▲'} 👥 ${n.toLocaleString('fr-FR')} personnes · ${nd} départ · ${na} arrivée · ${tmHM(now)}<br><span style="color:#cbd5e1;font-weight:500">🎫 ${cnt.ck} en file (~${tmWait(W.ck||[],now)} min) · 🔍 ${cnt.sec} (~${tmWait(W.sec||[],now)} min) · 🛂 ${cnt.pol} (~${tmWait(W.pol||[],now)} min) · 🚪 ${cnt.board} · 🛂 arrivées ${cnt.imm} · 🧳 ${cnt.belt} au tapis · 🤗 ${cnt.greet||0} accueillent · 👮 ${cnt.staff||0} agents</span>`; if(Math.random()<0.15) tmBoard(); }
+    hd.innerHTML=`${document.getElementById('tmPanel')&&document.getElementById('tmPanel').hidden?'📋':'✖'} 👥 ${n.toLocaleString('fr-FR')} personnes · ${nd} départ · ${na} arrivée · ${tmHM(now)}<br><span style="color:#cbd5e1;font-weight:500">🎫 ${cnt.ck} en file (~${tmWait(W.ck||[],now)} min) · 🔍 ${cnt.sec} (~${tmWait(W.sec||[],now)} min) · 🛂 ${cnt.pol} (~${tmWait(W.pol||[],now)} min) · 🚪 ${cnt.board} · 🛂 arrivées ${cnt.imm} · 🧳 ${cnt.belt} au tapis · 🤗 ${cnt.greet||0} accueillent · 👮 ${cnt.staff||0} agents</span>`; if(Math.random()<0.15) tmBoard(); }
 }
 function tmOpen(code){
   code=code||tmNearest(); if(!code||typeof pfData!=='function') return; TM.code=code; TM.th=null; TM.open=true; TM.sel=null; TM.selF=null; TM.built=0; TM.cam=null; TM.goal=null; TM.moved=0; TM.dpr=Math.min(2,window.devicePixelRatio||1);
   let ov=document.getElementById('tmOv'); if(ov) ov.remove();
   ov=document.createElement('div'); ov.id='tmOv'; const A=AP(code);
-  ov.innerHTML=`<style>#tmOv{position:fixed;inset:0;z-index:2000;background:#0b1220;display:flex;flex-direction:column;color:#e2e8f0;padding-top:env(safe-area-inset-top)}
-#tmOv header{display:flex;align-items:center;gap:6px;padding:6px 8px}#tmOv header b{font:700 14px system-ui;flex:1}#tmOv header button{min-width:40px;padding:6px}
-#tmZones{display:flex;gap:5px;overflow-x:auto;padding:0 8px 6px;-webkit-overflow-scrolling:touch}#tmZones button{white-space:nowrap;font:600 12px system-ui;padding:5px 9px;border-radius:14px}
-#tmBoard{max-height:17vh;overflow:auto;padding:0 8px 4px;font:12px system-ui}#tmBoard table{width:100%;border-collapse:collapse;margin-bottom:4px}#tmBoard th{text-align:left;color:#facc15;font-weight:600;font-size:11px}
+  ov.innerHTML=`<style>#tmOv{position:fixed;inset:0;z-index:2000;background:#0b1220;color:#e2e8f0;overflow:hidden}
+#tmCv{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#tmTop{position:absolute;left:6px;right:6px;top:calc(6px + env(safe-area-inset-top));display:flex;align-items:center;gap:4px;z-index:3}
+#tmTop b{flex:1;font:700 13px system-ui;background:rgba(8,14,26,.82);border-radius:10px;padding:7px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#tmTop button{flex:0 0 auto}#tmTop button,#tmZones button{background:rgba(8,14,26,.82);color:#fff;border:1px solid rgba(148,163,184,.35);border-radius:10px;font:600 13px system-ui;padding:6px 8px;min-width:34px}
+#tmTop button.on{border-color:#facc15;color:#facc15}
+#tmZones{position:absolute;left:6px;right:6px;bottom:calc(6px + env(safe-area-inset-bottom));display:flex;gap:5px;overflow-x:auto;z-index:3;-webkit-overflow-scrolling:touch}#tmZones button{flex:0 0 auto;white-space:nowrap;font-size:12px;padding:6px 9px;border-radius:14px}
+#tmCount{position:absolute;left:6px;right:6px;top:calc(48px + env(safe-area-inset-top));z-index:3;background:rgba(8,14,26,.78);border-radius:10px;padding:4px 8px;font:600 11px system-ui;color:#93c5fd;cursor:pointer}
+#tmPanel{position:absolute;left:6px;right:6px;top:calc(96px + env(safe-area-inset-top));z-index:4;max-height:46vh;overflow:auto;background:rgba(8,14,26,.94);border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:6px 8px}
+#tmBoard{font:12px system-ui}#tmBoard table{width:100%;border-collapse:collapse;margin-bottom:4px}#tmBoard th{text-align:left;color:#facc15;font-weight:600;font-size:11px}
 #tmBoard tr[data-tmf]{cursor:pointer}#tmBoard td{padding:2px 4px;border-top:1px solid rgba(148,163,184,.15);font-family:ui-monospace,monospace;font-size:11px}#tmBoard td i{display:inline-block;width:9px;height:9px;border-radius:2px}
-#tmCount{padding:2px 8px 4px;font:600 12px system-ui;color:#93c5fd}#tmWrap{flex:1;position:relative;min-height:0}#tmCv{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
-#tmSearch{padding:0 8px 6px;position:relative}#tmSearch input{width:100%;box-sizing:border-box;padding:7px 10px;border-radius:10px;border:1px solid rgba(148,163,184,.35);background:#111827;color:#fff;font:13px system-ui}
-#tmRes{position:absolute;left:8px;right:8px;top:38px;z-index:5;background:#0f172a;border:1px solid rgba(148,163,184,.35);border-radius:10px;max-height:40vh;overflow:auto}#tmRes button{display:block;width:100%;text-align:left;padding:7px 10px;font:12px system-ui;border-radius:0}
-#tmAnn{position:absolute;left:8px;right:8px;top:8px;background:rgba(250,204,21,.95);color:#111827;border-radius:10px;padding:6px 10px;font:600 12px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.4)}
-#tmInfo{position:absolute;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));background:rgba(8,14,26,.94);border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:8px 10px;font:13px system-ui;max-height:40%;overflow:auto}</style>
-<header><b>🏢 ${esc(A.city)} <span style="color:#94a3b8">${esc(code)}</span></b><button class="btn" data-tdash>📊</button><button class="btn" data-tsp>⏱️</button><button class="btn" data-tvo>🔈</button><button class="btn" data-tz="-">➖</button><button class="btn" data-tz="+">➕</button><button class="btn" data-tm="x">✖</button></header>
-<div id="tmZones">${TM_ZONES.map((z,i)=>`<button class="btn" data-tzn="${i}">${z[0]}</button>`).join('')}</div><div id="tmSearch"><input type="search" placeholder="🔎 Chercher un passager : nom, vol, siège…" data-tms><div id="tmRes" hidden></div></div><div id="tmBoard"></div><div id="tmCount" title="Toucher pour replier / déplier le tableau"></div>
-<div id="tmWrap"><canvas id="tmCv"></canvas><div id="tmAnn" hidden></div><div id="tmInfo" hidden></div></div>`;
+#tmSearch{position:relative;margin-bottom:6px}#tmSearch input{width:100%;box-sizing:border-box;padding:7px 10px;border-radius:10px;border:1px solid rgba(148,163,184,.35);background:#111827;color:#fff;font:13px system-ui}
+#tmRes{background:#0f172a;border:1px solid rgba(148,163,184,.35);border-radius:10px;max-height:34vh;overflow:auto;margin-top:4px}#tmRes button{display:block;width:100%;text-align:left;padding:7px 10px;font:12px system-ui;border-radius:0}
+#tmAnn{position:absolute;left:8px;right:8px;top:calc(96px + env(safe-area-inset-top));z-index:3;background:rgba(250,204,21,.95);color:#111827;border-radius:10px;padding:6px 10px;font:600 12px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#tmInfo{position:absolute;left:8px;right:8px;bottom:calc(52px + env(safe-area-inset-bottom));z-index:4;background:rgba(8,14,26,.94);border:1px solid rgba(148,163,184,.35);border-radius:12px;padding:8px 10px;font:13px system-ui;max-height:42%;overflow:auto}</style>
+<canvas id="tmCv"></canvas>
+<div id="tmTop"><b>🏢 ${esc(A.city)} <span style="color:#94a3b8">${esc(code)}</span></b><button data-tpan title="Vols et recherche">📋</button><button data-tdash title="Gestion">📊</button><button data-tsp>⏱️</button><button data-tvo>🔈</button><button data-tz="-">➖</button><button data-tz="+">➕</button><button data-tm="x">✖</button></div>
+<div id="tmCount" title="Toucher pour voir les vols"></div>
+<div id="tmPanel" hidden><div id="tmSearch"><input type="search" placeholder="🔎 Chercher un passager : nom, vol, siège…" data-tms><div id="tmRes" hidden></div></div><div id="tmBoard"></div></div>
+<div id="tmAnn" hidden></div><div id="tmInfo" hidden></div>
+<div id="tmZones">${TM_ZONES.map((z,i)=>`<button data-tzn="${i}">${z[0]}</button>`).join('')}</div>`;
   document.body.appendChild(ov); TM.cv=ov.querySelector('#tmCv');
   ov.querySelector('[data-tm="x"]').onclick=tmClose;
-  { const cnt=ov.querySelector('#tmCount'), bd=ov.querySelector('#tmBoard'); cnt.style.cursor='pointer'; cnt.onclick=()=>{ bd.hidden=!bd.hidden; TM.moved=0; }; }
+  { const cnt=ov.querySelector('#tmCount'), pan=ov.querySelector('#tmPanel'), pb=ov.querySelector('[data-tpan]'); const tg=()=>{ pan.hidden=!pan.hidden; pb.classList.toggle('on',!pan.hidden); }; cnt.onclick=tg; pb.onclick=tg; }
   ov.querySelector('[data-tdash]').onclick=()=>{ TM.dash=!TM.dash; TM.sel=null; TM.follow=null; TM.dashAt=0; if(!TM.dash) tmInfo(''); };
   // vitesse du temps (celle du jeu) et voix des annonces
   const SP=[['realiste','×1'],['lent','×30'],['standard','×60'],['rapide','×600']], spB=ov.querySelector('[data-tsp]'), lab=()=>{ const x=SP.find(z=>z[0]===S.speed); spB.textContent='⏱️ '+(x?x[1]:'×?'); }; lab();
