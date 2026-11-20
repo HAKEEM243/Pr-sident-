@@ -472,7 +472,7 @@ function tmWay(g,L,TH,fit){ const Y=(t,x0,y0,x1,y1)=>{ g.fillStyle='rgba(15,23,4
   Y('↓ Douane · Sortie   |   Customs · Exit',680,846,890,858); Y('🚕 Taxis · 🚌 Bus · 🅿️ Parking',664,1194,850,1208);
   const A=AP(TM.code)||{}, C=COUNTRIES[A.cc]||[A.city||''], sub={AF:'Fleuves · forêts · rumba · hospitalité',EU:'Musées · gastronomie · patrimoine',NA:'Grands espaces · villes · culture',AS:'Temples · saveurs · traditions',ME:'Désert · souks · architecture',SA:'Plages · carnaval · nature',OC:'Lagons · récifs · grands espaces'}[TH.reg]||'Tourisme · culture · gastronomie';
   const PIM=typeof myApPicImg==='function'?myApPicImg(TM.code):null, PCAP=typeof myApCap==='function'?myApCap(TM.code):'';
-  const portrait=(x0,y0,w,h,cap)=>{ g.fillStyle='rgba(15,23,42,.35)'; g.fillRect(x0+2,y0+2,w,h); g.fillStyle='#b45309'; g.fillRect(x0,y0,w,h); g.fillStyle='#fde68a'; g.fillRect(x0+1.5,y0+1.5,w-3,h-3); const ih=cap?h*0.8:h-5; g.drawImage(PIM,x0+2.5,y0+2.5,w-5,ih-0.5); if(cap) fit(cap,x0+2.5,y0+ih+2.5,w-5,h-ih-5,'#111827',null); };
+  const portrait=(x0,y0,w,h,cap)=>{ g.fillStyle='rgba(15,23,42,.35)'; g.fillRect(x0+2,y0+2,w,h); g.fillStyle='#b45309'; g.fillRect(x0,y0,w,h); g.fillStyle='#fde68a'; g.fillRect(x0+1.5,y0+1.5,w-3,h-3); const ih=cap?h*0.8:h-5; g.save(); g.translate(x0+w/2,0); if(TH.mx) g.scale(-1,1); g.drawImage(PIM,-w/2+2.5,y0+2.5,w-5,ih-0.5); g.restore(); if(cap) fit(cap,x0+2.5,y0+ih+2.5,w-5,h-ih-5,'#111827',null); };
   if(PIM){ portrait(584,1239,52,60,PCAP); portrait(942,1239,52,60,PCAP); }   /* grand portrait sur le parvis, devant les halls */
   for(const [x0,y0,x1,y1] of [[380,1196,550,1230],[860,1196,996,1230]]){ if(PIM){ g.fillStyle='#0f172a'; g.fillRect(x0,y0,x1-x0,y1-y0); portrait(x0+2,y0+1,26,32,''); fit(PCAP||AP(TM.code).name,x0+31,y0+5,x1-x0-34,13,'#fde68a',null); fit('Bienvenue · Welcome · Boyei malamu',x0+31,y0+20,x1-x0-34,9,'#e5e7eb',null,1); continue; }
     const gr=g.createLinearGradient(x0,y0,x1,y1); gr.addColorStop(0,'#0e7490'); gr.addColorStop(0.55,'#f59e0b'); gr.addColorStop(1,'#be185d'); g.fillStyle=gr; g.fillRect(x0,y0,x1-x0,y1-y0); g.strokeStyle='#e5e7eb'; g.lineWidth=1.2; g.strokeRect(x0,y0,x1-x0,y1-y0);
@@ -738,6 +738,8 @@ function tmDraw(){
   zone(320,700,640,815,'#ede9fe','Police aux frontières — zone internationale','🛂'); zone(0,420,640,700,'#fafaf9','',null);  zone(0,0,640,410,'#f8fafc','',null);
   zone(660,0,1000,240,'#f1f5f9','Couloir des arrivées','🛬'); zone(660,240,1000,420,'#ede9fe','Immigration','🛂'); zone(660,420,1000,860,'#f8fafc','Livraison des bagages','🧳');
   zone(660,860,1000,960,'#dcfce7','Douane','🛃'); zone(660,960,1000,1236,'#fef9c3','Hall des arrivées · accueil','🤝');
+  { const MU=typeof myApMural==='function'?myApMural(TM.code):null; if(MU){ const art=(cx,y0,h,al)=>{ const w=h*MU.width/MU.height; g.globalAlpha=al; g.save(); g.translate(cx,0); if(TH.mx) g.scale(-1,1); g.drawImage(MU,-w/2,y0,w,h); g.restore(); g.globalAlpha=1; };   /* jamais à l'envers dans un plan en miroir */
+      art(320,992,242,0.55); art(830,962,272,0.55); art(320,424,274,0.40); if(L.hall) art(320,34,370,0.42); } }   /* fresque peinte au sol des halls, d'après la photo choisie par le joueur */
   const walls=[[640,0,20,1236],[0,410,640,10],[0,965,640,25],[0,815,640,5],[660,240,340,4],[660,420,340,4],[660,860,340,4],[660,960,340,4]];
   g.fillStyle='rgba(0,0,0,.12)'; for(const w of walls) g.fillRect(w[0]+3,w[1]+3,w[2],w[3]);   // ombre des murs
   g.fillStyle='#57534e'; for(const w of walls) g.fillRect(...w); g.fillStyle=TH.acc; g.fillRect(645,0,10,1236);   // mur central à la couleur de l'aéroport

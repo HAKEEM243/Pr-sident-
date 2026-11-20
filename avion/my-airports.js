@@ -69,12 +69,22 @@ function myApChoosePic(code){ const i=document.createElement('input'); i.type='f
         const x=c.getContext('2d'); x.fillStyle='#111'; x.fillRect(0,0,c.width,c.height); const sc2=Math.max(c.width/im.width,c.height/im.height); x.drawImage(im,(c.width-im.width*sc2)/2,(c.height-im.height*sc2)/2,im.width*sc2,im.height*sc2);
         const url=c.toDataURL('image/jpeg',0.82); localStorage.setItem(myApPicKey(code),url);
         const cap=prompt('Texte sous la photo (par exemple le nom de la personne) :',myApCap(code)||''); if(cap!=null) localStorage.setItem(myApCapKey(code),String(cap).slice(0,60));
-        if(typeof TM!=='undefined'){ TM.picImg=null; TM.scKey=null; } toast('🖼️ Photo installée dans l’aérogare de '+esc(AP(code).city),'good'); try{ closeModal(); }catch(e){} }catch(e){ toast('Impossible d’enregistrer cette photo (mémoire du téléphone pleine ?)','bad'); } }; im.onerror=()=>toast('Image illisible','bad'); im.src=rd.result; }; rd.readAsDataURL(f); };
+        if(typeof TM!=='undefined'){ TM.picImg=null; TM.mural=null; TM.scKey=null; } toast('🖼️ Photo installée dans l’aérogare de '+esc(AP(code).city),'good'); try{ closeModal(); }catch(e){} }catch(e){ toast('Impossible d’enregistrer cette photo (mémoire du téléphone pleine ?)','bad'); } }; im.onerror=()=>toast('Image illisible','bad'); im.src=rd.result; }; rd.readAsDataURL(f); };
   i.click(); }
-function myApRemovePic(code){ try{ localStorage.removeItem(myApPicKey(code)); localStorage.removeItem(myApCapKey(code)); }catch(e){} if(typeof TM!=='undefined'){ TM.picImg=null; TM.scKey=null; } toast('Photo retirée'); try{ closeModal(); }catch(e){} }
+function myApRemovePic(code){ try{ localStorage.removeItem(myApPicKey(code)); localStorage.removeItem(myApCapKey(code)); }catch(e){} if(typeof TM!=='undefined'){ TM.picImg=null; TM.mural=null; TM.scKey=null; } toast('Photo retirée'); try{ closeModal(); }catch(e){} }
 // image prête pour l'aérogare (chargée une fois, puis le décor est redessiné)
 function myApPicImg(code){ if(typeof TM==='undefined') return null; if(TM.picImg&&TM.picImg.code===code) return TM.picImg.ok?TM.picImg.im:null; const url=myApPic(code); TM.picImg={code,ok:false,im:null}; if(!url) return null;
   const im=new Image(); im.onload=()=>{ if(TM.picImg&&TM.picImg.code===code){ TM.picImg.ok=true; TM.picImg.im=im; TM.scKey=null; } }; im.src=url; return null; }
+// la photo devient une grande peinture (coups de pinceau), calculée une seule fois
+function myApMural(code){ const im=myApPicImg(code); if(!im) return null; if(TM.mural&&TM.mural.code===code) return TM.mural.cv;
+  try{ const sw=96, sh=120, s=document.createElement('canvas'); s.width=sw; s.height=sh; const sx=s.getContext('2d'); sx.drawImage(im,0,0,sw,sh); const px=sx.getImageData(0,0,sw,sh).data;
+    const W=480, H=600, cv=document.createElement('canvas'); cv.width=W; cv.height=H; const x=cv.getContext('2d'), k=W/sw; let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
+    x.fillStyle='#f5ecd7'; x.fillRect(0,0,W,H); x.globalAlpha=0.85; x.drawImage(im,0,0,W,H); x.globalAlpha=1;   /* fond : l'image elle-même */
+    for(let j=0;j<sh;j++) for(let i=0;i<sw;i++){ if(rnd()<0.35) continue; const o=(j*sw+i)*4; x.fillStyle=`rgba(${Math.min(255,px[o]+10)},${Math.min(255,px[o+1]+4)},${Math.max(0,px[o+2]-6)},0.55)`;   /* coups de pinceau fins, couleurs chaudes */
+      x.save(); x.translate((i+0.5)*k,(j+0.5)*k); x.rotate(-0.6+(rnd()-0.5)*0.5); x.beginPath(); x.ellipse(0,0,k*0.95,k*0.38,0,0,6.283); x.fill(); x.restore(); }
+    const gr=x.createRadialGradient(W/2,H/2,H*0.35,W/2,H/2,H*0.75); gr.addColorStop(0,'rgba(245,236,215,0)'); gr.addColorStop(1,'rgba(245,236,215,0.65)'); x.fillStyle=gr; x.fillRect(0,0,W,H);   /* bords fondus, comme une fresque */
+    x.strokeStyle='#7c5a2b'; x.lineWidth=10; x.strokeRect(5,5,W-10,H-10);
+    TM.mural={code,cv}; return cv; }catch(e){ console.warn('peinture',e); TM.mural={code,cv:null}; return null; } }
 /* ---------- fiche d'un aéroport : mes aéroports ---------- */
 function myApCardHtml(code){ const a=AP(code); if(!a) return ''; const own=(S.ownedAp||{})[code], p=myApPrice(a), pic=!!myApPic(code), home=a.cc===myApHomeCc();
   return `<div class="card" style="margin:6px 0"><b>🏗️ Mes aéroports</b>
