@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261270';
+const GAME_VER='20261271';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛫 Tous les vols de l\'aéroport','L\'aérogare montre tous les vols, départs et arrivées, de toutes les compagnies sans distinction (jusqu\'à 14 départs et 8 arrivées à la fois) : tableau avec le nom de chaque compagnie, 8 tapis à bagages, postes d\'arrivée sur deux rangées.'],
   ['⏰ Vols manqués réalistes','Plus personne ne se rend à une porte fermée après le départ de l\'avion. Un passager arrivé après la clôture de l\'enregistrement est refusé au comptoir et se fait replacer à l\'information ; un passager qui n\'atteint pas la porte avant sa fermeture rate son vol et va au comptoir de la compagnie ; un passager en retard va directement à la file d\'embarquement.'],
   ['🛬 Aérogare : personnages et arrivées corrigés','Les personnages restent visibles quand on zoome (ils disparaissaient dans les aéroports au plan retourné). Tous les vols qui atterrissent remplissent l\'aérogare : on voit les passagers descendre de l\'avion, passer l\'immigration, récupérer leurs bagages et sortir. Plus de comptoirs pour les gros vols : fini l\'enregistrement de près de deux heures.'],
   ['🔤 Textes de l\'aérogare bien placés','Chaque texte a sa place réservée et s\'ajuste pour y tenir : bandeau de titre pour chaque zone (avec le nombre de personnes en file), en-tête de chaque salle d\'embarquement, nom dans chaque boutique et équipement, ville sur chaque comptoir, écran au-dessus de chaque tapis. Plus aucun texte sur un autre. Le plan est une vraie image : zoomer agrandit, rien n\'apparaît ni ne disparaît, personnages de taille fixe.'],
