@@ -22,12 +22,14 @@ function rivReg(R,r,i){ const h=hashStr((R.code||'')+r.a+r.b+i), cc=(R.cc||(AP(r
 // le vol n° cyc, dans le sens dir ('AB' ou 'BA'), de la rotation i de la ligne r
 function rivFlight(R,r,i,dir,cyc){
   const K=typeof rivalSched==='function'?rivalSched(r):null; if(!K) return null; i=Math.min(i,K.nP-1);
-  const base=K.anchors[i]-K.bA+cyc*K.P, ab=dir==='AB', P=base+(ab?K.bA:K.pA.total+K.turn+K.bB), arr=base+(ab?K.pA.total:K.pA.total+K.turn+K.pB.total);
+  const base=K.anchors[i]-K.bA+cyc*K.P, ab=dir==='AB', t0=base+(ab?0:K.pA.total+K.turn), dl=typeof rivDelays==='function'?rivDelays(r,i,dir,cyc):{dep:0,hIn:0,ga:0}, pr=typeof rivProf==='function'?rivProf(ab?K.pA:K.pB,dl):(ab?K.pA:K.pB);
+  const P0=t0+(ab?K.bA:K.bB), P=P0+dl.dep, arr=t0+pr.total, sg=k=>pr.segs.find(k), s2=sg(x=>x.ph===2), s8=sg(x=>x.ph===8), sh=sg(x=>x.hold==='in'), sga=sg(x=>x.ga);   // mêmes retards que la carte et la 3D
+  const tim={P0,tko:s2?t0+s2.t0:null,td:s8?t0+s8.t0:null,holdIn:sh?[t0+sh.t0,t0+sh.t1]:null,ga:sga?[t0+sga.t0,t0+sga.t1]:null,late:Math.round((dl.dep+dl.hIn+dl.ga)/MIN),depLate:Math.round(dl.dep/MIN)};
   const from=ab?r.a:r.b, to=ab?r.b:r.a, key=(R.code||'')+r.a+r.b+i+dir+cyc, N=rivPax(R,r,K,from,to), j=Math.round(N*0.08);
   const fn=(r.c||R.code||'')+(100+hashStr(r.a+r.b+i+dir)%800), id='R'+key;
   let ac=RIV_AC.get(id); if(!ac){ const leg={from,to,dep:P,pax:{f:0,j,w:0,y:N-j},dist:K.d};
     ac={id,reg:rivReg(R,r,i),flight:{legs:[leg],li:0},_riv:1,_fn:fn,_R:R,model:K.m&&K.m.id,modelName:K.m&&K.m.name,status:'flight',condition:90,hub:from,loc:from,cfg:null}; RIV_AC.set(id,ac); if(RIV_AC.size>5000) RIV_AC.delete(RIV_AC.keys().next().value); }
-  return {R,r,i,dir,cyc,K,P,arr,from,to,N,fn,key,ac,get man(){ try{ return manifestFor(ac,ac.flight.legs[0]); }catch(e){ return null; } }}; }
+  return {R,r,i,dir,cyc,K,P,arr,from,to,N,fn,key,ac,...tim,get man(){ try{ return manifestFor(ac,ac.flight.legs[0]); }catch(e){ return null; } }}; }
 // le vol en cours (ou le prochain) de la rotation i à l'instant t
 function rivFlightAt(R,r,i,t){ const K=rivalSched(r); if(!K) return null; i=Math.min(i,K.nP-1);
   const x=t-K.anchors[i]+K.bA, cyc=Math.floor(x/K.P), rel=((x%K.P)+K.P)%K.P; return rivFlight(R,r,i,rel>=K.pA.total+K.turn?'BA':'AB',cyc); }
@@ -42,7 +44,7 @@ function rivHook(){ if(rivHook.done) return; rivHook.done=true;
   if(typeof passengerCardHtml==='function'){ const _p=passengerCardHtml; passengerCardHtml=function(ac){ const h=_p.apply(this,arguments); return ac&&ac._riv?String(h).split(esc(S.company.code)+String(ac._fn).replace(/^[A-Z]+/i,'')).join(esc(ac._fn)):h; }; }
   if(typeof bcFlight==='function'){ const _b=bcFlight; bcFlight=function(ac){ const r=_b.apply(this,arguments); if(r&&ac&&ac._riv) r.fno=ac._fn; return r; }; }
   // fiche de l'avion sur la carte 2D : accès au manifeste
-  if(typeof rivalTip==='function'){ const _t=rivalTip; rivalTip=function(e){ let h=_t.apply(this,arguments); try{ const f=rivFlightAt(e.R,e.r,e.i,S.time); if(f) h=h.replace('<div class="rv-note">',`<div style="margin:6px 0"><b>${esc(f.fn)}</b> · ${esc(f.ac.reg)} · ${f.N} passagers <button class="btn" data-act="manifest" data-id="${esc(f.ac.id)}">📋 Manifeste</button></div><div class="rv-note">`); }catch(x){} return h; }; }
+  if(typeof rivalTip==='function'){ const _t=rivalTip; rivalTip=function(e){ let h=_t.apply(this,arguments); try{ const f=rivFlightAt(e.R,e.r,e.i,S.time); if(f) h=h.replace('<div class="rv-note">',`<div style="margin:6px 0"><b>${esc(f.fn)}</b> · ${esc(f.ac.reg)} · ${f.N} passagers${f.depLate?` · <b style="color:#f87171">retard +${f.depLate} min</b>`:''}${f.holdIn&&S.time>=f.holdIn[0]&&S.time<f.holdIn[1]?' · <b style="color:#f59e0b">circuit d’attente</b>':''}${f.ga&&S.time>=f.ga[0]&&S.time<f.ga[1]?' · <b style="color:#f87171">remise de gaz</b>':''} <button class="btn" data-act="manifest" data-id="${esc(f.ac.id)}">📋 Manifeste</button></div><div class="rv-note">`); }catch(x){} return h; }; }
   Object.assign(ACTIONS,{ rivMan:d=>{ try{ closeModal(); }catch(e){} rivOpenManifest(d.c,d.a,d.b,d.i); } });
 }
 if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ rivHook(); }catch(e){ console.warn('vols des autres compagnies',e); } },20));

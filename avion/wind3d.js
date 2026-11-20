@@ -84,7 +84,7 @@ function wndHook(){ if(wndHook.done||typeof acPose!=='function') return; wndHook
 function wndRivalHook(){ if(wndRivalHook.done||typeof rivalPos!=='function'||typeof rivalSched!=='function') return; wndRivalHook.done=true;
   const _r=rivalPos;
   rivalPos=function(r,i,t){
-    try{ const K=rivalSched(r); if(K&&typeof gaLoop==='function'){ const T=K.P, ii=Math.min(i,K.nP-1); let rel=((t-K.anchors[ii]+K.bA)%T+T)%T, to=r.b, prof=K.pA, dir='AB', turn=K.turn;
+    try{ const K=null; if(K&&typeof gaLoop==='function'){   // remises de gaz des autres compagnies : désormais calculées une seule fois (rivDelays), identiques carte / 3D / aérogare const T=K.P, ii=Math.min(i,K.nP-1); let rel=((t-K.anchors[ii]+K.bA)%T+T)%T, to=r.b, prof=K.pA, dir='AB', turn=K.turn;
         if(rel>=K.pA.total+turn){ rel-=K.pA.total+turn; to=r.a; prof=K.pB; dir='BA'; }
         const s7=prof.segs.find(x=>x.ph===7);
         if(s7&&rel>=s7.t0&&turn>11*MIN){ const cyc=Math.floor((t-K.anchors[ii]+K.bA)/T), w=wndWx(to);
