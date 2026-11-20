@@ -33,8 +33,14 @@ function tmFlights(code){
       const man=()=>{ try{ return typeof manifestFor==='function'?manifestFor(a,l):null; }catch(e){ return null; } }, info={reg:a.reg,model:modelOf(a).name,acId:a.id};
       if(l.from===code&&now>=D.ci.open-5*MIN&&now<=D.P+3*MIN) deps.push({a,l,D,N,fn,man:man(),...info});
       if(l.to===code&&i===fl.li&&now>=D.arr-25*MIN&&now<D.arr) arrs.push({a,l,D,N,fn,soon:true,...info}); }); }
+  // vols posés récemment (tous) : passagers à l'immigration, aux bagages, à la douane, puis sortie
+  const seen=new Set();
+  try{ for(const x of TM.recent||[]){ if(x.leg.to!==code||now-x.t>80*MIN||now<x.t) continue; const a=S.fleet.find(z=>z.id===x.acId); if(!a) continue; const D0=tmD(a,x.leg); if(!D0) continue;
+      const sh=x.t-D0.arr, mv=o=>{ const r={...o}; for(const k of ['open','close','first','last']) if(r[k]!=null) r[k]+=sh; return r; }, D={...D0,arr:x.t,imm:mv(D0.imm),bag:mv(D0.bag),cus:mv(D0.cus)};
+      if(seen.has(D.key)) continue; seen.add(D.key); let man=null; try{ man=manifestFor({id:x.acId},x.leg); }catch(e){}
+      arrs.push({a:{id:D.key},l:null,D,N:D.total||0,fn:x.fn,soon:false,man,reg:x.reg,model:x.model,acId:x.acId}); } }catch(e){}
   // vols déjà posés : leurs passagers sont encore dans l'aérogare (immigration, bagages, douane)
-  try{ for(const x of (typeof pfArrivals==='function'?pfArrivals():[])){ const D=x.D; if(!D||!D.B||D.B.code!==code) continue; if(now>D.cus.close+15*MIN) continue;
+  try{ for(const x of (typeof pfArrivals==='function'?pfArrivals():[])){ const D=x.D; if(!D||!D.B||D.B.code!==code) continue; if(now>D.cus.close+15*MIN||seen.has(D.key)) continue; seen.add(D.key);
       let man=null; try{ if(x.leg&&typeof manifestFor==='function') man=manifestFor({id:x.acId},x.leg); }catch(e){}
       arrs.push({a:{id:D.key},l:null,D,N:D.total||0,fn:x.fno||x.fn||'',soon:false,man,reg:x.reg,model:x.model,acId:x.acId}); } }catch(e){}
   const F={deps,arrs,cancel:[]}; try{ tmRivals(code,now,F); }catch(e){}
@@ -146,7 +152,7 @@ function tmSched(L){
     for(let i=0;i<N;i++){ const r=pfRng(D.key+'|sc'+i), tIn=D.ci.open+(D.ci.close-D.ci.open)*Math.pow(r(),0.85)*0.97, online=r()<(D.ci.online||0)/Math.max(1,f.N), bags=r()<0.8, kiosk=!(online&&!bags)&&(online||r()<0.3);
       const row=f.man&&f.man.rows&&f.man.rows[i]; const x={i,tIn,online,bags:row?row.bags>0:bags,kiosk,r:r(),wc:r()<0.12,alarm:r()<0.1,row}; if(row){ x.kiosk=!(online&&!x.bags)&&(online||x.r<0.3); } sc.push(x);
       if(online&&!bags){ x.ckStart=x.ckDone=tIn+MIN; } else ckL.push({x,arr:tIn+(kiosk?3.5:1.5)*MIN}); }
-    tmServe(ckL,Math.max(1,Math.min(8,(D.ci.desks||Math.ceil(f.N/55))+tmOps(TM.code).ck)),o=>(o.x.bags?2.2:1.4)*MIN*(0.7+0.6*o.x.r));
+    tmServe(ckL,Math.max(1,Math.min(24,Math.max(D.ci.desks||0,Math.ceil(f.N/40))+tmOps(TM.code).ck)),o=>(o.x.bags?1.8:1.2)*MIN*(0.7+0.6*o.x.r));
     for(const o of ckL){ o.x.ckStart=o.start; o.x.ckDone=o.done; W.ck.push([o.arr,o.start-o.arr]); }
     // embarquement par zones : priorité (affaires, familles), puis zones 1 à 4
     const win=Math.max(MIN,(D.gate.last-D.gate.open)/5);
@@ -450,7 +456,7 @@ function tmDraw(){
   for(const a of L.arrs){ const f=a.f, b=a.belt; { const pl=tmArrPlane(a,now); g.fillStyle='#64748b'; if(pl&&pl.at) g.fillRect(a.door.x-5,-60,10,98); else g.fillRect(a.door.x-5,-14,10,52); if(pl) tmPlane(g,pl.x,pl.y,f.col,pl.a); }
     txt(f.D.A.city,a.x0+2,60,10,'#0f172a',1);
     g.strokeStyle='#334155'; g.lineWidth=10; g.beginPath(); g.ellipse(b.cx,b.cy,b.rx,b.ry,0,0,6.283); g.stroke(); g.strokeStyle=f.col; g.lineWidth=2; g.stroke();
-    fit(('Tapis '+b.n+' · '+f.fn+' · '+f.D.A.city),b.cx-34,b.cy-b.ry-24,68,13,now>f.D.bag.first&&now<f.D.bag.last?'#22c55e':'#facc15','#0f172a'); if(false){ g.fillStyle=now>f.D.bag.first&&now<f.D.bag.last?'#22c55e':'#facc15'; font(6,1); g.fillText(('Tapis '+b.n+' '+f.fn+' '+f.D.A.city).slice(0,22),b.cx-28,b.cy-b.ry-15); } else txt('Tapis '+b.n,b.cx-14,b.cy-b.ry-14,9,'#facc15',1); }
+    fit(('Tapis '+b.n+' · '+f.fn+' · '+f.D.A.city),b.cx-34,b.cy-b.ry-24,68,13,now>f.D.bag.first&&now<f.D.bag.last?'#22c55e':'#facc15','#0f172a');  }
   // équipements et commerces
   for(const p of L.poi){ const col={kiosk:'#0ea5e9',xray:'#475569',arch:'#94a3b8',booth:'#7c3aed',egate:'#6d28d9',wc:'#cbd5e1',cafe:'#fde68a',resto:'#fed7aa',dutyfree:'#fbcfe8',pharma:'#bbf7d0',press:'#e9d5ff',prayer:'#e0e7ff',seats:'#f1f5f9',info:'#bae6fd',green:'#86efac',red:'#fca5a5',change:'#fde68a',taxi:'#facc15',car:'#cbd5e1',lost:'#fecaca',lounge:'#d6d3d1',fids:'#0f172a',health:'#fef08a',trolley:'#d1d5db',xrayc:'#475569'}[p.k]||'#e5e7eb';
     g.fillStyle=col; g.fillRect(p.x0,p.y0,p.x1-p.x0,p.y1-p.y0); g.strokeStyle='rgba(51,65,85,.5)'; g.lineWidth=0.6; g.strokeRect(p.x0,p.y0,p.x1-p.x0,p.y1-p.y0);
@@ -475,7 +481,7 @@ function tmDraw(){
   let n=0, nd=0, na=0; const pts=[], cnt={ck:0,sec:0,pol:0,board:0,imm:0,belt:0}, r00=3.3, vx0=c.x-10, vy0=c.y-10, vx1=c.x+w/s+10, vy1=c.y+h/s+10, legs=true;
   for(const p of TM.ppl){ const q=tmAt(p.K,now); if(!q) continue; if(p.staff){ cnt.staff=(cnt.staff||0)+1; } else if(p.greet){ cnt.greet=(cnt.greet||0)+1; } else { n++; p.dep?nd++:na++; }
     if(q.q){ const t=q.st; if(/enregistrement/.test(t)) cnt.ck++; else if(/sûreté/.test(t)) cnt.sec++; else if(/police/.test(t)) cnt.pol++; else if(/embarquement/.test(t)) cnt.board++; else if(/passeports/.test(t)) cnt.imm++; } else if(/attend sa valise/.test(q.st)) cnt.belt++;
-    const x=q.x+((p.i*13)%7-3)*0.7, y=q.y+((p.i*7)%5-2)*0.7; pts.push([x,y,p,q]); if(x<vx0||x>vx1||y<vy0||y>vy1) continue;
+    const x=q.x+((p.i*13)%7-3)*0.7, y=q.y+((p.i*7)%5-2)*0.7; pts.push([x,y,p,q]); { const X=tmFx(x), Y=tmFy(y); if(X<vx0||X>vx1||Y<vy0||Y>vy1) continue; }
     const r0=p.kid?r00*0.7:r00, ph=q.walk?Math.sin(now/140+p.i):0;
     { g.fillStyle='rgba(0,0,0,.15)'; g.beginPath(); g.ellipse(x,y+r0*1.6,r0*1.1,r0*0.45,0,0,6.283); g.fill(); }
     if(legs&&!q.sit){ g.strokeStyle='#1f2937'; g.lineWidth=r0*0.35; g.beginPath(); g.moveTo(x-r0*0.3,y+r0*0.8); g.lineTo(x-r0*0.3+ph*r0*0.5,y+r0*1.7); g.moveTo(x+r0*0.3,y+r0*0.8); g.lineTo(x+r0*0.3-ph*r0*0.5,y+r0*1.7); g.stroke(); }
@@ -574,7 +580,10 @@ function tmTick(){
   if(TM.hv!==G.viewer){ TM.hv=G.viewer; try{ const C=Cesium, h=new C.ScreenSpaceEventHandler(G.viewer.scene.canvas);
       h.setInputAction(e=>{ try{ const p=G.viewer.scene.pick(e.position), c=p&&p.id&&p.id._term; if(c) tmOpen(c); const rv=p&&p.id&&p.id._rv; if(rv&&typeof rivFlightAt==='function'){ const fl=rivFlightAt(rv.R,rv.r,rv.i,S.time); if(fl) toast(`✈️ <b>${esc(fl.fn)}</b> ${esc(rv.R.name||'')} · ${esc(fl.ac.reg)}${fl.ac.modelName?' · '+esc(fl.ac.modelName):''}<br>${esc(AP(fl.from).city)} → ${esc(AP(fl.to).city)} · ${fl.N} passagers <button class="btn" data-act="manifest" data-id="${esc(fl.ac.id)}">📋 Manifeste</button>`,'info'); } const x=p&&p.id&&p.id._pax; if(x) toast(`🧍 <b>${esc(x.name)}</b>, ${x.age} ans ${COUNTRIES[x.nat]?COUNTRIES[x.nat][2]:''} · vol ${esc(x.fn)} · siège <b>${esc(x.seat)}</b> <button class="btn" data-act="paxCard" data-id="${esc(x.acId)}" data-i="${x.i}">🪪 Fiche</button>`,'info'); }catch(x){} }, C.ScreenSpaceEventType.LEFT_CLICK); }catch(e){} }
 }
-if(typeof window!=='undefined') window.addEventListener('load',()=>{ setInterval(()=>{ try{ tmTick(); }catch(e){} },1000);
+if(typeof window!=='undefined') window.addEventListener('load',()=>{
+  // chaque atterrissage est mémorisé (avion, vol, heure) pour remplir l'aérogare d'arrivée
+  if(typeof onFlightDone==='function'){ const _o=onFlightDone; onFlightDone=function(ac,leg){ try{ if(ac&&leg&&leg.pax){ TM.recent=(TM.recent||[]).filter(x=>S.time-x.t<3*HOUR); TM.recent.push({acId:ac.id,reg:ac.reg,model:modelOf(ac).name,fn:S.company.code+(typeof flightNumber==='function'?flightNumber(ac):''),leg:{from:leg.from,to:leg.to,dep:leg.dep,pax:{...leg.pax},dist:leg.dist},t:S.time}); if(TM.recent.length>200) TM.recent.splice(0,TM.recent.length-200); } }catch(e){} return _o.apply(this,arguments); }; }
+  setInterval(()=>{ try{ tmTick(); }catch(e){} },1000);
   try{ Object.assign(ACTIONS,{termOpen:d=>{ try{ closeModal(); }catch(e){} tmOpen(d&&d.code); }}); }catch(e){}
   // accès sans la 3D : fiche de chaque aéroport (carte 2D) et carte « Aérogare en direct » (onglet passagers)
   const btn=c=>`<button class="btn" data-act="termOpen" data-code="${esc(c)}" style="margin:4px 0">🏢 Voir l’intérieur de l’aérogare</button>`;
