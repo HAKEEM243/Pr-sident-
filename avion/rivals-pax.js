@@ -26,7 +26,7 @@ function rivFlight(R,r,i,dir,cyc){
   const from=ab?r.a:r.b, to=ab?r.b:r.a, key=(R.code||'')+r.a+r.b+i+dir+cyc, N=rivPax(R,r,K,from,to), j=Math.round(N*0.08);
   const fn=(r.c||R.code||'')+(100+hashStr(r.a+r.b+i+dir)%800), id='R'+key;
   let ac=RIV_AC.get(id); if(!ac){ const leg={from,to,dep:P,pax:{f:0,j,w:0,y:N-j},dist:K.d};
-    ac={id,reg:rivReg(R,r,i),flight:{legs:[leg],li:0},_riv:1,_fn:fn,_R:R,model:K.m&&K.m.id,modelName:K.m&&K.m.name,status:'flight',condition:90,hub:from,loc:from,cfg:null}; RIV_AC.set(id,ac); if(RIV_AC.size>300) RIV_AC.delete(RIV_AC.keys().next().value); }
+    ac={id,reg:rivReg(R,r,i),flight:{legs:[leg],li:0},_riv:1,_fn:fn,_R:R,model:K.m&&K.m.id,modelName:K.m&&K.m.name,status:'flight',condition:90,hub:from,loc:from,cfg:null}; RIV_AC.set(id,ac); if(RIV_AC.size>5000) RIV_AC.delete(RIV_AC.keys().next().value); }
   return {R,r,i,dir,cyc,K,P,arr,from,to,N,fn,key,ac,get man(){ try{ return manifestFor(ac,ac.flight.legs[0]); }catch(e){ return null; } }}; }
 // le vol en cours (ou le prochain) de la rotation i à l'instant t
 function rivFlightAt(R,r,i,t){ const K=rivalSched(r); if(!K) return null; i=Math.min(i,K.nP-1);
