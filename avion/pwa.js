@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261287';
+const GAME_VER='20261288';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['⏱️ Retards identiques en 3D et dans l\'aérogare','Un avion en retard en 3D l\'est aussi dans l\'aérogare, à la minute près : attente au point d\'arrêt avant le décollage (l\'avion s\'arrête et attend son tour, la porte affiche « ATTENTE DÉCOLLAGE »), circuit d\'attente avant l\'atterrissage (l\'écran des arrivées affiche « circuit d\'attente », l\'avion n\'est pas encore arrivé), remise de gaz (« remise de gaz »), retard affiché sur l\'écran. L\'aérogare se recalcule dès qu\'une heure change. Les faux retards « orage » que seule l\'aérogare inventait pour les autres compagnies sont supprimés.'],
   ['🕒 Horloge, calendrier et aérogare = 3D','Grande horloge dans l\'aérogare (heure et minute qui défilent, jour de la semaine, date complète, heure locale de l\'aéroport) et jour de la semaine dans la barre du haut. L\'aérogare montre maintenant exactement ce que montre la 3D : l\'avion roule jusqu\'au décollage réel, arrive au poste au moment où il touche la piste, reste au sol tant qu\'il y est en 3D, est remorqué de son poste d\'arrivée vers sa porte de départ (même immatriculation, jamais en double), et vos avions stationnés ou en maintenance sont visibles sur les postes éloignés. La carte cachée derrière l\'aérogare se met en pause (plus fluide).'],
   ['⭐ Un vrai voyageur + panneaux, affiches, chien policier','Merveil Hakeem Dianzenza ne prend plus tous les vols Air France : il fait un vrai voyage (Paris → Kinshasa sur le 1er vol Air France du jour, 10 jours sur place, retour à Paris, et il revient un mois après). Il n\'est donc que dans un seul avion à la fois ; la date de son prochain vol s\'affiche dans la carte « Intérieur des aérogares », et un message prévient quand il est dans l\'aérogare. Nouveau dans l\'aérogare : panneaux jaunes d\'orientation comme dans les vrais aéroports, affiches touristiques du pays, drapeaux des pays de provenance au hall des arrivées, patrouille de police avec son chien détecteur.'],
   ['⭐ Merveil Hakeem Dianzenza, écrivain renommé','Une seule identité sur tous les vols Air France Paris ⇄ Kinshasa : 25 ans (il prend un an à chaque nouvelle année du jeu), écrivain renommé, siège 2A en classe Affaires, même passeport, même date et lieu de naissance (Kinshasa), carte Platinum. Vers Paris : rencontres littéraires et dédicaces pour son nouveau roman ; vers Kinshasa : retour de tournée.'],
