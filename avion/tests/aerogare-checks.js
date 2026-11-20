@@ -74,13 +74,22 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
 
     ok(!errs.length,'Aucune erreur JavaScript dans le jeu',errs.slice(0,3).join(' | '));
 
+    // 8 bis. construire un aéroport dans son pays (et pas à l'étranger), y ouvrir une ligne, racheter un aéroport, photo dans l'aérogare
+    const ma=await p.evaluate(async()=>{ const o={}; let msg=''; const T=window.toast; window.toast=m=>{ msg=String(m); }; myApPicked(48.85,2.35); o.refusEtranger=/pas dans votre pays/.test(msg); window.toast=T; try{ closeModal(); }catch(e){}
+      const m=myApBuild('m','Ville test','Aéroport test',-5.2,21.4); o.lance=typeof m==='object'; S.time=Math.max(S.time,m.done+HOUR); dailyTick(); o.ouvert=!!AP(m.code)&&AIRPORT_CODES.includes(m.code)&&runwaysOf(m.code).length>0;
+      const ac=addAircraft('A20N',{hub:'FIH'}); for(let j=0;j<3;j++) S.pilots.push(makePilot(['A320'])); S.cabinCrew=(S.cabinCrew||0)+20; const rt=openLine(['FIH',m.code]); ac.readyAt=0; o.vol=dispatchRoute(ac,rt,1,S.time)||'ok';
+      TM.code=null; tmOpen(m.code); await new Promise(r=>setTimeout(r,1500)); o.aerogare=(TM.ppl||[]).length; tmClose();
+      const c0=S.cash; o.rachat=myApBuy('LAD')===true&&S.cash<c0;
+      const cv=document.createElement('canvas'); cv.width=40; cv.height=50; cv.getContext('2d').fillRect(0,0,40,50); localStorage.setItem('se-appic-FIH',cv.toDataURL('image/jpeg')); TM.picImg=null; TM.code=null; tmOpen('FIH'); await new Promise(r=>setTimeout(r,2000)); o.photo=!!(TM.picImg&&TM.picImg.ok); tmClose(); localStorage.removeItem('se-appic-FIH'); o.code=m.code; return o; });
+    ok(ma.refusEtranger&&ma.lance&&ma.ouvert&&ma.vol==='ok'&&ma.aerogare>0&&ma.rachat&&ma.photo,'Mes aéroports : construire (refusé à l’étranger), voler, racheter, photo',JSON.stringify(ma));
+
     // 9. sauvegarde puis rechargement (comme quand on ferme et rouvre le jeu) : tout doit continuer sans erreur
     await p.evaluate(()=>{ for(const R of S.rivals||[]) for(const r of R.routes||[]){ const K=rivalSched(r); if(K) for(let i=0;i<K.nP;i++) for(let t=S.time;t<S.time+DAY;t+=20*MIN) rivalPos(r,i,t); } save(); });
     const e0=errs.length; await p.reload(); await p.waitForTimeout(4000);
-    const rl=await p.evaluate(async()=>{ const o={}; o.loaded=!!(typeof S!=='undefined'&&S&&S.fleet&&S.fleet.length); let n=0;
+    const rl=await p.evaluate(async()=>{ const o={}; o.loaded=!!(typeof S!=='undefined'&&S&&S.fleet&&S.fleet.length); o.myAp=(S.myAp||[]).every(m=>!!AP(m.code))&&(S.myAp||[]).length>0; let n=0;
       for(const R of S.rivals||[]) for(const r of R.routes||[]){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++) for(let t=S.time;t<S.time+DAY;t+=15*MIN){ rivalPos(r,i,t); n++; } }
       o.n=n; try{ closeModal(); }catch(e){} TM.code=null; tmOpen('FIH'); await new Promise(r=>setTimeout(r,2500)); o.vis=(TM.pts||[]).length; tmClose(); return o; });
-    ok(rl.loaded&&rl.vis>50&&errs.length===e0,'Après sauvegarde et rechargement : carte, 3D et aérogare sans erreur',`${rl.n} positions calculées, ${rl.vis} passagers visibles${errs.length>e0?' · '+errs.slice(e0,e0+2).join(' | '):''}`);
+    ok(rl.loaded&&rl.myAp&&rl.vis>50&&errs.length===e0,'Après sauvegarde et rechargement : carte, 3D et aérogare sans erreur',`${rl.n} positions calculées, ${rl.vis} passagers visibles${errs.length>e0?' · '+errs.slice(e0,e0+2).join(' | '):''}`);
   }catch(e){ ok(false,'Le test lui-même a planté',e.message); }
   finally{ try{ b&&await b.close(); }catch(e){} srv.close(); console.log(fails?`\n❌ ${fails} contrôle(s) en échec : NE PAS mettre en ligne.`:'\n✅ Tous les contrôles sont bons.'); process.exit(fails?1:0); }
 })();

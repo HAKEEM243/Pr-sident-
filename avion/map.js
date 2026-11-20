@@ -223,7 +223,7 @@ function drawAirports(){
   for(const code of AIRPORT_CODES){
     const a=AP(code), hub=(S.hubs||[]).includes(code), mine=served.has(code);
     // désencombrement : à petite échelle, seulement les grands aéroports et votre réseau
-    const show = mine || hub || (z>=2 && a.traffic>=30) || (z>=3 && a.traffic>=15) || (z>=4 && a.traffic>=5) || (z>=5 && (a.large||a.traffic>=1.5)) || (z>=6 && a.cls>=3) || z>=7;
+    const show = mine || hub || a._mine || (z>=2 && a.traffic>=30) || (z>=3 && a.traffic>=15) || (z>=4 && a.traffic>=5) || (z>=5 && (a.large||a.traffic>=1.5)) || (z>=6 && a.cls>=3) || z>=7;
     if(!show) continue;
     const lon=unwrapLon(a.lon,c0);
     if(!bounds.contains([a.lat,lon])) continue;
