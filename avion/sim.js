@@ -561,6 +561,8 @@ function startFlight(ac, stops, kind, t, extra={}){
   let dep=Math.max(t, ac.readyAt||0);
   const route = extra.routeId? S.routes.find(r=>r.id===extra.routeId) : null;
   for(const l of legs){
+    if(typeof ahFit==='function'){ const tot=legProfile(l.dist,m,l.wind||0,l.from,l.to).total, d2=ahFit(l.from,l.to,dep,tot);   // aéroport fermé la nuit : le vol attend l'ouverture
+      if(d2>dep+5*MIN){ const cl=!apOpenAt(l.from,dep)?l.from:l.to; if(!extra.quiet) logMsg(`🌙 ${ac.reg} : départ ${AP(l.from).city} → ${AP(l.to).city} reporté à ${ahHM(ahLocalHour(l.from,d2))} (heure locale de ${AP(l.from).city}) — ${AP(cl).city} est fermé la nuit (${apHoursText(cl)})`,'info'); } dep=Math.max(dep,d2); }
     l.dep=dep; if(typeof atcPlanLeg==='function') atcPlanLeg(l,m,ac); dep+=legProf(l,m).total;
     if(kind==='route'&&route){
       const mk=legMarket(route,l.from,l.to), seats0=acSeats(ac), n=()=>rnd(0.86,1.12), pf=payloadFactor(m,l.dist);

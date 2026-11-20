@@ -85,7 +85,8 @@ function myApMural(code){ const im=myApPicImg(code); if(!im) return null; if(TM.
     TM.mural={code,cv}; return cv; }catch(e){ console.warn('tableau',e); TM.mural={code,cv:null}; return null; } }
 /* ---------- fiche d'un aéroport : mes aéroports ---------- */
 function myApCardHtml(code){ const a=AP(code); if(!a) return ''; const own=(S.ownedAp||{})[code], p=myApPrice(a), pic=!!myApPic(code), home=a.cc===myApHomeCc();
-  return `<div class="card" style="margin:6px 0"><b>🏗️ Mes aéroports</b>
+  const hrs=typeof apHoursText==='function'?`<div class="small" style="margin-top:4px">🕒 ${esc(apHoursText(code))}${apHours(code)&&!a.ils&&!/couvre-feu/.test(apHoursText(code))?' · le « Balisage lumineux & ILS » permet d’ouvrir la nuit':''} · fuseau UTC${tzAt(code,S.time)>=0?'+':''}${tzAt(code,S.time)}${ahDst(code,S.time)?' (heure d’été)':''}</div>`:'';
+  return `<div class="card" style="margin:6px 0"><b>🏗️ Mes aéroports</b>${hrs}
     <div class="small" style="margin-top:4px">${own?`✅ ${own.built?'Construit par vous':'Concession à vous'} · redevances ≈ ${fmtMoney(myApIncome(a)*30)} / mois`:`Concession : ${fmtMoney(p)} · rapporterait ≈ ${fmtMoney(myApIncome(a)*30)} / mois`}</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${own?(own.built?'':`<button class="btn" data-act="myApSell" data-c="${code}">Revendre (${fmtMoney(p*0.85)})</button>`):`<button class="btn ${S.cash>=p?'gold':''}" data-act="myApBuy" data-c="${code}">🏦 Racheter l’aéroport</button>`}
       <button class="btn" data-act="myApPic" data-c="${code}">🖼️ ${pic?'Changer la photo':'Photo dans l’aérogare'}</button>${pic?`<button class="btn" data-act="myApPicDel" data-c="${code}">Retirer la photo</button>`:''}

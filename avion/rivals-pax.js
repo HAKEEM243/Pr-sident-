@@ -31,10 +31,13 @@ function rivFlight(R,r,i,dir,cyc){
   const fn=(r.c||R.code||'')+(100+hashStr(r.a+r.b+i+dir)%800), id='R'+key;
   let ac=RIV_AC.get(id); if(!ac){ const leg={from,to,dep:P,pax:{f:0,j,w:0,y:N-j},dist:K.d};
     ac={id,reg:rivReg(R,r,i),flight:{legs:[leg],li:0},_riv:1,_fn:fn,_R:R,model:K.m&&K.m.id,modelName:K.m&&K.m.name,status:'flight',condition:90,hub:from,loc:from,cfg:null}; RIV_AC.set(id,ac); if(RIV_AC.size>5000) RIV_AC.delete(RIV_AC.keys().next().value); }
-  return {R,r,i,dir,cyc,K,P,arr,from,to,N,fn,key,ac,...tim,get man(){ try{ return manifestFor(ac,ac.flight.legs[0]); }catch(e){ return null; } }}; }
+  return {R,r,i,dir,cyc,K,P,arr,from,to,N,fn,key,ac,...tim,ops:typeof rivOps==='function'?rivOps(K,r,i,cyc):true,get man(){ try{ return manifestFor(ac,ac.flight.legs[0]); }catch(e){ return null; } }}; }
 // le vol en cours (ou le prochain) de la rotation i à l'instant t
 function rivTimes(K,r,i,dir,cyc){ const ab=dir==='AB', t0=K.anchors[i]-K.bA+cyc*K.P+(ab?0:K.pA.total+K.turn), dl=typeof rivDelays==='function'?rivDelays(r,i,dir,cyc):{dep:0,hIn:0,ga:0}, base=ab?K.pA:K.pB, pr=typeof rivProf==='function'?rivProf(base,dl):base;
   return {P:t0+(ab?K.bA:K.bB)+dl.dep, arr:t0+pr.total}; }
+// prochain départ (et dernière arrivée) d'une rotation en sautant les rotations annulées (aéroport fermé)
+function rivNextDep(K,r,i,c,t){ for(let k=0;k<8;k++,c++) if(typeof rivOps!=='function'||rivOps(K,r,i,c)) return rivTimes(K,r,i,'AB',c).P; return t+DAY; }
+function rivLastArr(K,r,i,c,t){ for(let k=0;k<8;k++,c--) if(typeof rivOps!=='function'||rivOps(K,r,i,c)) return rivTimes(K,r,i,'BA',c).arr; return t-DAY; }
 function rivFlightAt(R,r,i,t){ const K=rivalSched(r); if(!K) return null; i=Math.min(i,K.nP-1);
   const x=t-K.anchors[i]+K.bA, cyc=Math.floor(x/K.P), rel=((x%K.P)+K.P)%K.P; return rivFlight(R,r,i,rel>=K.pA.total+K.turn?'BA':'AB',cyc); }
 function rivOpenManifest(c,a,b,i){
@@ -65,12 +68,13 @@ function rivPresent(code,t){ const ck=code+'|'+Math.floor(t/15000); let c=_rivPr
 function rivPresent0(code,t){ const out=[]; if(typeof rivalSched!=='function') return out;
   for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue;
     for(let i=0;i<K.nP;i++){ const T=K.P, rel=((t-K.anchors[i]+K.bA)%T+T)%T, cyc=Math.floor((t-K.anchors[i]+K.bA)/T); let at;
+      if(K.cf&&typeof rivOps==='function'&&!rivOps(K,r,i,cyc)){ if(r.a!==code) continue; const intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc, gate=typeof gateSlot==='function'?gateSlot(code,{id:r.a+r.b+i},intl):null; const nP2=rivNextDep(K,r,i,cyc+1,t), lA2=rivLastArr(K,r,i,cyc-1,t); out.push({R,r,i,reg:rivReg(R,r,i),col:R.color||'#64748b',name:R.name||R.code,cat:K.cat,gate,nextDep:nP2,lastArr:lA2,prio:Math.min(nP2-t,t-lA2),night:1}); continue; }   /* rotation annulée : reste garé à sa base */
       { const ab=rel<K.pA.total+K.turn, dir=ab?'AB':'BA', rr=ab?rel:rel-(K.pA.total+K.turn), dl=rivDelays(r,i,dir,cyc), b0=ab?K.bA:K.bB, tot=rivProf(ab?K.pA:K.pB,dl).total; if(rr>=b0+dl.dep&&rr<tot) continue; }   // en mouvement (roulage, vol) : même règle que rivalPos
       let nx=null, lr=null;   /* prochain départ et dernière arrivée de cet avion, pour classer les plus utiles d'abord */
       if(rel<K.pA.total+K.turn){ const dl=rivDelays(r,i,'AB',cyc); if(rel<K.bA+dl.dep){ at=r.a; nx=['AB',cyc]; lr=['BA',cyc-1]; } else { at=r.b; nx=['BA',cyc]; lr=['AB',cyc]; } }
       else { const dl=rivDelays(r,i,'BA',cyc); if((rel-(K.pA.total+K.turn))<K.bB+dl.dep){ at=r.b; nx=['BA',cyc]; lr=['AB',cyc]; } else { at=r.a; nx=['AB',cyc+1]; lr=['BA',cyc]; } }
       if(at!==code) continue;
-      let nP=t+DAY, lA=t-DAY; try{ nP=rivTimes(K,r,i,nx[0],nx[1]).P; lA=rivTimes(K,r,i,lr[0],lr[1]).arr; }catch(e){}
+      let nP=t+DAY, lA=t-DAY; try{ nP=nx[0]==='AB'&&nx[1]>cyc?rivNextDep(K,r,i,nx[1],t):rivTimes(K,r,i,nx[0],nx[1]).P; lA=lr[0]==='BA'&&lr[1]<cyc?rivLastArr(K,r,i,lr[1],t):rivTimes(K,r,i,lr[0],lr[1]).arr; }catch(e){}
       const intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc, gate=typeof gateSlot==='function'?gateSlot(code,{id:r.a+r.b+i},intl):null;
       out.push({R,r,i,reg:rivReg(R,r,i),col:R.color||'#64748b',name:R.name||R.code,cat:K.cat,gate,nextDep:nP,lastArr:lA,prio:Math.min(nP-t,t-lA)}); } }
   return out.sort((a,b)=>a.prio-b.prio||(a.reg<b.reg?-1:1)); }
