@@ -472,6 +472,22 @@ function rivalSched(r){
   const anchors=[]; for(let i=0;i<nP;i++){ const x=hb+i*P/nP+(hashStr(r.a+r.b+(r.c||'')+i)%6)*5*MIN, H=Math.round(((x%DAY)+DAY)%DAY/(5*MIN))*5*MIN; anchors.push(H-tzA+(P>DAY?(i%Math.round(P/DAY))*DAY:0)); }
   return r._tk={c:r.c||'',pv:airspacePolicyRev(),d,cat,m,pA,pB,turn,T:P,P,nP,anchors,bA,bB,tzA,tzB,AB:null,BA:null,h:0};
 }
+// ⏱️ retards des autres compagnies : UN seul calcul (déterministe, par vol) utilisé par la carte, la 3D, le contrôle aérien et l'aérogare
+// dep = retard au départ (embarquement prolongé), hIn = circuit d'attente avant l'atterrissage, ga = remise de gaz ; le retard de l'aller se répercute sur le retour
+function rivDelays(r,i,dir,cyc){ const K=rivalSched(r); if(!K) return {dep:0,hIn:0,ga:0}; K.dl=K.dl||new Map(); const key=i+dir+cyc; let v=K.dl.get(key); if(v) return v;
+  const kk=(r.c||'')+r.a+r.b+'|dl|'+i+dir+cyc, u=(hashStr(kk+'d')%10007)/10007, u2=(hashStr(kk+'h')%10007)/10007, u3=(hashStr(kk+'g')%10007)/10007;
+  let dep=u<0.22?Math.round((10+Math.pow(u/0.22,1.6)*35))*MIN:0, hIn=u2<0.10?Math.round(6+u2/0.10*14)*MIN:0, ga=u3<0.025?7*MIN:0;
+  if(dir==='BA'){ const a=rivDelays(r,i,'AB',cyc), late=a.dep+a.hIn+a.ga; dep=Math.max(dep,late-20*MIN); }   // escale trop courte pour rattraper le retard de l'aller
+  const cap=40*MIN; dep=Math.min(dep,cap); hIn=Math.min(hIn,cap-dep); ga=Math.min(ga,Math.max(0,cap-dep-hIn));
+  v={dep,hIn,ga}; K.dl.set(key,v); if(K.dl.size>4000) K.dl.clear(); return v; }
+// profil du vol avec ses retards (embarquement prolongé, attente, remise de gaz) : mêmes segments que pour vos avions
+function rivProf(base,dl){ if(!dl||(!dl.dep&&!dl.hIn&&!dl.ga)) return base; base._dc=base._dc||new Map(); const k=dl.dep+'|'+dl.hIn+'|'+dl.ga; let p=base._dc.get(k); if(p) return p;
+  const segs=[]; let sh=0; for(const sg of base.segs){
+    if(sg.ph===0&&dl.dep){ segs.push({...sg,t1:sg.t1+dl.dep}); sh+=dl.dep; continue; }
+    if(sg.ph===6&&dl.hIn){ segs.push({ph:6,hold:'in',t0:sg.t0+sh,t1:sg.t0+sh+dl.hIn,d0:sg.d0,d1:sg.d0,a0:sg.a0,a1:sg.a0,s0:sg.s0,s1:sg.s0}); sh+=dl.hIn; }
+    segs.push({...sg,t0:sg.t0+sh,t1:sg.t1+sh});
+    if(sg.ph===6&&dl.ga){ segs.push({ph:6,ga:true,t0:sg.t1+sh,t1:sg.t1+sh+dl.ga,d0:sg.d1,d1:sg.d1,a0:sg.a1,a1:sg.a1,s0:sg.s1,s1:sg.s1}); sh+=dl.ga; } }
+  p={segs,total:base.total+dl.dep+dl.hIn+dl.ga,airborne:(base.airborne||0)+dl.hIn+dl.ga}; base._dc.set(k,p); if(base._dc.size>200) base._dc.clear(); return p; }
 // heures locales de départ du poste, dans chaque sens : [{a:[minutes],b:[minutes],every:jours}]
 function rivalTimes(r){ const K=rivalSched(r); if(!K) return null; const day=x=>Math.round((((x%DAY)+DAY)%DAY)/MIN);
   const a=K.anchors.map(x=>day(x+K.tzA)), b=K.anchors.map(x=>day(x+K.pA.total+K.turn+K.bB+K.tzB));
@@ -483,6 +499,7 @@ function rivalPos(r,i,t){
   i=Math.min(i,cnt-1);
   let rel=((t-K.anchors[i]+K.bA)%T+T)%T, from=r.a, to=r.b, prof=pA, dir='AB';
   if(rel>=pA.total+turn){ rel-=pA.total+turn; from=r.b; to=r.a; prof=pB; dir='BA'; }
+  prof=rivProf(prof,rivDelays(r,i,dir,Math.floor((t-K.anchors[i]+K.bA)/T)));   // retards : les mêmes partout
   if(rel>=prof.total) return null;                    // au poste, entre deux vols
   const seg=prof.segs.find(x=>rel<x.t1)||prof.segs[prof.segs.length-1];
   if(seg.ph===0) return null;                         // embarquement : avion au poste
@@ -492,6 +509,10 @@ function rivalPos(r,i,t){
   else if(seg.ph===7){ uD=1-(1-u)*(1-u); alt=u<0.12? seg.a0*Math.pow(1-u/0.12,1.6) : 0; }
   let pp;
   const cyc=Math.floor((t-K.anchors[i]+K.bA)/T), path=legPath({from,to,dist:d,ownerCode:r.c||'',seed:cyc*16+i*2+(dir==='AB'?0:1)},m);   // chaque rotation suit une route différente
+  // retards calculés (rivDelays) : remise de gaz = tour de piste ; circuit d'attente = boucle d'attente avant l'approche
+  if(seg.ga&&typeof gaPt==='function'&&path.arr){ const g=gaPt(path,{dist:d},seg,u); return {p:{lat:g.lat,lon:g.lon},hdg:g.hdg,from:AP(from),to:AP(to),d,alt:g.alt,ph:6,gnd:false,cat,holding:'ga'}; }
+  if(seg.hold==='in'){ const f=pointOnPath(path,clamp(seg.d0/d,0,1)*path.total), c=destPt(f.lat,f.lon,(f.hdg||0)+90,4.5), b0=bearing(c,f), th=(t/(4*MIN)*360)%360, q2=destPt(c.lat,c.lon,b0+th,4.5);
+    return {p:{lat:q2.lat,lon:q2.lon},hdg:(b0+th+90)%360,from:AP(from),to:AP(to),d,alt:Math.max(900,seg.a0||900),ph:6,gnd:false,cat,holding:'in'}; }
   if(seg.ph===4){ const F=AP(from),Tt=AP(to),f=clamp((seg.d0+(seg.d1-seg.d0)*u)/d,0,1),pp=pointOnPath(path,f*path.total);
     return {p:{lat:pp.lat,lon:pp.lon},hdg:pp.hdg,from:F,to:Tt,d,alt,ph:4,gnd:false,cat}; }
   const fake={id:r.a+r.b+i};
