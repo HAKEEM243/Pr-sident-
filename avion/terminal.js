@@ -68,7 +68,7 @@ function tmRivals(code,now,F){
     for(let i=0;i<K.nP;i++) for(const kind of ['d','a']){ const dir=kind==='d'?(fromA?'AB':'BA'):(fromA?'BA':'AB'), x0=rivFlight(R,r,i,dir,0); if(!x0) continue;
       const ref=kind==='d'?x0.P:x0.arr, c0=Math.floor((now+(kind==='d'?180*MIN:0)-ref)/K.P);
       for(const cyc of [c0,c0-1]){ const fl=rivFlight(R,r,i,dir,cyc); if(!fl) continue; const other=AP(kind==='d'?fl.to:fl.from); if(!other) continue;
-        if(kind==='d'&&nd<40&&now>=fl.P-185*MIN-(fl.depLate||0)*MIN&&now<=Math.max(fl.P+3*MIN,(fl.tko||0)+4*MIN)){ const D=tmFakeD(fl.key,A0,other,fl.P,fl.arr,fl.N,fl); F.deps.push(tmLazy({rr:fl.r,ri:fl.i,dl:fl.depLate||0,a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id},fl)); nd++; }
+        if(kind==='d'&&nd<40&&now>=fl.P-185*MIN-(fl.depLate||0)*MIN&&now<=Math.max(fl.P+3*MIN,(fl.tko||0)+4*MIN)){ const D=tmFakeD(fl.key,A0,other,fl.P,fl.arr,fl.N,fl); F.deps.push(tmLazy({rr:fl.r,ri:fl.i,dl:fl.depLate||0,dlw:fl.depLate&&fl.wxD?'météo':'',a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id},fl)); nd++; }
         if(kind==='a'&&na<24&&now>=Math.min(fl.arr-20*MIN,fl.holdIn?fl.holdIn[0]-5*MIN:Infinity)&&now<=fl.arr+70*MIN){ const D=tmFakeD(fl.key,other,A0,fl.P,fl.arr,fl.N,fl); F.arrs.push(tmLazy({rr:fl.r,ri:fl.i,a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id,soon:now<fl.arr},fl)); na++; } } } }
 }
 // garde un mélange réaliste : vos vols n'occupent pas toutes les portes quand d'autres compagnies partent aussi
@@ -445,7 +445,7 @@ function tmFids(p,now,g,fit){ const w=p.x1-p.x0, h=p.y1-p.y0, arr=p.k==='fidsA';
     else if(arr&&f.soon&&D.ga&&now>=D.ga[0]&&now<D.ga[1]){ st='remise de gaz'; c='#f87171'; }
     else if(arr){ st=f.soon?(D.late>0?'retard +'+D.late+' min':'prévu'):!D.bag?'atterri':now<D.bag.first?'atterri':now<D.bag.last?'bagages tapis '+((TM.L&&TM.L.arrs.find(a=>a.f===f)||{belt:{}}).belt.n||''):'terminé'; c=f.soon?'#e5e7eb':'#22c55e'; }
     else if(now>=D.P&&D.tko&&now<D.tko){ st=D.hold&&now>=D.hold[0]?'attente avant décollage':'roule vers la piste'; c=D.hold&&now>=D.hold[0]?'#f59e0b':'#94a3b8'; }
-    else { st=now>D.gate.close?'fermé':now>D.gate.last?'dernier appel':now>D.gate.open?'embarquement':tmDelay(f)?'retard '+tmDelay(f)+' min':now>D.ci.open?'enregistrement':'à l’heure'; c=/retard|dernier/.test(st)?'#f87171':/embarq/.test(st)?'#22c55e':/fermé/.test(st)?'#94a3b8':'#facc15'; }
+    else { st=now>D.gate.close?'fermé':now>D.gate.last?'dernier appel':now>D.gate.open?'embarquement':tmDelay(f)?'retard '+tmDelay(f)+' min'+(f.dlw?' ('+f.dlw+')':''):now>D.ci.open?'enregistrement':'à l’heure'; c=/retard|dernier/.test(st)?'#f87171':/embarq/.test(st)?'#22c55e':/fermé/.test(st)?'#94a3b8':'#facc15'; }
     fit(`${tmHM(arr?D.arr:D.P)} ${f.fn} ${arr?D.A.city:D.B.city} · ${st}`,p.x0+1,p.y0+1+j*lh,w-2,lh,c,null); } }
 // décor : poubelles, fontaines d'eau, panneaux « sol glissant » quand il pleut
 // parvis : taxis, voitures, navettes et bus qui déposent et reprennent les voyageurs
