@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261302';
+const GAME_VER='20261303';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['✈️ 3D = aérogare, aussi pour les autres compagnies','En 3D, les avions décoratifs garés aux portes sont remplacés par les VRAIS avions des autres compagnies présents à l\'aéroport : chacun à la porte où il arrive en roulant, à sa couleur, avec son immatriculation et sa compagnie (« 9Q-MBC · flyCAA »), et il disparaît de la porte quand il est repoussé. Un seul calcul décide pour la 3D et l\'aérogare quels avions sont là : dans l\'aérogare, ceux qui ne sont pas à une porte du plan attendent sur les postes éloignés (autant de rangées que nécessaire, jusqu\'à 90 avions à Addis-Abeba), et un avion ne peut plus être à sa porte de départ avant d\'avoir atterri. Correction : le modèle détaillé des avions des autres compagnies en 3D sur ordinateur.'],
   ['🎫 Chacun passe par les comptoirs de SA compagnie','Correction : les files d\'attente étaient dans le mauvais sens (on entrait côté comptoir), et pour les rejoindre les passagers traversaient les files des autres compagnies. Maintenant chacun entre au bout de la file de SA compagnie par l\'allée du hall, avance vers le comptoir, puis repart par le côté et rejoint la sûreté par un couloir le long du hall — jamais à travers les comptoirs d\'une autre compagnie. Les files de la sûreté, de la police et de l\'embarquement avancent aussi dans le bon sens.'],
   ['🔎 Plus de détails en zoomant','Passagers : côté à l\'ombre des vêtements, col et boutons de chemise, ceinture à boucle, oreilles, sourcils, nez, reflet de lumière. Valises : 5 formes (valise rigide à nervures et roulettes, grande valise souple, sac de voyage avec sangle, sac à dos, carton scotché) avec l\'étiquette à la couleur du vol, au tri et sur les tapis ; valise tirée avec poignée télescopique. Avions : volets et ailerons, carénages, portes, issues de secours, lignes de panneaux, nom de la compagnie sur le toit et immatriculation sur l\'aile. Les détails n\'apparaissent qu\'en zoomant : la vue de loin reste aussi rapide.'],
   ['😤 Les passagers ont des sautes d\'humeur','L\'humeur de chaque personne dépend de ce qu\'elle vit vraiment : temps passé dans la file (« Putain, ça fait 34 minutes que je fais la queue ! J\'en ai marre. »), retard de son vol (« Encore 40 minutes de retard à cause de la météo… »), attente au tapis à bagages, valise perdue, vol raté — ou au contraire « Ah, c\'est passé vite aujourd\'hui ! ». Les personnes énervées de nature craquent plus vite. En zoomant, une bulle 😤 😒 😄 apparaît au-dessus des têtes ; en touchant quelqu\'un, on lit sa phrase.'],

@@ -157,7 +157,7 @@ function airportProps(code,N){
   // tour de contrôle : au bout du terminal, un peu en retrait
   mk(rwPt(r,a0+span/2+120,gx+s*110),r.hdg,apModel('tower',M_TOWER),8);
   // avions d'autres compagnies garés aux premières portes
-  if(typeof AC3D!=='undefined'){ const al=(typeof airlinesAt==='function'?airlinesAt(code):[]).slice(0,6).map(([c])=>c);
+  if(false&&typeof AC3D!=='undefined'){ const al=(typeof airlinesAt==='function'?airlinesAt(code):[]).slice(0,6).map(([c])=>c);   /* remplacé par les VRAIS avions des autres compagnies présents (riv3dTick, rivals-pax.js) */
     for(let k=0;k<Math.min(GQ.mob&&!GQ.hq?3:6,n);k++){ if(!al.length) break; const gs=typeof apGates==='function'&&apGates(code), tt=gs?[...new Set(gs.map(x=>x.t))]:['T1'], kk=gs?gs.findIndex(x=>x.t===tt[k%tt.length])+Math.floor(k/tt.length):k, c=al[k%al.length], sp=slotPt(code,kk), m=getModel(k%3===0&&big?'B789':k%2?'A20N':'B738')||getModel('A20N');
       const lt=typeof acLite==='function'&&acLite(), col=typeof airlineColor==='function'?airlineColor(c):'#64748b', nm=(typeof aiBy==='function'&&aiBy(c)&&aiBy(c).name)||c, mi=AC3D.uri(m,lt?col:{tail:col,stripe:col,title:nm},lt), pos=C.Cartesian3.fromDegrees(sp.lon,sp.lat,mi.R+mi.gH+0.4+EL);
       N.ents.push(apLit(V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(hdgOut-90),0,0)), model:{uri:mi.uri, shadows:C.ShadowMode.CAST_ONLY, distanceDisplayCondition:new C.DistanceDisplayCondition(0,25000)}}))); } }
