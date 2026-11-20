@@ -35,7 +35,7 @@ function tmFlights(code){
       if(l.to===code&&i===fl.li&&now>=D.arr-25*MIN&&now<D.arr) arrs.push({a,l,D,N,fn,soon:true,...info}); }); }
   // vols posés récemment (tous) : passagers à l'immigration, aux bagages, à la douane, puis sortie
   const seen=new Set();
-  try{ for(const x of TM.recent||[]){ if(x.leg.to!==code||now-x.t>80*MIN||now<x.t) continue; const a=S.fleet.find(z=>z.id===x.acId); if(!a) continue; const D0=tmD(a,x.leg); if(!D0) continue;
+  try{ for(const x of S.tmRecent||[]){ if(x.leg.to!==code||now-x.t>80*MIN||now<x.t-2*MIN) continue; const a=S.fleet.find(z=>z.id===x.acId); if(!a) continue; const D0=tmD(a,x.leg); if(!D0) continue;
       const sh=x.t-D0.arr, mv=o=>{ const r={...o}; for(const k of ['open','close','first','last']) if(r[k]!=null) r[k]+=sh; return r; }, D={...D0,arr:x.t,imm:mv(D0.imm),bag:mv(D0.bag),cus:mv(D0.cus)};
       if(seen.has(D.key)) continue; seen.add(D.key); let man=null; try{ man=manifestFor({id:x.acId},x.leg); }catch(e){}
       arrs.push({a:{id:D.key},l:null,D,N:D.total||0,fn:x.fn,soon:false,man,reg:x.reg,model:x.model,acId:x.acId}); } }catch(e){}
@@ -588,7 +588,7 @@ function tmTick(){
 }
 if(typeof window!=='undefined') window.addEventListener('load',()=>{
   // chaque atterrissage est mémorisé (avion, vol, heure) pour remplir l'aérogare d'arrivée
-  if(typeof onFlightDone==='function'){ const _o=onFlightDone; onFlightDone=function(ac,leg){ try{ if(ac&&leg&&leg.pax){ TM.recent=(TM.recent||[]).filter(x=>S.time-x.t<3*HOUR); TM.recent.push({acId:ac.id,reg:ac.reg,model:modelOf(ac).name,fn:S.company.code+(typeof flightNumber==='function'?flightNumber(ac):''),leg:{from:leg.from,to:leg.to,dep:leg.dep,pax:{...leg.pax},dist:leg.dist},t:S.time}); if(TM.recent.length>200) TM.recent.splice(0,TM.recent.length-200); } }catch(e){} return _o.apply(this,arguments); }; }
+  if(typeof onFlightDone==='function'){ const _o=onFlightDone; onFlightDone=function(ac,leg){ try{ if(ac&&leg&&leg.pax){ let t=S.time; try{ t=Math.min(S.time,leg.dep+legProf(leg,modelOf(ac)).total); }catch(e){} const R=(S.tmRecent=(S.tmRecent||[]).filter(x=>S.time-x.t<3*HOUR)); R.push({acId:ac.id,reg:ac.reg,model:modelOf(ac).name,fn:S.company.code+(typeof flightNumber==='function'?flightNumber(ac):''),leg:{from:leg.from,to:leg.to,dep:leg.dep,pax:{...leg.pax},dist:leg.dist},t}); if(R.length>150) R.splice(0,R.length-150); } }catch(e){} return _o.apply(this,arguments); }; }
   setInterval(()=>{ try{ tmTick(); }catch(e){} },1000);
   try{ Object.assign(ACTIONS,{termOpen:d=>{ try{ closeModal(); }catch(e){} tmOpen(d&&d.code); }}); }catch(e){}
   // accès sans la 3D : fiche de chaque aéroport (carte 2D) et carte « Aérogare en direct » (onglet passagers)
