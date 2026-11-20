@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261277';
+const GAME_VER='20261278';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['⚡ Aérogare : ouverture rapide','L\'aérogare s\'ouvre environ 3 fois plus vite et ne se fige plus toutes les 15 secondes : les fiches des passagers ne sont calculées que pour les vols affichés, et tout n\'est recalculé que quand la liste des vols change.'],
   ['🌍 Toutes les compagnies de l\'aéroport','L\'aérogare montre maintenant les vols de toutes les compagnies qui desservent vraiment l\'aéroport (lignes réelles du jeu, les mêmes avions que sur la carte). À Kinshasa : Air France, Brussels Airlines, Ethiopian, Kenya Airways, Royal Air Maroc, Qatar, Etihad, EgyptAir, South African, ASKY, Air Côte d\'Ivoire, TAAG, Air Tanzania, Uganda Airlines, Afrijet, flyCAA… Vos vols n\'occupent plus toutes les portes quand d\'autres compagnies partent. Police aux frontières agrandie : plus de file de 450 personnes.'],
   ['🛂 Étrangers, compagnies, coupe-file','Un étranger passe toujours par la police aux frontières, même sur un vol national (au départ comme à l\'arrivée), et un couple ne la saute plus en suivant son conjoint. Les comptoirs d\'enregistrement sont regroupés par compagnie sous un seul bandeau : chaque passager s\'enregistre au comptoir de SA compagnie. La fiche de chaque personne affiche sa compagnie. Coupe-file à la sûreté pour les passagers prioritaires (affaires, familles, assistance).'],
   ['🛬 L\'avion reste au poste à l\'arrivée','L\'avion arrivé reste garé à son poste tant que ses passagers et ses valises ne sont pas tous sortis (au moins 1 heure), puis il est repoussé et remorqué. Plus de passagers ni de valises qui sortent d\'un poste vide.'],
