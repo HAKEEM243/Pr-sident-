@@ -77,6 +77,16 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       S.time=T0; return {n,bad,miss}; });
     ok(r3.bad===0&&r3.miss===0,'Autres compagnies : mêmes avions garés dans l’aérogare et en 3D',`${r3.bad} avion(s) de l’aérogare absents en 3D sur ${r3.n} ; ${r3.miss} débordement(s) des postes éloignés`);
 
+    // 6 ter. horaires : aucun vol ne décolle ni n'atterrit dans un aéroport fermé (autres compagnies et vos vols) ; heure d'été correcte
+    const hz=await p.evaluate(()=>{ let n=0,bad=0; const seen=new Set();
+      for(const code of ['MJM','KGA','FRA']) for(const [R,r] of rivRoutesAt(code)){ const k=(r.c||R.code)+r.a+r.b; if(seen.has(k)) continue; seen.add(k); const K=rivalSched(r); if(!K) continue;
+        for(let i=0;i<K.nP;i++){ const c0=Math.floor((S.time-K.anchors[i])/K.P); for(let c=c0;c<c0+3;c++) for(const dir of ['AB','BA']){ const f=rivFlight(R,r,i,dir,c); if(!f||f.ops===false) continue; n++; if(!apOpenAt(f.from,f.P0)||!apOpenAt(f.to,f.arr-(f.late||0)*MIN)) bad++; } } }
+      const mid=(MODELS.find(m=>m.fam==='TURBO')||{}).id, ac=addAircraft(mid,{hub:'FIH'}); for(let k=0;k<3;k++) S.pilots.push(makePilot([modelOf(ac).fam])); S.staff.pnc=(S.staff.pnc||0)+60;
+      const rt=openLine(['FIH','MJM']); ac.readyAt=0; const t=S.time+(((22-ahLocalHour('FIH',S.time))+24)%24)*HOUR; dispatchRoute(ac,rt,1,t); const l=ac.flight&&ac.flight.legs[0], own=!!l&&apOpenAt('MJM',l.dep+legProf(l,modelOf(ac)).total)&&apOpenAt('FIH',l.dep);
+      const dst=tzAt('CDG',Date.UTC(2026,0,15))===1&&tzAt('CDG',Date.UTC(2026,6,15))===2&&tzAt('FIH',Date.UTC(2026,6,15))===1;
+      return {n,bad,own,dst}; });
+    ok(hz.bad===0&&hz.own&&hz.dst,'Horaires : aucun vol dans un aéroport fermé, heure d’été correcte',`${hz.bad} vol(s) concurrents aux heures fermées sur ${hz.n} ; votre vol de nuit reporté : ${hz.own} ; heure d’été : ${hz.dst}`);
+
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
         for(const d of TM.L.deps){ if(tmDepPlane(d,t)&&d.f.reg) regs[d.f.reg]=(regs[d.f.reg]||0)+1; } for(const a of TM.L.arrs){ if(tmArrPlane(a,t)&&a.f.reg) regs[a.f.reg]=(regs[a.f.reg]||0)+1; }
@@ -94,7 +104,7 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     // 8 bis. construire un aéroport dans son pays (et pas à l'étranger), y ouvrir une ligne, racheter un aéroport, photo dans l'aérogare
     const ma=await p.evaluate(async()=>{ const o={}; let msg=''; const T=window.toast; window.toast=m=>{ msg=String(m); }; myApPicked(48.85,2.35); o.refusEtranger=/pas dans votre pays/.test(msg); window.toast=T; try{ closeModal(); }catch(e){}
       const m=myApBuild('m','Ville test','Aéroport test',-5.2,21.4); o.lance=typeof m==='object'; S.time=Math.max(S.time,m.done+HOUR); dailyTick(); o.ouvert=!!AP(m.code)&&AIRPORT_CODES.includes(m.code)&&runwaysOf(m.code).length>0;
-      const ac=addAircraft('A20N',{hub:'FIH'}); for(let j=0;j<3;j++) S.pilots.push(makePilot(['A320'])); S.cabinCrew=(S.cabinCrew||0)+20; const rt=openLine(['FIH',m.code]); ac.readyAt=0; o.vol=dispatchRoute(ac,rt,1,S.time)||'ok';
+      const ac=addAircraft('A20N',{hub:'FIH'}); for(let j=0;j<3;j++) S.pilots.push(makePilot(['A320'])); S.staff.pnc=(S.staff.pnc||0)+60; const rt=openLine(['FIH',m.code]); ac.readyAt=0; o.vol=dispatchRoute(ac,rt,1,S.time)||'ok';
       TM.code=null; tmOpen(m.code); await new Promise(r=>setTimeout(r,1500)); o.aerogare=(TM.ppl||[]).length; tmClose();
       const c0=S.cash; o.rachat=myApBuy('LAD')===true&&S.cash<c0;
       const cv=document.createElement('canvas'); cv.width=40; cv.height=50; cv.getContext('2d').fillRect(0,0,40,50); localStorage.setItem('se-appic-FIH',cv.toDataURL('image/jpeg')); TM.picImg=null; TM.code=null; tmOpen('FIH'); await new Promise(r=>setTimeout(r,2000)); o.photo=!!(TM.picImg&&TM.picImg.ok); tmClose(); localStorage.removeItem('se-appic-FIH'); o.code=m.code; return o; });

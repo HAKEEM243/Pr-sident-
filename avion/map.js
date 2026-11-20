@@ -461,17 +461,26 @@ const rivalPool=new Map();
 // de la vraie piste, montée, croisière, approche, atterrissage, dégagement et roulage jusqu'au poste.
 const TRAFFIC_MODEL={prop:'AT76', nb:'A20N', wb:'B789', quad:'A388'};
 // horaire d'une ligne d'une autre compagnie : chaque avion part du poste à une heure locale fixe (la même chaque jour)
-const _tzAp=c=>{ const a=AP(c); if(!a) return 0; return (a.utc!==undefined&&a.utc!==null&&a.utc!==''?+a.utc:a.lon/15)*HOUR; };
+const _tzAp=c=>{ const a=AP(c); if(!a) return 0; if(typeof ahStd==='function') return ahStd(c)*HOUR; return (a.utc!==undefined&&a.utc!==null&&a.utc!==''?+a.utc:a.lon/15)*HOUR; };   /* heure d'hiver fixe : base des horaires des compagnies */
 function rivalSched(r){
-  let K=r._tk; if(K&&K.c===(r.c||'')&&K.P&&K.pv===airspacePolicyRev()) return K;
+  const hv=typeof ahSig==='function'?'h2|'+ahSig(r.a)+'|'+ahSig(r.b):'h0';
+  let K=r._tk; if(K&&K.c===(r.c||'')&&K.P&&K.pv===airspacePolicyRev()&&K.hv===hv) return K;
   const A=AP(r.a), B=AP(r.b); if(!A||!B) return null;
   const d=typeof airspaceRouteDistance==='function'?airspaceRouteDistance(r.c||'',r.a,r.b):gcDist(A,B), cat=r.cat||(d<1200?'prop':d<5000?'nb':'wb'), m=getModel(TRAFFIC_MODEL[cat])||getModel('B789'); if(!m) return null;
   const pA=legProfile(d,m,0,r.a,r.b), pB=legProfile(d,m,0,r.b,r.a), turn=55*MIN, T0=pA.total+pB.total+2*turn, f=Math.max(1,r.freq||1), nP=Math.max(1,Math.min(f,5));
   const base=Math.max(T0,nP*DAY/f), P=base<=DAY? DAY/Math.floor(DAY/base) : Math.ceil(base/DAY)*DAY;   // période : un nombre entier de départs par jour (ou un départ tous les n jours)
   const hs=hashStr(r.a+r.b+(r.c||'')), hb=(6+(hs%1000)/1000*9)*HOUR, tzA=_tzAp(r.a), tzB=_tzAp(r.b), bA=pA.segs[0].t1-pA.segs[0].t0, bB=pB.segs[0].t1-pB.segs[0].t0;
   const anchors=[]; for(let i=0;i<nP;i++){ const x=hb+i*P/nP+(hashStr(r.a+r.b+(r.c||'')+i)%6)*5*MIN, H=Math.round(((x%DAY)+DAY)%DAY/(5*MIN))*5*MIN; anchors.push(H-tzA+(P>DAY?(i%Math.round(P/DAY))*DAY:0)); }
-  return r._tk={c:r.c||'',pv:airspacePolicyRev(),d,cat,m,pA,pB,turn,T:P,P,nP,anchors,bA,bB,tzA,tzB,AB:null,BA:null,h:0};
+  // aéroports fermés la nuit : on décale chaque rotation pour que départs et arrivées tombent aux heures d'ouverture (au plus près de l'horaire d'origine)
+  const cf=typeof apHours==='function'&&!!(apHours(r.a)||apHours(r.b)), K0={pA,pB,turn,P,bA,bB};
+  if(cf){ const k=P<=DAY?Math.max(1,Math.round(DAY/P)):1, now=(typeof S!=='undefined'&&S)?S.time:Date.now();
+    for(let i=0;i<nP;i++){ let best=0, bs=-1; for(let j=0;j<=96;j++){ const sh=(j%2?1:-1)*Math.ceil(j/2)*15*MIN, an=anchors[i]+sh, c0=Math.floor((now-an)/P); let sc=0; for(let c=0;c<k;c++) if(rivOpsAt(r,K0,an,c0+c)) sc++; if(sc>bs){ bs=sc; best=sh; if(sc===k) break; } } anchors[i]+=best; } }
+  return r._tk={c:r.c||'',pv:airspacePolicyRev(),hv,cf,d,cat,m,pA,pB,turn,T:P,P,nP,anchors,bA,bB,tzA,tzB,AB:null,BA:null,h:0};
 }
+// vol opéré ? (départ et arrivée aux heures d'ouverture des deux aéroports ; sinon l'avion reste au sol pour cette rotation)
+function rivOpsAt(r,K,anchor,cyc){ if(typeof apOpenAt!=='function') return true; const base=anchor-K.bA+cyc*K.P, aB=base+K.pA.total, dB=aB+K.turn+K.bB, aA=base+K.pA.total+K.turn+K.pB.total;
+  return apOpenAt(r.a,base+K.bA)&&apOpenAt(r.b,aB)&&apOpenAt(r.b,dB)&&apOpenAt(r.a,aA); }
+function rivOps(K,r,i,cyc){ return !K||!K.cf||rivOpsAt(r,K,K.anchors[Math.min(i,K.nP-1)],cyc); }
 // ⏱️ retards des autres compagnies : UN seul calcul (déterministe, par vol) utilisé par la carte, la 3D, le contrôle aérien et l'aérogare
 // dep = retard au départ (embarquement prolongé), hIn = circuit d'attente avant l'atterrissage, ga = remise de gaz ; le retard de l'aller se répercute sur le retour
 function rivDelays(r,i,dir,cyc){ const K=rivalSched(r); if(!K) return {dep:0,hIn:0,ga:0}; i=Math.min(i,K.nP-1);
@@ -506,6 +515,7 @@ function rivalPos(r,i,t){
   i=Math.min(i,cnt-1);
   let rel=((t-K.anchors[i]+K.bA)%T+T)%T, from=r.a, to=r.b, prof=pA, dir='AB';
   if(rel>=pA.total+turn){ rel-=pA.total+turn; from=r.b; to=r.a; prof=pB; dir='BA'; }
+  if(K.cf&&!rivOps(K,r,i,Math.floor((t-K.anchors[i]+K.bA)/T))) return null;   /* rotation annulée (aéroport fermé) : l'avion reste garé */
   prof=rivProf(prof,rivDelays(r,i,dir,Math.floor((t-K.anchors[i]+K.bA)/T)));   // retards : les mêmes partout
   if(rel>=prof.total) return null;                    // au poste, entre deux vols
   const seg=prof.segs.find(x=>rel<x.t1)||prof.segs[prof.segs.length-1];
