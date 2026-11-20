@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261293';
+const GAME_VER='20261294';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['👥 Passagers du départ : tous les vols, comme un vrai aéroport','Avant, l\'aérogare ne simulait que les 16 prochains départs : leurs passagers étaient déjà à la porte, et l\'enregistrement, la sûreté et les boutiques restaient vides. Maintenant, TOUS les vols dont l\'enregistrement est ouvert ont leurs passagers (enregistrement, sûreté, police, boutiques, hall). L\'enregistrement se fait par compagnie (comptoirs et file communs à tous ses vols) ; la porte est attribuée à l\'approche du départ (en attendant, les passagers patientent en regardant les écrans, et l\'avion attend sur un poste éloigné). En test : environ 2 fois plus de passagers visibles au départ.'],
   ['🛠️ Correction : erreur après réouverture du jeu','Après avoir fermé puis rouvert une partie, le calcul des retards des autres compagnies pouvait planter (« base._dc.get is not a function ») : une mémoire de calcul était enregistrée dans la sauvegarde et revenait abîmée. Elle n\'est plus enregistrée, et les anciennes sauvegardes sont réparées automatiquement. Un contrôle « sauvegarde puis rechargement » est ajouté aux vérifications faites avant chaque mise en ligne.'],
   ['🐞 Passagers de nouveau visibles partout','Correction : en vitesse rapide, l\'aérogare se mettait à jour trop rarement et se vidait ; elle se met maintenant à jour au moins toutes les 10 minutes de jeu, quelle que soit la vitesse. Elle affiche maintenant les vols qui ont des passagers dans l\'aérogare : les vols arrivés les plus récents (et non plus les plus anciens, déjà vides) et les départs encore à la porte en priorité (16 départs au lieu de 14). Résultat : beaucoup plus de monde au départ comme à l\'arrivée, dans tous les aéroports.'],
   ['🛍️ Le hall vers la jetée prend vie','Dans les aéroports avec jetée ou satellite (comme Kinshasa), le grand hall vers les portes n\'est plus vide : food court, grand duty free, café panoramique, librairie, pharmacie, espace détente, aire de jeux pour enfants, toilettes et un tapis roulant au milieu. Les passagers y passent vraiment du temps (les familles emmènent les enfants à l\'aire de jeux) et flânent côté piste jusqu\'à l\'approche de l\'embarquement au lieu d\'aller s\'asseoir trop tôt à la porte.'],
