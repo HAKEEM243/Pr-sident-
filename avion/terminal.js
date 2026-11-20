@@ -23,7 +23,8 @@ const TM_SKIN=['#5b3a24','#7a4a2a','#3f2516','#8d5a3b','#c99a73','#e8c2a0'];
 const tmNow=()=>typeof gSimNow==='function'&&typeof G!=='undefined'&&G?gSimNow():S.time;
 const tmHM=t=>{ try{ return fmtTime(t).split(' ').pop(); }catch(e){ const d=new Date(t); return d.getUTCHours()+':'+String(d.getUTCMinutes()).padStart(2,'0'); } };
 function tmD(a,l){ const k=a.id+'|'+l.dep, c=TM.cache[k]; if(c&&performance.now()-c.at<20000) return c.D;
-  let D=null; try{ D=pfData(a,l); const s2=legProf(l,modelOf(a)).segs.find(x=>x.ph===2); if(D&&s2) D.tko=l.dep+s2.t0; const s8=legProf(l,modelOf(a)).segs.find(x=>x.ph===8); if(D&&s8) D.td=l.dep+s8.t0; }catch(e){} TM.cache[k]={D,at:performance.now()}; return D; }   // tko : décollage réel (comme en 3D)
+  let D=null; try{ D=pfData(a,l); const s2=legProf(l,modelOf(a)).segs.find(x=>x.ph===2); const pr=legProf(l,modelOf(a)); if(D&&s2) D.tko=l.dep+s2.t0; const s8=pr.segs.find(x=>x.ph===8); if(D&&s8) D.td=l.dep+s8.t0;
+    const ho=pr.segs.find(x=>x.hold==='out'), hi=pr.segs.find(x=>x.hold==='in'), ga=pr.segs.find(x=>x.ga); if(D){ D.hold=ho?[l.dep+ho.t0,l.dep+ho.t1]:null; D.holdIn=hi?[l.dep+hi.t0,l.dep+hi.t1]:null; D.ga=ga?[l.dep+ga.t0,l.dep+ga.t1]:null; D.late=Math.round(((l.hOut||0)+(l.hIn||0)+(l.ga||0))/MIN); } }catch(e){} TM.cache[k]={D,at:performance.now()}; return D; }   // tko : décollage réel (comme en 3D)
 // vols de vos avions qui passent par cet aéroport en ce moment
 function tmFlights(code){
   const now=tmNow(), deps=[], arrs=[];
@@ -32,7 +33,7 @@ function tmFlights(code){
       const N=D.total||Math.round((modelOf(a).seats||150)*0.8), fn=S.company.code+(typeof flightNumber==='function'?flightNumber(a):'');
       const man=()=>{ try{ return typeof manifestFor==='function'?manifestFor(a,l):null; }catch(e){ return null; } }, info={reg:a.reg,model:modelOf(a).name,acId:a.id};
       if(l.from===code&&now>=D.ci.open-5*MIN&&now<=Math.max(D.P+3*MIN,(D.tko||0)+MIN)) deps.push({a,l,D,N,fn,man:man(),...info});
-      if(l.to===code&&i===fl.li&&now>=D.arr-25*MIN&&now<D.arr) arrs.push({a,l,D,N,fn,soon:true,...info}); }); }
+      if(l.to===code&&i===fl.li&&now>=Math.min(D.arr-25*MIN,D.holdIn?D.holdIn[0]-5*MIN:Infinity)&&now<D.arr) arrs.push({a,l,D,N,fn,soon:true,...info}); }); }
   // vols posés récemment (tous) : passagers à l'immigration, aux bagages, à la douane, puis sortie
   const seen=new Set();
   try{ for(const x of S.tmRecent||[]){ if(x.leg.to!==code||now-x.t>80*MIN||now<x.t-2*MIN) continue; const a=S.fleet.find(z=>z.id===x.acId); if(!a) continue; const D0=tmD(a,x.leg); if(!D0) continue;
@@ -45,7 +46,7 @@ function tmFlights(code){
       arrs.push({a:{id:D.key},l:null,D,N:D.total||0,fn:x.fno||x.fn||'',soon:false,man,reg:x.reg,model:x.model,acId:x.acId}); } }catch(e){}
   const F={deps,arrs,cancel:[]}; try{ tmRivals(code,now,F); }catch(e){}
   try{ for(const a of S.fleet) if(a.loc===code&&a.status!=='flight'&&a.blocked&&/grève|annul/i.test(a.blocked)) F.cancel.push({fn:S.company.code+(typeof flightNumber==='function'?flightNumber(a):''),dest:a.reg||'',why:a.blocked}); }catch(e){}
-  try{ const w=typeof towerWx==='function'?towerWx(code):null; if(w&&w.st) for(const f of F.deps) if(f.riv){ const dl=25+hashStr(f.D.key)%50; f.dl=dl; f.dlw='orage'; for(const k of ['P']) f.D[k]+=dl*MIN; f.D.gate.open+=dl*MIN; f.D.gate.last+=dl*MIN; f.D.gate.close+=dl*MIN; } }catch(e){}
+  try{ const w=null; if(w&&w.st) for(const f of F.deps) if(f.riv){ const dl=25+hashStr(f.D.key)%50; f.dl=dl; f.dlw='orage'; for(const k of ['P']) f.D[k]+=dl*MIN; f.D.gate.open+=dl*MIN; f.D.gate.last+=dl*MIN; f.D.gate.close+=dl*MIN; } }catch(e){}
   F.deps=tmMix(F.deps,14,x=>x.D.P); F.arrs=tmMix(F.arrs,8,x=>x.D.arr);
   try{ const shown=new Set([...F.deps,...F.arrs].map(f=>f.acId)); F.parked=S.fleet.filter(a=>{ if(shown.has(a.id)) return false; const fl=a.flight, lg=fl&&fl.legs&&fl.legs[fl.li]; if(a.status==='flight'&&lg) return lg.from===code&&now<lg.dep; return a.loc===code; }).slice(0,10).map(a=>({a,reg:a.reg,model:modelOf(a).name,why:a.status==='maint'?'en maintenance':a.status==='flight'?'en attente de son prochain vol':'stationné'})); }catch(e){ F.parked=[]; }
   return F;
@@ -440,7 +441,10 @@ function tmFids(p,now,g,fit){ const w=p.x1-p.x0, h=p.y1-p.y0, arr=p.k==='fidsA';
   const F=TM.F||{deps:[],arrs:[]}, list=arr?[...F.arrs].sort((a,b)=>a.D.arr-b.D.arr):[...F.deps].sort((a,b)=>a.D.P-b.D.P); if(!list.length){ fit(arr?'Arrivées : aucun vol':'Départs : aucun vol',p.x0+1,p.y0+1,w-2,h-2,'#facc15',null); return; }
   const n=3, page=Math.floor(now/6000)%Math.max(1,Math.ceil(list.length/n)), lh=(h-2)/n;
   for(let j=0;j<n;j++){ const f=list[page*n+j]; if(!f) break; const D=f.D; let st, c='#e5e7eb';
-    if(arr){ st=f.soon?'prévu':!D.bag?'atterri':now<D.bag.first?'atterri':now<D.bag.last?'bagages tapis '+((TM.L&&TM.L.arrs.find(a=>a.f===f)||{belt:{}}).belt.n||''):'terminé'; c=f.soon?'#e5e7eb':'#22c55e'; }
+    if(arr&&f.soon&&D.holdIn&&now>=D.holdIn[0]&&now<D.holdIn[1]){ st='circuit d’attente +'+Math.round((D.holdIn[1]-D.holdIn[0])/MIN)+' min'; c='#f59e0b'; }
+    else if(arr&&f.soon&&D.ga&&now>=D.ga[0]&&now<D.ga[1]){ st='remise de gaz'; c='#f87171'; }
+    else if(arr){ st=f.soon?(D.late>0?'retard +'+D.late+' min':'prévu'):!D.bag?'atterri':now<D.bag.first?'atterri':now<D.bag.last?'bagages tapis '+((TM.L&&TM.L.arrs.find(a=>a.f===f)||{belt:{}}).belt.n||''):'terminé'; c=f.soon?'#e5e7eb':'#22c55e'; }
+    else if(now>=D.P&&D.tko&&now<D.tko){ st=D.hold&&now>=D.hold[0]?'attente avant décollage':'roule vers la piste'; c=D.hold&&now>=D.hold[0]?'#f59e0b':'#94a3b8'; }
     else { st=now>D.gate.close?'fermé':now>D.gate.last?'dernier appel':now>D.gate.open?'embarquement':tmDelay(f)?'retard '+tmDelay(f)+' min':now>D.ci.open?'enregistrement':'à l’heure'; c=/retard|dernier/.test(st)?'#f87171':/embarq/.test(st)?'#22c55e':/fermé/.test(st)?'#94a3b8':'#facc15'; }
     fit(`${tmHM(arr?D.arr:D.P)} ${f.fn} ${arr?D.A.city:D.B.city} · ${st}`,p.x0+1,p.y0+1+j*lh,w-2,lh,c,null); } }
 // décor : poubelles, fontaines d'eau, panneaux « sol glissant » quand il pleut
@@ -475,7 +479,7 @@ function tmAirline(f){ if(f._al) return f._al; const own=!f.riv, code=own?((S.co
   const name=own?((S.company&&S.company.name)||code):(R&&R.name)||(typeof airlineName==='function'?airlineName(code):'')||(f.riv&&f.riv.name)||code;
   const col=own?((S.company&&S.company.color)||'#b91c1c'):(R&&R.color)||['#0f766e','#7c2d12','#1e3a8a','#6d28d9','#9d174d','#166534','#b45309','#0e7490'][hashStr(code)%8];
   return (f._al={code,name,col,own}); }
-const tmFKey=F=>F.deps.map(f=>f.D.key+':'+Math.round(f.D.P/60000)).join(',')+'|'+F.arrs.map(f=>f.D.key+':'+(f.soon?1:0)).join(',');
+const tmFKey=F=>F.deps.map(f=>f.D.key+':'+Math.round(f.D.P/60000)+':'+Math.round((f.D.tko||0)/60000)).join(',')+'|'+F.arrs.map(f=>f.D.key+':'+(f.soon?1:0)+':'+Math.round(f.D.arr/60000)).join(',');
 // construction en petits morceaux (générateur) : en cours de partie elle se fait sur plusieurs images, sans figer l'écran
 function tmBuild(F0){ const it=tmBuildGen(F0); while(!it.next().done); }
 function* tmBuildGen(F0){ const F=F0||tmFlights(TM.code), L=tmLayout(F), ppl=[]; TM.fkey=tmFKey(F); TM.full=performance.now();
@@ -635,8 +639,8 @@ function tmAnnounce(now){ const F=TM.F; if(!F) return; const last=TM.annT||now; 
 const TM_TWY=-250;
 function tmDepPlane(d,now){ const D=d.f.D, P=D.P, st=d.stand, n={x:-Math.sin(st.a),y:Math.cos(st.a)}; if(now<(d.showFrom!=null?d.showFrom:D.gate.open-40*MIN)) return null; if(now<P) return {x:st.x,y:st.y,a:st.a,at:1};
   const u=now-P, px=st.x-n.x*d.push, py=st.y-n.y*d.push; if(u<2.5*MIN){ const k=u/(2.5*MIN); return {x:st.x-n.x*d.push*k,y:st.y-n.y*d.push*k,a:st.a,push:1}; }
-  if(u<3*MIN) return {x:px,y:py,a:st.a+d.turn*Math.PI/2*(u-2.5*MIN)/(0.5*MIN)}; const a2=st.a+d.turn*Math.PI/2, tx=Math.max(4*MIN,(D.tko||P+7*MIN)-P-3*MIN), k=(u-3*MIN)/tx;   // roule jusqu'au décollage réel
-  if(u<3*MIN+tx) return {x:px-Math.sin(a2)*1100*k,y:py+Math.cos(a2)*1100*k,a:a2}; return null; }
+  if(u<3*MIN) return {x:px,y:py,a:st.a+d.turn*Math.PI/2*(u-2.5*MIN)/(0.5*MIN)}; const a2=st.a+d.turn*Math.PI/2, end=(D.hold?D.hold[0]:(D.tko||P+7*MIN)), tx=Math.max(4*MIN,end-P-3*MIN), wt=D.hold?Math.max(0,(D.tko||end)-end):0, k=Math.min(1,(u-3*MIN)/tx);   // roule jusqu'au point d'arrêt, attend son tour, décolle
+  if(u<3*MIN+tx+wt) return {x:px-Math.sin(a2)*650*k,y:py+Math.cos(a2)*650*k,a:a2,hold:k>=1&&wt>0}; return null; }
 function tmArrPlane(a,now){ const A=a.f.D.arr, sy=a.sy||-60, U=Math.max(A+40*MIN,a.until||0), T0=Math.min(A-MIN,a.f.D.td||A-6*MIN), TX=A-T0; if(now<T0||now>U+4*MIN) return null;
   if(now>U){ const u=(now-U)/(4*MIN); return u<0.5?{x:a.door.x,y:sy+(TM_TWY-sy)*u*2,a:0,push:1}:{x:a.door.x+700*(u-0.5)*2,y:TM_TWY,a:Math.PI/2}; }   // repoussé puis remorqué une fois vide
   if(now>=A) return {x:a.door.x,y:sy,a:0,at:1};
@@ -750,7 +754,7 @@ function tmDraw(){
     { const pl=tmDepPlane(d,now), st=d.stand, n={x:-Math.sin(st.a),y:Math.cos(st.a)}, nx=st.x+n.x*2, ny=st.y+n.y*2;
       if(pl&&pl.at){ tmPlane(g,pl.x,pl.y,col0(f),pl.a,tmPSc(f)); tmGSE(g,pl,f,now,0); }
       { const rt=pl&&pl.at?Math.min(1,Math.max(0,(now-D.gate.close)/(2*MIN))):1, fr=1-0.7*rt, ex=d.door.x+(nx-d.door.x)*fr, ey=d.door.y+(ny-d.door.y)*fr; tmBridge(g,d.door.x,d.door.y,ex,ey); } }
-    { const lw=d.lounge.x1-d.lounge.x0-4; fit(`${D.gate.name} → ${D.B.city}`,d.lounge.x0+2,d.lounge.y0+2,lw,13,'#0f172a','rgba(255,255,255,.8)'); const gs=now>D.gate.close?['FERMÉ','#64748b']:now>D.gate.last?['DERNIER APPEL','#dc2626']:now>D.gate.open?['EMBARQUEMENT','#16a34a']:tmDelay(f)?['RETARD '+tmDelay(f)+' MIN','#d97706']:now>D.ci.open?['ENREGISTREMENT','#2563eb']:['À L’HEURE','#334155'];
+    { const lw=d.lounge.x1-d.lounge.x0-4; fit(`${D.gate.name} → ${D.B.city}`,d.lounge.x0+2,d.lounge.y0+2,lw,13,'#0f172a','rgba(255,255,255,.8)'); const gs=D.tko&&now>=D.P&&now<D.tko?(D.hold&&now>=D.hold[0]?['ATTENTE DÉCOLLAGE','#d97706']:['ROULE VERS LA PISTE','#475569']):now>D.gate.close?['FERMÉ','#64748b']:now>D.gate.last?['DERNIER APPEL','#dc2626']:now>D.gate.open?['EMBARQUEMENT','#16a34a']:tmDelay(f)?['RETARD '+tmDelay(f)+' MIN','#d97706']:now>D.ci.open?['ENREGISTREMENT','#2563eb']:['À L’HEURE','#334155'];
       fit(`${tmHM(D.P)} · ${f.fn}`,d.lounge.x0+2,d.lounge.y0+15,lw*0.45,10,'#334155','rgba(255,255,255,.6)',1); fit(gs[0],d.lounge.x0+2+lw*0.47,d.lounge.y0+15,lw*0.53,10,'#fff',gs[1]); }
     g.fillStyle='#1f2937'; g.fillRect(d.ck.x0,d.ck.y-6,d.ck.x1-d.ck.x0,10); g.fillStyle='#78716c'; g.fillRect(d.ck.x0,d.ck.y-16,d.ck.x1-d.ck.x0,6);
     { g.strokeStyle='rgba(30,64,175,.45)'; g.lineWidth=0.8; const P=d.q.pts; g.beginPath(); for(let k=0;k<P.length;k+=2){ g.moveTo(P[k].x,P[k].y+8); g.lineTo(P[k+1]?P[k+1].x:P[k].x,P[k].y+8); } g.stroke(); g.fillStyle='#475569'; g.beginPath(); for(const q of P){ g.moveTo(q.x+1.1,q.y+8); g.arc(q.x,q.y+8,1.1,0,6.283); } g.fill(); }   // sangles et poteaux
