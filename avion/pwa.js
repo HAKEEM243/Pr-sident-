@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261268';
+const GAME_VER='20261269';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛬 Aérogare : personnages et arrivées corrigés','Les personnages restent visibles quand on zoome (ils disparaissaient dans les aéroports au plan retourné). Tous les vols qui atterrissent remplissent l\'aérogare : on voit les passagers descendre de l\'avion, passer l\'immigration, récupérer leurs bagages et sortir. Plus de comptoirs pour les gros vols : fini l\'enregistrement de près de deux heures.'],
   ['🔤 Textes de l\'aérogare bien placés','Chaque texte a sa place réservée et s\'ajuste pour y tenir : bandeau de titre pour chaque zone (avec le nombre de personnes en file), en-tête de chaque salle d\'embarquement, nom dans chaque boutique et équipement, ville sur chaque comptoir, écran au-dessus de chaque tapis. Plus aucun texte sur un autre. Le plan est une vraie image : zoomer agrandit, rien n\'apparaît ni ne disparaît, personnages de taille fixe.'],
   ['📱 Aérogare en plein écran','Le plan prend tout l\'écran, bien cadré, avec des boutons qui flottent par-dessus (📋 vols et recherche, 📊 gestion, ⏱️, 🔈, zoom) et les zones en bas. Même rendu quel que soit le zoom : toujours de vrais personnages, textes et panneaux à taille fixe. Sûreté et police dimensionnées selon le trafic : plus de files de plusieurs heures dans les grands aéroports.'],
   ['🛰️ Vraies formes d\'aérogare','Chaque aéroport a sa forme de bâtiment : 🏢 linéaire (portes le long de la façade), 📐 en L (aile des portes), 🛬 jetée (couloir qui avance sur les pistes, avions garés des deux côtés, tapis roulants) ou 🛰️ satellite (bâtiment au milieu des pistes, relié par une navette automatique). Les passagers marchent jusqu\'à leur porte par la jetée, l\'aile ou la navette ; les avions se garent, repoussent et roulent selon la forme ; les valises vont jusqu\'à leur soute. Les petits aéroports restent linéaires.'],
