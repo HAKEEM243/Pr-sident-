@@ -44,6 +44,13 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     const gt=await p.evaluate(()=>{ const T0=S.time; let n=0,bad=0; for(const code of ['FIH','ADD']) for(let t=T0;t<T0+6*HOUR;t+=20*MIN){ S.time=t; TM.code=code; TM.cache={}; const F=tmFlights(code); for(const f of F.later||[]){ n++; if(t>=f.D.gate.open-MIN) bad++; } } S.time=T0; return {n,bad}; });
     ok(gt.bad===0,'Chaque vol a sa porte avant l’embarquement',`${gt.bad} vol(s) sans porte à l’embarquement sur ${gt.n} vols en attente`);
 
+    // 4 ter. chaque passager passe par les comptoirs de SA compagnie (jamais à travers la file d'une autre)
+    const ck=await p.evaluate(()=>{ TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); let n=0,bad=0;
+      for(const q of TM.ppl){ if(q.dep!==1||!q.f) continue; const g=TM.L.deps.find(d=>d.f===q.f)||(TM.L.later||[]).find(d=>d.f===q.f); if(!g||g.cx0==null) continue; n++; const K=q.K, tEnd=(K.find(k=>/sûreté|coupe-file/.test(k.st))||K[K.length-1]).t;
+        for(let t=K[0].t;t<tEnd;t+=20000){ const z=tmAt(K,t); if(z&&z.y>1026&&z.y<1154&&z.x<612&&(z.x<g.cx0-6||z.x>g.cx1+6)){ bad++; break; } } }
+      return {n,bad}; });
+    ok(ck.bad===0,'Chaque passager passe par les comptoirs de SA compagnie',`${ck.bad} passager(s) traversent la file d’une autre compagnie sur ${ck.n}`);
+
     // 5. vos avions : l'aérogare montre ce que montre la 3D (départ et arrivée, avec retards)
     const c3=await p.evaluate(id=>{ const ac=S.fleet.find(a=>a.id===id), l=ac.flight.legs[0], T0=S.time; l.hOut=15*MIN; l.hIn=20*MIN; l.ga=6*MIN; const ARR=l.dep+legProf(l,modelOf(ac)).total; let bad=0,n=0,done=false; S.tmRecent=S.tmRecent||[];
       for(const code of ['FIH','BZV']) for(let t=T0-30*MIN;t<T0+5*HOUR;t+=10*MIN){ S.time=t; if(code==='BZV'&&!done&&t>=ARR){ done=true; S.tmRecent.push({acId:ac.id,reg:ac.reg,model:modelOf(ac).name,fn:S.company.code+flightNumber(ac),leg:{from:l.from,to:l.to,dep:l.dep,pax:l.pax,dist:l.dist},t:ARR}); ac.status='idle'; ac.loc='BZV'; }
