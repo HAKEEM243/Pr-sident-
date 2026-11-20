@@ -563,7 +563,26 @@ function tmTurn(f,dep,now){ const D=f.D, L=dep?[['🅿️ Avion au poste, cales 
     :[['🛬 Atterrissage et roulage',D.arr-6*MIN,D.arr],['🅿️ Arrivée au poste, passerelle accolée',D.arr,D.arr+4*MIN],['🚶 Débarquement des passagers',D.arr+5*MIN,D.arr+20*MIN],['🧳 Déchargement des bagages',D.arr+3*MIN,(D.bag&&D.bag.last)||D.arr+40*MIN],['🛄 Livraison au tapis',(D.bag&&D.bag.first)||D.arr+15*MIN,(D.bag&&D.bag.last)||D.arr+40*MIN],['🧹 Nettoyage et préparation du vol suivant',D.arr+20*MIN,D.arr+50*MIN]];
   L.sort((a,b)=>a[1]-b[1]); return '<div class="small" style="margin-top:6px"><b>Rotation au sol</b>'+L.map(([t,a,b])=>{ const done=now>=b, on=now>=a&&now<b, pc=on?Math.round((now-a)/Math.max(1,b-a)*100):0; return `<div style="color:${done?'#94a3b8':on?'#facc15':'#cbd5e1'}">${done?'✓':on?'●':'○'} ${tmHM(a)} ${t}${on?` · ${pc} %`:''}</div>`; }).join('')+'</div>'; }
 // ce que pense la personne, selon ce qu'elle vit en ce moment (et son humeur dans sa fiche)
-function tmThought(p,q){ const st=q.st||'', w=p.row, angry=w&&/énerv|impatient/.test(w.mood||''), D=p.f&&p.f.D, now=tmNow(); let t='';
+// humeur selon ce que la personne vit VRAIMENT : temps passé dans la file, retard de son vol, attente de sa valise, file passée vite…
+// renvoie {lvl:-2..2, t:texte} ; lvl -2 = excédé, +2 = ravi
+function tmMood(p,q,now){ if(!p||!p.K||p.staff||p.crew) return null; const K=p.K, k=Math.min(K._k||1,K.length-1), st=q.st||'', w=p.row, D=p.f&&p.f.D, grumpy=w&&/énerv|impatient/.test(w.mood||'')?1:0, m=x=>Math.round(x/MIN);
+  const seg0=K[k-1]?K[k-1].t:now, here=now-seg0;   // depuis combien de temps elle fait ce qu'elle fait
+  if(/raté|trop tard|clôturé/.test(st)) return {lvl:-2,t:'Putain, j’ai raté mon vol ! Je n’y crois pas…'};
+  if(/perdue|pas arrivée/.test(st)) return {lvl:-2,t:'Putain, ma valise n’est pas arrivée ! Trois heures de vol pour ça…'};
+  if(q.q){ const lim=grumpy?8:12;
+    if(here>2.2*lim*MIN) return {lvl:-2,t:`Putain, ça fait ${m(here)} minutes que je fais la queue ! J’en ai marre.`};
+    if(here>lim*MIN) return {lvl:-1,t:`${m(here)} minutes déjà… ça n’avance pas.`};
+    if(here<3*MIN) return {lvl:0,t:''}; }
+  if(/attend sa valise/.test(st)){ if(here>(grumpy?15:22)*MIN) return {lvl:-2,t:`Putain, ${m(here)} minutes au tapis et toujours pas ma valise !`}; if(here>12*MIN) return {lvl:-1,t:'Elle arrive quand, cette valise ?'}; }
+  if(p.dep===1&&D){ const dl=tmDelay(p.f); if(dl>=30&&/porte|attend|assis|café|restaurant|duty|salle/.test(st)) return {lvl:-2,t:`Encore ${dl} minutes de retard${p.f.dlw?' à cause de la météo':''}… j’en ai marre, j’ai un rendez-vous !`};
+    if(dl>=12&&/porte|assis/.test(st)) return {lvl:-1,t:`${dl} minutes de retard, bon… on fait avec.`}; }
+  // file d'attente qui vient de se terminer : rapide ou interminable ?
+  for(let j=k-1;j>=1;j--){ if(now-K[j].t>8*MIN) break; if(K[j].q){ const d=K[j].t-K[j-1].t; if(d<5*MIN) return {lvl:2,t:'Ah, c’est passé vite aujourd’hui ! Super.'}; if(d>25*MIN) return {lvl:-1,t:`Enfin ! ${m(d)} minutes de queue… quelle galère.`}; break; } }
+  if(/retrouve|serre dans ses bras/.test(st)) return {lvl:2,t:'Quel bonheur de vous revoir !'};
+  if(p.dep===0&&/taxi|bus/.test(st)&&p.bagT&&p.K[0]&&p.bagT-p.K[0].t<40*MIN) return {lvl:2,t:'Sorti en moins de 40 minutes, c’est rapide pour une fois !'};
+  return null; }
+const TM_MOOD_EMO={'-2':'😤','-1':'😒','2':'😄'};
+function tmThought(p,q){ { const M=tmMood(p,q,tmNow()); if(M&&M.t) return `<br><span class="small" style="color:${M.lvl<=-2?'#fca5a5':M.lvl<0?'#fcd34d':M.lvl>0?'#86efac':'#cbd5e1'}">${TM_MOOD_EMO[M.lvl]||'💭'} « ${esc(M.t)} »</span>`; } const st=q.st||'', w=p.row, angry=w&&/énerv|impatient/.test(w.mood||''), D=p.f&&p.f.D, now=tmNow(); let t='';
   if(p.staff||p.crew) return '';
   if(p.greet) t=/serre|accueille/.test(st)?'Enfin ! Tu as fait bon voyage ?':/repart/.test(st)?'On rentre, la voiture est garée devant.':'Il devrait sortir d’une minute à l’autre…';
   else if(/raté|trop tard|clôturé/.test(st)) t='Je n’y crois pas… il va falloir trouver un autre vol.';
@@ -881,6 +900,7 @@ function tmDraw(){
     if(p.row&&p.row.star){ const sz=9/s+2, sy=y-r0*4-sz; g.fillStyle='#facc15'; g.strokeStyle='#78350f'; g.lineWidth=1/s+0.3; g.beginPath(); for(let j=0;j<10;j++){ const a=-Math.PI/2+j*Math.PI/5, rr=j%2?sz*0.42:sz; g.lineTo(x+Math.cos(a)*rr,sy+Math.sin(a)*rr); } g.closePath(); g.fill(); g.stroke(); }   // ⭐ Merveil Hakeem Dianzenza
     if(px<2.2){ const L3=tmLook(p), k3=r0*L3.sc, bc=L3.pagne?L3.pagne[0]:L3.boubou?L3.boubou[0]:L3.top; (FB[bc]||(FB[bc]=[])).push(x,y+r0*1.7-k3*1.9,k3*0.7,k3*1.05); (FB[p.sk]||(FB[p.sk]=[])).push(x,y+r0*1.7-k3*3.2,k3*0.6,k3*0.6); continue; }
     tmHuman(g,p,p.wheel?{...q,sit:1}:q,x,y,r0,now,px,carry&&!trol);
+    if(px>=4.5&&!p.staff&&!p.crew){ const M=tmMood(p,q,now), e=M&&TM_MOOD_EMO[M.lvl]; if(e&&(M.lvl<=-2||M.lvl>=2||p.i%3===0)){ const by=y-r0*5.6; g.fillStyle='rgba(255,255,255,.92)'; g.beginPath(); g.arc(x+r0*1.2,by,r0*1.15,0,6.283); g.fill(); g.beginPath(); g.moveTo(x+r0*0.5,by+r0*0.8); g.lineTo(x+r0*0.2,by+r0*1.7); g.lineTo(x+r0*1.1,by+r0*1.0); g.fill(); g.font=`${r0*1.5}px system-ui`; g.fillText(e,x+r0*0.45,by+r0*0.55); } }   /* bulle d'humeur */
     if(p.staff==='patrol'&&p.i%2&&px>=2.2){ const fx=p.face||1, dx=x+fx*r0*1.6, dy=y+r0*1.25, lg=q.walk?Math.sin(now/90)*r0*0.25:0; g.fillStyle='#78350f'; g.beginPath(); g.ellipse(dx,dy,r0*0.85,r0*0.38,0,0,6.283); g.fill(); g.beginPath(); g.arc(dx+fx*r0*0.85,dy-r0*0.3,r0*0.32,0,6.283); g.fill(); g.strokeStyle='#78350f'; g.lineWidth=r0*0.16; g.beginPath(); g.moveTo(dx-r0*0.5,dy); g.lineTo(dx-r0*0.5+lg,dy+r0*0.55); g.moveTo(dx+r0*0.5,dy); g.lineTo(dx+r0*0.5-lg,dy+r0*0.55); g.moveTo(dx-fx*r0*0.85,dy-r0*0.1); g.lineTo(dx-fx*r0*1.2,dy-r0*0.4); g.stroke(); g.strokeStyle='#111827'; g.lineWidth=0.4; g.beginPath(); g.moveTo(x+fx*r0*0.7,y+r0*0.4); g.lineTo(dx+fx*r0*0.7,dy-r0*0.3); g.stroke(); }   // chien détecteur et sa laisse
     if(rain&&px>=2.2){ const L2=tmLook(p), top=y+r0*1.7-r0*L2.sc*3.9; g.fillStyle=['#111827','#1d4ed8','#b91c1c','#15803d','#7c3aed'][p.i%5]; g.beginPath(); g.arc(x,top,r0*1.5,Math.PI,0); g.fill(); g.strokeStyle='#111'; g.lineWidth=0.4; g.beginPath(); g.moveTo(x,top); g.lineTo(x,top+r0*1.6); g.stroke(); }
     if(p.sign&&!q.walk){ const L2=tmLook(p), top=y+r0*1.7-r0*L2.sc*4.4; g.fillStyle='#fff'; g.fillRect(x-r0*1.6,top-r0*1.3,r0*3.2,r0*1.3); g.strokeStyle='#334155'; g.lineWidth=0.4; g.strokeRect(x-r0*1.6,top-r0*1.3,r0*3.2,r0*1.3); if(px>5&&p.signName){ let fs=r0*0.8; g.font=`700 ${fs}px system-ui`; let tw=g.measureText(p.signName).width; if(tw>r0*3){ fs*=r0*3/tw; g.font=`700 ${fs}px system-ui`; tw=r0*3; } g.fillStyle='#111'; g.fillText(p.signName,x-tw/2,top-r0*0.38); } else if(px>4){ g.fillStyle='#111'; for(let j=0;j<3;j++) g.fillRect(x-r0*1.2+j*r0*0.85,top-r0*0.8,r0*0.6,r0*0.25); } } }
