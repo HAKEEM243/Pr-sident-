@@ -78,14 +78,11 @@ function myApPicImg(code){ if(typeof TM==='undefined') return null; if(TM.picImg
   const im=new Image(); im.onload=()=>{ if(TM.picImg&&TM.picImg.code===code){ TM.picImg.ok=true; TM.picImg.im=im; TM.scKey=null; } }; im.src=url; return null; }
 // la photo devient une grande peinture (coups de pinceau), calculée une seule fois
 function myApMural(code){ const im=myApPicImg(code); if(!im) return null; if(TM.mural&&TM.mural.code===code) return TM.mural.cv;
-  try{ const sw=96, sh=120, s=document.createElement('canvas'); s.width=sw; s.height=sh; const sx=s.getContext('2d'); sx.drawImage(im,0,0,sw,sh); const px=sx.getImageData(0,0,sw,sh).data;
-    const W=480, H=600, cv=document.createElement('canvas'); cv.width=W; cv.height=H; const x=cv.getContext('2d'), k=W/sw; let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
-    x.fillStyle='#f5ecd7'; x.fillRect(0,0,W,H); x.globalAlpha=0.85; x.drawImage(im,0,0,W,H); x.globalAlpha=1;   /* fond : l'image elle-même */
-    for(let j=0;j<sh;j++) for(let i=0;i<sw;i++){ if(rnd()<0.35) continue; const o=(j*sw+i)*4; x.fillStyle=`rgba(${Math.min(255,px[o]+10)},${Math.min(255,px[o+1]+4)},${Math.max(0,px[o+2]-6)},0.55)`;   /* coups de pinceau fins, couleurs chaudes */
-      x.save(); x.translate((i+0.5)*k,(j+0.5)*k); x.rotate(-0.6+(rnd()-0.5)*0.5); x.beginPath(); x.ellipse(0,0,k*0.95,k*0.38,0,0,6.283); x.fill(); x.restore(); }
-    const gr=x.createRadialGradient(W/2,H/2,H*0.35,W/2,H/2,H*0.75); gr.addColorStop(0,'rgba(245,236,215,0)'); gr.addColorStop(1,'rgba(245,236,215,0.65)'); x.fillStyle=gr; x.fillRect(0,0,W,H);   /* bords fondus, comme une fresque */
-    x.strokeStyle='#7c5a2b'; x.lineWidth=10; x.strokeRect(5,5,W-10,H-10);
-    TM.mural={code,cv}; return cv; }catch(e){ console.warn('peinture',e); TM.mural={code,cv:null}; return null; } }
+  try{ const W=480, H=600, cv=document.createElement('canvas'); cv.width=W; cv.height=H; const x=cv.getContext('2d');
+    x.fillStyle='#f5ecd7'; x.fillRect(0,0,W,H); if('filter' in x) x.filter='contrast(1.35) brightness(1.05)'; x.drawImage(im,16,16,W-32,H-32); x.filter='none';   /* photo nette et contrastée */
+    const gr=x.createRadialGradient(W/2,H/2,H*0.4,W/2,H/2,H*0.72); gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(0,0,0,0.25)'); x.fillStyle=gr; x.fillRect(16,16,W-32,H-32);
+    x.strokeStyle='#7c5a2b'; x.lineWidth=16; x.strokeRect(8,8,W-16,H-16); x.strokeStyle='#d4a54a'; x.lineWidth=4; x.strokeRect(17,17,W-34,H-34);   /* cadre doré */
+    TM.mural={code,cv}; return cv; }catch(e){ console.warn('tableau',e); TM.mural={code,cv:null}; return null; } }
 /* ---------- fiche d'un aéroport : mes aéroports ---------- */
 function myApCardHtml(code){ const a=AP(code); if(!a) return ''; const own=(S.ownedAp||{})[code], p=myApPrice(a), pic=!!myApPic(code), home=a.cc===myApHomeCc();
   return `<div class="card" style="margin:6px 0"><b>🏗️ Mes aéroports</b>
