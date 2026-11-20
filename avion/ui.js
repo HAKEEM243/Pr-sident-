@@ -95,7 +95,7 @@ function renderTop(){
   $('#tb-cash').innerHTML=`<span class="${S.cash<0?'neg':''}">${fmtMoney(S.cash)}</span>`;
   const wk=ledSum(S.led.week||{},1)+ledSum(S.led.week||{},-1);
   $('#tb-week').innerHTML=`<span class="mut">Semaine</span> <b class="${wk<0?'neg':'pos'}">${wk>=0?'+':''}${fmtMoney(wk)}</b>`;
-  $('#tb-time').innerHTML=`${fmtDate(S.time)} <b>${fmtTime(S.time)}</b>`;
+  $('#tb-time').innerHTML=`${['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'][new Date(S.time).getUTCDay()]} ${fmtDate(S.time)} <b>${fmtTime(S.time)}</b>`;
   $('#tb-oil').innerHTML=`⛽ $${fuelPrice().toFixed(2)}/L`;
   if(typeof renderMailBadge==='function') renderMailBadge();
   if(typeof renderDailyBadge==='function') renderDailyBadge();

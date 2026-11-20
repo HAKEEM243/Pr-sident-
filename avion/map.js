@@ -639,6 +639,7 @@ let _rafT=0;
 function animateFrame(now){
   requestAnimationFrame(animateFrame);
   if(!map||!S||document.hidden||map._animatingZoom) return;
+  if(typeof TM!=='undefined'&&TM.open) return;   // aérogare ouverte par-dessus : la carte cachée ne s'anime pas (fluidité)
   const n=planeMarkers.size+rivalPool.size, gap=n>260?50:n>120?30:15;
   if(now-_rafT<gap) return; _rafT=now;
   const t=simNow(), b=map.getBounds().pad(0.4);
