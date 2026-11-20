@@ -71,7 +71,7 @@ function tmRivals(code,now,F){
 // garde un mélange réaliste : vos vols n'occupent pas toutes les portes quand d'autres compagnies partent aussi
 function tmMix(list,n,key){ list.sort((x,y)=>key(x)-key(y));
   // ⭐ le vol Air France Paris ⇄ Kinshasa (passager vedette) est toujours affiché
-  const pin=list.filter(f=>f.riv&&/^AF\d/.test(f.fn||'')&&f.D&&((f.D.A.code==='CDG'&&f.D.B.code==='FIH')||(f.D.A.code==='FIH'&&f.D.B.code==='CDG'))).slice(0,2); if(pin.length){ const rest=tmMix(list.filter(f=>!pin.includes(f)),n-pin.length,key); return [...pin,...rest].sort((x,y)=>key(x)-key(y)); } const own=list.filter(f=>!f.riv), riv=list.filter(f=>f.riv); if(!riv.length||!own.length) return list.slice(0,n);
+  const pin=list.filter(f=>f.riv&&f.acId&&typeof tmStarOn==='function'&&tmStarOn({id:f.acId})).slice(0,2); if(pin.length){ const rest=tmMix(list.filter(f=>!pin.includes(f)),n-pin.length,key); return [...pin,...rest].sort((x,y)=>key(x)-key(y)); } const own=list.filter(f=>!f.riv), riv=list.filter(f=>f.riv); if(!riv.length||!own.length) return list.slice(0,n);
   const nOwn=Math.min(own.length,Math.max(Math.ceil(n*0.5),n-riv.length)); return [...own.slice(0,nOwn),...riv.slice(0,n-nOwn)].sort((x,y)=>key(x)-key(y)); }
 /* ---------- PLAN DE L'AÉROGARE (coordonnées « monde » fixes : 1 unité ≈ 0,6 m) ----------
    x 0–640 : départs (bas → haut : parvis, hall d'enregistrement, sûreté, police / couloir national,
@@ -446,6 +446,16 @@ function tmCurb(g,now){ const V=[['taxi','#facc15',14,7],['taxi','#facc15',14,7]
   for(let k=0;k<V.length;k++){ const [t,c,w,h]=V[k], lane=k%2, sp=lane?0.018:0.024, per=1200/sp, u=((now+k*per/V.length)%per)/per, x0=-60+u*1180;
     let x=x0; const stop=lane?[[160,0.1],[470,0.1],[760,0.1],[900,0.1]]:[[260,0.1],[820,0.1]]; for(const [sx] of stop) if(Math.abs(x0-sx)<10) x=sx;   // s'arrête au trottoir
     const y=lane?1266:1286; g.fillStyle='rgba(15,23,42,.3)'; g.fillRect(x+1.5,y+1.5,w,h); g.fillStyle=c; g.fillRect(x,y,w,h); g.fillStyle='rgba(15,23,42,.65)'; g.fillRect(x+w*0.62,y+1,w*0.22,h-2); if(t==='bus'||t==='navette'){ g.fillStyle='rgba(186,230,253,.8)'; for(let j=0;j<4;j++) g.fillRect(x+2+j*(w-8)/4,y+1,(w-8)/4-1,1.4); } if(t==='taxi'){ g.fillStyle='#111'; g.fillRect(x+w*0.3,y+h/2-1,2,2); } } }
+// panneaux d'orientation jaunes (comme dans les vrais aéroports), affiches touristiques, drapeaux des provenances
+function tmWay(g,L,TH,fit){ const Y=(t,x0,y0,x1,y1)=>{ g.fillStyle='rgba(15,23,42,.25)'; g.fillRect(x0+1.5,y0+1.5,x1-x0,y1-y0); fit(t,x0,y0,x1-x0,y1-y0,'#111827','#facc15'); };
+  Y('↑ Sûreté · Portes   |   Security · Gates',340,1152,630,1166); Y('↑ Portes · Gates   🚻 Toilettes   ☕ Cafés',330,820,630,832);
+  Y('↓ Douane · Sortie   |   Customs · Exit',680,846,890,858); Y('🚕 Taxis · 🚌 Bus · 🅿️ Parking',664,1194,850,1208);
+  const A=AP(TM.code)||{}, C=COUNTRIES[A.cc]||[A.city||''], sub={AF:'Fleuves · forêts · rumba · hospitalité',EU:'Musées · gastronomie · patrimoine',NA:'Grands espaces · villes · culture',AS:'Temples · saveurs · traditions',ME:'Désert · souks · architecture',SA:'Plages · carnaval · nature',OC:'Lagons · récifs · grands espaces'}[TH.reg]||'Tourisme · culture · gastronomie';
+  for(const [x0,y0,x1,y1] of [[380,1196,550,1230],[860,1196,996,1230]]){ const gr=g.createLinearGradient(x0,y0,x1,y1); gr.addColorStop(0,'#0e7490'); gr.addColorStop(0.55,'#f59e0b'); gr.addColorStop(1,'#be185d'); g.fillStyle=gr; g.fillRect(x0,y0,x1-x0,y1-y0); g.strokeStyle='#e5e7eb'; g.lineWidth=1.2; g.strokeRect(x0,y0,x1-x0,y1-y0);
+    fit(`${TH.flag} Découvrez ${C[0]}`,x0+3,y0+3,x1-x0-6,(y1-y0)*0.5,'#fff',null); fit(sub,x0+3,y0+(y1-y0)*0.55,x1-x0-6,(y1-y0)*0.35,'#fef3c7',null,1); }   // affiche lumineuse
+  const fl=[...new Set((TM.F?TM.F.arrs:[]).map(f=>f.D&&f.D.A&&f.D.A.cc).filter(Boolean))].slice(0,10).map(cc=>{ try{ return String.fromCodePoint(...[...cc.toUpperCase()].map(c=>127397+c.charCodeAt(0))); }catch(e){ return ''; } }).join(' ');
+  if(fl) fit(fl,700,1003,260,9,'#111827',null);   // drapeaux des pays de provenance des vols du jour
+}
 function tmLight(g,L,TH){ const hr=tmLocalHour(), night=hr<6||hr>=18.5;
   if(!night){ const k=(hr-12)/6, a=Math.max(0.03,0.09-Math.abs(k)*0.04); g.fillStyle=`rgba(255,247,214,${a})`; g.beginPath(); for(let x=-40;x<1000;x+=48){ g.moveTo(x,2); g.lineTo(x+26,2); g.lineTo(x+26+k*70,150); g.lineTo(x+k*70,150); } g.fill(); }   // rayons du soleil par la façade vitrée
   else { for(let x=40;x<1000;x+=90) for(let y=70;y<1220;y+=130){ if(x>636&&x<664) continue; const gr=g.createRadialGradient(x,y,0,x,y,46); gr.addColorStop(0,'rgba(253,224,141,.16)'); gr.addColorStop(1,'rgba(253,224,141,0)'); g.fillStyle=gr; g.fillRect(x-46,y-46,92,92); }   // éclairage intérieur
@@ -475,6 +485,7 @@ function* tmBuildGen(F0){ const F=F0||tmFlights(TM.code), L=tmLayout(F), ppl=[];
   try{ ppl.push(...tmCrews(L)); }catch(e){}
   try{ for(const p of ppl.slice()) if(p.row&&/fauteuil/.test(p.row.assist||'')){ p.wheel=1; ppl.push({staff:'assist',i:ppl.length,K:p.K.map(k=>({...k,x:k.x-5,y:k.y+3,st:'pousse le fauteuil roulant de '+p.row.first+' '+p.row.last})),c:'#0e7490',sk:TM_SKIN[p.i%TM_SKIN.length],dep:3}); } }catch(e){}
   TM.F=F; TM.L=L; TM.ppl=ppl; TM.bags=tmBags(L);
+  try{ const st=ppl.find(p=>p.row&&p.row.star&&p.f); if(st&&TM.starKey!==st.f.D.key){ TM.starKey=st.f.D.key; toast(`⭐ <b>Merveil Hakeem Dianzenza</b> est dans l’aérogare (vol ${esc(st.f.fn)} ${st.dep?'vers Paris':'en provenance de Paris'}) : cherchez l’étoile dorée !`); } }catch(e){}
   // l'avion arrivé reste au poste tant que ses passagers et ses valises ne sont pas tous sortis
   for(const a of L.arrs){ if(a.f.soon) continue; const D=a.f.D; let u=Math.max(D.arr+60*MIN,(D.bag&&D.bag.last||0)+10*MIN); for(const p of ppl) if(p.f===a.f&&p.dep!==1&&p.K.length) u=Math.max(u,p.K[p.K.length-1].t); for(const b of TM.bags) if(b.belt===a.belt) u=Math.max(u,b.t0+5*MIN); a.until=Math.min(u,D.arr+4*HOUR); } TM.built=performance.now();
   // incidents des vols (Aérogare en direct) : affichés sur le plan au bon moment
@@ -761,6 +772,7 @@ function tmDraw(){
   { const C2=TM.cnt||{}; for(const [t,x0,y0,x1,y1,k] of TM.signs){ const v=k?C2[k]:0; fit(t+(v?` · ${v} en file`:''),x0,y0,x1-x0,y1-y0,'#fff',TH.acc); } }
   fit(`${TH.flag} ${TH.name}`,4,1240,640,22,'#fff','#0f172a');
   tmLight(g,L,TH);
+  tmWay(g,L,TH,fit);
   if(TM.rain){ g.fillStyle='rgba(148,197,255,.10)'; g.fillRect(L.bx0,TW.top,L.bx1-L.bx0,-TW.top-2); g.strokeStyle='rgba(226,232,240,.10)'; g.lineWidth=2; g.beginPath(); for(let k=0;k<60;k++){ const x=L.bx0+((k*157)%(L.bx1-L.bx0)), y=TW.top+((k*89)%(-TW.top)); g.moveTo(x,y); g.lineTo(x+1,y+14); } g.stroke(); }   // tarmac mouillé, reflets
   tmDecor(L,now,g,fit);
   { g.strokeStyle='#b45309'; g.lineWidth=1; g.beginPath(); g.moveTo(14,946); g.lineTo(14,876); g.moveTo(50,946); g.lineTo(50,906); g.stroke(); fit('⭐ Coupe-file prioritaire',4,866,96,9,'#fff','#b45309'); }
@@ -801,6 +813,7 @@ function tmDraw(){
     if(p.row&&p.row.star){ const sz=9/s+2, sy=y-r0*4-sz; g.fillStyle='#facc15'; g.strokeStyle='#78350f'; g.lineWidth=1/s+0.3; g.beginPath(); for(let j=0;j<10;j++){ const a=-Math.PI/2+j*Math.PI/5, rr=j%2?sz*0.42:sz; g.lineTo(x+Math.cos(a)*rr,sy+Math.sin(a)*rr); } g.closePath(); g.fill(); g.stroke(); }   // ⭐ Merveil Hakeem Dianzenza
     if(px<2.2){ const L3=tmLook(p), k3=r0*L3.sc, bc=L3.pagne?L3.pagne[0]:L3.boubou?L3.boubou[0]:L3.top; (FB[bc]||(FB[bc]=[])).push(x,y+r0*1.7-k3*1.9,k3*0.7,k3*1.05); (FB[p.sk]||(FB[p.sk]=[])).push(x,y+r0*1.7-k3*3.2,k3*0.6,k3*0.6); continue; }
     tmHuman(g,p,p.wheel?{...q,sit:1}:q,x,y,r0,now,px,carry&&!trol);
+    if(p.staff==='patrol'&&p.i%2&&px>=2.2){ const fx=p.face||1, dx=x+fx*r0*1.6, dy=y+r0*1.25, lg=q.walk?Math.sin(now/90)*r0*0.25:0; g.fillStyle='#78350f'; g.beginPath(); g.ellipse(dx,dy,r0*0.85,r0*0.38,0,0,6.283); g.fill(); g.beginPath(); g.arc(dx+fx*r0*0.85,dy-r0*0.3,r0*0.32,0,6.283); g.fill(); g.strokeStyle='#78350f'; g.lineWidth=r0*0.16; g.beginPath(); g.moveTo(dx-r0*0.5,dy); g.lineTo(dx-r0*0.5+lg,dy+r0*0.55); g.moveTo(dx+r0*0.5,dy); g.lineTo(dx+r0*0.5-lg,dy+r0*0.55); g.moveTo(dx-fx*r0*0.85,dy-r0*0.1); g.lineTo(dx-fx*r0*1.2,dy-r0*0.4); g.stroke(); g.strokeStyle='#111827'; g.lineWidth=0.4; g.beginPath(); g.moveTo(x+fx*r0*0.7,y+r0*0.4); g.lineTo(dx+fx*r0*0.7,dy-r0*0.3); g.stroke(); }   // chien détecteur et sa laisse
     if(rain&&px>=2.2){ const L2=tmLook(p), top=y+r0*1.7-r0*L2.sc*3.9; g.fillStyle=['#111827','#1d4ed8','#b91c1c','#15803d','#7c3aed'][p.i%5]; g.beginPath(); g.arc(x,top,r0*1.5,Math.PI,0); g.fill(); g.strokeStyle='#111'; g.lineWidth=0.4; g.beginPath(); g.moveTo(x,top); g.lineTo(x,top+r0*1.6); g.stroke(); }
     if(p.sign&&!q.walk){ const L2=tmLook(p), top=y+r0*1.7-r0*L2.sc*4.4; g.fillStyle='#fff'; g.fillRect(x-r0*1.6,top-r0*1.3,r0*3.2,r0*1.3); g.strokeStyle='#334155'; g.lineWidth=0.4; g.strokeRect(x-r0*1.6,top-r0*1.3,r0*3.2,r0*1.3); if(px>5&&p.signName){ let fs=r0*0.8; g.font=`700 ${fs}px system-ui`; let tw=g.measureText(p.signName).width; if(tw>r0*3){ fs*=r0*3/tw; g.font=`700 ${fs}px system-ui`; tw=r0*3; } g.fillStyle='#111'; g.fillText(p.signName,x-tw/2,top-r0*0.38); } else if(px>4){ g.fillStyle='#111'; for(let j=0;j<3;j++) g.fillRect(x-r0*1.2+j*r0*0.85,top-r0*0.8,r0*0.6,r0*0.25); } } }
   for(const c in FB){ const a=FB[c]; g.fillStyle=c; g.beginPath(); if(3.3*s<1.4) for(let j=0;j<a.length;j+=4) g.rect(a[j]-a[j+2],a[j+1]-a[j+3],a[j+2]*2,a[j+3]*2); else for(let j=0;j<a.length;j+=4){ g.moveTo(a[j]+a[j+2],a[j+1]); g.ellipse(a[j],a[j+1],a[j+2],a[j+3],0,0,6.283); } g.fill(); }
@@ -904,11 +917,20 @@ if(typeof window!=='undefined') window.addEventListener('load',()=>{
   if(typeof airportHtml==='function'){ const _a=airportHtml; airportHtml=function(code){ const h=_a.apply(this,arguments); try{ return btn(code)+h; }catch(e){ return h; } }; }
   if(typeof pfCardHtml==='function'){ const _p=pfCardHtml; pfCardHtml=function(){ const h=_p.apply(this,arguments);
       try{ const hubs=[...new Set([S.company.hub,...(S.hubs||[])])].filter(Boolean).slice(0,6);
-        return `<div class="card"><b>🏢 Intérieur des aérogares</b> <span class="small mut">— la foule en direct, sans passer par la 3D</span><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${hubs.map(c=>`<button class="btn" data-act="termOpen" data-code="${esc(c)}">🏢 ${esc(AP(c).city)}</button>`).join('')}</div></div>`+h; }catch(e){ return h; } }; }
+        const sn=typeof tmStarNext==='function'?tmStarNext():null, snH=sn&&sn.length?`<div class="small" style="margin-top:6px">⭐ <b>Merveil Hakeem Dianzenza</b> : ${sn.map(f=>`${esc(f.fn)} ${esc(AP(f.from).city)} → ${esc(AP(f.to).city)} le ${esc(typeof fmtTime==='function'?fmtTime(f.P):tmHM(f.P))}`).join(' · ')}</div>`:'';
+        return `<div class="card"><b>🏢 Intérieur des aérogares</b> <span class="small mut">— la foule en direct, sans passer par la 3D</span><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${hubs.map(c=>`<button class="btn" data-act="termOpen" data-code="${esc(c)}">🏢 ${esc(AP(c).city)}</button>`).join('')}</div>${snH}</div>`+h; }catch(e){ return h; } }; }
 });
 
 // ⭐ Passager vedette : Merveil Hakeem Dianzenza, écrivain renommé, voyage sur chaque vol Air France Paris ⇄ Kinshasa.
 // Une seule identité : 25 ans au début (il vieillit d'un an à chaque nouvelle année du jeu), même siège, même passeport, même profil sur tous les vols.
+// son vrai programme : Paris → Kinshasa (1er vol Air France du jour), séjour de 10 jours, retour à Paris, et il revient 30 jours après le départ
+const TM_STAR_CYCLE=30, TM_STAR_STAY=10;
+function tmStarOn(ac){ const m=/^RAF(?:CDGFIH|FIHCDG)(\d+)(AB|BA)(-?\d+)$/.exec(ac&&ac.id||''); if(!m||m[1]!=='0') return false; const c=((+m[3]%TM_STAR_CYCLE)+TM_STAR_CYCLE)%TM_STAR_CYCLE, toFIH=(m[2]==='AB')===/^RAFCDGFIH/.test(ac.id);
+  return toFIH?c===0:c===TM_STAR_STAY; }
+function tmStarRoute(){ const R0=(S.rivals||[]).find(x=>x.code==='AF'), r0=R0&&(R0.routes||[]).find(x=>(x.a==='CDG'&&x.b==='FIH')||(x.a==='FIH'&&x.b==='CDG')); return r0?[R0,r0]:[ghostAirline('AF'),ghostRouteOf('AF','FIH','CDG')]; }
+function tmStarNext(){ try{ const [R,r]=tmStarRoute(), K=rivalSched(r); if(!K) return null; const now=S.time, c0=Math.floor((now-K.anchors[0])/K.P)-1, out=[];
+    for(let c=c0;c<c0+TM_STAR_CYCLE+2&&out.length<2;c++){ const cc=((c%TM_STAR_CYCLE)+TM_STAR_CYCLE)%TM_STAR_CYCLE; for(const dir of ['AB','BA']){ const f=rivFlight(R,r,0,dir,c); if(!f||!tmStarOn(f.ac)) continue; if(f.arr+90*MIN<now) continue; out.push(f); } }
+    return out.sort((a,b)=>a.P-b.P); }catch(e){ return null; } }
 function tmStarId(leg){ const yr=new Date(S.time).getUTCFullYear(); if(!S.starBY) S.starBY=yr-25; const age=yr-S.starBY, nr='non renseigné', toP=leg.to==='CDG';
   return {star:true,first:'Merveil Hakeem',last:'Dianzenza ⭐',name:'Merveil Hakeem Dianzenza ⭐',F:false,age,nat:'CD',passportCC:'CD',home:'Kinshasa',born:'Kinshasa',dob:'1er janvier '+S.starBY,avatar:'👨🏾',
     job:'écrivain renommé',purp:'business',wealth:'rich',cls:'j',seat:'2A',bags:1,bag:18,meal:'Repas standard',assist:'',tier:'Platinum',miles:186400,langs:'français, lingala, anglais',marital:nr,mood:'ravi(e)',moodWhy:'',
@@ -916,6 +938,6 @@ function tmStarId(leg){ const yr=new Date(S.time).getUTCFullYear(); if(!S.starBY
     visa:toP?'Visa Schengen valide (passeport talent)':'Pas de visa requis (Congolais)',phone:nr,mail:nr,emerg:nr,health:nr,social:nr,passNo:'CD'+String(hashStr('MHD'+S.starBY)%10000000).padStart(7,'0'),passExp:S.starBY+35,
     allergy:'',pet:'',fear:'',hobbies:['écriture','lecture'],income:0,kids:0,anecdote:'signe des autographes en attendant son vol',music:nr,food:nr,seatmate:nr,study:'lettres',with_:'seul',conn:'',ent:'relit le manuscrit de son prochain livre'}; }
 if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ if(typeof manifestFor!=='function'||manifestFor._star) return; const _m=manifestFor;
-  manifestFor=function(ac,leg){ const out=_m.apply(this,arguments); try{ const fn=ac&&(ac._fn||''); if(out&&out.rows&&out.rows.length>6&&leg&&/^AF\d/.test(fn)&&((leg.from==='CDG'&&leg.to==='FIH')||(leg.from==='FIH'&&leg.to==='CDG'))){
+  manifestFor=function(ac,leg){ const out=_m.apply(this,arguments); try{ if(out&&out.rows&&out.rows.length>6&&leg&&tmStarOn(ac)){
       Object.assign(out.rows[5],tmStarId(leg)); } }catch(e){} return out; };
   manifestFor._star=true; }catch(e){ console.warn('passager vedette',e); } },30));
