@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261272';
+const GAME_VER='20261273';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🧑‍🤝‍🧑 Aérogare plus réaliste','Les familles voyagent ensemble (enfants avec leurs parents, couples côte à côte) ; les passagers en fauteuil roulant sont poussés par un agent d\'assistance ; pilotes et personnel de cabine arrivent à la porte, font leur briefing et embarquent avant les passagers, puis ressortent après eux à l\'arrivée ; ceux qui font du shopping repartent avec un sac ; annonces en français et en anglais dans les grands aéroports et pour les vols internationaux.'],
   ['🛬 Arrivées : passagers et valises','Les atterrissages sont gardés dans la sauvegarde : même après avoir fermé et rouvert le jeu, les passagers des vols arrivés apparaissent dans l\'aérogare (descente de l\'avion, immigration, valises sur les tapis, douane, sortie).'],
   ['🛫 Tous les vols de l\'aéroport','L\'aérogare montre tous les vols, départs et arrivées, de toutes les compagnies sans distinction (jusqu\'à 14 départs et 8 arrivées à la fois) : tableau avec le nom de chaque compagnie, 8 tapis à bagages, postes d\'arrivée sur deux rangées.'],
   ['⏰ Vols manqués réalistes','Plus personne ne se rend à une porte fermée après le départ de l\'avion. Un passager arrivé après la clôture de l\'enregistrement est refusé au comptoir et se fait replacer à l\'information ; un passager qui n\'atteint pas la porte avant sa fermeture rate son vol et va au comptoir de la compagnie ; un passager en retard va directement à la file d\'embarquement.'],
