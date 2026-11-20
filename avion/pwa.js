@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261291';
+const GAME_VER='20261292';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🐞 Passagers de nouveau visibles partout','Correction : en vitesse rapide, l\'aérogare se mettait à jour trop rarement et se vidait ; elle se met maintenant à jour au moins toutes les 10 minutes de jeu, quelle que soit la vitesse. Elle affiche maintenant les vols qui ont des passagers dans l\'aérogare : les vols arrivés les plus récents (et non plus les plus anciens, déjà vides) et les départs encore à la porte en priorité (16 départs au lieu de 14). Résultat : beaucoup plus de monde au départ comme à l\'arrivée, dans tous les aéroports.'],
   ['🛍️ Le hall vers la jetée prend vie','Dans les aéroports avec jetée ou satellite (comme Kinshasa), le grand hall vers les portes n\'est plus vide : food court, grand duty free, café panoramique, librairie, pharmacie, espace détente, aire de jeux pour enfants, toilettes et un tapis roulant au milieu. Les passagers y passent vraiment du temps (les familles emmènent les enfants à l\'aire de jeux) et flânent côté piste jusqu\'à l\'approche de l\'embarquement au lieu d\'aller s\'asseoir trop tôt à la porte.'],
   ['⛈️ Retards reliés à la météo','Les retards des autres compagnies dépendent maintenant de la vraie météo du jeu, comme vos vols : orage, rafales ou mauvaise visibilité au départ = départ retardé ; à l\'arrivée = circuit d\'attente ou remise de gaz plus fréquents. Le retard est décidé environ 3 h avant le départ d\'après la météo des deux aéroports, puis figé et gardé dans la sauvegarde : il reste identique partout (carte, 3D, contrôle aérien, aérogare), même après avoir fermé le jeu. L\'écran et la fiche de l\'avion indiquent « retard (météo) ».'],
   ['⏱️ Retards des autres compagnies, partout pareils','Les vols des autres compagnies ont maintenant de vrais retards (environ 1 sur 5 part en retard de 10 à 45 min, 1 sur 10 fait un circuit d\'attente, quelques remises de gaz ; le retard de l\'aller se répercute sur le retour si l\'escale est trop courte). Un seul calcul pour la carte 2D, la 3D, le contrôle aérien et l\'aérogare : même retard partout, à la minute. Dans l\'aérogare, si la piste est occupée en 3D, l\'avion attend au point d\'arrêt ; s\'il tourne encore en l\'air, il n\'est pas arrivé. La fiche de l\'avion sur la carte affiche le retard, le circuit d\'attente ou la remise de gaz.'],

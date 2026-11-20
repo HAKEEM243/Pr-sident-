@@ -47,7 +47,7 @@ function tmFlights(code){
   const F={deps,arrs,cancel:[]}; try{ tmRivals(code,now,F); }catch(e){}
   try{ for(const a of S.fleet) if(a.loc===code&&a.status!=='flight'&&a.blocked&&/grève|annul/i.test(a.blocked)) F.cancel.push({fn:S.company.code+(typeof flightNumber==='function'?flightNumber(a):''),dest:a.reg||'',why:a.blocked}); }catch(e){}
   try{ const w=null; if(w&&w.st) for(const f of F.deps) if(f.riv){ const dl=25+hashStr(f.D.key)%50; f.dl=dl; f.dlw='orage'; for(const k of ['P']) f.D[k]+=dl*MIN; f.D.gate.open+=dl*MIN; f.D.gate.last+=dl*MIN; f.D.gate.close+=dl*MIN; } }catch(e){}
-  F.deps=tmMix(F.deps,14,x=>x.D.P); F.arrs=tmMix(F.arrs,8,x=>x.D.arr);
+  F.deps=tmMix(F.deps,16,x=>x.D.P<now-2*MIN?1e13+x.D.P:x.D.P).sort((x,y)=>x.D.P-y.D.P); /* départs : d'abord les vols encore à la porte (passagers dans l'aérogare) */ F.arrs=tmMix(F.arrs,8,x=>Math.abs(x.D.arr-(now-20*MIN))).sort((x,y)=>x.D.arr-y.D.arr); /* arrivées : les vols qui viennent d'atterrir, pas les plus anciens */
   try{ const shown=new Set([...F.deps,...F.arrs].map(f=>f.acId)); F.parked=S.fleet.filter(a=>{ if(shown.has(a.id)) return false; const fl=a.flight, lg=fl&&fl.legs&&fl.legs[fl.li]; if(a.status==='flight'&&lg) return lg.from===code&&now<lg.dep; return a.loc===code; }).slice(0,10).map(a=>({a,reg:a.reg,model:modelOf(a).name,why:a.status==='maint'?'en maintenance':a.status==='flight'?'en attente de son prochain vol':'stationné'})); }catch(e){ F.parked=[]; }
   return F;
 }
@@ -486,7 +486,7 @@ function tmAirline(f){ if(f._al) return f._al; const own=!f.riv, code=own?((S.co
 const tmFKey=F=>F.deps.map(f=>f.D.key+':'+Math.round(f.D.P/60000)+':'+Math.round((f.D.tko||0)/60000)).join(',')+'|'+F.arrs.map(f=>f.D.key+':'+(f.soon?1:0)+':'+Math.round(f.D.arr/60000)).join(',');
 // construction en petits morceaux (générateur) : en cours de partie elle se fait sur plusieurs images, sans figer l'écran
 function tmBuild(F0){ const it=tmBuildGen(F0); while(!it.next().done); }
-function* tmBuildGen(F0){ const F=F0||tmFlights(TM.code), L=tmLayout(F), ppl=[]; TM.fkey=tmFKey(F); TM.full=performance.now();
+function* tmBuildGen(F0){ TM.builtT=tmNow(); const F=F0||tmFlights(TM.code), L=tmLayout(F), ppl=[]; TM.fkey=tmFKey(F); TM.full=performance.now();
   for(const g of [...L.deps,...L.arrs]){ void g.f.man; yield; }   // fiches des passagers, un vol à la fois
   tmSched(L); yield;
   for(let fi=0;fi<L.deps.length;fi++){ const g=L.deps[fi]; g.f.col=TM_COL[fi%TM_COL.length]; for(let i=0;i<g.sched.length;i++){ const rw=g.sched[i].row; ppl.push({f:g.f,i,row:rw,K:tmDepKF(g,i,L),c:g.f.col,sk:tmSkin(rw,TM_SKIN[(i*7+fi)%TM_SKIN.length]),dep:1,bag:g.sched[i].bags,ckDone:g.sched[i].ckDone,kid:rw?rw.age<12:i%9===4}); } yield; }
@@ -680,7 +680,7 @@ function tmDraw(){
   if(!TM.open) return; TM.raf=requestAnimationFrame(tmDraw); { const tn=performance.now(); if(TM.lastF&&tn-TM.lastF<30) return; const dF=TM.lastF?tn-TM.lastF:33; TM.lastF=tn; tmAdapt(dF); }   // 30 images par seconde au plus
   const cv=TM.cv; if(!cv) return; const w=cv.clientWidth, h=cv.clientHeight; if(!w||!h) return;
   if(!TM.built){ TM.job=null; tmBuild(); } else if(TM.job){ const t0=performance.now(); try{ while(performance.now()-t0<7){ if(TM.job.next().done){ TM.job=null; break; } } }catch(e){ TM.job=null; console.warn('aérogare',e); } }
-  else if(performance.now()-TM.built>15000){ const F=tmFlights(TM.code); if(tmFKey(F)!==TM.fkey||performance.now()-(TM.full||0)>90000) TM.job=tmBuildGen(F); else TM.built=performance.now(); }
+  else if(performance.now()-TM.built>15000||Math.abs(tmNow()-(TM.builtT||0))>10*MIN){ /* au moins toutes les 10 min de jeu, quelle que soit la vitesse */ const F=tmFlights(TM.code); if(tmFKey(F)!==TM.fkey||performance.now()-(TM.full||0)>90000) TM.job=tmBuildGen(F); else TM.built=performance.now(); }
   if(cv.width!==Math.round(w*TM.dpr)||cv.height!==Math.round(h*TM.dpr)){ cv.width=Math.round(w*TM.dpr); cv.height=Math.round(h*TM.dpr); if(!TM.cam||!TM.moved){ TM.cam={s:1,x:0,y:0}; tmFocus(tmZoneRect(0)); Object.assign(TM.cam,TM.goal); TM.goal=null; } }
   tmFollowStep(tmNow(),w,h); tmCamStep(); const c=TM.cam, main=cv.getContext('2d'), L=TM.L, F=TM.F, now=tmNow(), s=c.s; let g=main;
   const prep=(x,bg)=>{ x.setTransform(TM.dpr,0,0,TM.dpr,0,0); if(bg){ x.fillStyle='#1e293b'; x.fillRect(0,0,w,h); }
