@@ -113,6 +113,13 @@ async function pinLoad(c,lim){
   const st=G.osmPin.get(c.key); if(st){ st.prim=prim; st.ok=true; }
 }
 // les maisons des quartiers autour du point regardé (kin-local.js : densité réelle d'OpenStreetMap)
+// terrain d'aéroport (pistes, voies de circulation, aire, aérogare) : aucune maison générée dessus
+function apNoBuild(lat,lon){ const p={lat,lon}, codes=new Set([S.company&&S.company.hub,...(S.hubs||[])]); try{ const ac=G&&G.follow&&S.fleet.find(a=>a.id===G.follow); if(ac&&ac.flight){ const l=ac.flight.legs[ac.flight.li]; if(l){ codes.add(l.from); codes.add(l.to); } } }catch(e){}
+  for(const c of codes){ const A=c&&AP(c); if(!A||gcDist(A,p)>9) continue;
+    for(const rw of runwaysOf(c)){ const f=toRw(rw,p); if(f.a>-450&&f.a<rw.len+450&&Math.abs(f.x)<280) return true; }
+    const ap=apronOf(c), M=ap&&ap.rw; if(M){ const f=toRw(M,p), span=Math.round((A.cls>=3?1900:700)*(1+0.1*Math.min(5,A.xp||0))), lo=Math.min(0,ap.x+ap.side*260), hi=Math.max(0,ap.x+ap.side*260);
+      if(f.a>ap.a-span/2-450&&f.a<ap.a+span/2+450&&f.x>lo&&f.x<hi) return true; } }
+  return false; }
 function fillClear(){ if(G&&G.osmFill){ for(const st of G.osmFill.values()) if(st&&st.prim&&G.viewer) G.viewer.scene.primitives.remove(st.prim); G.osmFill.clear(); } }
 const FILL_CELL=0.0075;   // ≈ 830 m : les maisons sont bâties par petites cases autour du point regardé
 function fillTick(v){
@@ -131,6 +138,7 @@ async function fillLoad(c,budget){
   try{
     let real=[]; try{ const js=await kinAnswer(`way["building"](${c.s.toFixed(4)},${c.w.toFixed(4)},${c.n.toFixed(4)},${c.e.toFixed(4)});out geom 5000;`); real=(js&&js.elements)||[]; }catch(e){}
     let els=[]; try{ els=await kinFill(c,budget,real); }catch(e){ console.warn(e); }
+    try{ els=els.filter(el=>{ const g=el.geometry&&el.geometry[0]; return !g||!apNoBuild(g.lat,g.lon); }); }catch(e){}   // pas de maisons sur le terrain de l'aéroport
     let gb=p=>0; if(els.length) try{ gb=await cellGround(c.s,c.w,c.n,c.e,300); }catch(e){}
     if(!G||!G.viewer||!G.osmFill||!G.osmFill.has(c.key)) return;
     let prim=null; try{ prim=els.length&&typeof osmBuildCell==='function'?osmBuildCell(els,gb,true):null; }catch(e){ console.warn(e); }

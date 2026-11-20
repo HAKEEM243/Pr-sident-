@@ -149,7 +149,7 @@ function airportProps(code,N){
   AP3D.bridges=AP3D.bridges||{}; AP3D.bridges[code]={};
   for(let k=0;k<n;k++){ const sp=slotPt(code,k); const q=destPt(sp.lat,sp.lon,hdgOut,0.062); mk(q,hdgOut+180,apModel('bridge',M_BRIDGE)); AP3D.bridges[code][k]=N.ents[N.ents.length-1]; }
   // aéroport allégé (après des erreurs de rendu) : seulement pistes, terminal, passerelles et tour
-  if(G.lite){ mk(rwPt(r,a0+span/2+120,gx+s*110),r.hdg,apModel('tower',M_TOWER),8); return; }
+  if(G.lite){ mk(rwPt(r,a0+span/2+120,gx+s*110),r.hdg,apModel('tower',M_TOWER),8); try{ apronGround(code,N,EL); }catch(e){ console.warn(e); } return; }   // même en 3D allégée : aire et voies de circulation (les avions roulent dessus)
   // aire de stationnement : béton, lignes jaunes de guidage et barres d'arrêt
   try{ apronGround(code,N,EL); }catch(e){ console.warn(e); }
   // nom de l'aéroport sur le toit, face aux pistes
@@ -216,21 +216,27 @@ function signModel(city,code){
 function apronGround(code,N,EL){
   const C=Cesium, V=G.viewer, ap=apronOf(code), r=ap.rw, s=ap.side, gx=ap.x, a0=ap.a, big=AP(code).cls>=3, span=Math.round((big?1900:700)*(1+0.1*(AP(code).xp||0))), n=(typeof apGates==='function'&&(apGates(code)||[]).length)||Math.min(44,(big?22:8)+(AP(code).gatesX||0)), hdgOut=(r.hdg+90*s+360)%360;
   const c1=rwPt(r,a0-span/2-60,gx-s*70), c2=rwPt(r,a0+span/2+60,gx-s*70), c3=rwPt(r,a0+span/2+60,gx+s*70), c4=rwPt(r,a0-span/2-60,gx+s*70);
-  const geo=[new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray([c1,c2,c3,c4].flatMap(q=>[q.lon,q.lat]))),height:EL+0.18,vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(AP3D.night?new C.Color(0.4,0.35,0.28,1):new C.Color(0.72,0.72,0.70,1))}})];
+  const geo=[new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray([c1,c2,c3,c4].flatMap(q=>[q.lon,q.lat]))),height:EL+0.5,vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(AP3D.night?new C.Color(0.4,0.35,0.28,1):new C.Color(0.72,0.72,0.70,1))}})];
   const lines=[], Y=C.Color.fromCssColorString(AP3D.night?'#b8901a':'#facc15');
-  const ln=(a,b,col,w)=>lines.push(new C.GeometryInstance({geometry:new C.PolylineGeometry({positions:C.Cartesian3.fromDegreesArrayHeights([a.lon,a.lat,EL+0.3,b.lon,b.lat,EL+0.3]),width:w||3,vertexFormat:C.PolylineColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(col||Y)}}));
+  const ln=(a,b,col,w)=>lines.push(new C.GeometryInstance({geometry:new C.PolylineGeometry({positions:C.Cartesian3.fromDegreesArrayHeights([a.lon,a.lat,EL+0.62,b.lon,b.lat,EL+0.62]),width:w||3,vertexFormat:C.PolylineColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(col||Y)}}));
   ln(rwPt(r,a0-span/2-60,gx-s*55),rwPt(r,a0+span/2+60,gx-s*55));                     // voie de circulation de l'aire
   // aires des terminaux 2, 3 et 4 (béton + voie de circulation), et la bretelle qui contourne T1 vers T4
   if(typeof apTerminals==='function') for(const t of apTerminals(code)){ if(t.n==='T1') continue; const ax=t.x-s*72;
     const q=[rwPt(r,t.a-t.L/2-50,ax-s*70),rwPt(r,t.a+t.L/2+50,ax-s*70),rwPt(r,t.a+t.L/2+50,ax+s*70),rwPt(r,t.a-t.L/2-50,ax+s*70)];
-    geo.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(q.flatMap(v=>[v.lon,v.lat]))),height:EL+0.18,vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(AP3D.night?new C.Color(0.4,0.35,0.28,1):new C.Color(0.72,0.72,0.70,1))}}));
+    geo.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(q.flatMap(v=>[v.lon,v.lat]))),height:EL+0.5,vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(AP3D.night?new C.Color(0.4,0.35,0.28,1):new C.Color(0.72,0.72,0.70,1))}}));
     ln(rwPt(r,t.a-t.L/2-50,ax-s*55),rwPt(r,t.a+t.L/2+50,ax-s*55));
     if(t.n==='T4'){ const aC=a0-span/2-130, b=[rwPt(r,aC-25,gx-s*70),rwPt(r,aC+25,gx-s*70),rwPt(r,aC+25,ax+s*20),rwPt(r,aC-25,ax+s*20)];
-      geo.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(b.flatMap(v=>[v.lon,v.lat]))),height:EL+0.17,vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(AP3D.night?new C.Color(0.4,0.35,0.28,1):new C.Color(0.72,0.72,0.70,1))}}));
+      geo.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(b.flatMap(v=>[v.lon,v.lat]))),height:EL+0.49,vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(AP3D.night?new C.Color(0.4,0.35,0.28,1):new C.Color(0.72,0.72,0.70,1))}}));
       ln(rwPt(r,aC,gx-s*55),rwPt(r,aC,ax)); } }
   for(let k=0;k<n;k++){ const sp=slotPt(code,k), a=destPt(sp.lat,sp.lon,hdgOut+180,0.055), b=destPt(sp.lat,sp.lon,hdgOut,0.026);
     ln(a,b);                                                                          // ligne d'entrée au poste
     const st=destPt(sp.lat,sp.lon,hdgOut,0.022); ln(destPt(st.lat,st.lon,hdgOut+90,0.004),destPt(st.lat,st.lon,hdgOut-90,0.004),AP3D.night?C.Color.fromCssColorString('#a8a29e'):C.Color.WHITE,4); }   // barre d'arrêt
+  // voies de circulation : parallèle à la piste + bretelles jusqu'à l'aire (là où roulent les avions)
+  try{ const T=typeof apTaxi==='function'?apTaxi(code):null; if(T&&Math.abs(T.M.thr.lat-r.thr.lat)<1e-6&&Math.abs(T.M.thr.lon-r.thr.lon)<1e-6){ const asph=AP3D.night?new C.Color(0.2,0.2,0.22,1):new C.Color(0.36,0.37,0.39,1), poly=(q,h)=>geo.push(new C.GeometryInstance({geometry:new C.PolygonGeometry({polygonHierarchy:new C.PolygonHierarchy(C.Cartesian3.fromDegreesArray(q.flatMap(v=>[v.lon,v.lat]))),height:EL+(h||0.48),vertexFormat:C.PerInstanceColorAppearance.VERTEX_FORMAT}),attributes:{color:C.ColorGeometryInstanceAttribute.fromColor(asph)}}));
+      poly([rwPt(r,40,T.twM-12),rwPt(r,r.len-40,T.twM-12),rwPt(r,r.len-40,T.twM+12),rwPt(r,40,T.twM+12)]); ln(rwPt(r,40,T.twM),rwPt(r,r.len-40,T.twM));
+      const edge=gx-s*70; for(const aC of T.conns){ poly([rwPt(r,aC-12,T.twM),rwPt(r,aC+12,T.twM),rwPt(r,aC+12,edge),rwPt(r,aC-12,edge)]); ln(rwPt(r,aC,T.twM),rwPt(r,aC,edge)); }
+      for(const aC of [60,r.len-60]){ { const e0=((r.wid||45)/2+1)*Math.sign(T.twM); poly([rwPt(r,aC-12,e0),rwPt(r,aC+12,e0),rwPt(r,aC+12,T.twM),rwPt(r,aC-12,T.twM)],0.47); } ln(rwPt(r,aC,(r.wid||45)/2*Math.sign(T.twM)),rwPt(r,aC,T.twM)); } } }catch(e){ console.warn('voies de circulation',e); }
+  try{ if(typeof taxiModels==='function') taxiModels(code,N,EL); }catch(e){ console.warn('voies',e); }
   N.rwy.push(V.scene.primitives.add(new C.Primitive({geometryInstances:geo,appearance:new C.PerInstanceColorAppearance({flat:true}),asynchronous:true})));
   N.rwy.push(V.scene.primitives.add(new C.Primitive({geometryInstances:lines,appearance:new C.PolylineColorAppearance(),asynchronous:true})));
 }

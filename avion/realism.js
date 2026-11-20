@@ -231,10 +231,10 @@ function apronOf(code){
 function slotPt0(code,k){
   const ap=apronOf(code), off=((k%2)?1:-1)*Math.ceil(k/2)*85;
   if(!ap.rw) return {lat:ap.g.lat, lon:ap.g.lon+off/(M_DEG*Math.cos(toRad(ap.g.lat))), hdg:0};
-  return {...fromRw(ap.rw, ap.a+off, ap.x), hdg:(ap.rw.hdg+90*ap.side+360)%360};
+  return {...fromRw(ap.rw, ap.a+off, ap.x), hdg:(ap.rw.hdg+90*ap.side+360)%360, code};
 }
 // portes de tous les terminaux (T1 puis T2, T3, T4 construits par le joueur)
-function slotPt(code,k){ const g=typeof apGates==='function'?apGates(code):null; return g&&g.length? {...g[((k%g.length)+g.length)%g.length]} : slotPt0(code,k); }
+function slotPt(code,k){ const g=typeof apGates==='function'?apGates(code):null; return g&&g.length? {...g[((k%g.length)+g.length)%g.length],code} : slotPt0(code,k); }
 const acSlotHash=id=>{ let h=7; for(const c of id) h=(h*31+c.charCodeAt(0))%9973; return h; };
 const legIntl=l=>!!(l&&AP(l.from)&&AP(l.to)&&AP(l.from).cc!==AP(l.to).cc);
 // vol international → T2/T4 s'ils existent ; vol intérieur → T1/T3
@@ -250,10 +250,23 @@ function gateIdx(code, ac, intl){
 function gateSlot(code, ac, intl){ return slotPt(code, gateIdx(code, ac, intl===undefined?!!ac.gIntl:intl)); }
 // porte de départ : celle où l'avion est garé (fixée par son dernier vol arrivé)
 const depIntl=(ac,fl)=>fl&&fl.li>0? legIntl(fl.legs[fl.li-1]) : !!ac.gIntl;
+// RÉSEAU DE ROULAGE d'un aéroport : voie parallèle à la piste principale (twM), bretelles (conns) jusqu'à la
+// voie de l'aire de stationnement (lane), devant les portes. Les avions roulent dessus (plus de diagonale dans l'herbe).
+const _apTx={};
+function apTaxi(code){ if(!code) return null; const A=AP(code); if(!A) return null; const key=code+'|'+(A.xp||0)+'|'+(A.cls||0); if(_apTx[code]&&_apTx[code].key===key) return _apTx[code];
+  const ap=apronOf(code), M=ap&&ap.rw; if(!M) return null; const s=ap.side, ax=Math.abs(ap.x), span=Math.round((A.cls>=3?1900:700)*(1+0.1*Math.min(5,A.xp||0)));
+  const twM=s*Math.max(95,Math.min(220,ax-200)), lane=ap.x-s*55, cl=a=>Math.max(150,Math.min(M.len-150,a));
+  const conns=[...new Set([cl(ap.a-span/2-60),cl(ap.a),cl(ap.a+span/2+60)].map(Math.round))];
+  return _apTx[code]={key,M,s,twM,lane,conns,apx:ap.x}; }
+// la piste r est-elle la piste principale (ou la même dans l'autre sens) ? → +1 / −1, sinon 0
+function apSame(T,r){ if(!T||!r) return 0; const M=T.M; if(r===M||(r.thr&&Math.abs(r.thr.lat-M.thr.lat)<1e-6&&Math.abs(r.thr.lon-M.thr.lon)<1e-6)) return 1; const d=angDiff(r.hdg,M.hdg); if(d>8&&d<172) return 0; if(Math.abs(toRw(M,r.thr).x)>60) return 0; return d<=8?1:-1; }
+const apConn=(T,a)=>T.conns.reduce((b,c)=>Math.abs(c-a)<Math.abs(b-a)?c:b,T.conns[0]);
 // Roulage : poste → voie de circulation parallèle → point d'attente → seuil de piste
 function taxiOutPts(path, gp){
   if(gp.via&&gp.via.length){ const v=gp.via, rest=taxiOutPts(path, v[v.length-1]); return [gp, ...v, ...rest.slice(1)]; }
   const r=path.dep; if(!r) return [gp, path.air[0]];
+  { const T=apTaxi(gp.code), dir=apSame(T,r); if(dir){ const M=T.M, fG=toRw(M,gp), aC=apConn(T,fG.a), tR=dir*T.twM;
+      return [gp, fromRw(M,fG.a,T.lane), fromRw(M,aC,T.lane), fromRw(M,aC,T.twM), fromRw(r,-80,tR), fromRw(r,-80,0), r.thr]; } }
   const f=toRw(r,gp), tw=(f.x>=0?1:-1)*Math.min(Math.abs(f.x)*0.6,190);
   if(Math.abs(f.x)<40) return [gp, fromRw(r,-60,0), r.thr];
   // bout du taxiway parallèle → virage vers l'axe → virage sur la piste : l'avion arrive aligné au seuil
@@ -278,6 +291,8 @@ function lineUpPts(path,h0){ const r=path.dep, f=toRw(r,h0);
 function taxiInPts(path, gp){
   if(gp.via&&gp.via.length){ const v=gp.via, rest=taxiInPts(path, v[v.length-1]); return [...rest, ...v.slice(0,-1).reverse(), gp]; }
   const r=path.arr, E=path.air[path.air.length-1]; if(!r) return [E, gp];
+  { const T=apTaxi(gp.code), dir=apSame(T,r); if(dir){ const M=T.M, fG=toRw(M,gp), aX=Math.max(60,Math.min(M.len-60,toRw(M,E).a+dir*260)), aC=apConn(T,fG.a);
+      return [E, fromRw(M,aX,T.twM), fromRw(M,aC,T.twM), fromRw(M,aC,T.lane), fromRw(M,fG.a,T.lane), gp]; } }
   const f=toRw(r,gp), aE=toRw(r,E).a, tw=(f.x>=0?1:-1)*Math.min(Math.abs(f.x)*0.6,190);
   if(Math.abs(f.x)<40) return [E, gp];
   return [E, fromRw(r,aE+260,tw), fromRw(r,f.a,tw), gp];
@@ -286,7 +301,7 @@ function taxiInPts(path, gp){
 function holdPoint(path,gp,rank){
   const r=path.dep; if(!r) return {lat:gp.lat,lon:gp.lon,hdg:gp.hdg||0};
   // dans le sens du roulage : la file d'attente remonte le taxiway, nez vers l'entrée de piste
-  const f=toRw(r,gp), s=f.x>=0?1:-1, lat=s*Math.max(24,Math.min(Math.abs(f.x)*0.6,190)), dir=f.a>-80?1:-1, a=-80+dir*(25+(rank||0)*80);
+  const T=apTaxi(gp.code), sm=apSame(T,r), f=toRw(r,gp), s=f.x>=0?1:-1, lat=sm?sm*T.twM:s*Math.max(24,Math.min(Math.abs(f.x)*0.6,190)), dir=f.a>-80?1:-1, a=-80+dir*(25+(rank||0)*80);
   const q=fromRw(r,a,lat); return {lat:q.lat,lon:q.lon,hdg:dir>0?(r.hdg+180)%360:r.hdg};
 }
 function polyAt(pts,u){
