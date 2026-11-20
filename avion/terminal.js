@@ -69,7 +69,9 @@ function tmRivals(code,now,F){
         if(kind==='a'&&na<24&&now>=fl.arr-20*MIN&&now<=fl.arr+70*MIN){ const D=tmFakeD(fl.key,other,A0,fl.P,fl.arr,fl.N); F.arrs.push(tmLazy({a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id,soon:now<fl.arr},fl)); na++; } } } }
 }
 // garde un mélange réaliste : vos vols n'occupent pas toutes les portes quand d'autres compagnies partent aussi
-function tmMix(list,n,key){ list.sort((x,y)=>key(x)-key(y)); const own=list.filter(f=>!f.riv), riv=list.filter(f=>f.riv); if(!riv.length||!own.length) return list.slice(0,n);
+function tmMix(list,n,key){ list.sort((x,y)=>key(x)-key(y));
+  // ⭐ le vol Air France Paris ⇄ Kinshasa (passager vedette) est toujours affiché
+  const pin=list.filter(f=>f.riv&&/^AF\d/.test(f.fn||'')&&f.D&&((f.D.A.code==='CDG'&&f.D.B.code==='FIH')||(f.D.A.code==='FIH'&&f.D.B.code==='CDG'))).slice(0,2); if(pin.length){ const rest=tmMix(list.filter(f=>!pin.includes(f)),n-pin.length,key); return [...pin,...rest].sort((x,y)=>key(x)-key(y)); } const own=list.filter(f=>!f.riv), riv=list.filter(f=>f.riv); if(!riv.length||!own.length) return list.slice(0,n);
   const nOwn=Math.min(own.length,Math.max(Math.ceil(n*0.5),n-riv.length)); return [...own.slice(0,nOwn),...riv.slice(0,n-nOwn)].sort((x,y)=>key(x)-key(y)); }
 /* ---------- PLAN DE L'AÉROGARE (coordonnées « monde » fixes : 1 unité ≈ 0,6 m) ----------
    x 0–640 : départs (bas → haut : parvis, hall d'enregistrement, sûreté, police / couloir national,
@@ -160,7 +162,7 @@ function tmSched(L){
   const secL=[], polL=[], W={ck:[],sec:[],pol:[]};
   for(const g of L.deps){ const f=g.f, D=f.D, N=Math.min(f.N,1600), sc=[], ckL=[];
     for(let i=0;i<N;i++){ const r=pfRng(D.key+'|sc'+i), tIn=D.ci.open+(D.ci.close-D.ci.open)*Math.pow(r(),0.85)*0.97, online=r()<(D.ci.online||0)/Math.max(1,f.N), bags=r()<0.8, kiosk=!(online&&!bags)&&(online||r()<0.3);
-      const row=f.man&&f.man.rows&&f.man.rows[i]; const x={i,tIn,online,bags:row?row.bags>0:bags,kiosk,r:r(),wc:r()<0.12,alarm:r()<0.1,row}; if(row){ x.kiosk=!(online&&!x.bags)&&(online||x.r<0.3); } sc.push(x);
+      const row=f.man&&f.man.rows&&f.man.rows[i]; const x={i,tIn,online,bags:row?row.bags>0:bags,kiosk,r:r(),wc:r()<0.12,alarm:r()<0.1,row}; if(row&&row.star){ x.tIn=D.ci.open+12*MIN; x.alarm=false; x.wc=false; } if(row){ x.kiosk=!(online&&!x.bags)&&(online||x.r<0.3); } sc.push(x);
       if(online&&!bags){ x.ckStart=x.ckDone=tIn+MIN; } else ckL.push({x,arr:tIn+(kiosk?3.5:1.5)*MIN}); }
     tmServe(ckL,Math.max(1,Math.min(24,Math.max(D.ci.desks||0,Math.ceil(f.N/40))+tmOps(TM.code).ck)),o=>(o.x.bags?1.8:1.2)*MIN*(0.7+0.6*o.x.r));
     for(const o of ckL){ o.x.ckStart=o.start; o.x.ckDone=o.done; W.ck.push([o.arr,o.start-o.arr]); }
@@ -796,6 +798,7 @@ function tmDraw(){
     if(trol&&px>=2.2){ const fx=p.face||1, tx=x+fx*r0*1.6, ty=y+r0*1.0; g.fillStyle='#94a3b8'; g.fillRect(tx-r0*0.9,ty-r0*0.35,r0*1.8,r0*0.7); g.fillStyle=TM_BAGC[p.i%8]; g.fillRect(tx-r0*0.75,ty-r0*1.05,r0*1.5,r0*0.75); if(p.row&&p.row.bags>=2){ g.fillStyle=TM_BAGC[(p.i+3)%8]; g.fillRect(tx-r0*0.6,ty-r0*1.6,r0*1.2,r0*0.6); } g.fillStyle='#111'; g.beginPath(); g.arc(tx-r0*0.7,ty+r0*0.45,r0*0.16,0,6.283); g.arc(tx+r0*0.7,ty+r0*0.45,r0*0.16,0,6.283); g.fill(); }
     if(p.wheel&&px>=2.2){ g.strokeStyle='#475569'; g.lineWidth=0.7; g.fillStyle='#64748b'; g.fillRect(x-r0*0.9,y+r0*0.2,r0*1.8,r0*0.35); g.beginPath(); g.arc(x-r0*0.85,y+r0*1.0,r0*0.68,0,6.283); g.moveTo(x+r0*1.53,y+r0*1.0); g.arc(x+r0*0.85,y+r0*1.0,r0*0.68,0,6.283); g.stroke(); }
     const rain=TM.rain&&y>1196&&!p.staff;
+    if(p.row&&p.row.star){ const sz=9/s+2, sy=y-r0*4-sz; g.fillStyle='#facc15'; g.strokeStyle='#78350f'; g.lineWidth=1/s+0.3; g.beginPath(); for(let j=0;j<10;j++){ const a=-Math.PI/2+j*Math.PI/5, rr=j%2?sz*0.42:sz; g.lineTo(x+Math.cos(a)*rr,sy+Math.sin(a)*rr); } g.closePath(); g.fill(); g.stroke(); }   // ⭐ Merveil Hakeem Dianzenza
     if(px<2.2){ const L3=tmLook(p), k3=r0*L3.sc, bc=L3.pagne?L3.pagne[0]:L3.boubou?L3.boubou[0]:L3.top; (FB[bc]||(FB[bc]=[])).push(x,y+r0*1.7-k3*1.9,k3*0.7,k3*1.05); (FB[p.sk]||(FB[p.sk]=[])).push(x,y+r0*1.7-k3*3.2,k3*0.6,k3*0.6); continue; }
     tmHuman(g,p,p.wheel?{...q,sit:1}:q,x,y,r0,now,px,carry&&!trol);
     if(rain&&px>=2.2){ const L2=tmLook(p), top=y+r0*1.7-r0*L2.sc*3.9; g.fillStyle=['#111827','#1d4ed8','#b91c1c','#15803d','#7c3aed'][p.i%5]; g.beginPath(); g.arc(x,top,r0*1.5,Math.PI,0); g.fill(); g.strokeStyle='#111'; g.lineWidth=0.4; g.beginPath(); g.moveTo(x,top); g.lineTo(x,top+r0*1.6); g.stroke(); }
@@ -903,3 +906,10 @@ if(typeof window!=='undefined') window.addEventListener('load',()=>{
       try{ const hubs=[...new Set([S.company.hub,...(S.hubs||[])])].filter(Boolean).slice(0,6);
         return `<div class="card"><b>🏢 Intérieur des aérogares</b> <span class="small mut">— la foule en direct, sans passer par la 3D</span><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${hubs.map(c=>`<button class="btn" data-act="termOpen" data-code="${esc(c)}">🏢 ${esc(AP(c).city)}</button>`).join('')}</div></div>`+h; }catch(e){ return h; } }; }
 });
+
+// ⭐ Passager vedette : Merveil Hakeem Dianzenza voyage sur chaque vol Air France Paris ⇄ Kinshasa
+if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()=>{ try{ if(typeof manifestFor!=='function'||manifestFor._star) return; const _m=manifestFor;
+  manifestFor=function(ac,leg){ const out=_m.apply(this,arguments); try{ const fn=ac&&(ac._fn||''); if(out&&out.rows&&out.rows.length>6&&leg&&/^AF\d/.test(fn)&&((leg.from==='CDG'&&leg.to==='FIH')||(leg.from==='FIH'&&leg.to==='CDG'))){ const w=out.rows[5];
+      if(!w.star){ const nr='non renseigné', toP=leg.to==='CDG'; for(const k of ['phone','mail','emerg','health','social','dob','born','passNo','anecdote','music','food','seatmate','study']) if(typeof w[k]==='string') w[k]=nr; w.allergy=''; w.pet=''; w.fear=''; w.hobbies=[]; w.income=0; w.kids=0; if(typeof w.with_==='string') w.with_=w.with_.replace(/\bseule\b/,'seul'); if(typeof w.conn==='string') w.conn='';
+        Object.assign(w,{age:30,job:'voyageur habitué de la ligne Paris ⇄ Kinshasa',marital:nr,story:toP?'Voyage de Kinshasa à Paris.':'Retour à Kinshasa depuis Paris.',langs:'français, lingala',moodWhy:'',tier:'Gold',star:true,first:'Merveil Hakeem',last:'Dianzenza ⭐',name:'Merveil Hakeem Dianzenza ⭐',F:false,nat:'CD',passportCC:'CD',home:'Kinshasa',avatar:'👨🏾',visa:leg.to==='CDG'?'Visa Schengen valide':'Pas de visa requis (Congolais)',assist:'',mood:'ravi(e)'}); } } }catch(e){} return out; };
+  manifestFor._star=true; }catch(e){ console.warn('passager vedette',e); } },30));
