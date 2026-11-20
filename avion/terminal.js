@@ -54,6 +54,8 @@ function tmFakeD(key,A,B,P,arr,N){ const intl=A.cc!==B.cc, h=hashStr(key);
     gate:{name:String.fromCharCode(66+h%5)+(1+h%28),open:P-40*MIN,last:P-14*MIN,close:P-6*MIN,noShow:h%3},
     imm:{open:arr+6*MIN,close:arr+(N>200?55:40)*MIN},bag:{first:arr+(14+h%6)*MIN,last:arr+(30+h%14)*MIN},cus:{close:arr+70*MIN}}; }
 function tmFakeMan(D,N,m){ try{ const j=Math.round(N*0.08); return manifestFor({id:'R'+D.key},{from:D.A.code,to:D.B.code,dep:D.P,pax:{f:0,j,w:0,y:N-j}}); }catch(e){ return null; } }
+// le manifeste n'est calculé que pour les vols vraiment affichés (sinon l'ouverture est très lente)
+function tmLazy(o,fl){ let m; Object.defineProperty(o,'man',{get(){ return m!==undefined?m:(m=fl.man||null); },set(v){ m=v; },enumerable:true,configurable:true}); return o; }
 function tmRivals(code,now,F){
   if(typeof rivFlight!=='function') return; const A0=AP(code); let nd=0, na=0; const L=[], seen=new Set();
   // les compagnies concurrentes du jeu, puis toutes les compagnies réelles qui desservent l'aéroport (les mêmes avions que sur la carte)
@@ -63,8 +65,8 @@ function tmRivals(code,now,F){
     for(let i=0;i<K.nP;i++) for(const kind of ['d','a']){ const dir=kind==='d'?(fromA?'AB':'BA'):(fromA?'BA':'AB'), x0=rivFlight(R,r,i,dir,0); if(!x0) continue;
       const ref=kind==='d'?x0.P:x0.arr, c0=Math.floor((now+(kind==='d'?180*MIN:0)-ref)/K.P);
       for(const cyc of [c0,c0-1]){ const fl=rivFlight(R,r,i,dir,cyc); if(!fl) continue; const other=AP(kind==='d'?fl.to:fl.from); if(!other) continue;
-        if(kind==='d'&&nd<40&&now>=fl.P-185*MIN&&now<=fl.P+3*MIN){ const D=tmFakeD(fl.key,A0,other,fl.P,fl.arr,fl.N); F.deps.push({a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,man:fl.man,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id}); nd++; }
-        if(kind==='a'&&na<24&&now>=fl.arr-20*MIN&&now<=fl.arr+70*MIN){ const D=tmFakeD(fl.key,other,A0,fl.P,fl.arr,fl.N); F.arrs.push({a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,man:fl.man,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id,soon:now<fl.arr}); na++; } } } }
+        if(kind==='d'&&nd<40&&now>=fl.P-185*MIN&&now<=fl.P+3*MIN){ const D=tmFakeD(fl.key,A0,other,fl.P,fl.arr,fl.N); F.deps.push(tmLazy({a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id},fl)); nd++; }
+        if(kind==='a'&&na<24&&now>=fl.arr-20*MIN&&now<=fl.arr+70*MIN){ const D=tmFakeD(fl.key,other,A0,fl.P,fl.arr,fl.N); F.arrs.push(tmLazy({a:{id:fl.ac.id},l:null,D,N:fl.N,fn:fl.fn,riv:R,model:fl.ac.modelName,reg:fl.ac.reg,acId:fl.ac.id,soon:now<fl.arr},fl)); na++; } } } }
 }
 // garde un mélange réaliste : vos vols n'occupent pas toutes les portes quand d'autres compagnies partent aussi
 function tmMix(list,n,key){ list.sort((x,y)=>key(x)-key(y)); const own=list.filter(f=>!f.riv), riv=list.filter(f=>f.riv); if(!riv.length||!own.length) return list.slice(0,n);
@@ -440,7 +442,8 @@ function tmAirline(f){ if(f._al) return f._al; const own=!f.riv, code=own?((S.co
   const name=own?((S.company&&S.company.name)||code):(R&&R.name)||(typeof airlineName==='function'?airlineName(code):'')||(f.riv&&f.riv.name)||code;
   const col=own?((S.company&&S.company.color)||'#b91c1c'):(R&&R.color)||['#0f766e','#7c2d12','#1e3a8a','#6d28d9','#9d174d','#166534','#b45309','#0e7490'][hashStr(code)%8];
   return (f._al={code,name,col,own}); }
-function tmBuild(){ const F=tmFlights(TM.code), L=tmLayout(F), ppl=[];
+const tmFKey=F=>F.deps.map(f=>f.D.key+':'+Math.round(f.D.P/60000)).join(',')+'|'+F.arrs.map(f=>f.D.key+':'+(f.soon?1:0)).join(',');
+function tmBuild(F0){ const F=F0||tmFlights(TM.code), L=tmLayout(F), ppl=[]; TM.fkey=tmFKey(F); TM.full=performance.now();
   tmSched(L);
   L.deps.forEach((g,fi)=>{ g.f.col=TM_COL[fi%TM_COL.length]; for(let i=0;i<g.sched.length;i++){ const rw=g.sched[i].row; ppl.push({f:g.f,i,row:rw,K:tmDepKF(g,i,L),c:g.f.col,sk:tmSkin(rw,TM_SKIN[(i*7+fi)%TM_SKIN.length]),dep:1,bag:g.sched[i].bags,ckDone:g.sched[i].ckDone,kid:rw?rw.age<12:i%9===4}); } });
   L.arrs.forEach((g,fi)=>{ g.f.col=TM_COL[(fi+5)%TM_COL.length]; if(g.f.soon) return; const nLost=Math.min(3,g.f.D.bag&&g.f.D.bag.lost||0);
@@ -547,7 +550,7 @@ function tmDash(){ const L=TM.L, c=TM.cnt||{}, W=L.W||{}, now=tmNow(), o=tmOps(T
 function tmDraw(){
   if(!TM.open) return; TM.raf=requestAnimationFrame(tmDraw);
   const cv=TM.cv; if(!cv) return; const w=cv.clientWidth, h=cv.clientHeight; if(!w||!h) return;
-  if(!TM.built||performance.now()-TM.built>15000) tmBuild();
+  if(!TM.built) tmBuild(); else if(performance.now()-TM.built>15000){ const F=tmFlights(TM.code); if(tmFKey(F)!==TM.fkey||performance.now()-(TM.full||0)>90000) tmBuild(F); else TM.built=performance.now(); }
   if(cv.width!==Math.round(w*TM.dpr)||cv.height!==Math.round(h*TM.dpr)){ cv.width=Math.round(w*TM.dpr); cv.height=Math.round(h*TM.dpr); if(!TM.cam||!TM.moved){ TM.cam={s:1,x:0,y:0}; tmFocus(tmZoneRect(0)); Object.assign(TM.cam,TM.goal); TM.goal=null; } }
   tmFollowStep(tmNow(),w,h); tmCamStep(); const c=TM.cam, g=cv.getContext('2d'), L=TM.L, F=TM.F, now=tmNow(), s=c.s;
   g.setTransform(TM.dpr,0,0,TM.dpr,0,0); g.fillStyle='#1e293b'; g.fillRect(0,0,w,h);
