@@ -28,11 +28,12 @@ function ahDst(code,t){ const a=AP(code); if(!a) return false; const y=new Date(
 function tzAt(code,t){ return ahStd(code)+(ahDst(code,t)?1:0); }
 const ahLocalHour=(code,t)=>((((t/HOUR+tzAt(code,t))%24)+24)%24);
 // horaires d'ouverture en heure locale {o,c} (ouvert de o à c), ou null = 24 h/24
-const AH_CURFEW={FRA:[5,23],ORY:[6,23.5],ZRH:[6,23.5],SYD:[6,23],DUS:[6,23],NRT:[6,24],LCY:[6.5,22.5],BSL:[6,24],GVA:[6,24],TXL:[6,24],ADL:[6,23]};
-function apHours(code){ const a=AP(code); if(!a) return null; if(Object.prototype.hasOwnProperty.call(AH_CURFEW,code)) return AH_CURFEW[code]?{o:AH_CURFEW[code][0],c:AH_CURFEW[code][1],why:'couvre-feu de nuit (bruit)'}:null;
+// couvre-feux réels : pistes fermées aux décollages et atterrissages pendant ces heures, mais l'aérogare reste ouverte
+const AH_CURFEW={FRA:[5,23],ORY:[6,23.5],ZRH:[6,23.5],GVA:[6,24],BSL:[5,24],SYD:[6,23],ADL:[6,23],OOL:[6,23],DUS:[6,23],MUC:[5,24],BER:[5,24],NRT:[6,24],LCY:[6.5,22.5],SAN:[6.5,23.5],SNA:[7,22],LGB:[7,23]};
+function apHours(code){ const a=AP(code); if(!a) return null; if(Object.prototype.hasOwnProperty.call(AH_CURFEW,code)) return {o:AH_CURFEW[code][0],c:AH_CURFEW[code][1],kind:'curfew',why:'couvre-feu de nuit (bruit) : aucun décollage ni atterrissage',term:null};
   if(a.ils) return null;   // balisage lumineux & ILS installé : ouvert la nuit
   const unpaved=a.surface&&a.surface!=='Asphalte';
-  if(unpaved||(a.cls||2)<=2||(a.drc&&(a.cls||2)<=3)) return {o:6,c:18.5,why:'pas de balisage lumineux : vols de jour seulement'};
+  if(unpaved||(a.cls||2)<=2||(a.drc&&(a.cls||2)<=3)) return {o:6,c:18.5,kind:'day',why:'pas de balisage lumineux : vols de jour seulement',term:(unpaved||(a.cls||2)<=2)?{o:4.5,c:19.5}:{o:4,c:21}};   /* l'aérogare ouvre avant le premier vol et ferme après le dernier */
   return null; }
 const ahSig=code=>{ const h=apHours(code); return h?h.o+'-'+h.c:'24'; };
 function apOpenAt(code,t){ const h=apHours(code); if(!h) return true; const x=ahLocalHour(code,t); return x>=h.o&&x<h.c; }
@@ -41,4 +42,8 @@ function apNextOpen(code,t){ const h=apHours(code); if(!h||apOpenAt(code,t)) ret
 // premier départ possible ≥ dep : ouvert au départ ET à l'arrivée (dur = durée du vol)
 function ahFit(from,to,dep,dur){ for(let k=0;k<12;k++){ if(!apOpenAt(from,dep)){ dep=apNextOpen(from,dep); continue; } if(!apOpenAt(to,dep+dur)){ dep=Math.max(dep+MIN,apNextOpen(to,dep+dur)-dur); continue; } return dep; } return dep; }
 const ahHM=x=>{ const h=Math.floor(x), m=Math.round((x-h)*60); return String(h%24).padStart(2,'0')+':'+String(m).padStart(2,'0'); };
-function apHoursText(code){ const h=apHours(code); return h?`ouvert de ${ahHM(h.o)} à ${ahHM(h.c)} (heure locale) — ${h.why}`:'ouvert 24 h/24'; }
+// l'aérogare (le bâtiment) est-elle ouverte ? Couvre-feu : oui, toujours. Aéroport de jour : seulement autour des heures de vol.
+function apTermOpenAt(code,t){ const h=apHours(code); if(!h||!h.term) return true; const x=ahLocalHour(code,t); return x>=h.term.o&&x<h.term.c; }
+function apHoursText(code){ const h=apHours(code); if(!h) return 'pistes et aérogare ouvertes 24 h/24';
+  if(h.kind==='curfew') return `couvre-feu des pistes de ${ahHM(h.c)} à ${ahHM(h.o)} (heure locale) : aucun décollage ni atterrissage · l’aérogare reste ouverte 24 h/24`;
+  return `pistes ouvertes de ${ahHM(h.o)} à ${ahHM(h.c)} (heure locale, pas de balisage lumineux) · aérogare ouverte de ${ahHM(h.term.o)} à ${ahHM(h.term.c)}`; }
