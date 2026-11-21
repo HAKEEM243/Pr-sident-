@@ -580,11 +580,31 @@ function tmRoad(g,L,now){ const y=1318, x0=-700, x1=1700, len=x1-x0, code=TM.cod
   const rush=(hl>=6.5&&hl<9.5)||(hl>=16&&hl<19.5), night=hl<5||hl>=23, dens=Math.min(1,(night?0.15:rush?0.6:0.35)*(tr>1?1.3:1)*J.f), jam=dens>0.7;
   g.fillStyle='#2b2f36'; g.fillRect(x0,y-14,len,44); g.fillStyle='#e5e7eb'; for(let x=x0;x<x1;x+=40) g.fillRect(x,y+7,20,1.6); g.fillStyle='#9ca3af'; g.fillRect(x0,y-15,len,1.2); g.fillRect(x0,y+29,len,1.2);
   g.fillStyle='#e5e7eb'; g.font='700 9px system-ui'; g.fillText((code==='FIH'?'Boulevard Lumumba':'Route de l’aéroport')+(jam?' — embouteillage':''),x0+20,y-18);
-  const C=['#facc15','#facc15','#e2e8f0','#1e293b','#991b1b','#2563eb','#f8fafc','#16a34a','#facc15','#475569'];
+  const kin=code==='FIH'||((AP(code)||{}).cc==='CD'); if(kin) tmKinStreet(g,y,x0,x1,now,jam);
+  const C=kin?['#facc15','#facc15','#facc15','#facc15','#1e293b','#e2e8f0','#facc15','#991b1b','#facc15','#1d4ed8']:['#facc15','#facc15','#e2e8f0','#1e293b','#991b1b','#2563eb','#f8fafc','#16a34a','#facc15','#475569'];   /* Kinshasa : surtout des taxis jaunes, et les taxis-bus bleus */
   for(const lane of [0,1]){ const dir=lane?-1:1, gap=jam?20:50/Math.max(0.2,dens)*0.5+16, v=jam?(2+Math.sin(now/9000+lane)*2):(night?55:28), n=Math.floor(len/gap);
     for(let k=0;k<n;k++){ const h=(k*2654435761+lane*97)>>>0, ty=h%11, w=ty===9?26:ty===10?8:13, off=((k*gap+dir*now/1000*v)%len+len)%len, x=x0+(dir>0?off:len-off), yy=lane?y+13:y-6;
-      if((h>>4)%100>dens*100+25) continue; g.fillStyle='rgba(0,0,0,.3)'; g.fillRect(x+1,yy+1,w,ty===10?3:6); g.fillStyle=ty===10?'#111827':C[ty%C.length]; g.fillRect(x,yy,w,ty===10?3:6); g.fillStyle='rgba(15,23,42,.6)'; if(ty!==10) g.fillRect(x+(dir>0?w*0.6:w*0.15),yy+1,w*0.25,4);
-      if(jam&&(h>>9)%5===0){ g.fillStyle='#ef4444'; g.fillRect(dir>0?x-1:x+w,yy+1,1.2,1.5); } } } }   /* feux stop dans les bouchons */
+      if((h>>>4)%100>dens*100+25) continue; g.fillStyle='rgba(0,0,0,.3)'; g.fillRect(x+1,yy+1,w,ty===10?3:6); g.fillStyle=ty===10?'#111827':C[ty%C.length]; g.fillRect(x,yy,w,ty===10?3:6); g.fillStyle='rgba(15,23,42,.6)'; if(ty!==10) g.fillRect(x+(dir>0?w*0.6:w*0.15),yy+1,w*0.25,4);
+      if(kin&&ty===9){ g.fillStyle='#facc15'; g.fillRect(x,yy+3.6,w,1.2); }   /* taxi-bus bleu et jaune */
+      if(jam&&(h>>>9)%5===0){ g.fillStyle='#ef4444'; g.fillRect(dir>0?x-1:x+w,yy+1,1.2,1.5); } } }
+  if(kin&&jam){ for(let k=0;k<14;k++){ const h=(k*40503)>>>0, x=x0+((h%len)+Math.sin(now/7000+k)*40), yy=y+4+((h>>5)%2)*2; tmStreetGuy(g,x,yy,h,now,1); } } }   /* vendeurs entre les voitures dans les bouchons */
+// une personne de la rue vue de dessus : vendeur avec sa bassine sur la tête, ou passant
+function tmStreetGuy(g,x,y,h,now,load){ const sk=['#5b3a24','#7a4a2a','#3f2516'][h%3], cl=['#dc2626','#2563eb','#16a34a','#f59e0b','#7c3aed','#0e7490','#be185d'][(h>>>3)%7], st=Math.sin(now/180+h)*0.8;
+  g.fillStyle='rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(x+0.8,y+3.6,2.6,1.2,0,0,6.283); g.fill(); g.fillStyle=cl; g.fillRect(x-1.8,y-1+st*0.2,3.6,4.2); g.fillStyle=sk; g.beginPath(); g.arc(x,y-2.2,1.5,0,6.283); g.fill();
+  if(load){ g.fillStyle=['#e5e7eb','#94a3b8','#f59e0b','#22c55e'][(h>>>6)%4]; g.beginPath(); g.arc(x,y-3.4,2.6,0,6.283); g.fill(); g.fillStyle=['#fde68a','#93c5fd','#fca5a5','#bbf7d0'][(h>>>8)%4]; for(let j=0;j<3;j++){ g.beginPath(); g.arc(x-1+j,y-3.6+(j%2)*0.6,0.7,0,6.283); g.fill(); } } }
+// Kinshasa : trottoir en latérite, étals sous parasols, vendeurs ambulants, pousse-pousse, palmiers, panneau
+function tmKinStreet(g,y,x0,x1,now,jam){ const ys=y+31, len=x1-x0;
+  g.fillStyle='#9a6b45'; g.fillRect(x0,ys,len,40); g.fillStyle='rgba(60,35,15,.25)'; for(let k=0;k<160;k++){ const h=(k*2246822507)>>>0; g.fillRect(x0+(h%len),ys+((h>>>8)%38),2+(h>>>12)%3,1.2); }
+  const goods=['Unités · recharges','Eau pure','Pain','Arachides','Pagnes','Chikwangue','Brochettes','Change','Fruits','Beignets','Habits','Chaussures'];
+  for(let x=x0+30,k=0;x<x1-30;x+=58,k++){ const h=(k*2654435761)>>>0, uc=['#dc2626','#2563eb','#facc15','#16a34a','#f97316','#7c3aed'][h%6];
+    g.fillStyle='#78350f'; g.fillRect(x-9,ys+14,18,8); g.fillStyle=['#fde68a','#86efac','#fca5a5','#93c5fd','#fdba74'][(h>>>4)%5]; for(let j=0;j<6;j++) g.fillRect(x-8+j*2.8,ys+15+(j%2)*3,2,2);   /* étal et marchandise */
+    g.fillStyle='rgba(0,0,0,.2)'; g.beginPath(); g.arc(x+2,ys+11,8,0,6.283); g.fill(); g.fillStyle=uc; g.beginPath(); g.arc(x,ys+9,8,0,6.283); g.fill(); g.strokeStyle='rgba(255,255,255,.6)'; g.lineWidth=0.5; g.beginPath(); for(let a=0;a<6;a++){ g.moveTo(x,ys+9); g.lineTo(x+Math.cos(a)*8,ys+9+Math.sin(a)*8); } g.stroke();   /* parasol */
+    tmStreetGuy(g,x+12,ys+20,h,now,0); g.font='700 5px system-ui'; g.fillStyle='#fff7ed'; g.fillText(goods[(h>>>7)%goods.length],x-14,ys+36);
+    if(k%8===3){ g.fillStyle='#14532d'; for(let a=0;a<6;a++){ g.beginPath(); g.ellipse(x+29+Math.cos(a)*7,ys+8+Math.sin(a)*7,7,2.4,a,0,6.283); g.fill(); } g.fillStyle='#713f12'; g.beginPath(); g.arc(x+29,ys+8,1.8,0,6.283); g.fill(); } }   /* palmier */
+  for(let k=0;k<48;k++){ const h=(k*40503+7)>>>0, sp=(h%2?1:-1)*(6+(h>>>4)%8), x=x0+(((h%len)+sp*now/1000)%len+len)%len, yy=ys+4+((h>>>9)%30); tmStreetGuy(g,x,yy,h,now,(h>>>11)%3===0); }   /* passants et vendeurs ambulants */
+  for(let k=0;k<3;k++){ const h=(k*97531)>>>0, x=x0+(((h%len)+(k%2?1:-1)*now/1000*5)%len+len)%len, yy=ys+30; g.fillStyle='#a16207'; g.fillRect(x-7,yy-3,14,6); g.fillStyle='#374151'; g.beginPath(); g.arc(x-5,yy+3,1.5,0,6.283); g.arc(x+5,yy+3,1.5,0,6.283); g.fill(); g.fillStyle='#e5e7eb'; g.fillRect(x-5,yy-5,10,3); tmStreetGuy(g,x+10,yy,h,now,0); }   /* pousse-pousse chargés */
+  { const bx=x0+len*0.62; g.fillStyle='#374151'; g.fillRect(bx+28,ys+2,2,24); g.fillRect(bx+70,ys+2,2,24); g.fillStyle='#0369a1'; g.fillRect(bx+18,ys-8,64,14); g.fillStyle='#facc15'; g.fillRect(bx+18,ys+4,64,2); g.font='700 6px system-ui'; g.fillStyle='#fff'; g.fillText('Bienvenue à Kinshasa',bx+21,ys+1); } }   /* panneau */
+
 function tmCurb(g,now){ const V=[['taxi','#facc15',14,7],['taxi','#facc15',14,7],['car','#e2e8f0',14,7],['car','#1e293b',14,7],['car','#991b1b',14,7],['bus','#0e7490',30,9],['taxi','#2563eb',14,7],['navette','#f8fafc',24,9],['car','#64748b',14,7]];
   for(let k=0;k<V.length;k++){ const [t,c,w,h]=V[k], lane=k%2, sp=lane?0.018:0.024, per=1200/sp, u=((now+k*per/V.length)%per)/per, x0=-60+u*1180;
     let x=x0; const stop=lane?[[160,0.1],[470,0.1],[760,0.1],[900,0.1]]:[[260,0.1],[820,0.1]]; for(const [sx] of stop) if(Math.abs(x0-sx)<10) x=sx;   // s'arrête au trottoir
