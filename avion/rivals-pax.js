@@ -71,9 +71,9 @@ function rivRoutesAt(code){ const L=[], seen=new Set();
 const _rgM=new Map(), RIV_REMOTE=60;
 const rivGateN=code=>{ const g=typeof apGates==='function'?apGates(code):null; return g&&g.length?g.length:22; };
 // vos avions (aux aéroports où les postes sont attribués) : un poste à chacun, unique et fixe ; au-delà, une place réservée sur l'aire éloignée
-let _ogM={key:'',m:new Map(),used:new Set(),rem:0};
+let _ogM={key:'',m:new Map(),used:new Set(),rem:0}; const RIV_PRES_K=13;   /* Kinshasa : poste devant le pavillon présidentiel */
 function ownGateMap(code){ const F=S.fleet||[], key=code+'|'+F.length+'|'+(F[0]&&F[0].id)+'|'+(F[F.length-1]&&F[F.length-1].id)+'|'+rivGateN(code); if(_ogM.key===key) return _ogM;
-  const n=rivGateN(code), used=new Set(), m=new Map(); let rem=0;
+  const n=rivGateN(code), used=new Set(code==='FIH'?[RIV_PRES_K]:[]), m=new Map(); let rem=0;   /* poste réservé à l'avion présidentiel */
   for(const ac of F.slice().sort((a,b)=>a.id<b.id?-1:1)){ let k=gateIdx(code,ac,!!ac.gIntl), t=0; while(used.has(k)&&t++<n) k=(k+1)%n; if(used.has(k)) m.set(ac.id,{rem:rem++}); else { used.add(k); m.set(ac.id,{k}); } }
   return _ogM={key,m,used,rem}; }
 function ownGatePt(code,ac){ const v=ownGateMap(code).m.get(ac.id); if(!v) return slotPt(code,gateIdx(code,ac,!!ac.gIntl)); return v.k!=null?slotPt(code,v.k):rivRemotePt(code,v.rem); }
@@ -132,12 +132,13 @@ function riv3dTick(){ try{ if(typeof G==='undefined'||!G||!G.viewer||!document.b
     let code=null, bd=1e9; if(cg.height<40000) for(const c of AIRPORT_CODES){ const a=AP(c); if(!a||Math.abs(a.lat-lat)>0.3||Math.abs(a.lon-lon)>0.3) continue; const d=gcDist(a,{lat,lon}); if(d<bd&&d<18){ bd=d; code=c; } }
     if(code!==RIV3D.code){ riv3dClear(); RIV3D.code=code; } if(!code) return;
     const t=typeof gSimNow==='function'?gSimNow():S.time, list=rivPresentShown(code,t).filter(x=>x.gate), want=new Set(), used=new Set(), EL=typeof gElev==='function'?gElev(code):0;
+    if(code==='FIH'&&typeof tmPresAt==='function'&&tmPresAt(t)) list.unshift({reg:'RDC 001',col:'#0369a1',stripe:'#facc15',name:'République démocratique du Congo',cat:'nb',model:'B737',gate:slotPt('FIH',RIV_PRES_K),pres:1});   /* avion présidentiel garé (même poste que dans l'aérogare) */
     for(const x of list){ let g=x.gate; const gk=g.lat.toFixed(5)+','+g.lon.toFixed(5); if(used.has(gk)){ const gs=typeof apGates==='function'?apGates(code):null; if(gs&&gs.length){ for(const y of gs){ const k2=y.lat.toFixed(5)+','+y.lon.toFixed(5); if(!used.has(k2)){ g=y; break; } } } } used.add(g.lat.toFixed(5)+','+g.lon.toFixed(5));
       want.add(x.reg); if(RIV3D.ents.has(x.reg)) continue;
-      const m=getModel((typeof REP_MODEL!=='undefined'&&REP_MODEL[x.cat])||'A20N')||getModel('A20N'), lt=typeof acLite==='function'&&acLite(), mi=AC3D.uri(m,lt?x.col:{tail:x.col,stripe:x.col,title:x.name},lt), pos=C.Cartesian3.fromDegrees(g.lon,g.lat,mi.R+mi.gH+0.4+EL);
+      const m=getModel(x.model||(typeof REP_MODEL!=='undefined'&&REP_MODEL[x.cat])||'A20N')||getModel('A20N'), lt=typeof acLite==='function'&&acLite(), mi=AC3D.uri(m,lt?x.col:{tail:x.col,stripe:x.stripe||x.col,title:x.name},lt), pos=C.Cartesian3.fromDegrees(g.lon,g.lat,mi.R+mi.gH+0.4+EL);
       const e=V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians((g.hdg||0)-90),0,0)), model:{uri:mi.uri, shadows:C.ShadowMode.CAST_ONLY, distanceDisplayCondition:new C.DistanceDisplayCondition(0,26000)},
         label:{text:x.reg+' · '+x.name, font:'600 12px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, pixelOffset:new C.Cartesian2(0,-26), distanceDisplayCondition:new C.DistanceDisplayCondition(0,1600), disableDepthTestDistance:Number.POSITIVE_INFINITY}});
-      e._rv={R:x.R,r:x.r,i:x.i}; try{ if(typeof apLit==='function') apLit(e); }catch(_){} RIV3D.ents.set(x.reg,e); }
+      if(x.R) e._rv={R:x.R,r:x.r,i:x.i}; try{ if(typeof apLit==='function') apLit(e); }catch(_){} RIV3D.ents.set(x.reg,e); }
     for(const [k,e] of RIV3D.ents) if(!want.has(k)){ V.entities.remove(e); RIV3D.ents.delete(k); }   // parti (repoussé : il roule maintenant)
   }catch(e){ console.warn('avions garés 3D',e); } }
 if(typeof window!=='undefined') setInterval(riv3dTick,3000);

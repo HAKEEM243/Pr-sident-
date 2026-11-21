@@ -592,7 +592,7 @@ function tmWay(g,L,TH,fit){ const Y=(t,x0,y0,x1,y1)=>{ g.fillStyle='rgba(15,23,4
 function tmParked(g,L,now){ const P=((TM.F&&TM.F.parked)||[]).map(p=>({reg:p.reg,col:(S.company&&S.company.color)||'#b91c1c',sc:tmPSc({model:p.model,N:modelOf(p.a).seats}),tag:p.a.status==='maint'?' 🔧':''}));
   try{ if(typeof rivPresent==='function'){ const onStand=new Set(); for(const d of L.deps||[]) if(d.f.reg&&tmDepPlane(d,now)) onStand.add(d.f.reg); for(const a of L.arrs||[]) if(a.f.reg&&tmArrPlane(a,now)) onStand.add(a.f.reg);
       for(const x of rivPresentShown(TM.code,now)) if(!onStand.has(x.reg)) P.push({reg:x.reg,col:x.col,sc:x.cat==='prop'?0.5:x.cat==='wb'?1:0.66,tag:''}); TM.remote=P.map(p=>p.reg); } }catch(e){ console.warn(e); }
-  if(L.nd){ const occ=[]; for(const d of L.deps||[]) if(tmDepPlane(d,now)) occ.push([d.stand.x,d.stand.y]); for(const a of L.arrs||[]) if(tmArrPlane(a,now)) occ.push([a.door.x,a.sy]);
+  if(L.nd){ const occ=[]; for(const d of L.deps||[]) if(tmDepPlane(d,now)) occ.push([d.stand.x,d.stand.y]); for(const a of L.arrs||[]) if(tmArrPlane(a,now)) occ.push([a.door.x,a.sy]); { const pq=tmPres(now); if(pq) occ.push([pq.X,-64]); }   /* poste de l'avion présidentiel */
     const used=new Set(), N=((typeof apGates==='function'&&apGates(TM.code))||[]).length||40, own=((TM.F&&TM.F.parked)||[]).slice().sort((a,b)=>a.a.id<b.a.id?-1:1), gp=new Map();
     for(const p of own) gp.set(p.reg,gateSlot(TM.code,p.a));   /* comme sur la carte et en 3D : vos avions garés, un poste chacun */
     try{ for(const x of rivPresentShown(TM.code,now)) if(x.gate&&!gp.has(x.reg)) gp.set(x.reg,x.gate); }catch(e){}
@@ -691,7 +691,7 @@ function tmMood(p,q,now){ if(!p||!p.K||p.staff||p.crew) return null; const K=p.K
   // file d'attente qui vient de se terminer : rapide ou interminable ?
   for(let j=k-1;j>=1;j--){ if(now-K[j].t>8*MIN) break; if(K[j].q){ const d=K[j].t-K[j-1].t; if(d<5*MIN) return {lvl:2,t:'Ah, c’est passé vite aujourd’hui ! Super.'}; if(d>25*MIN) return {lvl:-1,t:`Enfin ! ${m(d)} minutes de queue… quelle galère.`}; break; } }
   if(/retrouve|serre dans ses bras/.test(st)) return {lvl:2,t:'Quel bonheur de vous revoir !'};
-  if(p.dep===0&&/taxi|bus/.test(st)&&p.bagT&&p.K[0]&&p.bagT-p.K[0].t<40*MIN) return {lvl:2,t:'Sorti en moins de 40 minutes, c’est rapide pour une fois !'};
+  if(p.dep===0&&/monte dans un taxi/.test(st)&&p.bagT&&p.K[0]&&p.bagT-p.K[0].t<40*MIN) return {lvl:2,t:'Sorti en moins de 40 minutes, c’est rapide pour une fois !'};
   return null; }
 const TM_MOOD_EMO={'-2':'😤','-1':'😒','2':'😄'};
 function tmThought(p,q){ { const M=tmMood(p,q,tmNow()); if(M&&M.t) return `<br><span class="small" style="color:${M.lvl<=-2?'#fca5a5':M.lvl<0?'#fcd34d':M.lvl>0?'#86efac':'#cbd5e1'}">${TM_MOOD_EMO[M.lvl]||'💭'} « ${esc(M.t)} »</span>`; } const st=q.st||'', w=p.row, angry=w&&/énerv|impatient/.test(w.mood||''), D=p.f&&p.f.D, now=tmNow(); let t='';
@@ -714,7 +714,7 @@ function tmThought(p,q){ { const M=tmMood(p,q,tmNow()); if(M&&M.t) return `<br><
   else if(/café|restaurant|mange/.test(st)) t='J’ai le temps de manger quelque chose.';
   else if(/toilettes/.test(st)) t='Avant le vol, c’est plus prudent.';
   else if(/baie vitrée/.test(st)) t='Regarde, c’est peut-être notre avion !';
-  else if(/taxi|bus/.test(st)) t='Direction la maison.';
+  else if(/monte dans un taxi/.test(st)) t='Direction la maison.';
   else if(/arrive à l’aéroport/.test(st)) t='Bon, où est l’enregistrement ?';
   if(!t) return ''; if(angry&&!/raté|perdue/.test(st)) t+=' (et j’en ai déjà marre)'; return `<br><span class="small" style="color:#cbd5e1">💭 « ${esc(t)} »</span>`; }
 function tmInfoFlight(g){ const f=g.f, D=f.D, now=tmNow(), st={}; for(const p of TM.ppl) if(p.f===f){ const q=tmAt(p.K,now); if(q) st[q.st]=(st[q.st]||0)+1; }
@@ -877,6 +877,19 @@ function tmClosed(k,t){ if(typeof apTermOpenAt==='function'&&!apTermOpenAt(TM.co
   if(big) return (k==='press'||k==='pharma')&&h>=1&&h<5; return {dutyfree:h<5.5||h>=23,resto:h<5||h>=23.5,cafe:h>=0.5&&h<4.5,pharma:h<6||h>=22,press:h<6||h>=21}[k]||false; }
 // horloge et calendrier bien visibles : jour de la semaine, date, heure et minute ; heure locale de l'aéroport
 const TM_JOURS=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'], TM_MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+// ✈️ avion présidentiel (Boeing 737 blanc « République démocratique du Congo », bande bleu-jaune-rouge) : poste réservé devant le pavillon présidentiel, à Kinshasa
+// pendant un mouvement présidentiel il décolle (départ du président) ou atterrit (retour), pistes fermées aux autres ; mêmes heures et même poste qu'en 3D quand il est garé
+function tmPresWin(now){ if(typeof ahVip!=='function') return null; for(let h=-4;h<=4;h+=0.5){ const w=ahVip('FIH',now+h*HOUR); if(!w) continue; const dep=(ahH('pres'+w.s)%2)===0, a0=dep?w.s-150*MIN:w.s+3*MIN, a1=dep?w.s+22*MIN:w.e+150*MIN; if(now>=a0&&now<a1) return {w,dep}; } return null; }
+// garé au pavillon à l'instant t ? (pour la 3D, même si l'aérogare n'est pas ouverte)
+function tmPresAt(t){ const P=tmPresWin(t); if(!P) return false; const w=P.w; return P.dep?t<w.s+8*MIN:t>=w.s+16*MIN; }
+function tmPres(now){ if(TM.code!=='FIH'||!TM.L||!TM.L.nd) return null; const P=tmPresWin(now); if(!P) return null; const w=P.w, key=w.s+'|'+P.dep; let o=TM._pres;
+  if(!o||o.key!==key){ const X=ndjX(slotPt('FIH',typeof RIV_PRES_K!=='undefined'?RIV_PRES_K:13)); o=TM._pres={key,dep:P.dep,X,
+      d:{f:{D:{P:w.s+8*MIN,tko:w.s+20*MIN,gate:{open:w.s-40*MIN}},fn:'RDC 001'},stand:{x:X,y:-64,a:0},push:182,turn:-1,showFrom:w.s-150*MIN},
+      a:{f:{D:{arr:w.s+16*MIN,td:w.s+10*MIN}},door:{x:X,y:38},sy:-64,until:w.e+150*MIN,same:1}}; }
+  const q=o.dep?tmDepPlane(o.d,now):tmArrPlaneR(o.a,now,TM.L); return q?{...q,dep:o.dep,X:o.X}:null; }
+function tmPresDraw(g,q){ const sc=0.7, air=q.air||0, s2=sc*(1+air*0.55); if(air>0){ g.save(); g.globalAlpha=0.22*(1-air*0.5); g.fillStyle='#020617'; g.translate(q.x+air*22,q.y+air*30); g.rotate(q.a); g.beginPath(); g.ellipse(0,-50*sc,8*sc,46*sc,0,0,6.283); g.ellipse(0,-50*sc,52*sc,7*sc,0,0,6.283); g.fill(); g.restore(); }
+  tmPlane(g,q.x,q.y,'#0369a1',q.a,s2,1,null); g.save(); g.translate(q.x,q.y); g.rotate(q.a||0); g.scale(s2,s2); for(const [dx,c] of [[-3.2,'#0ea5e9'],[-2.1,'#facc15'],[-1.1,'#dc2626']]){ g.fillStyle=c; g.fillRect(dx,-86,0.9,76); g.fillRect(-dx-0.9,-86,0.9,76); } g.restore();   /* bande aux couleurs du drapeau */
+  if(q.at||q.hold){ g.font='700 7px system-ui'; g.fillStyle='#fef08a'; g.fillText('🇨🇩 Avion présidentiel · République démocratique du Congo',q.x+18,q.y-58); } }
 // mouvement présidentiel : cortège (motards, berlines noires, ambulance) devant le salon d'honneur, tapis rouge
 function tmVipDraw(g,L,now,E){ const x0=1052, y0=L.nd?-24:-52, on=E.vipOn; g.save();
   g.fillStyle='#b91c1c'; g.fillRect(x0+60,y0+8,14,90); g.fillStyle='#facc15'; g.fillRect(x0+60,y0+8,2,90); g.fillRect(x0+72,y0+8,2,90);   // tapis rouge vers le salon d'honneur
@@ -922,6 +935,7 @@ function tmEvHtml(t){ const E=tmEv(t), c=TM.code, hm=x=>ahHM(ahLocalHour(c,x)), 
   if(E.vipOn) row('#f87171',`🚨 Mouvement présidentiel : pistes fermées jusqu’à ${hm(E.vip.e)} · cortège sur le tarmac, salon d’honneur · les avions attendent`);
   else if(E.vipSoon) row('#fbbf24',`🚨 Mouvement présidentiel prévu à ${hm(E.vip.s)} : pistes fermées environ ${Math.round((E.vip.e-E.vip.s)/MIN)} min`);
   else if(E.vip) row('#fbbf24',`🚨 Mouvement présidentiel terminé à ${hm(E.vip.e)} : le trafic reprend, avec des retards`);
+  { const P=tmPresWin(t); if(P&&TM.code==='FIH') row('#fde68a',P.dep?`✈️ Avion présidentiel au pavillon : décollage à ${hm(P.w.s+20*MIN)}`:`✈️ Avion présidentiel : atterrissage à ${hm(P.w.s+9*MIN)}, puis au pavillon présidentiel`); }
   if(E.pw) row('#fbbf24',`⚡ Coupure de courant depuis ${hm(E.pw.s)} : l’aérogare tourne sur le groupe électrogène (éclairage de secours)`);
   if(E.fu) row('#fb923c',`⛽ Pénurie de kérosène : vols retardés${E.fu.sev===2?', certains annulés':''}`);
   if(E.why) row('#93c5fd',`📈 Affluence : ${esc(E.why)}`);
@@ -1096,6 +1110,7 @@ function tmDraw(){
     const fly=(pl,f)=>{ const sc=tmPSc(f), air=pl.air||0; if(air>0){ g.save(); g.globalAlpha=0.22*(1-air*0.5); g.fillStyle='#020617'; g.translate(pl.x+air*22,pl.y+air*30); g.rotate(pl.a); g.beginPath(); g.ellipse(0,-50*sc,8*sc,46*sc,0,0,6.283); g.ellipse(0,-50*sc,52*sc,7*sc,0,0,6.283); g.fill(); g.restore(); } tmPlane(g,pl.x,pl.y,col0(f),pl.a,sc*(1+air*0.55),1,f); };   /* en l'air : plus gros, ombre décalée au sol */
     DP.forEach((pl,k)=>{ if(!pl||pl.at) return; if(pl.push){ g.save(); g.translate(pl.x,pl.y); g.rotate(pl.a); g.fillStyle='#facc15'; g.fillRect(-4,2,8,10); g.restore(); } fly(pl,L.deps[k].f); });
     AP2.forEach((pl,k)=>{ if(pl&&!pl.at) fly(pl,L.arrs[k].f); });
+    { const pq=tmPres(now); if(pq){ tmPresDraw(g,pq); if(pq.at) tmStairsDraw(g,{x:pq.x,y:pq.y,a:0},{model:'B737',N:150}); } }   /* avion présidentiel */
     if(TM.storm){ g.strokeStyle='rgba(191,219,254,.55)'; g.lineWidth=1; g.beginPath(); for(let k=0;k<90;k++){ const x=L.bx0+((k*137+now/9)%(L.bx1-L.bx0)), y=TW.top+((k*71+now/4)%(-TW.top+30)); g.moveTo(x,y); g.lineTo(x-3,y+9); } g.stroke(); } }
   { const E=tmEv(now); if(E.vipOn||E.vipSoon) tmVipDraw(g,L,now,E); }
   // valises : tapis, tri, soutes, tapis de livraison
@@ -1245,12 +1260,20 @@ if(typeof window!=='undefined') window.addEventListener('load',()=>{
 // Une seule identité : 25 ans au début (il vieillit d'un an à chaque nouvelle année du jeu), même siège, même passeport, même profil sur tous les vols.
 // son vrai programme : Paris → Kinshasa (1er vol Air France du jour), séjour de 10 jours, retour à Paris, et il revient 30 jours après le départ
 const TM_STAR_CYCLE=30, TM_STAR_STAY=10;
-function tmStarOn(ac){ const m=/^RAF(?:CDGFIH|FIHCDG)(\d+)(AB|BA)(-?\d+)$/.exec(ac&&ac.id||''); if(!m||m[1]!=='0') return false; const c=((+m[3]%TM_STAR_CYCLE)+TM_STAR_CYCLE)%TM_STAR_CYCLE, toFIH=(m[2]==='AB')===/^RAFCDGFIH/.test(ac.id);
+// voyages demandés en plus du programme : premier vol Air France de la journée après l'heure indiquée (heure locale du départ)
+const TM_STAR_TRIPS=[{y:2026,m:9,d:11,from:'FIH',to:'CDG',after:8}];   /* dimanche 11 octobre 2026 : Kinshasa → Paris */
+let _stx={k:null,ids:[]};
+function tmStarExtra(){ try{ const [R,r]=tmStarRoute(), K=rivalSched(r); if(!K) return []; if(_stx.k===r) return _stx.ids; const ids=[];
+    for(const T of TM_STAR_TRIPS){ const mid=Date.UTC(T.y,T.m,T.d,12), tz=typeof tzAt==='function'?tzAt(T.from,mid):1, d0=Date.UTC(T.y,T.m,T.d)-tz*HOUR+T.after*HOUR, d1=Date.UTC(T.y,T.m,T.d)-tz*HOUR+DAY, dir=r.a===T.from?'AB':'BA'; if(r.a!==T.from&&r.b!==T.from) continue; let best=null;
+      for(let i=0;i<K.nP;i++){ const c0=Math.floor((d0-K.anchors[i])/K.P)-1; for(let c=c0;c<c0+4;c++){ const f=rivFlight(R,r,i,dir,c); if(f&&f.ops!==false&&f.P>=d0&&f.P<d1&&(!best||f.P<best.P)) best=f; } } if(best) ids.push(best.ac.id); }
+    _stx={k:r,ids}; return ids; }catch(e){ return []; } }
+function tmStarOn(ac){ if(ac&&tmStarExtra().includes(ac.id)) return true; const m=/^RAF(?:CDGFIH|FIHCDG)(\d+)(AB|BA)(-?\d+)$/.exec(ac&&ac.id||''); if(!m||m[1]!=='0') return false; const c=((+m[3]%TM_STAR_CYCLE)+TM_STAR_CYCLE)%TM_STAR_CYCLE, toFIH=(m[2]==='AB')===/^RAFCDGFIH/.test(ac.id);
   return toFIH?c===0:c===TM_STAR_STAY; }
 function tmStarRoute(){ const R0=(S.rivals||[]).find(x=>x.code==='AF'), r0=R0&&(R0.routes||[]).find(x=>(x.a==='CDG'&&x.b==='FIH')||(x.a==='FIH'&&x.b==='CDG')); return r0?[R0,r0]:[ghostAirline('AF'),ghostRouteOf('AF','FIH','CDG')]; }
 function tmStarNext(){ try{ const [R,r]=tmStarRoute(), K=rivalSched(r); if(!K) return null; const now=S.time, c0=Math.floor((now-K.anchors[0])/K.P)-1, out=[];
     for(let c=c0;c<c0+TM_STAR_CYCLE+2&&out.length<2;c++){ const cc=((c%TM_STAR_CYCLE)+TM_STAR_CYCLE)%TM_STAR_CYCLE; for(const dir of ['AB','BA']){ const f=rivFlight(R,r,0,dir,c); if(!f||!tmStarOn(f.ac)) continue; if(f.arr+90*MIN<now) continue; out.push(f); } }
-    return out.sort((a,b)=>a.P-b.P); }catch(e){ return null; } }
+    for(const id of tmStarExtra()){ const m=/(\d+)(AB|BA)(-?\d+)$/.exec(id); if(!m) continue; const f=rivFlight(R,r,+m[1],m[2],+m[3]); if(f&&f.arr+90*MIN>=now&&!out.some(x=>x.ac.id===id)) out.push(f); }   /* voyages demandés */
+    return out.sort((a,b)=>a.P-b.P).slice(0,3); }catch(e){ return null; } }
 function tmStarId(leg){ const yr=new Date(S.time).getUTCFullYear(); if(!S.starBY) S.starBY=yr-25; const age=yr-S.starBY, nr='non renseigné', toP=leg.to==='CDG';
   return {star:true,first:'Merveil Hakeem',last:'Dianzenza ⭐',name:'Merveil Hakeem Dianzenza ⭐',F:false,age,nat:'CD',passportCC:'CD',home:'Kinshasa',born:'Kinshasa',dob:'1er janvier '+S.starBY,avatar:'👨🏾',
     job:'écrivain renommé',purp:'business',wealth:'rich',cls:'j',seat:'2A',bags:1,bag:18,meal:'Repas standard',assist:'',tier:'Platinum',miles:186400,langs:'français, lingala, anglais',marital:nr,mood:'ravi(e)',moodWhy:'',
