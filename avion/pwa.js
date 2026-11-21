@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261310';
+const GAME_VER='20261311';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🔍 Zoom réparé et bus de piste à Kinshasa','On peut de nouveau zoomer à fond pour voir les gens en détail, même à Kinshasa : avant, le grand tarmac bloquait le zoom trop tôt. À N’Djili, tous les passagers prennent le bus de piste : au départ, il les prend devant l’aérogare et les dépose au pied de l’escalier de l’avion ; à l’arrivée, il les prend au pied de l’avion et les ramène à l’aérogare. Le bus est plus grand et mieux visible (« BUS PISTE », portes, vitres).'],
   ['✈️ Plus d’embouteillage d’avions','Les avions ne sont plus collés les uns aux autres. Ceux qui attendent pour décoller ne font plus la queue en file serrée sur la voie de circulation : ils roulent jusqu’à une raquette d’attente au bout de la voie et attendent en épi, bien espacés. Sur l’aire de stationnement éloignée, chaque avion a sa place, avec assez d’espace pour un gros porteur. Aux arrivées des aéroports à passerelles et dans les aérogares linéaires, les postes trop serrés sont répartis sur deux rangées décalées, et deux gros porteurs ne sont jamais côte à côte. Tout le monde est à bord 20 secondes avant le départ : si un passager est en retard, un dernier bus de piste part tout de suite.'],
   ['🇨🇩 N’Djili : vols nationaux, fret, et pareil qu’en 3D','Dans l’aérogare de Kinshasa, les salles d’embarquement sont séparées en deux : vols internationaux (bandeau bleu) et coin des vols nationaux (bandeau vert). Le terminal fret (conteneurs, chariots élévateurs, camions, courrier) et le hangar sont à droite, côté bâtiments. La 3D de Kinshasa suit le même plan : aérogare, vols internationaux et nationaux, pavillon présidentiel, tour de contrôle, terminal fret, hangar, MONUSCO, et aucune passerelle télescopique. Chaque avion est sur le même poste en 3D et dans l’aérogare. Les autres compagnies prennent un poste libre (premier arrivé, premier servi) : plus jamais deux avions au même poste. Quand tout est pris, ils vont sur l’aire éloignée, aux deux bouts de l’aire.'],
   ['🇨🇩 Le vrai plan de N’Djili','L’aérogare de Kinshasa suit maintenant le plan réel de N’Djili (d’après OpenStreetMap). Il y a une seule piste 06/24, et au sud, de gauche à droite : l’aire 1 et l’aérogare de la MONUSCO (ONU), l’aérogare, le pavillon présidentiel, la tour de contrôle, l’aire 3 avec le fret et le hangar. Comme en vrai, il n’y a pas de passerelle télescopique. Les avions stationnent en ligne sur les postes numérotés de l’aire 2, avec un escalier mobile. Les passagers vont à l’avion à pied quand il est proche, sinon en bus de piste (un bus part toutes les 2 minutes), et à l’arrivée le bus les ramène devant l’aérogare.'],
