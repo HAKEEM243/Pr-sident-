@@ -108,6 +108,13 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     ok(rz.dem,'Affluence selon le jour, l’heure et la saison (vendredi, nuit, Noël, pèlerinage)',`${rz.dem}`);
     ok(rz.ts&&rz.tr>50&&rz.trA>10&&rz.trBad===0,'Correspondances (Addis-Abeba) : ni enregistrement, ni immigration, ni douane',`${rz.tr} au départ, ${rz.trA} à l’arrivée, ${rz.trBad} erreur(s)`);
 
+    // 6 quinquies. N'Djili : plan réel (OpenStreetMap), postes sans passerelle bien espacés, bus de piste, tout le monde à bord avant le repoussage
+    const nj=await p.evaluate(()=>{ TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; let late=0,n=0,bus=0,arrBus=0;
+      for(const q of TM.ppl){ if(!q.f) continue; if(q.dep===0&&q.K.some(k=>k.bus)) arrBus++; if(q.dep!==1) continue; const last=q.K[q.K.length-1]; if(/escalier/.test(last.st)){ n++; if(last.t>q.f.D.P+1000) late++; } if(q.K.some(k=>k.bus)) bus++; }
+      const xs=[...L.deps.map(d=>d.stand.x),...L.arrs.map(a=>a.door.x)].sort((a,b)=>a-b); let gap=1e9; for(let k=1;k<xs.length;k++) gap=Math.min(gap,xs[k]-xs[k-1]);
+      return {shape:L.shape,n,late,bus,arrBus,gap,pn:L.deps.every(d=>d.pn)}; });
+    ok(nj.shape==='ndjili'&&nj.pn&&nj.gap>=95&&nj.n>100&&nj.late===0&&nj.bus>0&&nj.arrBus>0,'N’Djili : plan réel, postes sans passerelle, bus de piste, tout le monde à bord avant le repoussage',`${nj.shape}, écart mini entre postes ${nj.gap}, ${nj.late} en retard sur ${nj.n}, ${nj.bus}/${nj.arrBus} en bus`);
+
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
         for(const d of TM.L.deps){ if(tmDepPlane(d,t)&&d.f.reg) regs[d.f.reg]=(regs[d.f.reg]||0)+1; } for(const a of TM.L.arrs){ if(tmArrPlane(a,t)&&a.f.reg) regs[a.f.reg]=(regs[a.f.reg]||0)+1; }
