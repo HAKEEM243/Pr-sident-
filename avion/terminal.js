@@ -292,7 +292,7 @@ function tmTransitDep(k,g,sc,r,L){ const D=g.f.D, ts=L.poi.find(p=>p.k==='tsec')
   return false; }
 // sans passerelle (N'Djili) : à pied si l'avion est proche, sinon bus de piste (départs groupés toutes les 2 minutes : tous les passagers d'un bus roulent ensemble)
 const TM_BUS_T=2*MIN;
-function tmApronDep(k,g,r){ const D=g.f.D, s=tmStairs(g.stand,g.f), bx=g.door.x, by=-14, far=Math.abs(s.x-bx)>150, dl=D.P-20000;   /* tout le monde à bord 20 s avant le repoussage */
+function tmApronDep(k,g,r){ const D=g.f.D, s=tmStairs(g.stand,g.f), bx=g.door.x, by=-14, far=true, dl=D.P-20000;   /* tout le monde à bord 20 s avant le repoussage */
   if(far){ k.walk(bx+tmJ(r,-6,6),by+tmJ(r,-2,6),'sort sur le tarmac : bus de piste pour le poste '+g.pn); k.walk(bx,by,'monte dans le bus de piste'); const tS=k.t, t0=D.gate.open, dist=Math.hypot(s.x+18-bx,s.y+14-by);
     let vb=Math.max(9,dist/150), rideT=Math.max(8000,dist/vb*1000), tb=t0+Math.ceil((tS+15000-t0)/TM_BUS_T)*TM_BUS_T; const latest=dl-rideT-18000;
     if(tb>latest){ tb=Math.max(tS+4000,latest); if(tb+rideT+18000>dl){ rideT=Math.max(8000,dl-18000-tb); vb=dist/(rideT/1000); } }   /* en retard : dernier bus, tout de suite et plus vite */
@@ -303,7 +303,7 @@ function tmApronDep(k,g,r){ const D=g.f.D, s=tmStairs(g.stand,g.f), bx=g.door.x,
 function tmArrKF(g,i,L,lost){
   const f=g.f, D=f.D, r=pfRng(D.key+'|tma'+i), N=Math.max(1,f.N), row0=f.man&&f.man.rows&&f.man.rows[i], bags0=r()<0.85, k=tmKF(tmSpd(row0)), bags=row0?row0.bags>0:bags0, b=g.belt, intl=D.intl;
   const row=f.man&&f.man.rows&&f.man.rows[i], yf=intl&&typeof PF_YF!=='undefined'&&PF_YF.has(D.B.cc), nat=row?row.nat===D.B.cc:r()<0.45, refused=intl&&!nat&&i>=N-((D.imm&&D.imm.refused)||0);
-  if(L.nd&&g.ent){ const E=g.ent, s=tmStairs({x:g.door.x,y:g.sy},f), far=Math.abs(s.x-E.x)>150; k.at(D.arr+5*MIN+(i/N)*14*MIN,s.x,s.y,'descend l’escalier de l’avion');
+  if(L.nd&&g.ent){ const E=g.ent, s=tmStairs({x:g.door.x,y:g.sy},f), far=true;   /* à N'Djili, toujours le bus de piste */ k.at(D.arr+5*MIN+(i/N)*14*MIN,s.x,s.y,'descend l’escalier de l’avion');
     if(far){ const b0=D.arr+6*MIN, bx=s.x+18, by=s.y+14; k.walk(bx+tmJ(r,-6,6),by+tmJ(r,4,10),'attend le bus de piste au pied de l’avion'); const tb=b0+Math.ceil((k.t+15000-b0)/TM_BUS_T)*TM_BUS_T;
       k.walk(bx,by,'monte dans le bus de piste'); k.stay(tb,'🚌 dans le bus de piste, attend le départ'); k.K[k.K.length-1].bus=1; k.walk(E.x,-16,'🚌 dans le bus de piste vers l’aérogare',Math.max(9,Math.hypot(E.x-bx,-16-by)/150)); k.K[k.K.length-1].bus=1; k.walk(E.x+tmJ(r,-10,10),-4,'descend du bus devant l’aérogare'); }
     else k.walk(E.x+tmJ(r,-10,10),-4,'marche sur le tarmac vers l’aérogare');
@@ -656,7 +656,7 @@ function tmZoneRect(i){ const z=TM_ZONES[i], L=TM.L; if(!L) return z[1]; const n
 function tmFocus(R0){ const cv=TM.cv; if(!cv) return; const PT=96, PB=50; const xa=tmFx(R0.x0), xb=tmFx(R0.x1), ya=tmFy(R0.y0), yb=tmFy(R0.y1), R={x0:Math.min(xa,xb),x1:Math.max(xa,xb),y0:Math.min(ya,yb),y1:Math.max(ya,yb)}; const w=cv.clientWidth, h=cv.clientHeight, hu=Math.max(100,h-PT-PB), s=Math.min(w/(R.x1-R.x0),hu/(R.y1-R.y0))*0.97;
   TM.goal={s,x:(R.x0+R.x1)/2-w/(2*s),y:(R.y0+R.y1)/2-(PT+hu/2)/s}; }
 function tmCamStep(){ const c=TM.cam, g=TM.goal; if(!g) return; const k=0.18; c.s+=(g.s-c.s)*k; c.x+=(g.x-c.x)*k; c.y+=(g.y-c.y)*k; if(Math.abs(g.s-c.s)<g.s*0.002&&Math.abs(g.x-c.x)<0.5&&Math.abs(g.y-c.y)<0.5){ Object.assign(c,g); TM.goal=null; } }
-function tmZoomAt(f,sx,sy){ const c=TM.cam, w=TM.cv.clientWidth, h=TM.cv.clientHeight, LL=TM.L||{bx0:-40,bx1:1040}, fit=Math.min(w/(LL.bx1-LL.bx0),Math.max(100,h-146)/(TW.H-TW.top)), ns=Math.max(fit*0.95,Math.min(fit*14,c.s*f)); const wx=c.x+sx/c.s, wy=c.y+sy/c.s; c.s=ns; c.x=wx-sx/ns; c.y=wy-sy/ns; TM.goal=null; }
+function tmZoomAt(f,sx,sy){ const c=TM.cam, w=TM.cv.clientWidth, h=TM.cv.clientHeight, LL=TM.L||{bx0:-40,bx1:1040}, fit=Math.min(w/(LL.bx1-LL.bx0),Math.max(100,h-146)/(TW.H-TW.top)), base=Math.min(w/1080,Math.max(100,h-146)/1600), ns=Math.max(Math.min(fit,base)*0.95,Math.min(base*16,c.s*f));   /* zoom maximal calculé sur le bâtiment (pas sur la largeur du tarmac) : on voit toujours bien les gens */ const wx=c.x+sx/c.s, wy=c.y+sy/c.s; c.s=ns; c.x=wx-sx/ns; c.y=wy-sy/ns; TM.goal=null; }
 /* ---------- informations (passager, vol, équipement) ---------- */
 function tmInfo(html){ const el=document.getElementById('tmInfo'); if(!el) return; el.innerHTML=html?`<button class="btn" data-tmx style="float:right;padding:2px 8px">✖</button>${html}`:''; el.hidden=!html; const x=el.querySelector('[data-tmx]'); if(x) x.onclick=()=>{ TM.sel=null; TM.selF=null; TM.dash=false; tmInfo(''); }; }
 // rotation de l'avion au sol, étape par étape, avec l'avancement en direct
@@ -778,7 +778,7 @@ function tmGSE(g,pl,f,now,arr){ const D=f.D, sc=tmPSc(f); g.save(); g.translate(
 // escalier mobile (camion-escalier) contre la porte avant gauche
 function tmStairsDraw(g,st,f){ const sc=tmPSc(f), x1=st.x-5*sc, y=st.y-15*sc; g.fillStyle='rgba(15,23,42,.3)'; g.fillRect(x1-12,y-2,12,7); g.fillStyle='#e5e7eb'; g.fillRect(x1-13,y-3,12,6); g.strokeStyle='#64748b'; g.lineWidth=0.5; g.beginPath(); for(let k=1;k<6;k++){ g.moveTo(x1-13+k*2,y-3); g.lineTo(x1-13+k*2,y+3); } g.stroke(); g.fillStyle='#facc15'; g.fillRect(x1-19,y-3,6,6); }
 // bus de piste (N'Djili)
-function tmBusDraw(g,x,y,now){ g.fillStyle='rgba(15,23,42,.3)'; g.fillRect(x-13,y-3,28,10); g.fillStyle='#f8fafc'; g.fillRect(x-14,y-5,28,10); g.fillStyle='#0369a1'; g.fillRect(x-14,y+2,28,3); g.fillStyle='rgba(30,58,138,.75)'; for(let k=0;k<6;k++) g.fillRect(x-12+k*4.4,y-3.5,3.2,3); g.fillStyle='#facc15'; g.fillRect(x+11,y-5,3,2); }
+function tmBusDraw(g,x,y,now){ g.fillStyle='rgba(15,23,42,.35)'; g.fillRect(x-17,y-4,38,15); g.fillStyle='#f8fafc'; g.fillRect(x-19,y-7,38,14); g.strokeStyle='#334155'; g.lineWidth=0.6; g.strokeRect(x-19,y-7,38,14); g.fillStyle='#0369a1'; g.fillRect(x-19,y+3,38,4); g.fillStyle='rgba(30,58,138,.8)'; for(let k=0;k<7;k++) g.fillRect(x-17+k*5,y-5,3.6,4); g.fillStyle='#64748b'; g.fillRect(x-8,y-1,4,8); g.fillRect(x+6,y-1,4,8); g.fillStyle='#facc15'; g.fillRect(x+15,y-7,4,3); g.fillStyle='#fff'; g.font='700 3.4px system-ui'; g.fillText('BUS PISTE',x-17,y+6.4); }
 // passerelle télescopique : rotonde côté bâtiment, tunnel vitré, cabine côté avion
 function tmBridge(g,x0,y0,x1,y1){ g.lineCap='butt'; g.strokeStyle='rgba(15,23,42,.25)'; g.lineWidth=10; g.beginPath(); g.moveTo(x0+3,y0+3); g.lineTo(x1+3,y1+3); g.stroke(); g.strokeStyle='#64748b'; g.lineWidth=9; g.beginPath(); g.moveTo(x0,y0); g.lineTo(x1,y1); g.stroke(); g.strokeStyle='#94a3b8'; g.lineWidth=5; g.stroke(); g.strokeStyle='rgba(125,211,252,.6)'; g.lineWidth=1.2; g.stroke();
   g.fillStyle='#475569'; g.beginPath(); g.arc(x0,y0,6,0,6.283); g.fill(); g.fillStyle='#334155'; g.beginPath(); g.arc(x1,y1,5,0,6.283); g.fill(); }

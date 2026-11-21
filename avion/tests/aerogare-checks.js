@@ -129,6 +129,10 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
         o[code]={ov,n,hold}; } S.time=T0; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; return o; });
     ok(Object.values(cl).every(x=>x.ov===0)&&cl.FIH.n>50,'Aucun avion collé : postes et raquettes d’attente (6 aéroports, emprise réelle des avions)',Object.entries(cl).map(([c,x])=>`${c} ${x.ov}/${x.n}`).join(' · '));
 
+    // 6 septies. zoom : on peut toujours zoomer assez pour voir les gens en détail, même à Kinshasa (tarmac très large)
+    const zm=await p.evaluate(async()=>{ const o={}; for(const c of ['FIH','ADD']){ TM.code=null; TM.th=null; tmOpen(c); await new Promise(r=>setTimeout(r,2500)); const w=TM.cv.clientWidth, h=TM.cv.clientHeight; for(let k=0;k<50;k++) tmZoomAt(1.25,w/2,h/2); o[c]=Math.round(3.3*TM.cam.s*10)/10; tmClose(); } return o; });
+    ok(zm.FIH>=12&&zm.ADD>=12,'Zoom : les personnes assez grandes pour être bien vues (Kinshasa, Addis-Abeba)',`taille d’une personne au zoom maximal : Kinshasa ${zm.FIH} px, Addis-Abeba ${zm.ADD} px`);
+
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
         for(const d of TM.L.deps){ if(tmDepPlane(d,t)&&d.f.reg) regs[d.f.reg]=(regs[d.f.reg]||0)+1; } for(const a of TM.L.arrs){ if(tmArrPlane(a,t)&&a.f.reg) regs[a.f.reg]=(regs[a.f.reg]||0)+1; }
