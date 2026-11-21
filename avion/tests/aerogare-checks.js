@@ -71,7 +71,7 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     const r3=await p.evaluate(()=>{ const code='FIH', T0=S.time, A=AP(code); let n=0,bad=0,miss=0;
       for(let t=T0;t<T0+3*HOUR;t+=15*MIN){ S.time=t; TM.code=code; TM.cache={}; TM.built=0; tmBuild(); const sh=rivPresentShown(code,t), pres=new Set(sh.map(x=>x.reg)), mov=new Set();
         for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++){ const q=rivalPos(r,i,t); if(q&&q.gnd&&gcDist(q.p,A)<12) mov.add(rivReg(R,r,i)); } }
-        const stand=new Set(), onRw=q=>q&&q.y!==TM.L.rwyY; for(const d of TM.L.deps) if(d.f.riv&&d.f.reg&&onRw(tmDepPlane(d,t))) stand.add(d.f.reg); for(const a of TM.L.arrs) if(a.f.riv&&a.f.reg&&onRw(tmArrPlane(a,t))) stand.add(a.f.reg);   /* sur la piste (décollage, atterrissage) : vérifié à part */
+        const stand=new Set(), onRw=q=>q&&q.y!==TM.L.rwyY&&q.y!==TM.L.rwyA; for(const d of TM.L.deps) if(d.f.riv&&d.f.reg&&onRw(tmDepPlane(d,t))) stand.add(d.f.reg); for(const a of TM.L.arrs) if(a.f.riv&&a.f.reg&&onRw(tmArrPlane(a,t))) stand.add(a.f.reg);   /* sur la piste (décollage, atterrissage) : vérifié à part */
         for(const r of stand){ n++; if(!pres.has(r)&&!mov.has(r)) bad++; }
         const per=TM.L.parkPer||1, rem=sh.filter(x=>!stand.has(x.reg)).length+(TM.F.parked||[]).length; if(rem>Math.min(8,TM.L.parkRows||0)*per) miss++; }
       S.time=T0; return {n,bad,miss}; });
@@ -138,10 +138,11 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       const own=S.fleet.map(a=>{ const g=gateSlot(code,a); return g.lat.toFixed(6)+','+g.lon.toFixed(6); }), uniq=new Set(own).size===own.length, ownSet=new Set(own);
       let clash=0; { const x=Math.floor((T0+ahStd(code)*HOUR-12*HOUR)/DAY); for(const Lv of rivGateBlock(code,x,true).values()) for(const v of Lv){ const n=rivGateN(code), g=v.k<n?slotPt(code,v.k):rivRemotePt(code,v.k-n); if(ownSet.has(g.lat.toFixed(6)+','+g.lon.toFixed(6))) clash++; } }
       let land=0, tko=0; S.time=T0+(((9-ahLocalHour(code,T0))+24)%24)*HOUR; const t0=S.time;
-      for(let t=t0;t<t0+3*HOUR;t+=5*MIN){ S.time=t; TM.code=code; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; for(let t2=t;t2<t+5*MIN;t2+=15000){ for(const a of L.arrs){ const q=tmArrPlane(a,t2); if(q&&q.y===L.rwyY) land++; } for(const d of L.deps){ const q=tmDepPlane(d,t2); if(q&&q.y===L.rwyY&&q.air>0) tko++; } } }
-      S.time=T0; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; return {uniq,n:own.length,clash,land,tko}; });
+      for(let t=t0;t<t0+3*HOUR;t+=5*MIN){ S.time=t; TM.code=code; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; for(let t2=t;t2<t+5*MIN;t2+=15000){ for(const a of L.arrs){ const q=tmArrPlane(a,t2); if(q&&q.y===L.rwyA) land++; } for(const d of L.deps){ const q=tmDepPlane(d,t2); if(q&&Math.abs(q.y-L.rwyY)<8&&q.air>0) tko++; } } }
+      const Lz=TM.L, rowsOk=Lz.parkTop!=null&&Lz.parkTop+30>Lz.rwyY+30&&Lz.rwyA<Lz.rwyY-60;
+      S.time=T0; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; return {uniq,n:own.length,clash,land,tko,rowsOk}; });
     ok(rw.uniq&&rw.clash===0,'Vos avions : un poste unique chacun à Kinshasa, jamais pris par une autre compagnie',`${rw.n} avion(s), postes uniques : ${rw.uniq}, ${rw.clash} poste(s) pris par une autre compagnie`);
-    ok(rw.land>0&&rw.tko>0,'Décollages et atterrissages visibles sur la piste de l’aérogare',`${rw.land} position(s) d’atterrissage, ${rw.tko} position(s) en vol au décollage en 3 h`);
+    ok(rw.land>0&&rw.tko>0&&rw.rowsOk,'Décollages et atterrissages visibles (deux pistes), aucun avion garé sur une piste',`${rw.land} position(s) d’atterrissage, ${rw.tko} position(s) en vol au décollage en 3 h`);
 
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
