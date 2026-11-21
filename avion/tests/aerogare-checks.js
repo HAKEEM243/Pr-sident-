@@ -36,7 +36,7 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
 
     // 4. règles : étrangers à la police, personne vers une porte fermée
     const r=await p.evaluate(()=>{ S.time=S.time; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); let fd=0,fp=0,late=0,n=0;
-      for(const q of TM.ppl){ if(!q.f||!q.row) continue; const D=q.f.D; if(q.dep===1){ n++; if(!D.intl&&q.row.nat!==D.A.cc&&!q.K.some(k=>/vol manqué|raté son vol|trop tard/.test(k.st))){ fd++; if(q.K.some(k=>/police/.test(k.st))) fp++; } if(q.K.some(k=>k.t>D.gate.close+1000&&/porte |embarquement|passerelle/.test(k.st)&&!/fermée|pas présenté/.test(k.st))) late++; } }
+      for(const q of TM.ppl){ if(!q.f||!q.row) continue; const D=q.f.D; if(q.dep===1){ n++; if(!D.intl&&q.row.nat!==D.A.cc&&!q.K.some(k=>/vol manqué|raté son vol|trop tard|voyage refusé/.test(k.st))){ fd++; if(q.K.some(k=>/police/.test(k.st))) fp++; } if(q.K.some(k=>k.t>D.gate.close+1000&&/porte |embarquement|passerelle/.test(k.st)&&!/fermée|pas présenté/.test(k.st))) late++; } }
       return {n,fd,fp,late}; });
     ok(r.fd===r.fp,'Étrangers des vols nationaux contrôlés par la police',`${r.fp}/${r.fd}`); ok(r.late===0,'Aucun passager vers une porte fermée',`${r.late} sur ${r.n}`);
 
@@ -166,6 +166,12 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       const fake={i:3,K:[{t:0,st:'⏰ arrive en retard à l’aéroport (embouteillages sur la route de l’aéroport)'},{t:1,st:'x'}],dep:1}, says=new Set(); for(let t=0;t<60*MIN;t+=3*MIN){ const M=tmMood(fake,{st:'⛔ enregistrement clôturé : vol manqué'},t); if(M) says.add(M.t); }
       return {pat,n,says:says.size,road:typeof tmRoad==='function'}; });
     ok(pv.n>100&&pv.pat===pv.n&&pv.says>=5&&pv.road,'N’Djili : palpation avant le bus, paroles variées qui changent, route d’accès',`${pv.pat}/${pv.n} palpés, ${pv.says} phrases différentes en une heure`);
+
+    // 6 duodecies. Kinshasa : contrôle Ebola (QR code), voie rapide payante, salle des visas (jusqu'à 1 h 30), porteurs qui réclament, militaires
+    const kn=await p.evaluate(()=>{ TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const o={eb:0,n:0,fast:0,visa:0,vmax:0,port:0,mil:0,ref:0};
+      for(const q of TM.ppl){ if(q.staff==='mil') o.mil++; if(q.dep===1&&q.K.length){ o.n++; if(q.K.some(k=>/contrôle Ebola/.test(k.st))) o.eb++; if(/voie rapide/.test(q.K[0].st)) o.fast++; if(q.K.some(k=>/voyage refusé/.test(k.st))) o.ref++; }
+        if(q.dep===0){ const v=q.K.findIndex(k=>/attend son visa/.test(k.st)); if(v>0){ o.visa++; o.vmax=Math.max(o.vmax,(q.K[v].t-q.K[v-1].t)/MIN); } if(q.K.some(k=>/porteur/.test(k.st))) o.port++; } } o.vmax=Math.round(o.vmax); return o; });
+    ok(kn.eb>kn.n*0.9&&kn.fast>0&&kn.visa>0&&kn.vmax<=92&&kn.port>0&&kn.mil>=6&&kn.ref<kn.n*0.02,'Kinshasa : contrôle Ebola, voie rapide, salle des visas, porteurs, militaires',`${kn.eb}/${kn.n} contrôlés Ebola (${kn.ref} refusés), ${kn.fast} par la voie rapide, ${kn.visa} au visa (max ${kn.vmax} min), ${kn.port} porteurs, ${kn.mil} militaires`);
 
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
