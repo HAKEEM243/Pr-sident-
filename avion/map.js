@@ -439,7 +439,7 @@ function updateParked(){
     let mk;
     const tip=`<b>${ac.reg}</b> ${m.name}<br>${ac.status==='maint'?'🔧 En maintenance':'Au sol'} à ${a.city}`;
     if(real){
-      const sp=slotPt(code,k), D=acDims(m,sp.lat,10), zz=Math.max(D.w,D.h);
+      const sp=(typeof RIV_GATE_AP!=='undefined'&&RIV_GATE_AP.has(code)&&typeof ownGatePt==='function')?ownGatePt(code,ac):slotPt(code,k), D=acDims(m,sp.lat,10), zz=Math.max(D.w,D.h);
       mk=L.marker([sp.lat,sp.lon],{icon:L.divIcon({className:'plane-icon parked'+(D.real?' real':'')+(ac.status==='maint'?' maint':''),html:`<div class="rot" style="transform:rotate(${sp.hdg}deg);--sh:1px;width:${zz}px;height:${zz}px;display:grid;place-items:center">${PLANE_SVG(m.color||S.company.color,D.w,planeCat(m),D.h)}</div>`,iconSize:[zz,zz],iconAnchor:[zz/2,zz/2]}),zIndexOffset:800});
       mk._i=k;
     } else {

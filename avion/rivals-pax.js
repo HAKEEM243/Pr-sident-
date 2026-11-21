@@ -70,8 +70,15 @@ function rivRoutesAt(code){ const L=[], seen=new Set();
    passent la nuit ne changent jamais de poste. Horaires prévus + 75 min de marge pour les retards. */
 const _rgM=new Map(), RIV_REMOTE=60;
 const rivGateN=code=>{ const g=typeof apGates==='function'?apGates(code):null; return g&&g.length?g.length:22; };
-function rivOwnRes(code){ const set=new Set(); try{ for(const ac of S.fleet||[]){ set.add(gateIdx(code,ac,true)); set.add(gateIdx(code,ac,false)); } }catch(e){} return set; }
-function rivGateBlock(code,x,seed){ const res=rivOwnRes(code), ck=code+'|'+x+'|'+(seed?1:0)+'|'+[...res].sort((a,b)=>a-b).join(','); let M=_rgM.get(ck); if(M) return M;
+// vos avions (aux aéroports où les postes sont attribués) : un poste à chacun, unique et fixe ; au-delà, une place réservée sur l'aire éloignée
+let _ogM={key:'',m:new Map(),used:new Set(),rem:0};
+function ownGateMap(code){ const F=S.fleet||[], key=code+'|'+F.length+'|'+(F[0]&&F[0].id)+'|'+(F[F.length-1]&&F[F.length-1].id)+'|'+rivGateN(code); if(_ogM.key===key) return _ogM;
+  const n=rivGateN(code), used=new Set(), m=new Map(); let rem=0;
+  for(const ac of F.slice().sort((a,b)=>a.id<b.id?-1:1)){ let k=gateIdx(code,ac,!!ac.gIntl), t=0; while(used.has(k)&&t++<n) k=(k+1)%n; if(used.has(k)) m.set(ac.id,{rem:rem++}); else { used.add(k); m.set(ac.id,{k}); } }
+  return _ogM={key,m,used,rem}; }
+function ownGatePt(code,ac){ const v=ownGateMap(code).m.get(ac.id); if(!v) return slotPt(code,gateIdx(code,ac,!!ac.gIntl)); return v.k!=null?slotPt(code,v.k):rivRemotePt(code,v.rem); }
+function rivOwnRes(code){ return ownGateMap(code).used; }
+function rivGateBlock(code,x,seed){ const res=rivOwnRes(code), oRem=ownGateMap(code).rem, ck=code+'|'+x+'|'+(seed?1:0)+'|'+oRem+'|'+[...res].sort((a,b)=>a-b).join(','); let M=_rgM.get(ck); if(M) return M;
   const off=(typeof ahStd==='function'?ahStd(code):0)*HOUR, b0=x*DAY+12*HOUR-off, b1=b0+DAY, V=[], n=rivGateN(code);
   for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue; const rk=(r.c||'')+r.a+r.b, intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc;
     for(let i=0;i<K.nP;i++){ const c0=Math.floor((b0-K.anchors[i])/K.P)-2, c1=Math.floor((b1-K.anchors[i])/K.P)+2;
@@ -85,10 +92,10 @@ function rivGateBlock(code,x,seed){ const res=rivOwnRes(code), ck=code+'|'+x+'|'
   M=new Map(); let cur=null; const free=k=>!(occ.get(k)||[]).some(([s0,e0])=>s0<cur.e&&e0>cur.s), put=(v,k)=>{ v.k=k; add(k,v.s,v.e); const kk=v.rk+'|'+v.i; (M.get(kk)||M.set(kk,[]).get(kk)).push(v); };
   // moments où l'avion est montré (juste après l'arrivée, avant le départ) : deux avions peuvent partager une place éloignée s'ils ne sont jamais montrés en même temps
   const win=v=>v.e-v.s<5*HOUR?[[v.s,v.e]]:[[v.s,v.s+125*MIN],[v.e-185*MIN,v.e]], wocc=new Map(), freeW=k=>{ const W=win(cur); return !(wocc.get(k)||[]).some(([a,b])=>W.some(([c,d])=>a<d&&b>c)); };
-  for(const v of V){ cur=v; let k=null; for(const pass of [0,1]){ for(let j=0;j<n&&k==null;j++){ const c=(v.pref+j)%n; if(pass===0&&res.has(c)) continue; if(free(c)) k=c; } if(k!=null) break; }
-    if(k==null){ for(let c=n;c<n+RIV_REMOTE;c++) if(free(c)){ k=c; break; } }   /* tout est pris : aire de stationnement éloignée (rangées au bout de l'aire) */
-    if(k==null){ for(let c=n;c<n+RIV_REMOTE;c++) if(freeW(c)){ k=c; break; } }   /* aire éloignée pleine : place partagée avec un avion qui attend toute la journée */
-    if(k==null){ let best=n, bo=1e18; for(let c=n;c<n+RIV_REMOTE;c++){ const o=(occ.get(c)||[]).reduce((t,[a,b])=>t+Math.max(0,Math.min(b,v.e)-Math.max(a,v.s)),0); if(o<bo){ bo=o; best=c; } } k=best; }
+  for(const v of V){ cur=v; let k=null; for(let j=0;j<n&&k==null;j++){ const c=(v.pref+j)%n; if(res.has(c)) continue; if(free(c)) k=c; }   /* jamais le poste d'un de vos avions */
+    if(k==null){ for(let c=n+oRem;c<n+oRem+RIV_REMOTE;c++) if(free(c)){ k=c; break; } }   /* tout est pris : aire de stationnement éloignée (rangées au bout de l'aire) */
+    if(k==null){ for(let c=n+oRem;c<n+oRem+RIV_REMOTE;c++) if(freeW(c)){ k=c; break; } }   /* aire éloignée pleine : place partagée avec un avion qui attend toute la journée */
+    if(k==null){ let best=n+oRem, bo=1e18; for(let c=n+oRem;c<n+oRem+RIV_REMOTE;c++){ const o=(occ.get(c)||[]).reduce((t,[a,b])=>t+Math.max(0,Math.min(b,v.e)-Math.max(a,v.s)),0); if(o<bo){ bo=o; best=c; } } k=best; }
     put(v,k); for(const w of win(v)) (wocc.get(k)||wocc.set(k,[]).get(k)).push(w); }
   _rgM.set(ck,M); if(_rgM.size>80) _rgM.delete(_rgM.keys().next().value); return M; }
 function rivGateK(code,r,i,t){ const rk=(r.c||'')+r.a+r.b, off=(typeof ahStd==='function'?ahStd(code):0)*HOUR, x=Math.floor((t+off-12*HOUR)/DAY);

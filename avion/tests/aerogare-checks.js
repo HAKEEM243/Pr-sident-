@@ -54,8 +54,8 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     // 5. vos avions : l'aérogare montre ce que montre la 3D (départ et arrivée, avec retards)
     const c3=await p.evaluate(id=>{ const ac=S.fleet.find(a=>a.id===id), l=ac.flight.legs[0], T0=S.time; l.hOut=15*MIN; l.hIn=20*MIN; l.ga=6*MIN; const ARR=l.dep+legProf(l,modelOf(ac)).total; let bad=0,n=0,done=false; S.tmRecent=S.tmRecent||[];
       for(const code of ['FIH','BZV']) for(let t=T0-30*MIN;t<T0+5*HOUR;t+=10*MIN){ S.time=t; if(code==='BZV'&&!done&&t>=ARR){ done=true; S.tmRecent.push({acId:ac.id,reg:ac.reg,model:modelOf(ac).name,fn:S.company.code+flightNumber(ac),leg:{from:l.from,to:l.to,dep:l.dep,pax:l.pax,dist:l.dist},t:ARR}); ac.status='idle'; ac.loc='BZV'; }
-        TM.code=code; TM.cache={}; TM.built=0; TM.th=null; tmBuild(); const fl=ac.flight, lg=fl.legs[fl.li]; let g3=false; if(ac.status==='flight'){ const st=flightState(ac,t); if(lg.from===code&&(t<lg.dep||(st&&st.phase<=1))) g3=true; if(lg.to===code&&st&&st.phase>=8) g3=true; } else g3=ac.loc===code;
-        let tm=false; for(const d of TM.L.deps) if(d.f.acId===id&&tmDepPlane(d,t)) tm=true; for(const a of TM.L.arrs) if(a.f.acId===id&&tmArrPlane(a,t)) tm=true; if((TM.F.parked||[]).some(x=>x.a.id===id)) tm=true; n++; if(g3!==tm) bad++; }
+        TM.code=code; TM.cache={}; TM.built=0; TM.th=null; tmBuild(); const fl=ac.flight, lg=fl.legs[fl.li]; let g3=false, tol=false; if(ac.status==='flight'){ const st=flightState(ac,t); if(lg.from===code&&(t<lg.dep||(st&&st.phase<=1))) g3=true; if(lg.to===code&&st&&st.phase>=8) g3=true; if(st&&((lg.from===code&&st.phase>=2&&st.phase<=3)||(lg.to===code&&st.phase>=6&&st.phase<=7))) tol=true; } else g3=ac.loc===code;   /* décollage et atterrissage visibles sur la piste de l'aérogare */
+        let tm=false; for(const d of TM.L.deps) if(d.f.acId===id&&tmDepPlane(d,t)) tm=true; for(const a of TM.L.arrs) if(a.f.acId===id&&tmArrPlane(a,t)) tm=true; if((TM.F.parked||[]).some(x=>x.a.id===id)) tm=true; n++; if(g3!==tm&&!(tol&&tm)) bad++; }
       S.time=T0; ac.status='flight'; return {n,bad}; },id);
     ok(c3.bad===0,'Vos avions : aérogare = 3D (avec attente, circuit d’attente, remise de gaz)',`${c3.bad} écart(s) sur ${c3.n}`);
 
@@ -71,7 +71,7 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     const r3=await p.evaluate(()=>{ const code='FIH', T0=S.time, A=AP(code); let n=0,bad=0,miss=0;
       for(let t=T0;t<T0+3*HOUR;t+=15*MIN){ S.time=t; TM.code=code; TM.cache={}; TM.built=0; tmBuild(); const sh=rivPresentShown(code,t), pres=new Set(sh.map(x=>x.reg)), mov=new Set();
         for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++){ const q=rivalPos(r,i,t); if(q&&q.gnd&&gcDist(q.p,A)<12) mov.add(rivReg(R,r,i)); } }
-        const stand=new Set(); for(const d of TM.L.deps) if(d.f.riv&&d.f.reg&&tmDepPlane(d,t)) stand.add(d.f.reg); for(const a of TM.L.arrs) if(a.f.riv&&a.f.reg&&tmArrPlane(a,t)) stand.add(a.f.reg);
+        const stand=new Set(), onRw=q=>q&&q.y!==TM.L.rwyY; for(const d of TM.L.deps) if(d.f.riv&&d.f.reg&&onRw(tmDepPlane(d,t))) stand.add(d.f.reg); for(const a of TM.L.arrs) if(a.f.riv&&a.f.reg&&onRw(tmArrPlane(a,t))) stand.add(a.f.reg);   /* sur la piste (décollage, atterrissage) : vérifié à part */
         for(const r of stand){ n++; if(!pres.has(r)&&!mov.has(r)) bad++; }
         const per=TM.L.parkPer||1, rem=sh.filter(x=>!stand.has(x.reg)).length+(TM.F.parked||[]).length; if(rem>Math.min(8,TM.L.parkRows||0)*per) miss++; }
       S.time=T0; return {n,bad,miss}; });
@@ -132,6 +132,16 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     // 6 septies. zoom : on peut toujours zoomer assez pour voir les gens en détail, même à Kinshasa (tarmac très large)
     const zm=await p.evaluate(async()=>{ const o={}; for(const c of ['FIH','ADD']){ TM.code=null; TM.th=null; tmOpen(c); await new Promise(r=>setTimeout(r,2500)); const w=TM.cv.clientWidth, h=TM.cv.clientHeight; for(let k=0;k<50;k++) tmZoomAt(1.25,w/2,h/2); o[c]=Math.round(3.3*TM.cam.s*10)/10; tmClose(); } return o; });
     ok(zm.FIH>=12&&zm.ADD>=12,'Zoom : les personnes assez grandes pour être bien vues (Kinshasa, Addis-Abeba)',`taille d’une personne au zoom maximal : Kinshasa ${zm.FIH} px, Addis-Abeba ${zm.ADD} px`);
+
+    // 6 octies. vos avions : un poste unique chacun à Kinshasa, jamais pris par une autre compagnie ; décollages et atterrissages visibles sur la piste de l'aérogare
+    const rw=await p.evaluate(()=>{ const T0=S.time, code='FIH'; for(let k=0;k<10;k++) addAircraft('A20N',{hub:'FIH'});
+      const own=S.fleet.map(a=>{ const g=gateSlot(code,a); return g.lat.toFixed(6)+','+g.lon.toFixed(6); }), uniq=new Set(own).size===own.length, ownSet=new Set(own);
+      let clash=0; { const x=Math.floor((T0+ahStd(code)*HOUR-12*HOUR)/DAY); for(const Lv of rivGateBlock(code,x,true).values()) for(const v of Lv){ const n=rivGateN(code), g=v.k<n?slotPt(code,v.k):rivRemotePt(code,v.k-n); if(ownSet.has(g.lat.toFixed(6)+','+g.lon.toFixed(6))) clash++; } }
+      let land=0, tko=0; S.time=T0+(((9-ahLocalHour(code,T0))+24)%24)*HOUR; const t0=S.time;
+      for(let t=t0;t<t0+3*HOUR;t+=5*MIN){ S.time=t; TM.code=code; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; for(let t2=t;t2<t+5*MIN;t2+=15000){ for(const a of L.arrs){ const q=tmArrPlane(a,t2); if(q&&q.y===L.rwyY) land++; } for(const d of L.deps){ const q=tmDepPlane(d,t2); if(q&&q.y===L.rwyY&&q.air>0) tko++; } } }
+      S.time=T0; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; return {uniq,n:own.length,clash,land,tko}; });
+    ok(rw.uniq&&rw.clash===0,'Vos avions : un poste unique chacun à Kinshasa, jamais pris par une autre compagnie',`${rw.n} avion(s), postes uniques : ${rw.uniq}, ${rw.clash} poste(s) pris par une autre compagnie`);
+    ok(rw.land>0&&rw.tko>0,'Décollages et atterrissages visibles sur la piste de l’aérogare',`${rw.land} position(s) d’atterrissage, ${rw.tko} position(s) en vol au décollage en 3 h`);
 
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
