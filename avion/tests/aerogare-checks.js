@@ -144,6 +144,18 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     ok(rw.uniq&&rw.clash===0,'Vos avions : un poste unique chacun à Kinshasa, jamais pris par une autre compagnie',`${rw.n} avion(s), postes uniques : ${rw.uniq}, ${rw.clash} poste(s) pris par une autre compagnie`);
     ok(rw.land>0&&rw.tko>0&&rw.rowsOk,'Décollages et atterrissages visibles (deux pistes), aucun avion garé sur une piste',`${rw.land} position(s) d’atterrissage, ${rw.tko} position(s) en vol au décollage en 3 h`);
 
+    // 6 nonies. voyage demandé du passager vedette (Kinshasa → Paris le 11 octobre 2026), avion présidentiel (poste réservé, décollage ou atterrissage, rien par-dessus), pensées cohérentes
+    const vp=await p.evaluate(()=>{ const T0=S.time, o={}; const sn=tmStarNext()||[]; S.time=Date.UTC(2026,9,10,12); const ex=tmStarExtra(); o.trip=false; o.inTerm=false;
+      if(ex.length){ const m=/(\d+)(AB|BA)(-?\d+)$/.exec(ex[0]), [R,r]=tmStarRoute(), f=rivFlight(R,r,+m[1],m[2],+m[3]), loc=new Date(f.P+tzAt('FIH',f.P)*HOUR); o.trip=f.from==='FIH'&&f.to==='CDG'&&loc.getUTCDate()===11&&loc.getUTCMonth()===9&&loc.getUTCHours()>=8;
+        S.time=f.P-70*MIN; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const st=TM.ppl.find(q=>q.row&&q.row.star); o.inTerm=!!st&&st.f.D.B.code==='CDG'; }
+      let t=Date.UTC(2026,9,10,6), w=null; for(let k=0;k<24*30&&!w;k++){ t+=HOUR; w=ahVip('FIH',t); } o.pres=false; o.presOv=0; o.presRw=0;
+      if(w){ S.time=w.s-30*MIN; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; let parked=0; for(let tt=w.s-30*MIN;tt<w.s+40*MIN;tt+=15000){ const q=tmPres(tt); if(!q) continue; if(q.at){ parked++; for(const d of L.deps){ const z=tmDepPlane(d,tt); if(z&&z.at&&Math.abs(z.x-q.x)<60&&Math.abs(z.y-q.y)<40) o.presOv++; } for(const a of L.arrs){ const z=tmArrPlane(a,tt); if(z&&z.at&&Math.abs(z.x-q.x)<60&&Math.abs(z.y-q.y)<40) o.presOv++; } } if(q.y===L.rwyY||q.y===L.rwyA) o.presRw++; }
+        o.pres=parked>0; o.k13=[...rivOwnRes('FIH')].includes(RIV_PRES_K); }
+      TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; S.time=T0; tmBuild(); let bad=0; for(const q of TM.ppl){ const z=tmAt(q.K,S.time); if(z&&/salon business/.test(z.st)&&/maison/.test(tmThought(q,z)||'')) bad++; } o.thBad=bad; return o; });
+    ok(vp.trip&&vp.inTerm,'Passager vedette : vol Kinshasa → Paris le dimanche 11 octobre 2026, présent dans l’aérogare',`vol trouvé : ${vp.trip}, dans l’aérogare : ${vp.inTerm}`);
+    ok(vp.pres&&vp.presOv===0&&vp.presRw>0&&vp.k13,'Avion présidentiel : poste réservé, rien par-dessus, décolle ou atterrit pendant le mouvement présidentiel',`garé : ${vp.pres}, avion par-dessus : ${vp.presOv}, sur la piste : ${vp.presRw}, poste réservé : ${vp.k13}`);
+    ok(vp.thBad===0,'Pensées cohérentes (pas « direction la maison » au salon business)',`${vp.thBad}`);
+
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
         for(const d of TM.L.deps){ if(tmDepPlane(d,t)&&d.f.reg) regs[d.f.reg]=(regs[d.f.reg]||0)+1; } for(const a of TM.L.arrs){ if(tmArrPlane(a,t)&&a.f.reg) regs[a.f.reg]=(regs[a.f.reg]||0)+1; }
