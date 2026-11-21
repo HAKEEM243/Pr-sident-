@@ -65,7 +65,7 @@ function maybeInstallHint(){
 }
 
 /* ---------- mises à jour et nouveautés ---------- */
-const GAME_VER='20261313';
+const GAME_VER='20261314';
 async function checkUpdate(manual){
   try{
     const r=await fetch('index.html?cb='+Date.now(),{cache:'no-store'}), t=await r.text(), m=t.match(/name="se-ver" content="(\d+)"/), cur=(document.querySelector('meta[name="se-ver"]')||{}).content;
@@ -80,6 +80,7 @@ async function checkUpdate(manual){
   }catch(e){ if(manual) toast('Impossible de vérifier : pas de connexion ?','warn'); }
 }
 const WHATS_NEW=[
+  ['🛫 Décollages et atterrissages dans l’aérogare','L’aérogare montre maintenant la piste. Au départ, l’avion roule jusqu’au bout de la voie, s’aligne, accélère et décolle : il grossit en prenant de l’altitude et son ombre reste au sol. À l’arrivée, on le voit en finale, puis il se pose, freine, prend la bretelle et roule jusqu’à son poste. Tout se passe aux mêmes heures qu’en 3D. Plus d’avions les uns sur les autres à Kinshasa : chacun de vos avions a son propre poste, et les autres compagnies ne le prennent jamais. Sur l’aire éloignée, la seconde rangée est de l’autre côté de la voie de circulation, nez vers la piste.'],
   ['⏰ Certains passagers ratent leur vol','Comme en vrai, quelques passagers arrivent trop tard à l’aéroport et ratent leur vol. Ça dépend des circonstances : les embouteillages (beaucoup plus à Kinshasa, Lagos, Nairobi, Le Caire… surtout aux heures de pointe), la pluie qui bloque la circulation, le voyageur (les hommes d’affaires arrivent souvent juste à temps, les personnes âgées en avance) et les imprévus (réveil trop tard, taxi en retard, passeport oublié, erreur d’heure). Celui qui arrive après la clôture de l’enregistrement va au comptoir de la compagnie se faire replacer. Celui qui s’est enregistré en ligne sans valise peut parfois encore attraper son vol. Touchez un passager pour voir pourquoi il est en retard.'],
   ['🎫 Plus de files interminables à l’enregistrement','À votre hub, votre compagnie était bloquée à 40 comptoirs d’enregistrement, même avec plus de 20 vols et des milliers de passagers : la file pouvait dépasser 3 heures. Chaque compagnie ouvre maintenant 1 comptoir pour 35 passagers (jusqu’à 200 comptoirs pour un grand hub), comme un vrai grand aéroport. À l’heure de pointe, avec 20 gros porteurs au départ, l’attente reste de quelques minutes.'],
   ['🔍 Zoom réparé et bus de piste à Kinshasa','On peut de nouveau zoomer à fond pour voir les gens en détail, même à Kinshasa : avant, le grand tarmac bloquait le zoom trop tôt. À N’Djili, tous les passagers prennent le bus de piste : au départ, il les prend devant l’aérogare et les dépose au pied de l’escalier de l’avion ; à l’arrivée, il les prend au pied de l’avion et les ramène à l’aérogare. Le bus est plus grand et mieux visible (« BUS PISTE », portes, vitres).'],

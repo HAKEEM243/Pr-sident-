@@ -247,7 +247,8 @@ function gateIdx(code, ac, intl){
   const free=t==='T1'&&idx.length>8? idx.slice(6) : idx;     // T1 : les 6 premières portes servent aux autres compagnies
   return free[Math.floor(h/7)%free.length];
 }
-function gateSlot(code, ac, intl){ return slotPt(code, gateIdx(code, ac, intl===undefined?!!ac.gIntl:intl)); }
+function gateSlot(code, ac, intl){ if(typeof RIV_GATE_AP!=='undefined'&&RIV_GATE_AP.has(code)&&typeof ownGatePt==='function'&&ac&&S.fleet&&S.fleet.some(x=>x.id===ac.id)) return ownGatePt(code,ac);   /* vos avions : poste unique (Kinshasa) */
+  return slotPt(code, gateIdx(code, ac, intl===undefined?!!ac.gIntl:intl)); }
 // porte de départ : celle où l'avion est garé (fixée par son dernier vol arrivé)
 const depIntl=(ac,fl)=>fl&&fl.li>0? legIntl(fl.legs[fl.li-1]) : !!ac.gIntl;
 // RÉSEAU DE ROULAGE d'un aéroport : voie parallèle à la piste principale (twM), bretelles (conns) jusqu'à la
