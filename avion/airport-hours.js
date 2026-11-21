@@ -47,3 +47,33 @@ function apTermOpenAt(code,t){ const h=apHours(code); if(!h||!h.term) return tru
 function apHoursText(code){ const h=apHours(code); if(!h) return 'pistes et aérogare ouvertes 24 h/24';
   if(h.kind==='curfew') return `couvre-feu des pistes de ${ahHM(h.c)} à ${ahHM(h.o)} (heure locale) : aucun décollage ni atterrissage · l’aérogare reste ouverte 24 h/24`;
   return `pistes ouvertes de ${ahHM(h.o)} à ${ahHM(h.c)} (heure locale, pas de balisage lumineux) · aérogare ouverte de ${ahHM(h.term.o)} à ${ahHM(h.term.c)}`; }
+
+/* ---------- 📈 le monde selon le jour, la saison et l'heure (heure locale du départ) ---------- */
+const AH_HAJJ={2025:Date.UTC(2025,5,4),2026:Date.UTC(2026,4,25),2027:Date.UTC(2027,4,15),2028:Date.UTC(2028,4,3),2029:Date.UTC(2029,3,23),2030:Date.UTC(2030,3,12)};
+function ahDemandParts(from,to,t){ const L=new Date(t+tzAt(from,t)*HOUR), dow=L.getUTCDay(), h=L.getUTCHours()+L.getUTCMinutes()/60, mo=L.getUTCMonth(), d=L.getUTCDate(), out=[];
+  const DW=[[1.12,'dimanche chargé'],[1,''],[0.9,'mardi calme'],[0.9,'mercredi calme'],[1,''],[1.15,'vendredi chargé'],[0.95,'']][dow]; out.push(DW);
+  if(dow===1&&h>=5&&h<10) out.push([1.08,'lundi matin : hommes d’affaires']);
+  if((mo===11&&d>=15)||(mo===0&&d<=6)) out.push([1.3,'vacances de Noël']); else if(mo===6||mo===7) out.push([1.18,'grandes vacances']); else if(mo===3&&d<=20) out.push([1.06,'vacances de Pâques']);
+  if(h<4.5) out.push([0.55,'vol de nuit']); else if(h<5.5) out.push([0.8,'très tôt le matin']); else if(h>=22) out.push([0.85,'vol tardif']);
+  const hj=AH_HAJJ[L.getUTCFullYear()]; if(hj){ const dd=(t-hj)/DAY; if((to==='JED'||to==='MED')&&dd>-21&&dd<1) out.push([1.8,'pèlerinage à La Mecque']); if((from==='JED'||from==='MED')&&dd>4&&dd<25) out.push([1.8,'retour du pèlerinage']); }
+  return out; }
+function ahDemand(from,to,t){ let f=1; for(const [k] of ahDemandParts(from,to,t)) f*=k; return Math.max(0.45,Math.min(1.9,f)); }
+function ahDemandWhy(from,to,t){ return ahDemandParts(from,to,t).filter(x=>x[1]&&x[0]!==1).map(x=>x[1]).join(' · '); }
+
+/* ---------- 🇨🇩 réalités des aéroports congolais (événements déterministes : les mêmes partout) ---------- */
+// hachage bien mélangé (FNV-1a + finaliseur) : des événements vraiment irréguliers, mais les mêmes pour tous les écrans
+function ahH(str){ let h=2166136261>>>0; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619)>>>0; } h^=h>>>16; h=Math.imul(h,2246822507)>>>0; h^=h>>>13; h=Math.imul(h,3266489909)>>>0; h^=h>>>16; return h>>>0; }
+const _ahEv=new Map(); const ahMemo=(k,f)=>{ let v=_ahEv.get(k); if(v===undefined){ v=f(); _ahEv.set(k,v); if(_ahEv.size>4000) _ahEv.clear(); } return v; };
+// mouvement présidentiel / VIP : pistes fermées 30 à 50 min (Kinshasa souvent, Lubumbashi parfois) ; renvoie la fenêtre proche de t
+function ahVip(code,t){ if(code!=='FIH'&&code!=='FBM') return null; const tz=tzAt(code,t)*HOUR;
+  for(const dd of [0,-1,1]){ const day=Math.floor((t+tz)/DAY)+dd, w=ahMemo('v'+code+day,()=>{ const h=ahH('vip'+code+day); if((h%1000)/1000>=(code==='FIH'?0.22:0.08)) return null; const s=day*DAY+(9+((h>>>10)%80)/10)*HOUR-tz; return {s,e:s+(30+((h>>>17)%21))*MIN}; });
+    if(w&&t>=w.s-90*MIN&&t<w.e+45*MIN) return w; } return null; }
+const ahVipBlock=(code,t)=>{ const w=ahVip(code,t); return w&&t>=w.s&&t<w.e?w.e:0; };
+// la piste est-elle utilisée pendant un mouvement présidentiel entre a et b ? → fin de la fermeture, sinon 0
+function ahVipHit(code,a,b){ if(code!=='FIH'&&code!=='FBM') return 0; for(const t of [a,b]){ const w=ahVip(code,t); if(w&&a<w.e&&b>w.s) return w.e; } return 0; }
+// coupure de courant (aéroports de province) : l'aérogare passe au groupe électrogène
+function ahPower(code,t){ const a=AP(code); if(!a||!a.drc||code==='FIH') return null; const tz=tzAt(code,t)*HOUR, day=Math.floor((t+tz)/DAY);
+  for(let k=0;k<2;k++){ const w=ahMemo('p'+code+day+'_'+k,()=>{ const h=ahH('pw'+code+day+k); if((h%100)>=((a.cls||2)>=4?30:55)) return null; const s=day*DAY+(7+((h>>>7)%150)/10)*HOUR-tz; return {s,e:s+(20+((h>>>14)%70))*MIN}; }); if(w&&t>=w.s&&t<w.e) return w; } return null; }
+// pénurie de kérosène (province) : vols retardés, parfois annulés (sev 2)
+function ahFuel(code,t){ const a=AP(code); if(!a||!a.drc||code==='FIH') return null; const wk=Math.floor(t/(7*DAY));
+  for(const w0 of [wk,wk-1]){ const w=ahMemo('f'+code+w0,()=>{ const h=ahH('fu'+code+w0); if((h%100)>=14) return null; const s=w0*7*DAY+((h>>>7)%(6*24))*HOUR; return {s,e:s+(6+((h>>>15)%30))*HOUR,sev:((h>>>21)%100)<35?2:1}; }); if(w&&t>=w.s&&t<w.e) return w; } return null; }

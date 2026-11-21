@@ -563,13 +563,18 @@ function startFlight(ac, stops, kind, t, extra={}){
   for(const l of legs){
     if(typeof ahFit==='function'){ const tot=legProfile(l.dist,m,l.wind||0,l.from,l.to).total, d2=ahFit(l.from,l.to,dep,tot);   // aéroport fermé la nuit : le vol attend l'ouverture
       if(d2>dep+5*MIN){ const cl=!apOpenAt(l.from,dep)?l.from:l.to; if(!extra.quiet) logMsg(`🌙 ${ac.reg} : départ ${AP(l.from).city} → ${AP(l.to).city} reporté à ${ahHM(ahLocalHour(l.from,d2))} (heure locale de ${AP(l.from).city}) — ${AP(cl).city} n’accepte pas de vols à cette heure (${apHoursText(cl)})`,'info'); } dep=Math.max(dep,d2); }
+    if(typeof ahFuel==='function'){ const fu=ahFuel(l.from,dep); if(fu){ const add=(fu.sev===2?90:45)*MIN; if(!extra.quiet) logMsg(`⛽ ${ac.reg} : pénurie de kérosène à ${AP(l.from).city}, départ retardé de ${Math.round(add/MIN)} min`,'info'); dep+=add; } }
+    if(typeof ahVipHit==='function'&&(l.from==='FIH'||l.from==='FBM'||l.to==='FIH'||l.to==='FBM')){ const pp=legProfile(l.dist,m,l.wind||0,l.from,l.to), s2=pp.segs.find(x=>x.ph===2), s7=pp.segs.find(x=>x.ph===7), s8=pp.segs.find(x=>x.ph===8); let vc=null;
+      for(let it=0;it<4&&s2&&s7&&s8;it++){ const e1=ahVipHit(l.from,dep+s2.t0,dep+s2.t1); if(e1){ dep=e1+2*MIN-s2.t0; vc=l.from; continue; } const e2=ahVipHit(l.to,dep+s7.t0,dep+s8.t0); if(e2){ dep=e2+2*MIN-s7.t0; vc=l.to; continue; } break; }   /* mouvement présidentiel : ni décollage ni atterrissage pendant la fermeture des pistes */
+      if(vc&&!extra.quiet) logMsg(`🚨 ${ac.reg} : mouvement présidentiel à ${AP(vc).city}, pistes fermées : départ décalé à ${ahHM(ahLocalHour(l.from,dep))} (heure locale)`,'info'); }
     l.dep=dep; if(typeof atcPlanLeg==='function') atcPlanLeg(l,m,ac); dep+=legProf(l,m).total;
     if(kind==='route'&&route){
       const mk=legMarket(route,l.from,l.to), seats0=acSeats(ac), n=()=>rnd(0.86,1.12), pf=payloadFactor(m,l.dist);
       const seats={...seats0, y:Math.floor(seats0.y*pf), j:Math.floor(seats0.j*Math.min(1,pf+0.15)), f:seats0.f, cargo:seats0.cargo*pf};
       if(!isCargo(m)){
-        l.pax={ f:Math.min(seats.f,Math.round(mk.f.perFlight*n())), j:Math.min(seats.j,Math.round(mk.j.perFlight*n())), w:0,
-                y:clamp(Math.round(mk.y.perFlight*n()),Math.min(2,seats.y),seats.y) };
+        const dmf=typeof ahDemand==='function'?ahDemand(l.from,l.to,l.dep):1;   // passagers selon le jour, la saison et l'heure
+        l.pax={ f:Math.min(seats.f,Math.round(mk.f.perFlight*n()*dmf)), j:Math.min(seats.j,Math.round(mk.j.perFlight*n()*dmf)), w:0,
+                y:clamp(Math.round(mk.y.perFlight*n()*dmf),Math.min(2,seats.y),seats.y) };
         l.share=mk.share;
       }
       l.cargo=+Math.min(seats.cargo, mk.c.perFlight*n()).toFixed(1);

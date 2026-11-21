@@ -26,8 +26,8 @@ function rivFlight(R,r,i,dir,cyc){
   const K=typeof rivalSched==='function'?rivalSched(r):null; if(!K) return null; i=Math.min(i,K.nP-1);
   const base=K.anchors[i]-K.bA+cyc*K.P, ab=dir==='AB', t0=base+(ab?0:K.pA.total+K.turn), dl=typeof rivDelays==='function'?rivDelays(r,i,dir,cyc):{dep:0,hIn:0,ga:0}, pr=typeof rivProf==='function'?rivProf(ab?K.pA:K.pB,dl):(ab?K.pA:K.pB);
   const P0=t0+(ab?K.bA:K.bB), P=P0+dl.dep, arr=t0+pr.total, sg=k=>pr.segs.find(k), s2=sg(x=>x.ph===2), s8=sg(x=>x.ph===8), sh=sg(x=>x.hold==='in'), sga=sg(x=>x.ga);   // mêmes retards que la carte et la 3D
-  const tim={P0,tko:s2?t0+s2.t0:null,td:s8?t0+s8.t0:null,holdIn:sh?[t0+sh.t0,t0+sh.t1]:null,ga:sga?[t0+sga.t0,t0+sga.t1]:null,late:Math.round((dl.dep+dl.hIn+dl.ga)/MIN),depLate:Math.round(dl.dep/MIN),wxD:!!dl.wxD,wxA:!!dl.wxA};
-  const from=ab?r.a:r.b, to=ab?r.b:r.a, key=(R.code||'')+r.a+r.b+i+dir+cyc, N=rivPax(R,r,K,from,to), j=Math.round(N*0.08);
+  const tim={P0,tko:s2?t0+s2.t0:null,td:s8?t0+s8.t0:null,holdIn:sh?[t0+sh.t0,t0+sh.t1]:null,ga:sga?[t0+sga.t0,t0+sga.t1]:null,late:Math.round((dl.dep+dl.hIn+dl.ga)/MIN),depLate:Math.round(dl.dep/MIN),wxD:!!dl.wxD,wxA:!!dl.wxA,vip:!!dl.vip,fuel:!!dl.fuel};
+  const from=ab?r.a:r.b, to=ab?r.b:r.a, key=(R.code||'')+r.a+r.b+i+dir+cyc, N=Math.max(4,Math.min(Number(K.m&&K.m.seats)||180,Math.round(rivPax(R,r,K,from,to)*(typeof ahDemand==='function'?ahDemand(from,to,P0):1)))), j=Math.round(N*0.08);   /* passagers selon le jour, la saison et l'heure */
   const fn=(r.c||R.code||'')+(100+hashStr(r.a+r.b+i+dir)%800), id='R'+key;
   let ac=RIV_AC.get(id); if(!ac){ const leg={from,to,dep:P,pax:{f:0,j,w:0,y:N-j},dist:K.d};
     ac={id,reg:rivReg(R,r,i),flight:{legs:[leg],li:0},_riv:1,_fn:fn,_R:R,model:K.m&&K.m.id,modelName:K.m&&K.m.name,status:'flight',condition:90,hub:from,loc:from,cfg:null}; RIV_AC.set(id,ac); if(RIV_AC.size>5000) RIV_AC.delete(RIV_AC.keys().next().value); }
@@ -68,7 +68,7 @@ function rivPresent(code,t){ const ck=code+'|'+Math.floor(t/15000); let c=_rivPr
 function rivPresent0(code,t){ const out=[]; if(typeof rivalSched!=='function') return out;
   for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue;
     for(let i=0;i<K.nP;i++){ const T=K.P, rel=((t-K.anchors[i]+K.bA)%T+T)%T, cyc=Math.floor((t-K.anchors[i]+K.bA)/T); let at;
-      if(K.cf&&typeof rivOps==='function'&&!rivOps(K,r,i,cyc)){ if(r.a!==code) continue; const intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc, gate=typeof gateSlot==='function'?gateSlot(code,{id:r.a+r.b+i},intl):null; const nP2=rivNextDep(K,r,i,cyc+1,t), lA2=rivLastArr(K,r,i,cyc-1,t); out.push({R,r,i,reg:rivReg(R,r,i),col:R.color||'#64748b',name:R.name||R.code,cat:K.cat,gate,nextDep:nP2,lastArr:lA2,prio:Math.min(nP2-t,t-lA2),night:1}); continue; }   /* rotation annulée : reste garé à sa base */
+      if((K.cf||K.fu)&&typeof rivOps==='function'&&!rivOps(K,r,i,cyc)){ if(r.a!==code) continue; const intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc, gate=typeof gateSlot==='function'?gateSlot(code,{id:r.a+r.b+i},intl):null; const nP2=rivNextDep(K,r,i,cyc+1,t), lA2=rivLastArr(K,r,i,cyc-1,t); out.push({R,r,i,reg:rivReg(R,r,i),col:R.color||'#64748b',name:R.name||R.code,cat:K.cat,gate,nextDep:nP2,lastArr:lA2,prio:Math.min(nP2-t,t-lA2),night:1}); continue; }   /* rotation annulée : reste garé à sa base */
       { const ab=rel<K.pA.total+K.turn, dir=ab?'AB':'BA', rr=ab?rel:rel-(K.pA.total+K.turn), dl=rivDelays(r,i,dir,cyc), b0=ab?K.bA:K.bB, tot=rivProf(ab?K.pA:K.pB,dl).total; if(rr>=b0+dl.dep&&rr<tot) continue; }   // en mouvement (roulage, vol) : même règle que rivalPos
       let nx=null, lr=null;   /* prochain départ et dernière arrivée de cet avion, pour classer les plus utiles d'abord */
       if(rel<K.pA.total+K.turn){ const dl=rivDelays(r,i,'AB',cyc); if(rel<K.bA+dl.dep){ at=r.a; nx=['AB',cyc]; lr=['BA',cyc-1]; } else { at=r.b; nx=['BA',cyc]; lr=['AB',cyc]; } }

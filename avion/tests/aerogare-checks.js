@@ -87,6 +87,27 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       return {n,bad,own,dst}; });
     ok(hz.bad===0&&hz.own&&hz.dst,'Horaires : aucun vol dans un aéroport fermé, heure d’été correcte',`${hz.bad} vol(s) concurrents aux heures fermées sur ${hz.n} ; votre vol de nuit reporté : ${hz.own} ; heure d’été : ${hz.dst}`);
 
+    // 6 quater. réalités : mouvement présidentiel (aucun décollage ni atterrissage pendant la fermeture), pénurie de kérosène (vol annulé partout), affluence, correspondances
+    const rz=await p.evaluate(()=>{ const o={vN:0,vBad:0,wins:0,over:0,fN:0,fBad:0,dem:false,own:false,tr:0,trBad:0,trA:0}; const T0=S.time, _b=atcRivalBlocked; atcRivalBlocked=()=>false;
+      { const ws=new Set(); for(let h=0;h<12*24;h++){ const w=ahVip('FIH',T0+h*HOUR); if(w) ws.add(w.s); } o.wins=ws.size; }
+      for(const [R,r] of rivRoutesAt('FIH').slice(0,30)){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++){ const c0=Math.floor((T0-K.anchors[i])/K.P); for(let c=c0;c<c0+Math.ceil(12*DAY/K.P);c++) for(const dir of ['AB','BA']){ const f=rivFlight(R,r,i,dir,c); if(!f||f.ops===false) continue;
+        if(f.late>56) o.over++; if(f.tko&&f.from==='FIH'){ o.vN++; if(ahVipHit('FIH',f.tko,f.tko+MIN)) o.vBad++; } if(f.td&&f.to==='FIH'){ o.vN++; if(ahVipHit('FIH',f.td-90000,f.td)) o.vBad++; } } } }
+      const seen=new Set(); for(const code of ['FKI','GOM','FBM','MJM','KGA','FKW']) for(const [R,r] of rivRoutesAt(code).slice(0,15)){ const K=rivalSched(r), k=(r.c||'')+r.a+r.b; if(!K||!K.fu||seen.has(k)) continue; seen.add(k);
+        for(let i=0;i<K.nP;i++){ const c0=Math.floor((T0-K.anchors[i])/K.P); for(let c=c0;c<c0+Math.ceil(40*DAY/K.P);c++){ if(rivOps(K,r,i,c)||(K.cf&&!rivOpsAt(r,K,K.anchors[i],c))) continue; o.fN++; const f=rivFlight(R,r,i,'AB',c); if(f.ops!==false) o.fBad++; if(rivalPos(r,i,f.P+5*MIN)) o.fBad++; } } }
+      atcRivalBlocked=_b;
+      const D=(y,m,d,h)=>Date.UTC(y,m,d,h); o.dem=ahDemand('FIH','CDG',D(2026,2,13,8))>ahDemand('FIH','CDG',D(2026,2,10,8))&&ahDemand('FIH','CDG',D(2026,2,13,0))<ahDemand('FIH','CDG',D(2026,2,13,8))&&ahDemand('FIH','CDG',D(2026,11,18,8))>ahDemand('FIH','CDG',D(2026,2,13,8))&&ahDemand('FIH','JED',D(2026,4,20,8))>1.5;
+      { let t=T0, w=null; for(let k=0;k<24*20&&!w;k++){ t+=HOUR; w=ahVip('FIH',t); } const ac=addAircraft('A20N',{hub:'FIH'}); for(let k=0;k<3;k++) S.pilots.push(makePilot([modelOf(ac).fam])); S.staff.pnc=(S.staff.pnc||0)+60; const rt=S.routes.find(x=>x.stops.join()==='FIH,BZV')||openLine(['FIH','BZV']); ac.readyAt=0; o.ownErr=dispatchRoute(ac,rt,1,w.s-12*MIN)||'';
+        const m=modelOf(ac); o.own=!!(ac.flight&&ac.flight.legs.every(l=>{ const pr=legProf(l,m), s2=pr.segs.find(x=>x.ph===2), s7=pr.segs.find(x=>x.ph===7), s8=pr.segs.find(x=>x.ph===8); return !ahVipHit(l.from,l.dep+s2.t0,l.dep+s2.t1)&&!ahVipHit(l.to,l.dep+s7.t0,l.dep+s8.t0); })); }
+      S.time=T0+(((11-ahLocalHour('ADD',T0))+24)%24)*HOUR; TM.code='ADD'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const ts=TM.L.poi.some(x=>x.k==='tsec');
+      for(const q of TM.ppl){ if(q.staff||q.crew||q.lead) continue; const tr=q.K.some(k=>/correspondance/i.test(k.st)); if(!tr) continue; if(q.dep) o.tr++; else o.trA++;
+        if(q.K.some(k=>/enregistr|à la sûreté|police|immigration|passeport|douane|tapis n°|taxi/i.test(k.st))) o.trBad++; const last=q.K[q.K.length-1].st; if(q.dep&&!/passerelle|banc|nouveau vol|ne s’est pas présenté|raté|affichage de sa porte/.test(last)) o.trBad++; if(!q.dep&&!/jetée|correspondance/.test(last)) o.trBad++; }
+      o.ts=ts; S.time=T0; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; return o; });
+    ok(rz.wins>0&&rz.vN>50&&rz.vBad===0&&rz.over===0,'Mouvement présidentiel : aucun avion ne décolle ni n’atterrit pistes fermées',`${rz.vBad} vol(s) pendant la fermeture sur ${rz.vN} ; ${rz.wins} fermeture(s) en 12 jours ; ${rz.over} retard(s) > 56 min`);
+    ok(rz.fN>0&&rz.fBad===0,'Pénurie de kérosène : vol annulé = absent de la carte, de la 3D et de l’aérogare',`${rz.fBad} écart(s) sur ${rz.fN} annulation(s)`);
+    ok(rz.own,'Vos vols : décalés pendant un mouvement présidentiel',`${rz.own} ${rz.ownErr||''}`);
+    ok(rz.dem,'Affluence selon le jour, l’heure et la saison (vendredi, nuit, Noël, pèlerinage)',`${rz.dem}`);
+    ok(rz.ts&&rz.tr>50&&rz.trA>10&&rz.trBad===0,'Correspondances (Addis-Abeba) : ni enregistrement, ni immigration, ni douane',`${rz.tr} au départ, ${rz.trA} à l’arrivée, ${rz.trBad} erreur(s)`);
+
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
         for(const d of TM.L.deps){ if(tmDepPlane(d,t)&&d.f.reg) regs[d.f.reg]=(regs[d.f.reg]||0)+1; } for(const a of TM.L.arrs){ if(tmArrPlane(a,t)&&a.f.reg) regs[a.f.reg]=(regs[a.f.reg]||0)+1; }

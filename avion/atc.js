@@ -11,7 +11,8 @@
 const ATC_TO=95*1000, ATC_LDG=80*1000, ATC_GAP=25*1000;
 function rwyKey(code,r){ if(!r) return code+':0'; const a=r.thr.lat.toFixed(4)+','+r.thr.lon.toFixed(4), b=r.end.lat.toFixed(4)+','+r.end.lon.toFixed(4); return code+':'+(a<b?a+'|'+b:b+'|'+a); }
 function atcList(key){ S.atc=S.atc||{}; return S.atc[key]||(S.atc[key]=[]); }
-function atcFree(key,s,e,acId){ for(const x of atcList(key)) if(x.ac!==acId&&s<x.e+ATC_GAP&&e+ATC_GAP>x.s) return x; return null; }
+function atcFree(key,s,e,acId){ if(typeof ahVipHit==='function'){ const ve=ahVipHit(key.split(':')[0],s-ATC_GAP,e+ATC_GAP); if(ve) return {s:ve-HOUR,e:ve,ac:null,vip:1}; }   /* piste fermée : mouvement présidentiel */
+  for(const x of atcList(key)) if(x.ac!==acId&&s<x.e+ATC_GAP&&e+ATC_GAP>x.s) return x; return null; }
 function atcPrune(){ if(!S.atc) return; const lim=S.time-15*MIN; for(const k of Object.keys(S.atc)){ const L=S.atc[k].filter(x=>x.e>lim); if(L.length) S.atc[k]=L; else delete S.atc[k]; } }
 // appelé pour chaque tronçon programmé (sim.js → startFlight)
 function atcPlanLeg(l,m,ac){
