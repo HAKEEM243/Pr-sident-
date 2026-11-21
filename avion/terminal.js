@@ -211,8 +211,8 @@ function tmSched(L){
       if(L.tf&&D.intl&&!(row&&row.star)&&pfRng(D.key+'|tr'+i)()<L.tf){ x.transit=1; x.online=true; x.bags=false; x.kiosk=false; x.wc=false; x.alarm=false; const rm=pfRng(D.key+'|trm'+i)(); if(rm<0.04&&!g.later){ x.missed=1; x.tIn=D.gate.close+(2+rm*400)*MIN; } }   /* en correspondance : pas d'enregistrement ni de sûreté côté ville, valises transférées d'avion à avion */
       sc.push(x); if(x.transit){ x.ckStart=x.ckDone=x.tIn; continue; }
       if(online&&!bags){ x.ckStart=x.ckDone=tIn+MIN; } else ckL.push({x,arr:tIn+(kiosk?3.5:1.5)*MIN}); }
-    g._desks=Math.max(1,Math.max(D.ci.desks||0,Math.ceil(f.N/40))); }
-  for(const gr of L.ckGroups||[]){ const list=[].concat(...gr.fl.map(g=>g._ckL||[])); gr.desks=Math.max(1,Math.min(40,gr.fl.reduce((t,g)=>t+(g._desks||1),0)+tmOps(TM.code).ck)); tmServe(list,gr.desks,o=>(o.x.bags?1.8:1.2)*MIN*(0.7+0.6*o.x.r));
+    g._desks=Math.max(1,Math.max(D.ci.desks||0,Math.ceil(f.N/35))); }
+  for(const gr of L.ckGroups||[]){ const list=[].concat(...gr.fl.map(g=>g._ckL||[])); gr.desks=Math.max(1,Math.min(200,gr.fl.reduce((t,g)=>t+(g._desks||1),0)+tmOps(TM.code).ck));   /* une grande compagnie ouvre autant de comptoirs que nécessaire à son hub */ tmServe(list,gr.desks,o=>(o.x.bags?1.8:1.2)*MIN*(0.7+0.6*o.x.r));
     for(const o of list){ o.x.ckStart=o.start; o.x.ckDone=o.done; W.ck.push([o.arr,o.start-o.arr]); } }
   for(const g of ALL){ const f=g.f, D=f.D, sc=g.sched;
     // embarquement par zones : priorité (affaires, familles), puis zones 1 à 4

@@ -163,6 +163,15 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       for(const R of S.rivals||[]) for(const r of R.routes||[]){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++) for(let t=S.time;t<S.time+DAY;t+=15*MIN){ rivalPos(r,i,t); n++; } }
       o.n=n; try{ closeModal(); }catch(e){} TM.code=null; tmOpen('FIH'); await new Promise(r=>setTimeout(r,2500)); o.vis=(TM.pts||[]).length; tmClose(); return o; });
     ok(rl.loaded&&rl.myAp&&rl.vis>50&&errs.length===e0,'Après sauvegarde et rechargement : carte, 3D et aérogare sans erreur',`${rl.n} positions calculées, ${rl.vis} passagers visibles${errs.length>e0?' · '+errs.slice(e0,e0+2).join(' | '):''}`);
+
+    // 10. heure de pointe à votre hub : beaucoup de gros porteurs de votre compagnie → assez de comptoirs, pas d'attente interminable à l'enregistrement
+    const pk=await p.evaluate(()=>{ let t=S.time; while(new Date(t+HOUR).getUTCDay()!==5) t+=DAY; t+=(((20.5-ahLocalHour('FIH',t))+24)%24)*HOUR; const T0=S.time; S.time=t-3*HOUR;
+      const D=['BZV','LAD','NBO','ADD','JNB','FBM','GOM','FKI','MJM','KGA','CDG','BRU','DLA','LOS','ACC','ABJ','DKR','CMN','DXB','IST']; S.staff.pnc=(S.staff.pnc||0)+900;
+      for(let k=0;k<20;k++){ try{ const ac=addAircraft(k%2?'B77W':'A388',{hub:'FIH'}); for(let j=0;j<4;j++) S.pilots.push(makePilot([modelOf(ac).fam])); let rt=S.routes.find(x=>x.stops.join()==='FIH,'+D[k]); if(!rt) rt=openLine(['FIH',D[k]]); if(!rt||!rt.stops) continue; ac.readyAt=0; dispatchRoute(ac,rt,1,t-60*MIN+k*6*MIN); }catch(e){} }
+      S.time=t; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); let mx=0, own=0, missed=0, n=0;
+      for(const g of TM.L.ckGroups){ const list=[].concat(...g.fl.map(x=>x._ckL||[])); for(const o of list) mx=Math.max(mx,o.start-o.arr); if(g.A.own) own=list.length; }
+      for(const g of [...TM.L.deps,...TM.L.later]) for(const x of g.sched){ n++; if(x.ckStart>g.f.D.ci.close+3*MIN) missed++; } S.time=T0; return {mx:Math.round(mx/MIN),own,missed,n}; });
+    ok(pk.own>2000&&pk.mx<=45&&pk.missed===0,'Heure de pointe à votre hub : assez de comptoirs d’enregistrement',`${pk.own} passagers de votre compagnie, attente maximale ${pk.mx} min, ${pk.missed} vol(s) manqué(s) à l’enregistrement sur ${pk.n}`);
   }catch(e){ ok(false,'Le test lui-même a planté',e.message); }
   finally{ try{ b&&await b.close(); }catch(e){} srv.close(); console.log(fails?`\n❌ ${fails} contrôle(s) en échec : NE PAS mettre en ligne.`:'\n✅ Tous les contrôles sont bons.'); process.exit(fails?1:0); }
 })();
