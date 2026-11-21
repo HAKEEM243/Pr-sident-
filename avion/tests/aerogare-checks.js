@@ -156,6 +156,11 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     ok(vp.pres&&vp.presOv===0&&vp.presRw>0&&vp.k13,'Avion présidentiel : poste réservé, rien par-dessus, décolle ou atterrit pendant le mouvement présidentiel',`garé : ${vp.pres}, avion par-dessus : ${vp.presOv}, sur la piste : ${vp.presRw}, poste réservé : ${vp.k13}`);
     ok(vp.thBad===0,'Pensées cohérentes (pas « direction la maison » au salon business)',`${vp.thBad}`);
 
+    // 6 decies. vitesses de l'aérogare : ×1, ×5, ×60 seulement
+    const spd=await p.evaluate(async()=>{ const s0=S.speed; S.speed='realiste'; TM.code=null; TM.th=null; tmOpen('FIH'); await new Promise(r=>setTimeout(r,1500)); const b=document.querySelector('[data-tsp]'), labs=[b.textContent.trim()], mult=[];
+      for(let k=0;k<3;k++){ b.click(); labs.push(b.textContent.trim()); mult.push(SPEEDS[S.speed].mult); } tmClose(); S.speed=s0; return {labs,mult}; });
+    ok(spd.labs.join(' ')==='⏱️ ×1 ⏱️ ×5 ⏱️ ×60 ⏱️ ×1'&&spd.mult.join()==='5,60,1','Aérogare : trois vitesses ×1, ×5, ×60',`${spd.labs.join(' → ')} (multiplicateurs ${spd.mult.join(', ')})`);
+
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
         for(const d of TM.L.deps){ if(tmDepPlane(d,t)&&d.f.reg) regs[d.f.reg]=(regs[d.f.reg]||0)+1; } for(const a of TM.L.arrs){ if(tmArrPlane(a,t)&&a.f.reg) regs[a.f.reg]=(regs[a.f.reg]||0)+1; }

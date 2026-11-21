@@ -1200,7 +1200,7 @@ function tmOpen(code){
   { const cnt=ov.querySelector('#tmCount'), pan=ov.querySelector('#tmPanel'), pb=ov.querySelector('[data-tpan]'); const tg=()=>{ pan.hidden=!pan.hidden; pb.classList.toggle('on',!pan.hidden); }; cnt.onclick=tg; pb.onclick=tg; }
   ov.querySelector('[data-tdash]').onclick=()=>{ TM.dash=!TM.dash; TM.sel=null; TM.follow=null; TM.dashAt=0; if(!TM.dash) tmInfo(''); };
   // vitesse du temps (celle du jeu) et voix des annonces
-  const SP=[['realiste','×1'],['lent','×30'],['standard','×60'],['rapide','×600']], spB=ov.querySelector('[data-tsp]'), lab=()=>{ const x=SP.find(z=>z[0]===S.speed); spB.textContent='⏱️ '+(x?x[1]:'×?'); }; lab();
+  const SP=[['realiste','×1'],['x5','×5'],['standard','×60']], spB=ov.querySelector('[data-tsp]'), lab=()=>{ const x=SP.find(z=>z[0]===S.speed), m=typeof SPEEDS!=='undefined'&&SPEEDS[S.speed]; spB.textContent='⏱️ '+(x?x[1]:m?'×'+m.mult:'×?'); }; lab();   /* trois vitesses dans l'aérogare : ×1, ×5, ×60 */
   spB.onclick=()=>{ const i=SP.findIndex(z=>z[0]===S.speed); S.speed=SP[(i+1)%SP.length][0]; S.paused=false; lab(); try{ renderTop(); }catch(e){} };
   TM.voice=!!(typeof FX!=='undefined'&&FX.soundOn); const voB=ov.querySelector('[data-tvo]'); voB.textContent=TM.voice?'🔈':'🔇'; voB.onclick=()=>{ TM.voice=!TM.voice; voB.textContent=TM.voice?'🔈':'🔇'; if(typeof fxAudioUnlock==='function') fxAudioUnlock(); };
   // recherche d'un passager
