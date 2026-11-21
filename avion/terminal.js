@@ -157,6 +157,7 @@ function tmLayout(F){
   if(shape==='jetee'||shape==='satellite'){ const H=(k,x0,y0,x1,y1,lab,ico)=>L.poi.push({k,x0,y0,x1,y1,lab,ico,hall:1});
     H('resto',20,56,284,170,'Food court · cuisines du monde','🍲'); H('seats',20,188,284,300,'Espace détente','🛋️'); H('kids',20,318,150,392,'Aire de jeux pour enfants','🧸'); H('wc',164,318,284,392,'Toilettes','🚻');
     H('dutyfree',356,56,620,170,'Grand duty free','🛍️'); H('cafe',356,188,620,284,'Café panoramique','☕'); H('press',356,302,476,392,'Librairie · presse','📚'); H('pharma',496,302,620,392,'Pharmacie','💊'); L.hall=1; } L.top=-300; L.bx0=-40; L.bx1=1040;
+  L.kin=(AP(TM.code)||{}).cc==='CD'; if(L.kin){ for(const x of [40,135,230,325]) L.poi.push({k:'ebola',x0:x,y0:1242,x1:x+70,y1:1252,lab:'Contrôle Ebola · QR code',ico:'🦠'}); L.poi.push({k:'ebola',x0:500,y0:1242,x1:570,y1:1252,lab:'Contrôle Ebola · QR code',ico:'🦠'}); }   /* aéroports congolais : QR code Ebola obligatoire avant le voyage */
   L.tf=L.hall?tmTransitFrac(TM.code):0; if(L.tf) L.poi.push({k:'tsec',arr:1,x0:664,y0:226,x1:800,y1:240,lab:'Contrôle des correspondances (transit)',ico:'🔁'});   /* grands hubs : les passagers en correspondance restent côté piste */
   const seatGrid=(x0,x1,y0,y1)=>{ const out=[]; if(TM.th.seat==='ilots'){ for(let yy=y0+18;yy<y1-12;yy+=40) for(let xx=x0+18;xx<x1-12;xx+=32) for(let k=0;k<8;k++){ const a=k/8*6.283; out.push({x:xx+Math.cos(a)*11,y:yy+Math.sin(a)*11}); } }
     if(!out.length) for(let yy=y0+6;yy<y1-6;yy+=15) for(let xx=x0+8;xx<x1-8;xx+=9) out.push({x:xx,y:yy}); return out; };
@@ -184,6 +185,7 @@ function tmLayout(F){
   if(shape==='jetee') L.top=Math.min(-300,(L.pierEnd||-200)-150); if(shape==='satellite'){ L.top=-1020; L.bx0=Math.min(-40,(L.satX||[0])[0]-60); L.bx1=Math.max(1040,(L.satX||[0,0])[1]+60); } if(shape==='L') L.bx0=-460;
   L.cargo=cls>=3; L.vip=TM.code==='FIH'||TM.code==='FBM'; if(L.cargo||L.vip) L.bx1+=230;   /* à droite du tarmac : terminal fret (et salon d'honneur à Kinshasa et Lubumbashi) */
   if(shape==='ndjili') L.top-=200;   /* place pour la seconde rangée de l'aire éloignée, au-dessus de la voie */
+  if(shape==='ndjili') L.poi.push({k:'visa',arr:1,x0:676,y0:46,x1:800,y1:150,lab:'Visa à l’arrivée · 90 $',ico:'🛂'});   /* N'Djili : salle des visas à l'arrivée pour les étrangers */
   if(shape==='ndjili'){ L.nd=1; const xs=ndjStands().map(s2=>s2.x).concat(L.deps.map(d=>d.stand.x),L.arrs.map(a=>a.door.x)); L.bx0=Math.min(-1240,Math.min(...xs)-200); L.bx1=Math.max(2120,Math.max(...xs)+200); }   /* N'Djili : aire 1 (MONUSCO) à gauche, aire 2 devant les aérogares, aire 3 et fret à droite */
   { const np=Math.round(((F.parked||[]).length+(F.rivN||0))*1.15)+1, per=Math.max(1,Math.floor((L.bx1-40-(L.bx0+60))/TM_PK_X)+1), rows=Math.min(8,Math.ceil(np/per)); if(np>1) L.top-=58+rows*TM_PK_Y; L.parkRows=rows; L.parkPer=per; }   /* assez de rangées de postes éloignés pour tous les avions présents (comme en 3D) */   // postes éloignés pour les avions stationnés
   L.parkTop=L.top; L.rwyY=L.top-64; L.rwyA=L.rwyY-80; L.top-=216;   /* deux pistes au-dessus de l'aire de stationnement : décollages (la plus proche) et atterrissages */
@@ -255,7 +257,10 @@ const TM_AISLE=1163, TM_COR=626;   /* allée sous les files, couloir vers la sû
 function tmDepKF(g,i,L){
   const f=g.f, D=f.D, sc=g.sched[i], r=pfRng(D.key+'|tm'+i), N=f.N, k=tmKF(tmSpd(sc.row)), intl=D.intl;
   if(sc.transit){ if(tmTransitDep(k,g,sc,r,L)) return k.K; } else {
-  k.at(sc.tIn,tmJ(r,30,610),1290,sc.late?'⏰ arrive en retard à l’aéroport ('+sc.late+')':'arrive à l’aéroport'+(sc.bags?' avec ses valises':''));
+  const kinX=L.kin?pfRng(D.key+'|lane'+i)():1, fast=L.kin&&sc.row&&(sc.row.wealth==='rich'||sc.row.purp==='business')&&kinX<0.8;
+  k.at(sc.tIn,L.kin?(fast?tmJ(r,470,620):tmJ(r,30,430)):tmJ(r,30,610),1290,sc.late?'⏰ arrive en retard à l’aéroport ('+sc.late+')':L.kin?(fast?'arrive par la voie rapide (payante, militaires) : dépose-minute 10 $':'arrive par la voie normale : il y a du monde'):'arrive à l’aéroport'+(sc.bags?' avec ses valises':''));
+  if(L.kin){ const bs=L.poi.filter(p=>p.k==='ebola'&&(fast?p.x0>=500:p.x0<500)), b=bs[Math.floor(pfRng(D.key+'|eb'+i)()*bs.length)]; if(b){ k.walk(tmJ(r,b.x0+4,b.x1-4),b.y1+6,'contrôle Ebola : présente son QR code de santé').stay(k.t+(15+r()*30)*1000,'🦠 contrôle Ebola : l’agent scanne son QR code');
+      if(pfRng(D.key+'|ebx'+i)()<0.006&&!(sc.row&&sc.row.star)){ k.stay(k.t+(4+r()*4)*MIN,'⛔ pas de QR code Ebola valide : voyage refusé').walk(tmJ(r,30,430),1295,'repart sans pouvoir voyager'); k.K[k.K.length-1].out=1; return k.K; } } }
   if(sc.online&&!sc.bags) k.walk(tmJ(r,40,600),TM_AISLE+tmJ(r,-3,3),'carte d’embarquement sur le téléphone');
   else{ if(sc.kiosk){ const ks=L.poi.filter(p=>p.k==='kiosk'), kb=ks[Math.floor(r()*ks.length)]; k.walk((kb.x0+kb.x1)/2,kb.y1+6,'va à une borne automatique').stay(k.t+(1.5+r()*1.5)*MIN,'imprime sa carte d’embarquement'); }
     { const e=g.q.pts[0]; k.walk(e.x,TM_AISLE,'va vers les comptoirs '+(g.grp?g.grp.z+' · ':'')+tmAirline(f).name); }   /* rejoint SA file par l'allée, sans traverser celle des autres compagnies */
@@ -321,7 +326,8 @@ function tmArrKF(g,i,L,lost){
     if(far){ const b0=D.arr+6*MIN, bx=s.x+18, by=s.y+14; k.walk(bx+tmJ(r,-6,6),by+tmJ(r,4,10),'attend le bus de piste au pied de l’avion'); const tb=b0+Math.ceil((k.t+15000-b0)/TM_BUS_T)*TM_BUS_T;
       k.walk(bx,by,'monte dans le bus de piste'); k.stay(tb,'🚌 dans le bus de piste, attend le départ'); k.K[k.K.length-1].bus=1; k.walk(E.x,-16,'🚌 dans le bus de piste vers l’aérogare',Math.max(9,Math.hypot(E.x-bx,-16-by)/150)); k.K[k.K.length-1].bus=1; k.walk(E.x+tmJ(r,-10,10),-4,'descend du bus devant l’aérogare'); }
     else k.walk(E.x+tmJ(r,-10,10),-4,'marche sur le tarmac vers l’aérogare');
-    k.walk(E.x+tmJ(r,-8,8),38,'entre dans l’aérogare (arrivées)').walk(E.x+tmJ(r,-8,8),120,'couloir des arrivées'); }
+    k.walk(E.x+tmJ(r,-8,8),38,'entre dans l’aérogare (arrivées)').walk(E.x+tmJ(r,-8,8),120,'couloir des arrivées');
+    const vz=L.poi.find(p=>p.k==='visa'), forg=intl&&(row?row.nat!=='CD':pfRng(D.key+'|nat'+i)()<0.4); if(vz&&forg&&pfRng(D.key+'|visa'+i)()<0.55){ const z=tmIn(vz,r); k.walk(z.x,z.y,'salle des visas à l’arrivée').stay(k.t+(15+Math.pow(r(),1.6)*75)*MIN,'🛂 attend son visa à l’arrivée (90 $)',1).walk(E.x+tmJ(r,-8,8),160,'visa obtenu : vers l’immigration'); } }
   else k.at(D.arr+5*MIN+(i/N)*14*MIN,g.door.x,(g.sy||-60)+3,'sort de l’avion par la porte avant').walk(g.door.x,g.door.y,'marche dans la passerelle',1.6).walk(g.door.x+tmJ(r,-8,8),120,'marche dans la jetée');
   const tx=Math.min(980,Math.max(676,L.nd&&g.ent?g.ent.x:g.door.x)); k.walk(tx,186,'monte sur le tapis roulant').walk(820+tmJ(r,-6,6),186,'sur le tapis roulant',3.6);
   if(L.tf&&intl&&!lost&&L.poi.some(p=>p.k==='tsec')&&pfRng(D.key+'|tra'+i)()<L.tf){ const ts=L.poi.find(p=>p.k==='tsec'), NX=[...L.deps,...(L.later||[])].filter(g2=>g2.f.D.intl&&g2.f.D.P>D.arr+50*MIN), nx=NX.length?NX[i%NX.length]:null, dest=nx?' pour '+nx.f.D.B.city:'';
@@ -344,6 +350,7 @@ function tmArrKF(g,i,L,lost){
   const bagT=bags?Math.max(k.t+2*MIN,D.bag.first+r()*(D.bag.last-D.bag.first)):k.t+MIN;
   k.walk(bp.x,bp.y,bags?'va au tapis n° '+b.n:'traverse la salle des bagages').stay(lost?D.bag.last+3*MIN:bagT,bags?'attend sa valise au tapis n° '+b.n:'sans bagage en soute');
   if(lost){ const q=tmIn(L.poi.find(p=>p.k==='lost'),r); k.walk(q.x,q.y,'⚠️ sa valise n’est pas arrivée').stay(k.t+(8+r()*8)*MIN,'⚠️ déclare sa valise perdue au comptoir litiges'); }
+  if(L.kin&&bags&&!lost&&pfRng(D.key+'|port'+i)()<0.3){ k.stay(k.t+(1+r()*2)*MIN,'💵 un porteur prend ses valises et réclame de l’argent (5 000 FC ou 10 $)'); }   /* Kinshasa : porteurs qui demandent un pourboire */
   const red=r()<0.06, ch=L.poi.find(p=>p.k===(red?'red':'green'));
   k.walk(tmJ(r,ch.x0+5,ch.x1-5),ch.y0-6,red?'couloir rouge : déclare des marchandises':'passe la douane (couloir vert)');
   if(red||r()<0.04){ const xc=L.poi.find(p=>p.k==='xrayc'); k.walk(xc.x0-6,xc.y1+4,'bagages passés au scanner de la douane').stay(k.t+(3+r()*6)*MIN,'🔎 contrôle des bagages par la douane'); }
@@ -355,7 +362,7 @@ function tmArrKF(g,i,L,lost){
   return {K:k.K,bags:bags&&!lost,bagT}; }
 // famille et chauffeurs qui attendent derrière la barrière des arrivées
 // PERSONNEL : agents d'enregistrement, agents de porte, sûreté, police, immigration, santé, douane, litiges, nettoyage, patrouilles
-const TM_ROLE={ck:['#1e3a8a','Agent d’enregistrement'],gate:['#1e3a8a','Agent d’embarquement'],sec:['#111827','Agent de sûreté'],pol:['#1d4ed8','Policier aux frontières'],imm:['#1d4ed8','Agent d’immigration'],
+const TM_ROLE={mil:['#4d5d27','Militaire (FARDC)'],ck:['#1e3a8a','Agent d’enregistrement'],gate:['#1e3a8a','Agent d’embarquement'],sec:['#111827','Agent de sûreté'],pol:['#1d4ed8','Policier aux frontières'],imm:['#1d4ed8','Agent d’immigration'],
   health:['#f8fafc','Agent sanitaire'],cus:['#065f46','Douanier'],lost:['#1e3a8a','Agent litiges bagages'],info:['#0e7490','Agent d’accueil'],clean:['#f59e0b','Agent d’entretien'],porter:['#b45309','Porteur de bagages'],patrol:['#1d4ed8','Patrouille de police']};
 function tmStaff(L,now){ const out=[], T0=now-14*HOUR, T1=now+14*HOUR, add=(role,x,y,st)=>out.push({staff:role,i:out.length,K:[{t:T0,x,y,st},{t:T1,x,y,st}],c:TM_ROLE[role][0],sk:TM_SKIN[out.length%TM_SKIN.length],dep:3});
   for(const gr of L.ckGroups||[]){ const n=Math.max(1,Math.min(12,gr.desks||gr.fl.length*2)); for(let k=0;k<n;k++) add('ck',gr.ck.x0+(k+0.5)*(gr.ck.x1-gr.ck.x0)/n,gr.ck.y-2,'au comptoir '+gr.A.name+' ('+gr.fl.map(g=>g.f.fn).slice(0,4).join(', ')+')'); }
@@ -365,13 +372,15 @@ function tmStaff(L,now){ const out=[], T0=now-14*HOUR, T1=now+14*HOUR, add=(role
     if(p.k==='xray') add('sec',p.x0+30,p.y0-7,'contrôle les bagages au scanner'); else if(p.k==='arch') add('sec',cx,p.y1+9,'au portique : palpations');
     else if(p.k==='booth') add(p.arr?'imm':'pol',cx,p.arr?p.y0+8:p.y1-8,p.arr?'contrôle les passeports à l’arrivée':'tamponne les passeports au départ');
     else if(p.k==='health') add('health',cx,p.y0+7,'vérifie les carnets de vaccination'); else if(p.k==='green'||p.k==='red') add('cus',p.k==='red'?p.x1-12:p.x0+12,p.y1+8,'surveille le couloir '+(p.k==='red'?'rouge':'vert'));
-    else if(p.k==='lost') add('lost',cx,p.y0+8,'enregistre les déclarations de bagages perdus'); else if(p.k==='info') add('info',cx,p.y0+8,'renseigne les voyageurs'); else if(p.k==='transfer') add('info',cx,p.y0+8,'replace les passagers qui ont raté leur vol'); else if(p.k==='tsec') add('sec',cx,p.y1+5,'contrôle les passagers en correspondance'); }
+    else if(p.k==='lost') add('lost',cx,p.y0+8,'enregistre les déclarations de bagages perdus'); else if(p.k==='info') add('info',cx,p.y0+8,'renseigne les voyageurs'); else if(p.k==='transfer') add('info',cx,p.y0+8,'replace les passagers qui ont raté leur vol'); else if(p.k==='tsec') add('sec',cx,p.y1+5,'contrôle les passagers en correspondance'); else if(p.k==='ebola') add('health',cx,p.y0-4,'scanne les QR codes Ebola'); else if(p.k==='visa'){ add('imm',p.x0+20,p.y0+10,'délivre les visas à l’arrivée (90 $)'); add('imm',p.x1-20,p.y0+10,'encaisse les frais de visa (90 $)'); } }
   // nettoyage et patrouilles : se déplacent toutes les 3 minutes
   const zonesW=[[20,1000,620,1220],[20,430,620,690],[680,980,990,1220],[680,440,990,840]];
   for(let k=0;k<7;k++){ const role=k<5?'clean':'patrol', z=zonesW[k%4], K=[]; for(let t=Math.floor((now-40*MIN)/(3*MIN))*3*MIN;t<now+3*HOUR;t+=3*MIN){ const r=pfRng('st'+k+'|'+t); K.push({t,x:z[0]+r()*(z[2]-z[0]),y:z[1]+r()*(z[3]-z[1]),st:role==='clean'?'nettoie le sol':'patrouille dans l’aérogare',walk:1}); }
     out.push({staff:role,i:out.length,K,c:TM_ROLE[role][0],sk:TM_SKIN[k%TM_SKIN.length],dep:3}); }
-  for(let k=0;k<4;k++){ const z=k<2?[680,470,990,860]:[680,1000,990,1230], K=[]; for(let t=Math.floor((now-40*MIN)/(4*MIN))*4*MIN;t<now+3*HOUR;t+=4*MIN){ const r=pfRng('po'+k+'|'+t); K.push({t,x:z[0]+r()*(z[2]-z[0]),y:z[1]+r()*(z[3]-z[1]),st:'porteur : propose de porter les valises',walk:1}); }
+  for(let k=0;k<4;k++){ const z=k<2?[680,470,990,860]:[680,1000,990,1230], K=[]; for(let t=Math.floor((now-40*MIN)/(4*MIN))*4*MIN;t<now+3*HOUR;t+=4*MIN){ const r=pfRng('po'+k+'|'+t); K.push({t,x:z[0]+r()*(z[2]-z[0]),y:z[1]+r()*(z[3]-z[1]),st:L.kin?'porteur : « Je porte ta valise ? » puis réclame de l’argent':'porteur : propose de porter les valises',walk:1}); }
     out.push({staff:'porter',i:out.length,K,c:TM_ROLE.porter[0],sk:TM_SKIN[(k*2)%TM_SKIN.length],dep:3}); }
+  if(L.kin){ add('mil',470,1262,'militaire : garde la barrière de la voie rapide'); add('mil',610,1262,'militaire : contrôle les voitures de la voie rapide');   /* Kinshasa : militaires FARDC */
+    const zm=[[20,1238,640,1296],[20,1000,620,1220],[680,1000,990,1230],[20,430,620,690]]; for(let k=0;k<6;k++){ const z=zm[k%4], K=[]; for(let t=Math.floor((now-40*MIN)/(5*MIN))*5*MIN;t<now+3*HOUR;t+=5*MIN){ const r=pfRng('mil'+k+'|'+t); K.push({t,x:z[0]+r()*(z[2]-z[0]),y:z[1]+r()*(z[3]-z[1]),st:'militaire en patrouille',walk:1}); } out.push({staff:'mil',i:out.length,K,c:TM_ROLE.mil[0],sk:TM_SKIN[(k+1)%TM_SKIN.length],dep:3}); } }
   return out; }
 // familles : les enfants marchent avec le parent qui les précède dans le manifeste, et certains couples voyagent ensemble
 function tmFamilies(ppl){ let prev=null;
@@ -587,7 +596,7 @@ function tmRoad(g,L,now){ const y=1318, x0=-700, x1=1700, len=x1-x0, code=TM.cod
       if((h>>>4)%100>dens*100+25) continue; g.fillStyle='rgba(0,0,0,.3)'; g.fillRect(x+1,yy+1,w,ty===10?3:6); g.fillStyle=ty===10?'#111827':C[ty%C.length]; g.fillRect(x,yy,w,ty===10?3:6); g.fillStyle='rgba(15,23,42,.6)'; if(ty!==10) g.fillRect(x+(dir>0?w*0.6:w*0.15),yy+1,w*0.25,4);
       if(kin&&ty===9){ g.fillStyle='#facc15'; g.fillRect(x,yy+3.6,w,1.2); }   /* taxi-bus bleu et jaune */
       if(jam&&(h>>>9)%5===0){ g.fillStyle='#ef4444'; g.fillRect(dir>0?x-1:x+w,yy+1,1.2,1.5); } } }
-  if(kin&&jam){ for(let k=0;k<14;k++){ const h=(k*40503)>>>0, x=x0+((h%len)+Math.sin(now/7000+k)*40), yy=y+4+((h>>5)%2)*2; tmStreetGuy(g,x,yy,h,now,1); } } }   /* vendeurs entre les voitures dans les bouchons */
+  if(kin&&jam){ for(let k=0;k<7;k++){ const h=(k*40503)>>>0, x=x0+((h%len)+Math.sin(now/7000+k)*40), yy=y+8.5; tmStreetGuy(g,x,yy,h,now,1); } } }   /* vendeurs sur la ligne entre les deux files, sans toucher les voitures */   /* vendeurs entre les voitures dans les bouchons */
 // une personne de la rue vue de dessus : vendeur avec sa bassine sur la tête, ou passant
 function tmStreetGuy(g,x,y,h,now,load){ const sk=['#5b3a24','#7a4a2a','#3f2516'][h%3], cl=['#dc2626','#2563eb','#16a34a','#f59e0b','#7c3aed','#0e7490','#be185d'][(h>>>3)%7], st=Math.sin(now/180+h)*0.8;
   g.fillStyle='rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(x+0.8,y+3.6,2.6,1.2,0,0,6.283); g.fill(); g.fillStyle=cl; g.fillRect(x-1.8,y-1+st*0.2,3.6,4.2); g.fillStyle=sk; g.beginPath(); g.arc(x,y-2.2,1.5,0,6.283); g.fill();
@@ -605,6 +614,12 @@ function tmKinStreet(g,y,x0,x1,now,jam){ const ys=y+31, len=x1-x0;
   for(let k=0;k<3;k++){ const h=(k*97531)>>>0, x=x0+(((h%len)+(k%2?1:-1)*now/1000*5)%len+len)%len, yy=ys+30; g.fillStyle='#a16207'; g.fillRect(x-7,yy-3,14,6); g.fillStyle='#374151'; g.beginPath(); g.arc(x-5,yy+3,1.5,0,6.283); g.arc(x+5,yy+3,1.5,0,6.283); g.fill(); g.fillStyle='#e5e7eb'; g.fillRect(x-5,yy-5,10,3); tmStreetGuy(g,x+10,yy,h,now,0); }   /* pousse-pousse chargés */
   { const bx=x0+len*0.62; g.fillStyle='#374151'; g.fillRect(bx+28,ys+2,2,24); g.fillRect(bx+70,ys+2,2,24); g.fillStyle='#0369a1'; g.fillRect(bx+18,ys-8,64,14); g.fillStyle='#facc15'; g.fillRect(bx+18,ys+4,64,2); g.font='700 6px system-ui'; g.fillStyle='#fff'; g.fillText('Bienvenue à Kinshasa',bx+21,ys+1); } }   /* panneau */
 
+// parvis des aéroports congolais : voie normale (tout le monde) et voie rapide payante gardée par les militaires
+function tmKinCurb(g){ for(const p of (TM.L&&TM.L.poi)||[]) if(p.k==='ebola'){ g.fillStyle='rgba(0,0,0,.2)'; g.fillRect(p.x0+1.5,p.y0+1.5,p.x1-p.x0,p.y1-p.y0); g.fillStyle='#ecfdf5'; g.fillRect(p.x0,p.y0,p.x1-p.x0,p.y1-p.y0); g.strokeStyle='#059669'; g.lineWidth=0.8; g.strokeRect(p.x0,p.y0,p.x1-p.x0,p.y1-p.y0); g.font='700 5.2px system-ui'; g.fillStyle='#065f46'; g.fillText('🦠 Ebola · QR code',p.x0+3,p.y0+7); }   /* tables du contrôle Ebola */
+  g.fillStyle='#57534e'; g.fillRect(448,1238,4,60); g.fillStyle='#dc2626'; for(let y=1240;y<1296;y+=8) g.fillRect(448,y,4,4);
+  g.fillStyle='#f8fafc'; g.fillRect(452,1258,60,2); g.fillStyle='#dc2626'; for(let x=452;x<512;x+=10) g.fillRect(x,1258,5,2);   /* barrière */
+  g.fillStyle='#e7e5e4'; g.fillRect(620,1246,18,14); g.fillStyle='#1e3a8a'; g.fillRect(620,1246,18,3); g.font='700 5px system-ui'; g.fillStyle='#111827'; g.fillText('Péage',622,1256);
+  g.font='700 7px system-ui'; g.fillStyle='#fde68a'; g.fillText('Voie rapide · payante (10 $) · militaires',458,1300); g.fillStyle='#e5e7eb'; g.fillText('Voie normale · tout le monde',40,1300); }
 function tmCurb(g,now){ const V=[['taxi','#facc15',14,7],['taxi','#facc15',14,7],['car','#e2e8f0',14,7],['car','#1e293b',14,7],['car','#991b1b',14,7],['bus','#0e7490',30,9],['taxi','#2563eb',14,7],['navette','#f8fafc',24,9],['car','#64748b',14,7]];
   for(let k=0;k<V.length;k++){ const [t,c,w,h]=V[k], lane=k%2, sp=lane?0.018:0.024, per=1200/sp, u=((now+k*per/V.length)%per)/per, x0=-60+u*1180;
     let x=x0; const stop=lane?[[160,0.1],[470,0.1],[760,0.1],[900,0.1]]:[[260,0.1],[820,0.1]]; for(const [sx] of stop) if(Math.abs(x0-sx)<10) x=sx;   // s'arrête au trottoir
@@ -726,6 +741,8 @@ function tmMood(p,q,now){ if(!p||!p.K||p.staff||p.crew) return null; const K=p.K
     if(dl>=12&&/porte|assis/.test(st)) return {lvl:-1,t:`${dl} minutes de retard, bon… on fait avec.`}; }
   // file d'attente qui vient de se terminer : rapide ou interminable ?
   for(let j=k-1;j>=1;j--){ if(now-K[j].t>8*MIN) break; if(K[j].q){ const d=K[j].t-K[j-1].t; if(d<5*MIN) return {lvl:2,t:tmSay(p,now,['Ah, c’est passé vite aujourd’hui ! Super.','Même pas cinq minutes, c’est rare !','Merci, très efficace aujourd’hui.'])}; if(d>25*MIN) return {lvl:-1,t:tmSay(p,now,[`Enfin ! ${m(d)} minutes de queue… quelle galère.`,'Ouf, enfin passé.','Bon, ça c’est fait. Un café maintenant.'])}; break; } }
+  if(/attend son visa/.test(st)&&here>45*MIN) return {lvl:-2,t:tmSay(p,now,[`${m(here)} minutes pour un visa !`,'Une heure et demie dans cette salle… incroyable.','90 dollars et toujours rien !'])};
+  if(/voyage refusé/.test(st)) return {lvl:-2,t:tmSay(p,now,['Mon QR code… il ne passe pas !','Pas de voyage sans QR code ? Mais je l’avais !'])};
   if(/retrouve|serre dans ses bras/.test(st)) return {lvl:2,t:tmSay(p,now,['Quel bonheur de vous revoir !','Mbote ! Ça fait tellement longtemps !','Les enfants ont tellement grandi !','Mama ! Tu m’as manqué !'])};
   if(p.dep===0&&/monte dans un taxi/.test(st)&&p.bagT&&p.K[0]&&p.bagT-p.K[0].t<40*MIN) return {lvl:2,t:'Sorti en moins de 40 minutes, c’est rapide pour une fois !'};
   return null; }
@@ -737,6 +754,11 @@ function tmThought(p,q){ { const M=tmMood(p,q,tmNow()); if(M&&M.t) return `<br><
   else if(/pas présenté/.test(st)) t='Je n’ai pas vu l’heure passer… mon vol !';
   else if(/enregistrement/.test(st)) t=w&&w.bags>1?tmSay(p,now,['Pourvu que mes valises ne dépassent pas 23 kg…','Si c’est trop lourd, je mets le pagne dans le sac à main.','J’ai trop acheté de cadeaux…']):tmSay(p,now,['J’espère que ça va avancer plus vite.','Passeport, billet… tout est là.','Une place côté hublot, s’il vous plaît.']);
   else if(/sûreté|coupe-file/.test(st)) t='Ai-je bien enlevé la bouteille d’eau de mon sac ?';
+  else if(/contrôle Ebola/.test(st)) t=tmSay(p,now,['J’ai bien mon QR code… il est où sur mon téléphone ?','Sans ce QR code, pas de voyage.','La batterie de mon téléphone, pourvu qu’elle tienne !']);
+  else if(/visa/.test(st)) t=tmSay(p,now,['90 dollars pour un visa…','Ça fait combien de temps que j’attends ?','Ils appellent les noms quand ?']);
+  else if(/porteur/.test(st)) t=tmSay(p,now,['Il veut combien ? Dix dollars ? Non !','Je n’ai rien demandé, moi…','Bon, 5 000 francs et c’est tout.']);
+  else if(/voie rapide/.test(st)) t=tmSay(p,now,['Payer pour déposer… c’est Kin.','Au moins ici ça avance.']);
+  else if(/voie normale/.test(st)) t=tmSay(p,now,['Que de monde !','Pardon, pardon, laissez passer…']);
   else if(/alarme|palpation/.test(st)) t=tmSay(p,now,['C’est sûrement ma ceinture…','Encore une fouille ? Je n’ai rien du tout !','Allez-y, je n’ai rien à cacher.','Ils fouillent tout le monde aujourd’hui.','Doucement, doucement…']);
   else if(/police|passeport|immigration|visa/.test(st)) t=w&&D&&w.nat!==(p.dep?D.A.cc:D.B.cc)?'Passeport, visa… j’espère que tout est en ordre.':'Ça devrait aller vite avec mon passeport.';
   else if(/attend l’appel|assis à la porte/.test(st)&&D) t=`Encore ${Math.max(0,Math.round((D.gate.open-now)/MIN))} min avant l’embarquement.`+(tmDelay(p.f)?' Et ce retard…':'');
@@ -1109,7 +1131,7 @@ function tmDraw(){
     g.strokeStyle='#334155'; g.lineWidth=10; g.beginPath(); g.ellipse(b.cx,b.cy,b.rx,b.ry,0,0,6.283); g.stroke(); g.strokeStyle=f.col; g.lineWidth=2; g.stroke();
     fit(('Tapis '+b.n+' · '+f.fn+' · '+f.D.A.city),b.cx-34,b.cy-b.ry-24,68,13,now>f.D.bag.first&&now<f.D.bag.last?'#22c55e':'#facc15','#0f172a');  }
   // équipements et commerces
-  for(const p of L.poi){ const col={kiosk:'#0ea5e9',xray:'#475569',arch:'#94a3b8',booth:'#7c3aed',egate:'#6d28d9',wc:'#cbd5e1',cafe:'#fde68a',resto:'#fed7aa',dutyfree:'#fbcfe8',pharma:'#bbf7d0',press:'#e9d5ff',prayer:'#e0e7ff',seats:'#f1f5f9',info:'#bae6fd',green:'#86efac',red:'#fca5a5',change:'#fde68a',taxi:'#facc15',car:'#cbd5e1',lost:'#fecaca',lounge:'#d6d3d1',fids:'#0f172a',transfer:'#bae6fd',health:'#fef08a',trolley:'#d1d5db',xrayc:'#475569',atm:'#cbd5e1',fidsA:'#0f172a',kids:'#bbf7d0'}[p.k]||'#e5e7eb';
+  for(const p of L.poi){ const col={kiosk:'#0ea5e9',xray:'#475569',arch:'#94a3b8',booth:'#7c3aed',egate:'#6d28d9',wc:'#cbd5e1',cafe:'#fde68a',resto:'#fed7aa',dutyfree:'#fbcfe8',pharma:'#bbf7d0',press:'#e9d5ff',prayer:'#e0e7ff',seats:'#f1f5f9',info:'#bae6fd',green:'#86efac',red:'#fca5a5',change:'#fde68a',taxi:'#facc15',car:'#cbd5e1',lost:'#fecaca',lounge:'#d6d3d1',fids:'#0f172a',transfer:'#bae6fd',health:'#fef08a',trolley:'#d1d5db',xrayc:'#475569',atm:'#cbd5e1',fidsA:'#0f172a',kids:'#bbf7d0',ebola:'#d1fae5',visa:'#fef3c7'}[p.k]||'#e5e7eb';
     g.fillStyle=col; g.fillRect(p.x0,p.y0,p.x1-p.x0,p.y1-p.y0); g.strokeStyle='rgba(51,65,85,.5)'; g.lineWidth=0.6; g.strokeRect(p.x0,p.y0,p.x1-p.x0,p.y1-p.y0);
     if(/^(dutyfree|cafe|resto|pharma|press|lounge|change|car)$/.test(p.k)){ const sh=p.k==='pharma'?'#16a34a':p.k==='dutyfree'?'#be185d':p.k==='press'?'#7c3aed':p.k==='lounge'?'#44403c':'#b45309'; g.fillStyle=sh; g.fillRect(p.x0,p.y1-3,p.x1-p.x0,3); g.fillStyle='rgba(255,255,255,.55)'; for(let x=p.x0+3;x<p.x1-3;x+=8) g.fillRect(x,p.y1-2.4,4,1.8);   // devanture
       if(/dutyfree|pharma|press/.test(p.k)){ g.fillStyle='rgba(51,65,85,.28)'; g.beginPath(); for(let y=p.y0+20;y<p.y1-10;y+=12) g.rect(p.x0+8,y,p.x1-p.x0-16,3); g.fill(); } }   // rayons
@@ -1144,7 +1166,7 @@ function tmDraw(){
     else if(TM.sc&&TM.scCam&&TM.scCam.w===cv.width&&TM.scCam.h===cv.height&&TM.scKey&&Math.abs(Math.log(s/TM.scCam.s))<0.9){   /* caméra en mouvement : on déplace l'image déjà dessinée (fluide), le décor exact revient dès l'arrêt */
       const C0=TM.scCam, k=(s*TM.dpr)/(C0.s*C0.d); main.setTransform(1,0,0,1,0,0); main.fillStyle='#1e293b'; main.fillRect(0,0,cv.width,cv.height); main.setTransform(k,0,0,k,(C0.x-c.x)*s*TM.dpr,(C0.y-c.y)*s*TM.dpr); main.drawImage(TM.sc,0,0); prep(main,false); TM.moveDraw=1; }
     else { prep(main,true); drawStatic(); }
-    tmCurb(g,now); tmRoad(g,L,now);
+    tmCurb(g,now); if(L.kin) tmKinCurb(g); tmRoad(g,L,now);
     // avions qui roulent ou sont repoussés : position recalculée à chaque image
     const fly=(pl,f)=>{ const sc=tmPSc(f), air=pl.air||0; if(air>0){ g.save(); g.globalAlpha=0.22*(1-air*0.5); g.fillStyle='#020617'; g.translate(pl.x+air*22,pl.y+air*30); g.rotate(pl.a); g.beginPath(); g.ellipse(0,-50*sc,8*sc,46*sc,0,0,6.283); g.ellipse(0,-50*sc,52*sc,7*sc,0,0,6.283); g.fill(); g.restore(); } tmPlane(g,pl.x,pl.y,col0(f),pl.a,sc*(1+air*0.55),1,f); };   /* en l'air : plus gros, ombre décalée au sol */
     DP.forEach((pl,k)=>{ if(!pl||pl.at) return; if(pl.push){ g.save(); g.translate(pl.x,pl.y); g.rotate(pl.a); g.fillStyle='#facc15'; g.fillRect(-4,2,8,10); g.restore(); } fly(pl,L.deps[k].f); });
