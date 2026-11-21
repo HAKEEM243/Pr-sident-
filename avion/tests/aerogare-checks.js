@@ -201,7 +201,7 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     ok(st.n>=1&&st.job==='écrivain renommé','Passager vedette : prochain vol annoncé, identité fixe',`${st.n} vol(s), ${st.age} ans`);
 
     // N'Djili agrandi : tous les vols de Kinshasa présents (aile d'embarquement, second hall), chacun avec des passagers, files d'enregistrement stables
-    const big=await p.evaluate(()=>{ const T0=S.time; let n=0,noPax=0,trunc=0,cross=0,nck=0,ovl=0,wing=0,tk=0,prem=0,pck=0; const ex=[];
+    const big=await p.evaluate(()=>{ const T0=S.time; let n=0,noPax=0,trunc=0,cross=0,nck=0,ovl=0,wing=0,tk=0,prem=0,pck=0,minSal=1e9,belt=0; const ex=[];
       for(let t=T0;t<T0+12*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; TM.th=null; tmBuild(); const F=TM.F, L=TM.L, cnt=new Map();
         for(const q of TM.ppl) if(q.f&&!q.staff&&!q.crew&&q.K&&q.K.length&&q.K[0].t<=t&&q.K[q.K.length-1].t>t) cnt.set(q.f,(cnt.get(q.f)||0)+1);
         if((F.later||[]).length>=60||F.arrs.length>=48) trunc++; if(L.deps.length>4&&!(L.ndW>0)) wing++; else if(L.deps.length>4) wing+=0;
@@ -209,9 +209,9 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
         for(const f of [...F.deps,...(F.later||[])]){ if(!(f.N>0)||t<f.D.P-100*MIN||t>f.D.gate.open) continue; n++; if(!cnt.get(f)){ noPax++; if(ex.length<3) ex.push(f.fn); } }
         for(const q of TM.ppl){ if(q.dep!==1||!q.f) continue; const g=L.deps.find(d=>d.f===q.f)||(L.later||[]).find(d=>d.f===q.f); if(!g||g.cx0==null||q.K.some(k=>/enregistrement prioritaire|enregistrement VIP/.test(k.st))) continue; nck++; const K=q.K, tEnd=(K.find(k=>/sûreté|coupe-file/.test(k.st))||K[K.length-1]).t;
           for(let u=Math.max(K[0].t,t);u<Math.min(tEnd,t+30*MIN);u+=20000){ const z=tmAt(K,u); if(z&&z.y>1026&&z.y<1154&&z.x<612&&(z.x<g.cx0-6||z.x>g.cx1+6)){ cross++; break; } } }
-        tk+=L.deps.filter(d=>d.wing).length; for(const q of TM.ppl){ if(!q.K) continue; if(q.K.some(k=>/salon VIP|salon SkyPriority/.test(k.st))) prem++; if(q.K.some(k=>/enregistrement prioritaire SkyPriority|enregistrement VIP/.test(k.st))) pck++; } }
-      S.time=T0; return {n,noPax,trunc,cross,nck,ovl,wing,tk,ex,prem,pck}; });
-    ok(big.n>50&&big.noPax===0&&big.trunc===0&&big.cross===0&&big.ovl===0&&big.wing===0&&big.tk>0&&big.prem>0&&big.pck>0,'N’Djili agrandi : tous les vols de Kinshasa visibles avec leurs passagers, files d’enregistrement stables, pavillon VIP · SkyPriority utilisé',`${big.n} vols, ${big.noPax} sans passager ${big.ex.join(' ')} ; ${big.trunc} liste(s) tronquée(s) ; ${big.cross} passage(s) dans la file d’une autre compagnie sur ${big.nck} ; ${big.ovl} salle(s) superposée(s) ; aile d’embarquement : ${big.tk} salles ; salons VIP/SkyPriority : ${big.prem} passages ; enregistrement prioritaire : ${big.pck}`);
+        tk+=L.deps.filter(d=>d.wing).length; { let sal=0; for(const q of TM.ppl){ const z=tmAt(q.K,t); if(z&&z.x<-330&&z.x>-960&&z.y>450&&z.y<670) sal++; } minSal=Math.min(minSal,sal); } for(const a of L.arrs) if(!(a.belt.n>=1&&a.belt.n<=8)) belt++; for(const q of TM.ppl){ if(!q.K) continue; if(q.K.some(k=>/salon VIP|salon SkyPriority/.test(k.st))) prem++; if(q.K.some(k=>/enregistrement prioritaire SkyPriority|enregistrement VIP/.test(k.st))) pck++; } }
+      S.time=T0; return {n,noPax,trunc,cross,nck,ovl,wing,tk,ex,prem,pck,minSal,belt}; });
+    ok(big.n>50&&big.noPax===0&&big.trunc===0&&big.cross===0&&big.ovl===0&&big.wing===0&&big.tk>0&&big.prem>0&&big.pck>0&&big.minSal>0&&big.belt===0,'N’Djili agrandi : tous les vols de Kinshasa visibles avec leurs passagers, files d’enregistrement stables, pavillon VIP · SkyPriority utilisé',`${big.n} vols, ${big.noPax} sans passager ${big.ex.join(' ')} ; ${big.trunc} liste(s) tronquée(s) ; ${big.cross} passage(s) dans la file d’une autre compagnie sur ${big.nck} ; ${big.ovl} salle(s) superposée(s) ; aile d’embarquement : ${big.tk} salles ; salons VIP/SkyPriority : ${big.prem} passages ; enregistrement prioritaire : ${big.pck} ; au moins ${big.minSal} personne(s) dans les salons à toute heure ; ${big.belt} numéro(s) de tapis hors 1 à 8`);
     ok(!errs.length,'Aucune erreur JavaScript dans le jeu',errs.slice(0,3).join(' | '));
 
     // 8 bis. construire un aéroport dans son pays (et pas à l'étranger), y ouvrir une ligne, racheter un aéroport, photo dans l'aérogare
