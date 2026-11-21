@@ -108,12 +108,15 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     ok(rz.dem,'Affluence selon le jour, l’heure et la saison (vendredi, nuit, Noël, pèlerinage)',`${rz.dem}`);
     ok(rz.ts&&rz.tr>50&&rz.trA>10&&rz.trBad===0,'Correspondances (Addis-Abeba) : ni enregistrement, ni immigration, ni douane',`${rz.tr} au départ, ${rz.trA} à l’arrivée, ${rz.trBad} erreur(s)`);
 
-    // 6 quinquies. N'Djili : plan réel (OpenStreetMap), postes sans passerelle bien espacés, bus de piste, tout le monde à bord avant le repoussage
-    const nj=await p.evaluate(()=>{ TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; let late=0,n=0,bus=0,arrBus=0;
+    // 6 quinquies. N'Djili : chaque avion sur son poste de la 3D, jamais deux avions au même poste, bus de piste, tout le monde à bord avant le repoussage, coin des vols nationaux
+    const nj=await p.evaluate(()=>{ const T0=S.time; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; let late=0,n=0,bus=0,arrBus=0,mism=0,ov=0,pairs=0;
       for(const q of TM.ppl){ if(!q.f) continue; if(q.dep===0&&q.K.some(k=>k.bus)) arrBus++; if(q.dep!==1) continue; const last=q.K[q.K.length-1]; if(/escalier/.test(last.st)){ n++; if(last.t>q.f.D.P+1000) late++; } if(q.K.some(k=>k.bus)) bus++; }
-      const xs=[...L.deps.map(d=>d.stand.x),...L.arrs.map(a=>a.door.x)].sort((a,b)=>a-b); let gap=1e9; for(let k=1;k<xs.length;k++) gap=Math.min(gap,xs[k]-xs[k-1]);
-      return {shape:L.shape,n,late,bus,arrBus,gap,pn:L.deps.every(d=>d.pn)}; });
-    ok(nj.shape==='ndjili'&&nj.pn&&nj.gap>=95&&nj.n>100&&nj.late===0&&nj.bus>0&&nj.arrBus>0,'N’Djili : plan réel, postes sans passerelle, bus de piste, tout le monde à bord avant le repoussage',`${nj.shape}, écart mini entre postes ${nj.gap}, ${nj.late} en retard sur ${nj.n}, ${nj.bus}/${nj.arrBus} en bus`);
+      for(const d of L.deps){ const gp=ndjGate(d.f,'FIH',0); if(gp&&Math.abs(ndjX(gp)-d.stand.x)>1) mism++; } for(const a of L.arrs){ const gp=ndjGate(a.f,'FIH',1); if(gp&&Math.abs(ndjX(gp)-a.door.x)>1) mism++; }
+      for(let t=T0;t<T0+3*HOUR;t+=10*MIN){ const P=[]; for(const d of L.deps){ const q=tmDepPlane(d,t); if(q&&q.at) P.push([d.stand.x,d.stand.y,d.f.reg]); } for(const a of L.arrs){ const q=tmArrPlane(a,t); if(q&&q.at) P.push([a.door.x,a.sy,a.f.reg]); }
+        for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){ pairs++; if(Math.abs(P[i][0]-P[j][0])<60&&P[i][1]===P[j][1]&&P[i][2]!==P[j][2]) ov++; } }
+      let gOv=0; { const code='FIH', x=Math.floor((T0+ahStd(code)*HOUR-12*HOUR)/DAY), M=rivGateBlock(code,x,true), byK=new Map(); for(const Lv of M.values()) for(const v of Lv) (byK.get(v.k)||byK.set(v.k,[]).get(v.k)).push(v); for(const [k,Lv] of byK) if(k<rivGateN(code)) for(let i=0;i<Lv.length;i++) for(let j=i+1;j<Lv.length;j++) if(Lv[i].s<Lv[j].e&&Lv[j].s<Lv[i].e) gOv++; }
+      return {shape:L.shape,n,late,bus,arrBus,mism,ov,pairs,gOv,dom:L.ndDom||0}; });
+    ok(nj.shape==='ndjili'&&nj.n>100&&nj.late===0&&nj.bus>0&&nj.arrBus>0&&nj.mism===0&&nj.ov===0&&nj.gOv===0,'N’Djili : chaque avion à son poste de la 3D, jamais deux au même poste, bus de piste, à bord avant le repoussage',`${nj.mism} poste(s) différent(s) de la 3D ; ${nj.ov} chevauchement(s) sur ${nj.pairs} ; ${nj.gOv} double(s) attribution(s) ; ${nj.late} en retard sur ${nj.n} ; ${nj.bus}/${nj.arrBus} en bus ; ${nj.dom} vol(s) nationaux`);
 
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};

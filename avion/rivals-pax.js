@@ -63,19 +63,54 @@ function rivRoutesAt(code){ const L=[], seen=new Set();
   for(const R of S.rivals||[]) for(const r of R.routes||[]) if(r.a===code||r.b===code){ const k=(r.c||R.code)+pairKey(r.a,r.b); if(!seen.has(k)){ seen.add(k); L.push([R,r]); } }
   try{ if(typeof AP_ROUTES!=='undefined'&&AP_ROUTES[code]&&typeof carriersOn==='function') for(const b of AP_ROUTES[code]) for(const c of carriersOn(code,b)){ if(c===S.company.code) continue; const k=c+pairKey(code,b); if(seen.has(k)) continue; seen.add(k); const R=ghostAirline(c); if(R) L.push([R,ghostRouteOf(c,code,b)]); } }catch(e){}
   return L; }
+/* ---------- postes des autres compagnies : premier arrivé, premier servi ----------
+   Chaque escale (de l'arrivée au départ) reçoit un poste libre pendant toute sa durée : jamais deux avions au même poste.
+   Les mêmes postes servent à la carte, à la 3D et à l'aérogare. Les postes « préférés » de vos avions sont laissés libres
+   tant qu'il en reste d'autres. Les escales sont réparties par blocs de midi à midi (heure locale) : les avions qui
+   passent la nuit ne changent jamais de poste. Horaires prévus + 75 min de marge pour les retards. */
+const _rgM=new Map(), RIV_REMOTE=60;
+const rivGateN=code=>{ const g=typeof apGates==='function'?apGates(code):null; return g&&g.length?g.length:22; };
+function rivOwnRes(code){ const set=new Set(); try{ for(const ac of S.fleet||[]){ set.add(gateIdx(code,ac,true)); set.add(gateIdx(code,ac,false)); } }catch(e){} return set; }
+function rivGateBlock(code,x,seed){ const res=rivOwnRes(code), ck=code+'|'+x+'|'+(seed?1:0)+'|'+[...res].sort((a,b)=>a-b).join(','); let M=_rgM.get(ck); if(M) return M;
+  const off=(typeof ahStd==='function'?ahStd(code):0)*HOUR, b0=x*DAY+12*HOUR-off, b1=b0+DAY, V=[], n=rivGateN(code);
+  for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue; const rk=(r.c||'')+r.a+r.b, intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc;
+    for(let i=0;i<K.nP;i++){ const c0=Math.floor((b0-K.anchors[i])/K.P)-2, c1=Math.floor((b1-K.anchors[i])/K.P)+2;
+      for(let c=c0;c<=c1;c++){ if(typeof rivOps==='function'&&!rivOps(K,r,i,c)) continue; const base=K.anchors[i]-K.bA+c*K.P; let s0,e0;
+        if(r.b===code){ s0=base+K.pA.total-15*MIN; e0=base+K.pA.total+K.turn+K.bB+75*MIN; }
+        else { e0=base+K.bA+75*MIN; let cp=c-1, m=0; while(m++<8&&typeof rivOps==='function'&&!rivOps(K,r,i,cp)) cp--; s0=K.anchors[i]-K.bA+cp*K.P+K.pA.total+K.turn+K.pB.total-15*MIN; }
+        if(s0>=b0&&s0<b1) V.push({rk,i,s:s0,e:e0,pref:gateIdx(code,{id:r.a+r.b+i},intl)}); } } }
+  V.sort((a,b)=>Math.min(a.e-a.s,4*HOUR)-Math.min(b.e-b.s,4*HOUR)||a.s-b.s||(a.rk<b.rk?-1:a.rk>b.rk?1:a.i-b.i));   /* escales courtes d'abord : les avions garés toute la journée prennent ce qui reste */
+  const occ=new Map(), add=(k,s0,e0)=>(occ.get(k)||occ.set(k,[]).get(k)).push([s0,e0]);
+  if(seed){ const P0=rivGateBlock(code,x-1,false); for(const L of P0.values()) for(const v of L) if(v.e>b0) add(v.k,v.s,v.e); }
+  M=new Map(); let cur=null; const free=k=>!(occ.get(k)||[]).some(([s0,e0])=>s0<cur.e&&e0>cur.s), put=(v,k)=>{ v.k=k; add(k,v.s,v.e); const kk=v.rk+'|'+v.i; (M.get(kk)||M.set(kk,[]).get(kk)).push(v); };
+  // moments où l'avion est montré (juste après l'arrivée, avant le départ) : deux avions peuvent partager une place éloignée s'ils ne sont jamais montrés en même temps
+  const win=v=>v.e-v.s<5*HOUR?[[v.s,v.e]]:[[v.s,v.s+125*MIN],[v.e-185*MIN,v.e]], wocc=new Map(), freeW=k=>{ const W=win(cur); return !(wocc.get(k)||[]).some(([a,b])=>W.some(([c,d])=>a<d&&b>c)); };
+  for(const v of V){ cur=v; let k=null; for(const pass of [0,1]){ for(let j=0;j<n&&k==null;j++){ const c=(v.pref+j)%n; if(pass===0&&res.has(c)) continue; if(free(c)) k=c; } if(k!=null) break; }
+    if(k==null){ for(let c=n;c<n+RIV_REMOTE;c++) if(free(c)){ k=c; break; } }   /* tout est pris : aire de stationnement éloignée (rangées au bout de l'aire) */
+    if(k==null){ for(let c=n;c<n+RIV_REMOTE;c++) if(freeW(c)){ k=c; break; } }   /* aire éloignée pleine : place partagée avec un avion qui attend toute la journée */
+    if(k==null){ let best=n, bo=1e18; for(let c=n;c<n+RIV_REMOTE;c++){ const o=(occ.get(c)||[]).reduce((t,[a,b])=>t+Math.max(0,Math.min(b,v.e)-Math.max(a,v.s)),0); if(o<bo){ bo=o; best=c; } } k=best; }
+    put(v,k); for(const w of win(v)) (wocc.get(k)||wocc.set(k,[]).get(k)).push(w); }
+  _rgM.set(ck,M); if(_rgM.size>80) _rgM.delete(_rgM.keys().next().value); return M; }
+function rivGateK(code,r,i,t){ const rk=(r.c||'')+r.a+r.b, off=(typeof ahStd==='function'?ahStd(code):0)*HOUR, x=Math.floor((t+off-12*HOUR)/DAY);
+  for(const xx of [x,x-1,x-2]){ const L=rivGateBlock(code,xx,true).get(rk+'|'+i); if(L) for(const v of L) if(t>=v.s-30*MIN&&t<=v.e+30*MIN) return v.k; } return null; }
+// aire éloignée : aux deux bouts de l'aire principale, 2 rangées (la seconde côté piste), avions espacés de 75 m
+function rivRemotePt(code,j){ const ap=apronOf(code), rw=ap&&ap.rw, n=rivGateN(code); if(!rw) return slotPt0(code,n+j); const sd=j%2?1:-1, jj=Math.floor(j/2), col=Math.floor(jj/2), row=jj%2;
+  const a=ap.a+sd*(Math.ceil(n/2)*85+150+col*75), x=ap.x-ap.side*row*95; return {...fromRw(rw,a,x), hdg:(rw.hdg+90*ap.side+360)%360, code, remote:1}; }
+const RIV_GATE_AP=new Set(['FIH']);   /* N'Djili : postes attribués comme dans l'aérogare du jeu (ailleurs : poste habituel de la ligne) */
+function rivGatePt(code,r,i,t,intl){ if(!RIV_GATE_AP.has(code)) return gateSlot(code,{id:r.a+r.b+i},intl); try{ const k=rivGateK(code,r,i,t); if(k!=null){ const n=rivGateN(code); return k<n?slotPt(code,k):rivRemotePt(code,k-n); } }catch(e){} return gateSlot(code,{id:r.a+r.b+i},intl); }
 const _rivPresC=new Map();
 function rivPresent(code,t){ const ck=code+'|'+Math.floor(t/15000); let c=_rivPresC.get(ck); if(c) return c; c=rivPresent0(code,t); _rivPresC.set(ck,c); if(_rivPresC.size>40) _rivPresC.delete(_rivPresC.keys().next().value); return c; }
 function rivPresent0(code,t){ const out=[]; if(typeof rivalSched!=='function') return out;
   for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue;
     for(let i=0;i<K.nP;i++){ const T=K.P, rel=((t-K.anchors[i]+K.bA)%T+T)%T, cyc=Math.floor((t-K.anchors[i]+K.bA)/T); let at;
-      if((K.cf||K.fu)&&typeof rivOps==='function'&&!rivOps(K,r,i,cyc)){ if(r.a!==code) continue; const intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc, gate=typeof gateSlot==='function'?gateSlot(code,{id:r.a+r.b+i},intl):null; const nP2=rivNextDep(K,r,i,cyc+1,t), lA2=rivLastArr(K,r,i,cyc-1,t); out.push({R,r,i,reg:rivReg(R,r,i),col:R.color||'#64748b',name:R.name||R.code,cat:K.cat,gate,nextDep:nP2,lastArr:lA2,prio:Math.min(nP2-t,t-lA2),night:1}); continue; }   /* rotation annulée : reste garé à sa base */
+      if((K.cf||K.fu)&&typeof rivOps==='function'&&!rivOps(K,r,i,cyc)){ if(r.a!==code) continue; const intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc, gate=typeof gateSlot==='function'?rivGatePt(code,r,i,t,intl):null; const nP2=rivNextDep(K,r,i,cyc+1,t), lA2=rivLastArr(K,r,i,cyc-1,t); out.push({R,r,i,reg:rivReg(R,r,i),col:R.color||'#64748b',name:R.name||R.code,cat:K.cat,gate,nextDep:nP2,lastArr:lA2,prio:Math.min(nP2-t,t-lA2),night:1}); continue; }   /* rotation annulée : reste garé à sa base */
       { const ab=rel<K.pA.total+K.turn, dir=ab?'AB':'BA', rr=ab?rel:rel-(K.pA.total+K.turn), dl=rivDelays(r,i,dir,cyc), b0=ab?K.bA:K.bB, tot=rivProf(ab?K.pA:K.pB,dl).total; if(rr>=b0+dl.dep&&rr<tot) continue; }   // en mouvement (roulage, vol) : même règle que rivalPos
       let nx=null, lr=null;   /* prochain départ et dernière arrivée de cet avion, pour classer les plus utiles d'abord */
       if(rel<K.pA.total+K.turn){ const dl=rivDelays(r,i,'AB',cyc); if(rel<K.bA+dl.dep){ at=r.a; nx=['AB',cyc]; lr=['BA',cyc-1]; } else { at=r.b; nx=['BA',cyc]; lr=['AB',cyc]; } }
       else { const dl=rivDelays(r,i,'BA',cyc); if((rel-(K.pA.total+K.turn))<K.bB+dl.dep){ at=r.b; nx=['BA',cyc]; lr=['AB',cyc]; } else { at=r.a; nx=['AB',cyc+1]; lr=['BA',cyc]; } }
       if(at!==code) continue;
       let nP=t+DAY, lA=t-DAY; try{ nP=nx[0]==='AB'&&nx[1]>cyc?rivNextDep(K,r,i,nx[1],t):rivTimes(K,r,i,nx[0],nx[1]).P; lA=lr[0]==='BA'&&lr[1]<cyc?rivLastArr(K,r,i,lr[1],t):rivTimes(K,r,i,lr[0],lr[1]).arr; }catch(e){}
-      const intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc, gate=typeof gateSlot==='function'?gateSlot(code,{id:r.a+r.b+i},intl):null;
+      const intl=AP(r.a)&&AP(r.b)&&AP(r.a).cc!==AP(r.b).cc, gate=typeof gateSlot==='function'?rivGatePt(code,r,i,t,intl):null;
       out.push({R,r,i,reg:rivReg(R,r,i),col:R.color||'#64748b',name:R.name||R.code,cat:K.cat,gate,nextDep:nP,lastArr:lA,prio:Math.min(nP-t,t-lA)}); } }
   return out.sort((a,b)=>a.prio-b.prio||(a.reg<b.reg?-1:1)); }
 // nombre d'avions garés montrés : le même pour la 3D et l'aérogare (téléphone : moins, pour la fluidité)

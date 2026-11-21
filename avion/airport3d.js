@@ -143,19 +143,24 @@ function airportProps(code,N){
   const xp=A.xp||0, span=Math.round((big?1900:700)*(1+0.1*Math.min(5,xp))), n=(typeof apGates==='function'&&(apGates(code)||[]).length)||Math.min(44,(big?22:8)+(A.gatesX||0));   // portes de tous les terminaux
   // terminal derrière la ligne de portes
   const terms=typeof apTerminals==='function'?apTerminals(code):[{n:'T1',a:a0,x:gx+s*72,L:span}];
-  for(const t of terms){ mk(rwPt(r,t.a,t.x),hdgOut+180,apModel('term2-'+t.L,M_TERMINAL(t.L))); try{ N.ents[N.ents.length-1]._term=code; }catch(e){}   // terminaux 1 à 4 (agrandissements du joueur)
+  // N'Djili : même plan que l'aérogare du jeu (postes éloignés sans passerelle, aérogare, vols nationaux, pavillon présidentiel, tour, fret, MONUSCO)
+  const ndj=code==='FIH'&&typeof ndjDir==='function', nA=x2=>a0+ndjDir()*(x2-NDJ_CX)/NDJ_K, lab=(txt,a,x,h)=>{ try{ const q=rwPt(r,a,x), pos=C.Cartesian3.fromDegrees(q.lon,q.lat,(h||24)+EL); N.ents.push(V.entities.add({position:pos, label:{text:txt, font:'700 13px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, distanceDisplayCondition:new C.DistanceDisplayCondition(0,9000)}})); }catch(e){} };
+  if(ndj){ const tx=gx+s*72, bld=(x2,L,txt,lat)=>{ mk(rwPt(r,nA(x2),lat==null?tx:lat),hdgOut+180,apModel('term2-'+L,M_TERMINAL(L))); lab(txt,nA(x2),(lat==null?tx:lat)+s*20); };
+    bld(500,850,'Aérogare de N’Djili'); lab('Vols internationaux',nA(160),tx-s*10,30); lab('Vols nationaux',nA(480),tx-s*10,30);
+    bld(1155,160,'Pavillon présidentiel'); bld(-1100,200,'MONUSCO (ONU)',gx+s*150); bld(1840,240,'Terminal fret',gx+s*150); bld(2030,110,'Hangar',gx+s*150); }
+  for(const t of terms){ if(ndj&&t.n==='T1') continue; mk(rwPt(r,t.a,t.x),hdgOut+180,apModel('term2-'+t.L,M_TERMINAL(t.L))); try{ N.ents[N.ents.length-1]._term=code; }catch(e){}   // terminaux 1 à 4 (agrandissements du joueur)
     if(terms.length>1) try{ const q=rwPt(r,t.a,t.x+s*20), pos=C.Cartesian3.fromDegrees(q.lon,q.lat,24+EL); N.ents.push(V.entities.add({position:pos, label:{text:'Terminal '+t.n.slice(1), font:'700 13px system-ui', fillColor:C.Color.WHITE, outlineColor:C.Color.BLACK, outlineWidth:3, style:C.LabelStyle.FILL_AND_OUTLINE, distanceDisplayCondition:new C.DistanceDisplayCondition(0,9000)}})); }catch(e){} }
   // passerelles aux portes (positions de stationnement réelles du jeu)
   AP3D.bridges=AP3D.bridges||{}; AP3D.bridges[code]={};
-  for(let k=0;k<n;k++){ const sp=slotPt(code,k); const q=destPt(sp.lat,sp.lon,hdgOut,0.062); mk(q,hdgOut+180,apModel('bridge',M_BRIDGE)); AP3D.bridges[code][k]=N.ents[N.ents.length-1]; }
+  for(let k=0;k<n&&!ndj;k++){ const sp=slotPt(code,k); const q=destPt(sp.lat,sp.lon,hdgOut,0.062); mk(q,hdgOut+180,apModel('bridge',M_BRIDGE)); AP3D.bridges[code][k]=N.ents[N.ents.length-1]; }   /* N'Djili : pas de passerelle, comme dans l'aérogare */
   // aéroport allégé (après des erreurs de rendu) : seulement pistes, terminal, passerelles et tour
-  if(G.lite){ mk(rwPt(r,a0+span/2+120,gx+s*110),r.hdg,apModel('tower',M_TOWER),8); try{ apronGround(code,N,EL); }catch(e){ console.warn(e); } return; }   // même en 3D allégée : aire et voies de circulation (les avions roulent dessus)
+  if(G.lite){ mk(ndj?rwPt(r,nA(1290),gx+s*110):rwPt(r,a0+span/2+120,gx+s*110),r.hdg,apModel('tower',M_TOWER),8); try{ apronGround(code,N,EL); }catch(e){ console.warn(e); } return; }   // même en 3D allégée : aire et voies de circulation (les avions roulent dessus)
   // aire de stationnement : béton, lignes jaunes de guidage et barres d'arrêt
   try{ apronGround(code,N,EL); }catch(e){ console.warn(e); }
   // nom de l'aéroport sur le toit, face aux pistes
   try{ const sg=rwPt(r,a0,gx+s*70), pos=C.Cartesian3.fromDegrees(sg.lon,sg.lat,15+EL); N.ents.push(V.entities.add({position:pos, orientation:C.Transforms.headingPitchRollQuaternion(pos,new C.HeadingPitchRoll(C.Math.toRadians(hdgOut+180-90),0,0)), model:{uri:signModel(A.city,code), distanceDisplayCondition:new C.DistanceDisplayCondition(0,12000)}})); }catch(e){ console.warn(e); }
   // tour de contrôle : au bout du terminal, un peu en retrait
-  mk(rwPt(r,a0+span/2+120,gx+s*110),r.hdg,apModel('tower',M_TOWER),8);
+  mk(ndj?rwPt(r,nA(1290),gx+s*110):rwPt(r,a0+span/2+120,gx+s*110),r.hdg,apModel('tower',M_TOWER),8);
   // avions d'autres compagnies garés aux premières portes
   if(false&&typeof AC3D!=='undefined'){ const al=(typeof airlinesAt==='function'?airlinesAt(code):[]).slice(0,6).map(([c])=>c);   /* remplacé par les VRAIS avions des autres compagnies présents (riv3dTick, rivals-pax.js) */
     for(let k=0;k<Math.min(GQ.mob&&!GQ.hq?3:6,n);k++){ if(!al.length) break; const gs=typeof apGates==='function'&&apGates(code), tt=gs?[...new Set(gs.map(x=>x.t))]:['T1'], kk=gs?gs.findIndex(x=>x.t===tt[k%tt.length])+Math.floor(k/tt.length):k, c=al[k%al.length], sp=slotPt(code,kk), m=getModel(k%3===0&&big?'B789':k%2?'A20N':'B738')||getModel('A20N');
