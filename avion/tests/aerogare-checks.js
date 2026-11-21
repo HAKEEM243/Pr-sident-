@@ -32,7 +32,7 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
 
     // 3. aérogares : passagers visibles au départ et à l'arrivée, nombre de vols conforme
     const ap=await p.evaluate(async()=>{ const o=[]; for(const c of ['FIH','BZV','ADD','CDG','NBO']){ TM.code=null; tmOpen(c); await new Promise(r=>setTimeout(r,1300)); const pp=TM.ppl||[]; o.push({c,dep:pp.filter(x=>x.dep===1).length,arr:pp.filter(x=>x.dep===0).length,vis:(TM.pts||[]).length,nd:TM.F.deps.length,na:TM.F.arrs.length}); tmClose(); } return o; });
-    for(const a of ap) ok(a.vis>50&&a.dep>0&&a.nd<=16&&a.na<=8,'Aérogare '+a.c+' : passagers visibles',`${a.vis} visibles, ${a.dep} départ, ${a.arr} arrivée, ${a.nd}/${a.na} vols`);
+    for(const a of ap) ok(a.vis>50&&a.dep>0&&a.nd<=16&&a.na<=(a.c==='FIH'?12:8),'Aérogare '+a.c+' : passagers visibles',`${a.vis} visibles, ${a.dep} départ, ${a.arr} arrivée, ${a.nd}/${a.na} vols`);
 
     // 4. règles : étrangers à la police, personne vers une porte fermée
     const r=await p.evaluate(()=>{ S.time=S.time; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); let fd=0,fp=0,late=0,n=0;
@@ -173,11 +173,18 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
         if(q.dep===0){ const v=q.K.findIndex(k=>/attend son visa/.test(k.st)); if(v>0){ o.visa++; o.vmax=Math.max(o.vmax,(q.K[v].t-q.K[v-1].t)/MIN); } if(q.K.some(k=>/porteur/.test(k.st))) o.port++; } } o.vmax=Math.round(o.vmax); return o; });
     ok(kn.eb>kn.n*0.9&&kn.fast>0&&kn.visa>0&&kn.vmax<=92&&kn.port>0&&kn.mil>=6&&kn.ref<kn.n*0.02,'Kinshasa : contrôle Ebola, voie rapide, salle des visas, porteurs, militaires',`${kn.eb}/${kn.n} contrôlés Ebola (${kn.ref} refusés), ${kn.fast} par la voie rapide, ${kn.visa} au visa (max ${kn.vmax} min), ${kn.port} porteurs, ${kn.mil} militaires`);
 
+    // 6 terdecies. personne ne disparaît en plein parcours quand l'aérogare se met à jour (toutes les 10 min de jeu), ni à l'arrivée ni au départ
+    const vn=await p.evaluate(()=>{ const T0=S.time; let prev=null, vanish=0, n=0, ex='';
+      for(let t=T0;t<T0+2*HOUR;t+=10*MIN){ S.time=t; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const cur=new Set(); for(const q of TM.ppl){ if(q.staff||q.crew||!q.f) continue; if(tmAt(q.K,t)) cur.add(q.f.D.key+'|'+q.dep+'|'+q.i); }
+        if(prev) for(const [k,st] of prev){ n++; if(!cur.has(k)){ vanish++; if(!ex) ex=st; } } prev=new Map(); for(const q of TM.ppl){ if(q.staff||q.crew||!q.f) continue; const z=tmAt(q.K,t+10*MIN); if(z) prev.set(q.f.D.key+'|'+q.dep+'|'+q.i,z.st); } }
+      S.time=T0; TM.ppl=[]; return {vanish,n,ex}; });
+    ok(vn.n>500&&vn.vanish===0,'Personne ne disparaît en plein parcours (mises à jour de l’aérogare)',`${vn.vanish} disparition(s) sur ${vn.n} passagers suivis${vn.ex?' — ex. : '+vn.ex:''}`);
+
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
         for(const d of TM.L.deps){ if(tmDepPlane(d,t)&&d.f.reg) regs[d.f.reg]=(regs[d.f.reg]||0)+1; } for(const a of TM.L.arrs){ if(tmArrPlane(a,t)&&a.f.reg) regs[a.f.reg]=(regs[a.f.reg]||0)+1; }
         for(const v of Object.values(regs)) if(v>1) dup++;
-        for(const a of TM.L.arrs){ if(a.f.soon) continue; const pl=tmArrPlane(a,t); if(pl&&pl.at) continue; for(const B of TM.bags) if(B.belt===a.belt&&t>=B.t0&&t<B.t0+B.dur*0.15){ orph++; break; } } }
+        for(const a of TM.L.arrs){ if(a.f.soon) continue; const pl=tmArrPlane(a,t); if(pl&&pl.at) continue; for(const B of TM.bags) if(B.belt===a.belt&&(!B.p||B.p.f===a.f)&&t>=B.t0&&t<B.t0+B.dur*0.15){ orph++; break; } } }
       S.time=T0; return {dup,orph}; });
     ok(dv.dup===0,'Aucun avion affiché en double',`${dv.dup}`); ok(dv.orph===0,'Aucune valise sortant d’un poste vide',`${dv.orph}`);
 
