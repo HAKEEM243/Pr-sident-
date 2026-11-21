@@ -206,11 +206,14 @@ const TM_HUB={ADD:0.6,DOH:0.65,DXB:0.55,IST:0.5,CDG:0.32,AMS:0.38,FRA:0.4,LHR:0.
 function tmTransitFrac(code){ if(TM_HUB[code]) return TM_HUB[code]; try{ if(S.company&&S.company.hub===code) return 0.2; }catch(e){} return 0; }
 // arrivée tardive à l'aéroport : rare, mais plus fréquente dans les villes embouteillées aux heures de pointe, sous la pluie, pour les hommes d'affaires pressés
 const TM_TRAFFIC={FIH:2.2,LOS:2.2,NBO:1.8,CAI:1.8,LAD:1.6,DLA:1.5,DKR:1.4,ABJ:1.4,ACC:1.4,FBM:1.3,CGK:1.8,MNL:1.8,DAC:1.8,BKK:1.5,DEL:1.6,BOM:1.6,KHI:1.6,IST:1.5,MEX:1.6,GRU:1.5,LIM:1.5,BOG:1.5};
-function tmLateArr(D,x,row,i){ const code=TM.code, r=pfRng(D.key+'|late'+i), u=r(), tr=TM_TRAFFIC[code]||1, h=typeof ahLocalHour==='function'?ahLocalHour(code,D.ci.close):12, rush=(h>=6.5&&h<9.5)||(h>=16&&h<19.5);
+// gravité des embouteillages du jour (déterministe) : certains jours, la ville est bloquée
+function tmJam(code,t){ const tr=TM_TRAFFIC[code]||1; if(tr<=1) return {f:1,lvl:0}; const L=new Date(t+(typeof tzAt==='function'?tzAt(code,t):1)*HOUR), key=code+L.getUTCFullYear()+'-'+L.getUTCMonth()+'-'+L.getUTCDate(), h=(typeof ahH==='function'?ahH('jam'+key):hashStr(key))%100;
+  return h<15?{f:3.2,lvl:2}:h<45?{f:1.5,lvl:1}:{f:1,lvl:0}; }
+function tmLateArr(D,x,row,i){ const code=TM.code, r=pfRng(D.key+'|late'+i), u=r(), tr=TM_TRAFFIC[code]||1, jam=tmJam(code,D.ci.close), h=typeof ahLocalHour==='function'?ahLocalHour(code,D.ci.close):12, rush=(h>=6.5&&h<9.5)||(h>=16&&h<19.5);
   let wet=false; try{ if(TM._wxK!==code+'|'+Math.floor(tmNow()/(30*MIN))){ TM._wxK=code+'|'+Math.floor(tmNow()/(30*MIN)); const w=typeof towerWx==='function'?towerWx(code):null; TM._wet=!!(w&&(w.st||w.vis<4000)); } wet=TM._wet&&Math.abs(D.ci.close-tmNow())<3*HOUR; }catch(e){}
   let p=0.012*tr*(rush?(tr>1?1.6:1.25):1)*(wet?1.5:1)*(h<5||h>=22?0.6:1); if(row){ if(row.purp==='business') p*=1.4; if((row.age||35)>=65) p*=0.5; if(row.purp==='family') p*=0.8; }
-  p=Math.min(0.08,p); if(u>=p) return null;
-  const why=wet?'la pluie a bloqué la circulation':tr>1&&rush?'embouteillages sur la route de l’aéroport':['réveil trop tard','taxi arrivé en retard','a oublié son passeport et a dû faire demi-tour','s’est trompé d’heure de vol'][Math.floor(r()*4)];
+  p*=jam.f; p=Math.min(jam.lvl===2?0.2:0.08,p); if(u>=p) return null;
+  const why=wet?'la pluie a bloqué la circulation':jam.lvl===2?'énormes embouteillages : la ville est bloquée':tr>1&&rush?'embouteillages sur la route de l’aéroport':['réveil trop tard','taxi arrivé en retard','a oublié son passeport et a dû faire demi-tour','s’est trompé d’heure de vol'][Math.floor(r()*4)];
   return {t:D.ci.close+(4+r()*22)*MIN,why}; }
 function tmSched(L){
   const secL=[], polL=[], W={ck:[],sec:[],pol:[]};
@@ -285,7 +288,7 @@ function tmDepKF(g,i,L){
   if(r()<0.08&&k.t<board-14*MIN){ const top=g.door.y<g.lounge.y0+4, wp=top?{x:g.door.x+tmJ(r,-50,50),y:g.door.y+9}:{x:g.door.x+(g.door.x<=g.lounge.x0+1?9:-9),y:g.door.y+tmJ(r,6,44)}; k.walk(wp.x,wp.y,'se rend à la porte '+D.gate.name).stay(Math.min(board-6*MIN,k.t+(4+r()*10)*MIN),'regarde les avions par la baie vitrée'); }
   k.walk(s.x,s.y,'se rend à la porte '+D.gate.name).stay(board-1.5*MIN,'assis à la porte, attend l’appel ('+zl+')',1);
   k.queue(g.bq,board-12000,'file d’embarquement — '+zl).walk(g.desk.x+tmJ(r,-6,6),g.desk.y,'présente sa carte d’embarquement').stay(k.t+10000,'contrôle de la carte à la porte').walk(g.door.x,g.door.y,L.nd?'sort sur le tarmac':'entre dans la passerelle');
-  if(L.nd) tmApronDep(k,g,r); else { const st=g.stand, n={x:-Math.sin(st.a),y:Math.cos(st.a)}; k.walk(st.x+n.x*4,st.y+n.y*4,'marche dans la passerelle jusqu’à l’avion',1.6); }
+  if(L.nd){ k.walk(g.door.x+tmJ(r,-10,10),g.door.y+12,'palpation par un agent de sécurité avant le bus').stay(k.t+(20+r()*25)*1000,'🔎 palpation : l’agent vérifie qu’il n’emporte rien d’interdit'); tmApronDep(k,g,r); } else { const st=g.stand, n={x:-Math.sin(st.a),y:Math.cos(st.a)}; k.walk(st.x+n.x*4,st.y+n.y*4,'marche dans la passerelle jusqu’à l’avion',1.6); }
   k.K[k.K.length-1].out=1; return k.K; }
 // correspondance au départ : descend d'un autre vol, contrôle de transit, porte dans le mur central, hall, puis comme les autres jusqu'à sa porte
 const TM_TRDOOR=[[724,190,'🔁 suit le panneau « Correspondances »'],[652,210,'franchit l’accès des correspondances'],[630,210,'entre en zone internationale, côté piste']];
@@ -356,7 +359,7 @@ const TM_ROLE={ck:['#1e3a8a','Agent d’enregistrement'],gate:['#1e3a8a','Agent 
   health:['#f8fafc','Agent sanitaire'],cus:['#065f46','Douanier'],lost:['#1e3a8a','Agent litiges bagages'],info:['#0e7490','Agent d’accueil'],clean:['#f59e0b','Agent d’entretien'],porter:['#b45309','Porteur de bagages'],patrol:['#1d4ed8','Patrouille de police']};
 function tmStaff(L,now){ const out=[], T0=now-14*HOUR, T1=now+14*HOUR, add=(role,x,y,st)=>out.push({staff:role,i:out.length,K:[{t:T0,x,y,st},{t:T1,x,y,st}],c:TM_ROLE[role][0],sk:TM_SKIN[out.length%TM_SKIN.length],dep:3});
   for(const gr of L.ckGroups||[]){ const n=Math.max(1,Math.min(12,gr.desks||gr.fl.length*2)); for(let k=0;k<n;k++) add('ck',gr.ck.x0+(k+0.5)*(gr.ck.x1-gr.ck.x0)/n,gr.ck.y-2,'au comptoir '+gr.A.name+' ('+gr.fl.map(g=>g.f.fn).slice(0,4).join(', ')+')'); }
-  for(const g of L.deps){ const D=g.f.D;
+  for(const g of L.deps){ const D=g.f.D; if(L.nd) add('sec',g.door.x+9,g.door.y+12,'palpe les passagers avant le bus de piste (porte '+D.gate.name+')');
     add('gate',g.desk.x-7,g.desk.y-9,'à la porte '+D.gate.name+' (vol '+g.f.fn+')'); add('gate',g.desk.x+7,g.desk.y-9,'à la porte '+D.gate.name+' (vol '+g.f.fn+')'); }
   for(const p of L.poi){ const cx=(p.x0+p.x1)/2;
     if(p.k==='xray') add('sec',p.x0+30,p.y0-7,'contrôle les bagages au scanner'); else if(p.k==='arch') add('sec',cx,p.y1+9,'au portique : palpations');
@@ -572,6 +575,16 @@ function tmFids(p,now,g,fit){ if(p.big) return tmFidsBig(p,now,g,fit); const w=p
     fit(`${tmHM(arr?D.arr:D.P)} ${f.fn} ${arr?D.A.city:D.B.city} · ${st}`,p.x0+1,p.y0+1+j*lh,w-2,lh,c,null); } }
 // décor : poubelles, fontaines d'eau, panneaux « sol glissant » quand il pleut
 // parvis : taxis, voitures, navettes et bus qui déposent et reprennent les voyageurs
+// route d'accès à l'aéroport : voitures, taxis, bus, motos ; fluide la nuit, bouchée aux heures de pointe et les jours d'embouteillages
+function tmRoad(g,L,now){ const y=1318, x0=-700, x1=1700, len=x1-x0, code=TM.code, hl=typeof ahLocalHour==='function'?ahLocalHour(code,now):12, tr=TM_TRAFFIC[code]||1, J=tmJam(code,now);
+  const rush=(hl>=6.5&&hl<9.5)||(hl>=16&&hl<19.5), night=hl<5||hl>=23, dens=Math.min(1,(night?0.15:rush?0.6:0.35)*(tr>1?1.3:1)*J.f), jam=dens>0.7;
+  g.fillStyle='#2b2f36'; g.fillRect(x0,y-14,len,44); g.fillStyle='#e5e7eb'; for(let x=x0;x<x1;x+=40) g.fillRect(x,y+7,20,1.6); g.fillStyle='#9ca3af'; g.fillRect(x0,y-15,len,1.2); g.fillRect(x0,y+29,len,1.2);
+  g.fillStyle='#e5e7eb'; g.font='700 9px system-ui'; g.fillText((code==='FIH'?'Boulevard Lumumba':'Route de l’aéroport')+(jam?' — embouteillage':''),x0+20,y-18);
+  const C=['#facc15','#facc15','#e2e8f0','#1e293b','#991b1b','#2563eb','#f8fafc','#16a34a','#facc15','#475569'];
+  for(const lane of [0,1]){ const dir=lane?-1:1, gap=jam?20:50/Math.max(0.2,dens)*0.5+16, v=jam?(2+Math.sin(now/9000+lane)*2):(night?55:28), n=Math.floor(len/gap);
+    for(let k=0;k<n;k++){ const h=(k*2654435761+lane*97)>>>0, ty=h%11, w=ty===9?26:ty===10?8:13, off=((k*gap+dir*now/1000*v)%len+len)%len, x=x0+(dir>0?off:len-off), yy=lane?y+13:y-6;
+      if((h>>4)%100>dens*100+25) continue; g.fillStyle='rgba(0,0,0,.3)'; g.fillRect(x+1,yy+1,w,ty===10?3:6); g.fillStyle=ty===10?'#111827':C[ty%C.length]; g.fillRect(x,yy,w,ty===10?3:6); g.fillStyle='rgba(15,23,42,.6)'; if(ty!==10) g.fillRect(x+(dir>0?w*0.6:w*0.15),yy+1,w*0.25,4);
+      if(jam&&(h>>9)%5===0){ g.fillStyle='#ef4444'; g.fillRect(dir>0?x-1:x+w,yy+1,1.2,1.5); } } } }   /* feux stop dans les bouchons */
 function tmCurb(g,now){ const V=[['taxi','#facc15',14,7],['taxi','#facc15',14,7],['car','#e2e8f0',14,7],['car','#1e293b',14,7],['car','#991b1b',14,7],['bus','#0e7490',30,9],['taxi','#2563eb',14,7],['navette','#f8fafc',24,9],['car','#64748b',14,7]];
   for(let k=0;k<V.length;k++){ const [t,c,w,h]=V[k], lane=k%2, sp=lane?0.018:0.024, per=1200/sp, u=((now+k*per/V.length)%per)/per, x0=-60+u*1180;
     let x=x0; const stop=lane?[[160,0.1],[470,0.1],[760,0.1],[900,0.1]]:[[260,0.1],[820,0.1]]; for(const [sx] of stop) if(Math.abs(x0-sx)<10) x=sx;   // s'arrête au trottoir
@@ -662,7 +675,7 @@ function tmBoard(){ const el=document.getElementById('tmBoard'); if(!el||!TM.F) 
 const TM_ZONES=[['🗺️ Vue générale',{x0:0,y0:-300,x1:1000,y1:1300}],['🛫 Pistes et postes',{x0:-40,y0:-300,x1:1040,y1:60}],['🎫 Enregistrement',{x0:0,y0:990,x1:640,y1:1300}],['🔍 Sûreté',{x0:0,y0:820,x1:640,y1:960}],['🛂 Police',{x0:300,y0:700,x1:640,y1:820}],
   ['🛍️ Boutiques',{x0:0,y0:420,x1:640,y1:700}],['🚪 Portes',{x0:0,y0:-200,x1:640,y1:400}],['🛬 Arrivées',{x0:660,y0:-200,x1:1000,y1:240}],['🛂 Immigration',{x0:660,y0:230,x1:1000,y1:430}],['🧳 Bagages',{x0:660,y0:420,x1:1000,y1:860}],['🛃 Douane',{x0:660,y0:850,x1:1000,y1:970}],['🤗 Hall des arrivées',{x0:660,y0:960,x1:1000,y1:1300}]];
 function tmZoneRect(i){ const z=TM_ZONES[i], L=TM.L; if(!L) return z[1]; const nm=z[0];
-  if(nm.includes('Vue générale')) return L.nd?{x0:-300,y0:L.top,x1:1300,y1:1300}:{x0:L.rx0!=null?L.rx0:L.bx0,y0:L.top,x1:L.rx1!=null?L.rx1:L.bx1,y1:1300}; if(nm.includes('Pistes')) return {x0:L.bx0,y0:L.top,x1:L.bx1,y1:60};
+  if(nm.includes('Vue générale')) return L.nd?{x0:-300,y0:L.top,x1:1300,y1:1350}:{x0:L.rx0!=null?L.rx0:L.bx0,y0:L.top,x1:L.rx1!=null?L.rx1:L.bx1,y1:1350}; if(nm.includes('Pistes')) return {x0:L.bx0,y0:L.top,x1:L.bx1,y1:60};
   if(nm.includes('Portes')){ let a=1e9,b=-1e9,c=1e9,e=-1e9; for(const d of L.deps){ a=Math.min(a,d.lounge.x0,d.stand.x-110); b=Math.max(b,d.lounge.x1,d.stand.x+110); c=Math.min(c,d.lounge.y0,d.stand.y-110); e=Math.max(e,d.lounge.y1); } return a<b?{x0:a,y0:c,x1:b,y1:e}:z[1]; } return z[1]; }
 function tmFocus(R0){ const cv=TM.cv; if(!cv) return; const PT=96, PB=50; const xa=tmFx(R0.x0), xb=tmFx(R0.x1), ya=tmFy(R0.y0), yb=tmFy(R0.y1), R={x0:Math.min(xa,xb),x1:Math.max(xa,xb),y0:Math.min(ya,yb),y1:Math.max(ya,yb)}; const w=cv.clientWidth, h=cv.clientHeight, hu=Math.max(100,h-PT-PB), s=Math.min(w/(R.x1-R.x0),hu/(R.y1-R.y0))*0.97;
   TM.goal={s,x:(R.x0+R.x1)/2-w/(2*s),y:(R.y0+R.y1)/2-(PT+hu/2)/s}; }
@@ -677,31 +690,34 @@ function tmTurn(f,dep,now){ const D=f.D, L=dep?[['🅿️ Avion au poste, cales 
 // ce que pense la personne, selon ce qu'elle vit en ce moment (et son humeur dans sa fiche)
 // humeur selon ce que la personne vit VRAIMENT : temps passé dans la file, retard de son vol, attente de sa valise, file passée vite…
 // renvoie {lvl:-2..2, t:texte} ; lvl -2 = excédé, +2 = ravi
+// paroles variées : une phrase parmi plusieurs, qui change toutes les ~3 minutes de jeu (on ne répète pas toujours la même chose)
+const tmSay=(p,now,list)=>list[((p.i||0)*7+Math.floor(now/(3*MIN))+((p.i||0)%5))%list.length];
 function tmMood(p,q,now){ if(!p||!p.K||p.staff||p.crew) return null; const K=p.K, k=Math.min(K._k||1,K.length-1), st=q.st||'', w=p.row, D=p.f&&p.f.D, grumpy=w&&/énerv|impatient/.test(w.mood||'')?1:0, m=x=>Math.round(x/MIN);
   const seg0=K[k-1]?K[k-1].t:now, here=now-seg0;   // depuis combien de temps elle fait ce qu'elle fait
-  if(/raté|trop tard|clôturé/.test(st)) return {lvl:-2,t:'Putain, j’ai raté mon vol ! Je n’y crois pas…'};
+  if(/raté|trop tard|clôturé/.test(st)){ const late=K[0]&&/arrive en retard/.test(K[0].st), jamW=late&&/embouteillage|bloquée/.test(K[0].st);
+    return {lvl:-2,t:tmSay(p,now,[...(jamW?['Ces embouteillages sur le boulevard… je le savais !','Deux heures dans les bouchons pour rater mon avion !','Ce trafic de Kinshasa, c’est pas possible !']:[]),'Putain, j’ai raté mon vol ! Je n’y crois pas…','Nzambe na ngai… l’avion est parti sans moi.','Je vais devoir racheter un billet ? Pas question !','Ma famille m’attend à l’arrivée… je les appelle comment ?','Bon, on respire. Il y aura bien un autre vol.','Ils n’ont pas pu attendre deux minutes ?','Je savais que j’aurais dû partir plus tôt.','Mon patron ne va jamais me croire.'])}; }
   if(/perdue|pas arrivée/.test(st)) return {lvl:-2,t:'Putain, ma valise n’est pas arrivée ! Trois heures de vol pour ça…'};
   if(q.q){ const lim=grumpy?8:12;
-    if(here>2.2*lim*MIN) return {lvl:-2,t:`Putain, ça fait ${m(here)} minutes que je fais la queue ! J’en ai marre.`};
-    if(here>lim*MIN) return {lvl:-1,t:`${m(here)} minutes déjà… ça n’avance pas.`};
+    if(here>2.2*lim*MIN) return {lvl:-2,t:tmSay(p,now,[`Putain, ça fait ${m(here)} minutes que je fais la queue ! J’en ai marre.`,`${m(here)} minutes debout… mes pieds !`,'Il n’y a qu’un seul guichet ouvert ou quoi ?','Eh ! Monsieur, ça avance devant ?',`Ça fait ${m(here)} minutes, je vais rater mon avion !`,'Mama na ngai, cette file ne bouge pas…'])};
+    if(here>lim*MIN) return {lvl:-1,t:tmSay(p,now,[`${m(here)} minutes déjà… ça n’avance pas.`,'Patience… patience…','J’aurais dû faire l’enregistrement en ligne.','Ça avance doucement, bon.','Encore un peu et c’est mon tour.'])};
     if(here<3*MIN) return {lvl:0,t:''}; }
-  if(/attend sa valise/.test(st)){ if(here>(grumpy?15:22)*MIN) return {lvl:-2,t:`Putain, ${m(here)} minutes au tapis et toujours pas ma valise !`}; if(here>12*MIN) return {lvl:-1,t:'Elle arrive quand, cette valise ?'}; }
+  if(/attend sa valise/.test(st)){ if(here>(grumpy?15:22)*MIN) return {lvl:-2,t:tmSay(p,now,[`Putain, ${m(here)} minutes au tapis et toujours pas ma valise !`,'Toutes les valises sont sorties sauf la mienne…','Ils l’ont mise dans un autre avion ou quoi ?','Je ne bouge pas d’ici sans ma valise.'])}; if(here>12*MIN) return {lvl:-1,t:tmSay(p,now,['Elle arrive quand, cette valise ?','La mienne est noire… comme toutes les autres.','Ah, celle-là ? Non, ce n’est pas la mienne.'])}; }
   if(p.dep===1&&D){ const dl=tmDelay(p.f); if(dl>=30&&/porte|attend|assis|café|restaurant|duty|salle/.test(st)) return {lvl:-2,t:`Encore ${dl} minutes de retard${p.f.dlw?' à cause de la météo':''}… j’en ai marre, j’ai un rendez-vous !`};
     if(dl>=12&&/porte|assis/.test(st)) return {lvl:-1,t:`${dl} minutes de retard, bon… on fait avec.`}; }
   // file d'attente qui vient de se terminer : rapide ou interminable ?
-  for(let j=k-1;j>=1;j--){ if(now-K[j].t>8*MIN) break; if(K[j].q){ const d=K[j].t-K[j-1].t; if(d<5*MIN) return {lvl:2,t:'Ah, c’est passé vite aujourd’hui ! Super.'}; if(d>25*MIN) return {lvl:-1,t:`Enfin ! ${m(d)} minutes de queue… quelle galère.`}; break; } }
-  if(/retrouve|serre dans ses bras/.test(st)) return {lvl:2,t:'Quel bonheur de vous revoir !'};
+  for(let j=k-1;j>=1;j--){ if(now-K[j].t>8*MIN) break; if(K[j].q){ const d=K[j].t-K[j-1].t; if(d<5*MIN) return {lvl:2,t:tmSay(p,now,['Ah, c’est passé vite aujourd’hui ! Super.','Même pas cinq minutes, c’est rare !','Merci, très efficace aujourd’hui.'])}; if(d>25*MIN) return {lvl:-1,t:tmSay(p,now,[`Enfin ! ${m(d)} minutes de queue… quelle galère.`,'Ouf, enfin passé.','Bon, ça c’est fait. Un café maintenant.'])}; break; } }
+  if(/retrouve|serre dans ses bras/.test(st)) return {lvl:2,t:tmSay(p,now,['Quel bonheur de vous revoir !','Mbote ! Ça fait tellement longtemps !','Les enfants ont tellement grandi !','Mama ! Tu m’as manqué !'])};
   if(p.dep===0&&/monte dans un taxi/.test(st)&&p.bagT&&p.K[0]&&p.bagT-p.K[0].t<40*MIN) return {lvl:2,t:'Sorti en moins de 40 minutes, c’est rapide pour une fois !'};
   return null; }
 const TM_MOOD_EMO={'-2':'😤','-1':'😒','2':'😄'};
 function tmThought(p,q){ { const M=tmMood(p,q,tmNow()); if(M&&M.t) return `<br><span class="small" style="color:${M.lvl<=-2?'#fca5a5':M.lvl<0?'#fcd34d':M.lvl>0?'#86efac':'#cbd5e1'}">${TM_MOOD_EMO[M.lvl]||'💭'} « ${esc(M.t)} »</span>`; } const st=q.st||'', w=p.row, angry=w&&/énerv|impatient/.test(w.mood||''), D=p.f&&p.f.D, now=tmNow(); let t='';
   if(p.staff||p.crew) return '';
   if(p.greet) t=/serre|accueille/.test(st)?'Enfin ! Tu as fait bon voyage ?':/repart/.test(st)?'On rentre, la voiture est garée devant.':'Il devrait sortir d’une minute à l’autre…';
-  else if(/raté|trop tard|clôturé/.test(st)) t='Je n’y crois pas… il va falloir trouver un autre vol.';
+  else if(/raté|trop tard|clôturé/.test(st)) t=tmSay(p,now,['Je n’y crois pas… il va falloir trouver un autre vol.','Le prochain vol est quand ?','Je vais dormir ici s’il le faut.']);
   else if(/pas présenté/.test(st)) t='Je n’ai pas vu l’heure passer… mon vol !';
-  else if(/enregistrement/.test(st)) t=w&&w.bags>1?'Pourvu que mes valises ne dépassent pas 23 kg…':'J’espère que ça va avancer plus vite.';
+  else if(/enregistrement/.test(st)) t=w&&w.bags>1?tmSay(p,now,['Pourvu que mes valises ne dépassent pas 23 kg…','Si c’est trop lourd, je mets le pagne dans le sac à main.','J’ai trop acheté de cadeaux…']):tmSay(p,now,['J’espère que ça va avancer plus vite.','Passeport, billet… tout est là.','Une place côté hublot, s’il vous plaît.']);
   else if(/sûreté|coupe-file/.test(st)) t='Ai-je bien enlevé la bouteille d’eau de mon sac ?';
-  else if(/alarme|palpation/.test(st)) t='C’est sûrement ma ceinture…';
+  else if(/alarme|palpation/.test(st)) t=tmSay(p,now,['C’est sûrement ma ceinture…','Encore une fouille ? Je n’ai rien du tout !','Allez-y, je n’ai rien à cacher.','Ils fouillent tout le monde aujourd’hui.','Doucement, doucement…']);
   else if(/police|passeport|immigration|visa/.test(st)) t=w&&D&&w.nat!==(p.dep?D.A.cc:D.B.cc)?'Passeport, visa… j’espère que tout est en ordre.':'Ça devrait aller vite avec mon passeport.';
   else if(/attend l’appel|assis à la porte/.test(st)&&D) t=`Encore ${Math.max(0,Math.round((D.gate.open-now)/MIN))} min avant l’embarquement.`+(tmDelay(p.f)?' Et ce retard…':'');
   else if(/embarquement|carte d’embarquement/.test(st)) t='Siège '+(w?w.seat:'')+', j’espère qu’il y aura de la place pour mon sac.';
@@ -710,12 +726,14 @@ function tmThought(p,q){ { const M=tmMood(p,q,tmNow()); if(M&&M.t) return `<br><
   else if(/perdue|pas arrivée/.test(st)) t='Ma valise n’est pas arrivée… super.';
   else if(/douane/.test(st)) t='Rien à déclarer, j’espère qu’ils ne vont pas fouiller.';
   else if(/retrouve/.test(st)) t='Ça fait du bien de vous revoir !';
-  else if(/duty free|shopping/.test(st)) t='Un petit cadeau pour la famille…';
-  else if(/café|restaurant|mange/.test(st)) t='J’ai le temps de manger quelque chose.';
+  else if(/duty free|shopping/.test(st)) t=tmSay(p,now,['Un petit cadeau pour la famille…','C’est cher ici !','Un parfum pour ma femme, elle va adorer.','Je regarde seulement…']);
+  else if(/café|restaurant|mange/.test(st)) t=tmSay(p,now,['J’ai le temps de manger quelque chose.','Un café bien serré, ça réveille.','Le poulet mayo n’est pas mal ici.','Encore 30 minutes, tranquille.']);
   else if(/toilettes/.test(st)) t='Avant le vol, c’est plus prudent.';
   else if(/baie vitrée/.test(st)) t='Regarde, c’est peut-être notre avion !';
-  else if(/monte dans un taxi/.test(st)) t='Direction la maison.';
-  else if(/arrive à l’aéroport/.test(st)) t='Bon, où est l’enregistrement ?';
+  else if(/monte dans un taxi/.test(st)) t=tmSay(p,now,['Direction la maison.','Chauffeur, on évite le boulevard, il y a des bouchons !','Enfin rentré à Kinshasa.','Je vais dormir comme un bébé ce soir.']);
+  else if(/bus de piste/.test(st)) t=tmSay(p,now,['Encore un bus…','On est serrés comme des sardines !','L’avion est loin, dis donc.','Je vois l’avion !']);
+  else if(/arrive en retard/.test(st)) t=tmSay(p,now,['Vite, vite, vite !','Pourvu que l’enregistrement soit encore ouvert !','Ce chauffeur a pris le pire chemin…']);
+  else if(/arrive à l’aéroport/.test(st)) t=tmSay(p,now,['Bon, où est l’enregistrement ?','On est en avance, parfait.','Il y a du monde aujourd’hui !','J’espère que je n’ai rien oublié à la maison…']);
   if(!t) return ''; if(angry&&!/raté|perdue/.test(st)) t+=' (et j’en ai déjà marre)'; return `<br><span class="small" style="color:#cbd5e1">💭 « ${esc(t)} »</span>`; }
 function tmInfoFlight(g){ const f=g.f, D=f.D, now=tmNow(), st={}; for(const p of TM.ppl) if(p.f===f){ const q=tmAt(p.K,now); if(q) st[q.st]=(st[q.st]||0)+1; }
   const top=Object.entries(st).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>`<div>• ${v} ${esc(k)}</div>`).join('');
@@ -936,6 +954,7 @@ function tmEvHtml(t){ const E=tmEv(t), c=TM.code, hm=x=>ahHM(ahLocalHour(c,x)), 
   else if(E.vipSoon) row('#fbbf24',`🚨 Mouvement présidentiel prévu à ${hm(E.vip.s)} : pistes fermées environ ${Math.round((E.vip.e-E.vip.s)/MIN)} min`);
   else if(E.vip) row('#fbbf24',`🚨 Mouvement présidentiel terminé à ${hm(E.vip.e)} : le trafic reprend, avec des retards`);
   { const P=tmPresWin(t); if(P&&TM.code==='FIH') row('#fde68a',P.dep?`✈️ Avion présidentiel au pavillon : décollage à ${hm(P.w.s+20*MIN)}`:`✈️ Avion présidentiel : atterrissage à ${hm(P.w.s+9*MIN)}, puis au pavillon présidentiel`); }
+  { const J=tmJam(c,t); if(J.lvl===2) row('#f87171','🚗 Embouteillages monstres aujourd’hui : beaucoup de passagers risquent de rater leur vol'); else if(J.lvl===1) row('#fbbf24','🚗 Circulation difficile aujourd’hui sur la route de l’aéroport'); }
   if(E.pw) row('#fbbf24',`⚡ Coupure de courant depuis ${hm(E.pw.s)} : l’aérogare tourne sur le groupe électrogène (éclairage de secours)`);
   if(E.fu) row('#fb923c',`⛽ Pénurie de kérosène : vols retardés${E.fu.sev===2?', certains annulés':''}`);
   if(E.why) row('#93c5fd',`📈 Affluence : ${esc(E.why)}`);
@@ -1105,7 +1124,7 @@ function tmDraw(){
     else if(TM.sc&&TM.scCam&&TM.scCam.w===cv.width&&TM.scCam.h===cv.height&&TM.scKey&&Math.abs(Math.log(s/TM.scCam.s))<0.9){   /* caméra en mouvement : on déplace l'image déjà dessinée (fluide), le décor exact revient dès l'arrêt */
       const C0=TM.scCam, k=(s*TM.dpr)/(C0.s*C0.d); main.setTransform(1,0,0,1,0,0); main.fillStyle='#1e293b'; main.fillRect(0,0,cv.width,cv.height); main.setTransform(k,0,0,k,(C0.x-c.x)*s*TM.dpr,(C0.y-c.y)*s*TM.dpr); main.drawImage(TM.sc,0,0); prep(main,false); TM.moveDraw=1; }
     else { prep(main,true); drawStatic(); }
-    tmCurb(g,now);
+    tmCurb(g,now); tmRoad(g,L,now);
     // avions qui roulent ou sont repoussés : position recalculée à chaque image
     const fly=(pl,f)=>{ const sc=tmPSc(f), air=pl.air||0; if(air>0){ g.save(); g.globalAlpha=0.22*(1-air*0.5); g.fillStyle='#020617'; g.translate(pl.x+air*22,pl.y+air*30); g.rotate(pl.a); g.beginPath(); g.ellipse(0,-50*sc,8*sc,46*sc,0,0,6.283); g.ellipse(0,-50*sc,52*sc,7*sc,0,0,6.283); g.fill(); g.restore(); } tmPlane(g,pl.x,pl.y,col0(f),pl.a,sc*(1+air*0.55),1,f); };   /* en l'air : plus gros, ombre décalée au sol */
     DP.forEach((pl,k)=>{ if(!pl||pl.at) return; if(pl.push){ g.save(); g.translate(pl.x,pl.y); g.rotate(pl.a); g.fillStyle='#facc15'; g.fillRect(-4,2,8,10); g.restore(); } fly(pl,L.deps[k].f); });
