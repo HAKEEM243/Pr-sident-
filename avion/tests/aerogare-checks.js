@@ -36,7 +36,7 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
 
     // 4. règles : étrangers à la police, personne vers une porte fermée
     const r=await p.evaluate(()=>{ S.time=S.time; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); let fd=0,fp=0,late=0,n=0;
-      for(const q of TM.ppl){ if(!q.f||!q.row) continue; const D=q.f.D; if(q.dep===1){ n++; if(!D.intl&&q.row.nat!==D.A.cc){ fd++; if(q.K.some(k=>/police/.test(k.st))) fp++; } if(q.K.some(k=>k.t>D.gate.close+1000&&/porte |embarquement|passerelle/.test(k.st)&&!/fermée|pas présenté/.test(k.st))) late++; } }
+      for(const q of TM.ppl){ if(!q.f||!q.row) continue; const D=q.f.D; if(q.dep===1){ n++; if(!D.intl&&q.row.nat!==D.A.cc&&!q.K.some(k=>/vol manqué|raté son vol|trop tard/.test(k.st))){ fd++; if(q.K.some(k=>/police/.test(k.st))) fp++; } if(q.K.some(k=>k.t>D.gate.close+1000&&/porte |embarquement|passerelle/.test(k.st)&&!/fermée|pas présenté/.test(k.st))) late++; } }
       return {n,fd,fp,late}; });
     ok(r.fd===r.fp,'Étrangers des vols nationaux contrôlés par la police',`${r.fp}/${r.fd}`); ok(r.late===0,'Aucun passager vers une porte fermée',`${r.late} sur ${r.n}`);
 
@@ -170,8 +170,9 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       for(let k=0;k<20;k++){ try{ const ac=addAircraft(k%2?'B77W':'A388',{hub:'FIH'}); for(let j=0;j<4;j++) S.pilots.push(makePilot([modelOf(ac).fam])); let rt=S.routes.find(x=>x.stops.join()==='FIH,'+D[k]); if(!rt) rt=openLine(['FIH',D[k]]); if(!rt||!rt.stops) continue; ac.readyAt=0; dispatchRoute(ac,rt,1,t-60*MIN+k*6*MIN); }catch(e){} }
       S.time=t; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); let mx=0, own=0, missed=0, n=0;
       for(const g of TM.L.ckGroups){ const list=[].concat(...g.fl.map(x=>x._ckL||[])); for(const o of list) mx=Math.max(mx,o.start-o.arr); if(g.A.own) own=list.length; }
-      for(const g of [...TM.L.deps,...TM.L.later]) for(const x of g.sched){ n++; if(x.ckStart>g.f.D.ci.close+3*MIN) missed++; } S.time=T0; return {mx:Math.round(mx/MIN),own,missed,n}; });
-    ok(pk.own>2000&&pk.mx<=45&&pk.missed===0,'Heure de pointe à votre hub : assez de comptoirs d’enregistrement',`${pk.own} passagers de votre compagnie, attente maximale ${pk.mx} min, ${pk.missed} vol(s) manqué(s) à l’enregistrement sur ${pk.n}`);
+      let late=0; for(const g of [...TM.L.deps,...TM.L.later]) for(const x of g.sched){ n++; if(x.late){ late++; continue; } if(x.ckStart>g.f.D.ci.close+3*MIN) missed++; } S.time=T0; return {mx:Math.round(mx/MIN),own,missed,n,late}; });
+    ok(pk.own>2000&&pk.mx<=45&&pk.missed===0,'Heure de pointe à votre hub : assez de comptoirs d’enregistrement',`${pk.own} passagers de votre compagnie, attente maximale ${pk.mx} min, ${pk.missed} vol(s) manqué(s) à cause de la file sur ${pk.n}`);
+    ok(pk.late>0&&pk.late<pk.n*0.08,'Certains passagers ratent leur vol (arrivés trop tard : embouteillages, pluie, imprévus)',`${pk.late} passager(s) arrivé(s) trop tard sur ${pk.n} (${(pk.late/pk.n*100).toFixed(1)} %)`);
   }catch(e){ ok(false,'Le test lui-même a planté',e.message); }
   finally{ try{ b&&await b.close(); }catch(e){} srv.close(); console.log(fails?`\n❌ ${fails} contrôle(s) en échec : NE PAS mettre en ligne.`:'\n✅ Tous les contrôles sont bons.'); process.exit(fails?1:0); }
 })();

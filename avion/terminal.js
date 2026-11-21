@@ -202,6 +202,14 @@ function tmServe(list,servers,svc){ const free=new Array(Math.max(1,servers)).fi
 // part des passagers en correspondance (vols internationaux) dans les grands hubs
 const TM_HUB={ADD:0.6,DOH:0.65,DXB:0.55,IST:0.5,CDG:0.32,AMS:0.38,FRA:0.4,LHR:0.3,NBO:0.3,JNB:0.25,CMN:0.3};
 function tmTransitFrac(code){ if(TM_HUB[code]) return TM_HUB[code]; try{ if(S.company&&S.company.hub===code) return 0.2; }catch(e){} return 0; }
+// arrivée tardive à l'aéroport : rare, mais plus fréquente dans les villes embouteillées aux heures de pointe, sous la pluie, pour les hommes d'affaires pressés
+const TM_TRAFFIC={FIH:2.2,LOS:2.2,NBO:1.8,CAI:1.8,LAD:1.6,DLA:1.5,DKR:1.4,ABJ:1.4,ACC:1.4,FBM:1.3,CGK:1.8,MNL:1.8,DAC:1.8,BKK:1.5,DEL:1.6,BOM:1.6,KHI:1.6,IST:1.5,MEX:1.6,GRU:1.5,LIM:1.5,BOG:1.5};
+function tmLateArr(D,x,row,i){ const code=TM.code, r=pfRng(D.key+'|late'+i), u=r(), tr=TM_TRAFFIC[code]||1, h=typeof ahLocalHour==='function'?ahLocalHour(code,D.ci.close):12, rush=(h>=6.5&&h<9.5)||(h>=16&&h<19.5);
+  let wet=false; try{ if(TM._wxK!==code+'|'+Math.floor(tmNow()/(30*MIN))){ TM._wxK=code+'|'+Math.floor(tmNow()/(30*MIN)); const w=typeof towerWx==='function'?towerWx(code):null; TM._wet=!!(w&&(w.st||w.vis<4000)); } wet=TM._wet&&Math.abs(D.ci.close-tmNow())<3*HOUR; }catch(e){}
+  let p=0.012*tr*(rush?(tr>1?1.6:1.25):1)*(wet?1.5:1)*(h<5||h>=22?0.6:1); if(row){ if(row.purp==='business') p*=1.4; if((row.age||35)>=65) p*=0.5; if(row.purp==='family') p*=0.8; }
+  p=Math.min(0.08,p); if(u>=p) return null;
+  const why=wet?'la pluie a bloqué la circulation':tr>1&&rush?'embouteillages sur la route de l’aéroport':['réveil trop tard','taxi arrivé en retard','a oublié son passeport et a dû faire demi-tour','s’est trompé d’heure de vol'][Math.floor(r()*4)];
+  return {t:D.ci.close+(4+r()*22)*MIN,why}; }
 function tmSched(L){
   const secL=[], polL=[], W={ck:[],sec:[],pol:[]};
   const ALL=[...L.deps,...(L.later||[])];
@@ -209,8 +217,9 @@ function tmSched(L){
     for(let i=0;i<N;i++){ const r=pfRng(D.key+'|sc'+i), tIn=D.ci.open+(D.ci.close-D.ci.open)*Math.pow(r(),0.85)*0.97, online=r()<(D.ci.online||0)/Math.max(1,f.N), bags=r()<0.8, kiosk=!(online&&!bags)&&(online||r()<0.3);
       const row=f.man&&f.man.rows&&f.man.rows[i]; const x={i,tIn,online,bags:row?row.bags>0:bags,kiosk,r:r(),wc:r()<0.12,alarm:r()<0.1,row}; if(row&&row.star){ x.tIn=D.ci.open+12*MIN; x.alarm=false; x.wc=false; } if(row){ x.kiosk=!(online&&!x.bags)&&(online||x.r<0.3); }
       if(L.tf&&D.intl&&!(row&&row.star)&&pfRng(D.key+'|tr'+i)()<L.tf){ x.transit=1; x.online=true; x.bags=false; x.kiosk=false; x.wc=false; x.alarm=false; const rm=pfRng(D.key+'|trm'+i)(); if(rm<0.04&&!g.later){ x.missed=1; x.tIn=D.gate.close+(2+rm*400)*MIN; } }   /* en correspondance : pas d'enregistrement ni de sûreté côté ville, valises transférées d'avion à avion */
+      if(!x.transit&&!(row&&row.star)){ const lt=tmLateArr(D,x,row,i); if(lt){ x.tIn=lt.t; x.late=lt.why; if(!(x.online&&!x.bags)) x.kiosk=false; } }   /* arrive trop tard : ça dépend des embouteillages, de la pluie, du voyageur… */
       sc.push(x); if(x.transit){ x.ckStart=x.ckDone=x.tIn; continue; }
-      if(online&&!bags){ x.ckStart=x.ckDone=tIn+MIN; } else ckL.push({x,arr:tIn+(kiosk?3.5:1.5)*MIN}); }
+      if(x.online&&!x.bags){ x.ckStart=x.ckDone=x.tIn+MIN; } else ckL.push({x,arr:x.tIn+(x.kiosk?3.5:1.5)*MIN}); }   /* heure réelle d'arrivée (retard compris) */
     g._desks=Math.max(1,Math.max(D.ci.desks||0,Math.ceil(f.N/35))); }
   for(const gr of L.ckGroups||[]){ const list=[].concat(...gr.fl.map(g=>g._ckL||[])); gr.desks=Math.max(1,Math.min(200,gr.fl.reduce((t,g)=>t+(g._desks||1),0)+tmOps(TM.code).ck));   /* une grande compagnie ouvre autant de comptoirs que nécessaire à son hub */ tmServe(list,gr.desks,o=>(o.x.bags?1.8:1.2)*MIN*(0.7+0.6*o.x.r));
     for(const o of list){ o.x.ckStart=o.start; o.x.ckDone=o.done; W.ck.push([o.arr,o.start-o.arr]); } }
@@ -241,7 +250,7 @@ const TM_AISLE=1163, TM_COR=626;   /* allée sous les files, couloir vers la sû
 function tmDepKF(g,i,L){
   const f=g.f, D=f.D, sc=g.sched[i], r=pfRng(D.key+'|tm'+i), N=f.N, k=tmKF(tmSpd(sc.row)), intl=D.intl;
   if(sc.transit){ if(tmTransitDep(k,g,sc,r,L)) return k.K; } else {
-  k.at(sc.tIn,tmJ(r,30,610),1290,'arrive à l’aéroport'+(sc.bags?' avec ses valises':''));
+  k.at(sc.tIn,tmJ(r,30,610),1290,sc.late?'⏰ arrive en retard à l’aéroport ('+sc.late+')':'arrive à l’aéroport'+(sc.bags?' avec ses valises':''));
   if(sc.online&&!sc.bags) k.walk(tmJ(r,40,600),TM_AISLE+tmJ(r,-3,3),'carte d’embarquement sur le téléphone');
   else{ if(sc.kiosk){ const ks=L.poi.filter(p=>p.k==='kiosk'), kb=ks[Math.floor(r()*ks.length)]; k.walk((kb.x0+kb.x1)/2,kb.y1+6,'va à une borne automatique').stay(k.t+(1.5+r()*1.5)*MIN,'imprime sa carte d’embarquement'); }
     { const e=g.q.pts[0]; k.walk(e.x,TM_AISLE,'va vers les comptoirs '+(g.grp?g.grp.z+' · ':'')+tmAirline(f).name); }   /* rejoint SA file par l'allée, sans traverser celle des autres compagnies */
