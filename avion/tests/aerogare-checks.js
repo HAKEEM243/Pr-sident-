@@ -180,6 +180,14 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       S.time=T0; TM.ppl=[]; return {vanish,n,ex}; });
     ok(vn.n>500&&vn.vanish===0,'Personne ne disparaît en plein parcours (mises à jour de l’aérogare)',`${vn.vanish} disparition(s) sur ${vn.n} passagers suivis${vn.ex?' — ex. : '+vn.ex:''}`);
 
+    // 6 quaterdecies. N'Djili agrandi (terminaux 2 à 4) : aucun avion collé, salles d'embarquement occupées
+    const xq=await p.evaluate(()=>{ const A=AP('FIH'), xp0=A.xp, gx0=A.gatesX, T0=S.time; A.xp=7; A.gatesX=60; TM._nds=null; TM.ppl=[];
+      const box=(q,f)=>{ const sc=tmPSc(f), dx=-Math.sin(q.a||0), dy=Math.cos(q.a||0); return [q.x-dx*52*sc,q.y-dy*52*sc,f.reg,Math.abs(dy)*54*sc+Math.abs(dx)*52*sc,Math.abs(dx)*54*sc+Math.abs(dy)*52*sc]; }, hit=(P,Q)=>Math.abs(P[0]-Q[0])<(P[3]+Q[3])*0.85&&Math.abs(P[1]-Q[1])<(P[4]+Q[4])*0.85;
+      let ov=0,n=0,inL=0; for(let t=T0;t<T0+2*HOUR;t+=10*MIN){ S.time=t; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L, P=[]; for(const d of L.deps){ const q=tmDepPlane(d,t); if(q&&(q.at||q.hold)) P.push(box(q,d.f)); } for(const a of L.arrs){ const q=tmArrPlane(a,t); if(q&&q.at) P.push(box(q,a.f)); }
+        for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){ n++; if(P[i][2]!==P[j][2]&&hit(P[i],P[j])) ov++; } for(const q of TM.ppl){ const z=tmAt(q.K,t); if(z&&!q.staff&&z.y>44&&z.y<392&&z.x<640) inL++; } }
+      A.xp=xp0; A.gatesX=gx0; TM._nds=null; S.time=T0; TM.ppl=[]; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; return {ov,n,inL}; });
+    ok(xq.ov===0&&xq.n>50&&xq.inL>500,'N’Djili agrandi (terminaux 2 à 4) : aucun avion collé, salles d’embarquement occupées',`${xq.ov} chevauchement(s) sur ${xq.n} ; ${xq.inL} présences en salle d’embarquement`);
+
     // 7. pas d'avion en double, pas de valise sortant d'un poste vide
     const dv=await p.evaluate(()=>{ const T0=S.time; let dup=0,orph=0; for(let t=T0;t<T0+8*HOUR;t+=30*MIN){ S.time=t; TM.code='FIH'; TM.cache={}; TM.built=0; tmBuild(); const regs={};
         for(const d of TM.L.deps){ if(tmDepPlane(d,t)&&d.f.reg) regs[d.f.reg]=(regs[d.f.reg]||0)+1; } for(const a of TM.L.arrs){ if(tmArrPlane(a,t)&&a.f.reg) regs[a.f.reg]=(regs[a.f.reg]||0)+1; }

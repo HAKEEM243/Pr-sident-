@@ -101,8 +101,10 @@ function rivGateBlock(code,x,seed){ const res=rivOwnRes(code), oRem=ownGateMap(c
 function rivGateK(code,r,i,t){ const rk=(r.c||'')+r.a+r.b, off=(typeof ahStd==='function'?ahStd(code):0)*HOUR, x=Math.floor((t+off-12*HOUR)/DAY);
   for(const xx of [x,x-1,x-2]){ const L=rivGateBlock(code,xx,true).get(rk+'|'+i); if(L) for(const v of L) if(t>=v.s-30*MIN&&t<=v.e+30*MIN) return v.k; } return null; }
 // aire éloignée : aux deux bouts de l'aire principale, 2 rangées (la seconde côté piste), avions espacés de 75 m
-function rivRemotePt(code,j){ const ap=apronOf(code), rw=ap&&ap.rw, n=rivGateN(code); if(!rw) return slotPt0(code,n+j); const sd=j%2?1:-1, jj=Math.floor(j/2), col=Math.floor(jj/2), row=jj%2;
-  const a=ap.a+sd*(Math.ceil(n/2)*85+150+col*75), x=ap.x-ap.side*row*95; return {...fromRw(rw,a,x), hdg:(rw.hdg+90*ap.side+360)%360, code, remote:1}; }
+const _rgEnd={};
+function rivGateEnds(code,ap){ const k=code+'|'+rivGateN(code); if(_rgEnd[k]) return _rgEnd[k]; let lo=0, hi=0; const g=(typeof apGates==='function'&&apGates(code))||[]; for(const p of g){ const o=toRw(ap.rw,p).a-ap.a; lo=Math.min(lo,o); hi=Math.max(hi,o); } if(!g.length){ hi=Math.ceil(rivGateN(code)/2)*85; lo=-hi; } return _rgEnd[k]={lo,hi}; }   /* bout de la dernière porte de chaque côté (terminaux 2 à 4 compris) */
+function rivRemotePt(code,j){ const ap=apronOf(code), rw=ap&&ap.rw, n=rivGateN(code); if(!rw) return slotPt0(code,n+j); const sd=j%2?1:-1, jj=Math.floor(j/2), col=Math.floor(jj/2), row=jj%2, E=rivGateEnds(code,ap);
+  const a=ap.a+(sd>0?E.hi+150+col*75:E.lo-150-col*75), x=ap.x-ap.side*row*95; return {...fromRw(rw,a,x), hdg:(rw.hdg+90*ap.side+360)%360, code, remote:1}; }
 const RIV_GATE_AP=new Set(['FIH']);   /* N'Djili : postes attribués comme dans l'aérogare du jeu (ailleurs : poste habituel de la ligne) */
 function rivGatePt(code,r,i,t,intl){ if(!RIV_GATE_AP.has(code)) return gateSlot(code,{id:r.a+r.b+i},intl); try{ const k=rivGateK(code,r,i,t); if(k!=null){ const n=rivGateN(code); return k<n?slotPt(code,k):rivRemotePt(code,k-n); } }catch(e){} return gateSlot(code,{id:r.a+r.b+i},intl); }
 const _rivPresC=new Map();
