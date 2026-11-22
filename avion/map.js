@@ -486,6 +486,7 @@ function rivOps(K,r,i,cyc){ if(!K) return true; const an=K.anchors[Math.min(i,K.
   return true; }
 // ⏱️ retards des autres compagnies : UN seul calcul (déterministe, par vol) utilisé par la carte, la 3D, le contrôle aérien et l'aérogare
 // dep = retard au départ (embarquement prolongé), hIn = circuit d'attente avant l'atterrissage, ga = remise de gaz ; le retard de l'aller se répercute sur le retour
+let _rivDlN=0;
 function rivDelays(r,i,dir,cyc){ const K=rivalSched(r); if(!K) return {dep:0,hIn:0,ga:0}; i=Math.min(i,K.nP-1);
   const kk=(r.c||'')+r.a+r.b+'|'+i+dir+cyc, store=(typeof S!=='undefined'&&S)?(S.rivDl||(S.rivDl={})):null, sv=store&&store[kk]; if(sv) return {dep:sv[0],hIn:sv[1],ga:sv[2],wxD:!!sv[4],wxA:!!sv[5],vip:!!sv[6],fuel:!!sv[7]};
   // heure prévue de repoussage de ce vol
@@ -505,7 +506,7 @@ function rivDelays(r,i,dir,cyc){ const K=rivalSched(r); if(!K) return {dep:0,hIn
       if(e1){ vip=1; const after=e1+MIN-tk, w=ahVip(from,tk+dep), bef=w?w.s-MIN-rl-tk:-1; dep=after<=54*MIN||bef<depMin?after:bef; }
       const l0=t0+s7.t0, ll=s8.t0-s7.t0, e2=ahVipHit(to,l0+dep+hIn+ga,l0+dep+hIn+ga+ll);
       if(e2){ vip=1; const D=e2+MIN-l0; if(D<=54*MIN) hIn=D-dep-ga; else { const w=ahVip(to,l0+dep+hIn+ga), D2=w?w.s-MIN-ll-l0:-1; if(D2>=depMin){ ga=0; dep=Math.min(dep,D2); hIn=D2-dep; } else hIn=D-dep-ga; } } } }
-  if(lock){ store[kk]=[dep,hIn,ga,P0,wf&&(wf.st||wf.gust||wf.vis<3000)?1:0,wt&&(wt.st||wt.gust||wt.vis<2500)?1:0,vip,fuel]; const ks=Object.keys(store); if(ks.length>8000){ for(const k of ks) if(store[k][3]<S.time-2*DAY) delete store[k]; } }   // figé dans la sauvegarde
+  if(lock){ store[kk]=[dep,hIn,ga,P0,wf&&(wf.st||wf.gust||wf.vis<3000)?1:0,wt&&(wt.st||wt.gust||wt.vis<2500)?1:0,vip,fuel]; if((++_rivDlN)%500===0){ const ks=Object.keys(store); if(ks.length>8000){ for(const k of ks) if(store[k][3]<S.time-2*DAY) delete store[k]; const k2=Object.keys(store); if(k2.length>8000){ k2.sort((a,b)=>store[a][3]-store[b][3]); for(let j=0;j<k2.length-6000;j++) delete store[k2[j]]; } } } }   /* ménage de temps en temps seulement (avant : à chaque vol au-delà de 8000, très lent) */   // figé dans la sauvegarde
   return {dep,hIn,ga,wxD:!!(wf&&(wf.st||wf.gust||wf.vis<3000)),wxA:!!(wt&&(wt.st||wt.gust||wt.vis<2500)),vip:!!vip,fuel:!!fuel}; }
 // profil du vol avec ses retards (embarquement prolongé, attente, remise de gaz) : mêmes segments que pour vos avions
 function rivProf(base,dl){ if(!dl||(!dl.dep&&!dl.hIn&&!dl.ga)) return base; if(!(base._dc instanceof Map)) Object.defineProperty(base,'_dc',{value:new Map(),enumerable:false,writable:true,configurable:true});   /* mémoire de calcul jamais enregistrée dans la sauvegarde (sinon elle revient abîmée au rechargement) */ const k=dl.dep+'|'+dl.hIn+'|'+dl.ga; let p=base._dc.get(k); if(p) return p;

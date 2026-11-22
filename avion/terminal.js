@@ -1048,7 +1048,11 @@ function tmAdapt(dF){ if(dF>400||document.hidden) return; TM.fa=(TM.fa||33)*0.94
 function tmDraw(){
   if(!TM.open) return; TM.raf=requestAnimationFrame(tmDraw); { const tn=performance.now(); if(TM.lastF&&tn-TM.lastF<30) return; const dF=TM.lastF?tn-TM.lastF:33; TM.lastF=tn; tmAdapt(dF); }   // 30 images par seconde au plus
   const cv=TM.cv; if(!cv) return; const w=cv.clientWidth, h=cv.clientHeight; if(!w||!h) return;
-  if(!TM.built){ TM.job=null; tmBuild(); } else if(TM.job){ const t0=performance.now(); try{ while(performance.now()-t0<7){ if(TM.job.next().done){ TM.job=null; break; } } }catch(e){ TM.job=null; console.warn('aérogare',e); } }
+  if(!TM.built){ TM.job=tmBuildGen(); TM.built=performance.now(); TM.loading=1; }   /* ouverture progressive : le jeu ne se fige plus pendant le calcul */
+  if(TM.loading){ const t0=performance.now(); try{ while(performance.now()-t0<40){ if(TM.job.next().done){ TM.job=null; TM.loading=0; break; } } }catch(e){ TM.job=null; TM.loading=0; console.warn('aérogare',e); }
+    if(TM.loading){ const m=cv.getContext('2d'), k=cv.width/Math.max(1,w); m.setTransform(1,0,0,1,0,0); m.fillStyle='#0f172a'; m.fillRect(0,0,cv.width,cv.height); m.fillStyle='#e2e8f0'; m.font=`700 ${Math.round(17*k)}px system-ui`; m.textAlign='center'; m.fillText('🏢 Chargement de l’aérogare…',cv.width/2,cv.height/2); m.font=`500 ${Math.round(13*k)}px system-ui`; m.fillStyle='#94a3b8'; m.fillText((AP(TM.code)||{}).city||TM.code,cv.width/2,cv.height/2+26*k); m.textAlign='left'; return; }
+    if(!TM.L) return; }
+  else if(TM.job){ const t0=performance.now(); try{ while(performance.now()-t0<7){ if(TM.job.next().done){ TM.job=null; break; } } }catch(e){ TM.job=null; console.warn('aérogare',e); } }
   else if(performance.now()-TM.built>15000||Math.abs(tmNow()-(TM.builtT||0))>10*MIN){ /* au moins toutes les 10 min de jeu, quelle que soit la vitesse */ const F=tmFlights(TM.code); if(tmFKey(F)!==TM.fkey||performance.now()-(TM.full||0)>90000) TM.job=tmBuildGen(F); else TM.built=performance.now(); }
   if(cv.width!==Math.round(w*TM.dpr)||cv.height!==Math.round(h*TM.dpr)){ cv.width=Math.round(w*TM.dpr); cv.height=Math.round(h*TM.dpr); if(!TM.cam||!TM.moved){ TM.cam={s:1,x:0,y:0}; tmFocus(tmZoneRect(0)); Object.assign(TM.cam,TM.goal); TM.goal=null; } }
   tmFollowStep(tmNow(),w,h); tmCamStep(); const c=TM.cam, main=cv.getContext('2d'), L=TM.L, F=TM.F, now=tmNow(), s=c.s; let g=main;
