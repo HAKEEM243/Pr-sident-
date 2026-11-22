@@ -1043,10 +1043,12 @@ function tmDash(){ const L=TM.L, c=TM.cnt||{}, W=L.W||{}, now=tmNow(), o=tmOps(T
   const h=el.querySelector('[data-heat]'); if(h) h.onclick=()=>{ TM.heat=!TM.heat; TM.dashAt=0; }; }
 // résolution adaptative : si le téléphone peine (moins de ~18 images/s), l'image est un peu moins fine mais fluide
 function tmAdapt(dF){ if(dF>400||document.hidden) return; TM.fa=(TM.fa||33)*0.94+dF*0.06; TM.fn=(TM.fn||0)+1; if(TM.fn%40) return; const tn=performance.now();
-  if(TM.fa>56&&TM.dpr>1.01){ TM.dprHi=TM.dpr; TM.dpr=Math.max(1,TM.dpr-0.25); TM.fa=40; TM.dprAt=tn; }
+  if(TM.fa>44&&TM.dpr>1.01){ TM.dprHi=TM.dpr; TM.dpr=Math.max(1,TM.dpr-0.25); TM.fa=38; TM.dprAt=tn; }   /* image trop lente (moins de ~23 images/s) : définition réduite */
+  else if(TM.fa>44&&!TM.slow){ TM.slow=1; TM.fa=50; TM.dprAt=tn; }   /* déjà au minimum : 20 images/s régulières plutôt que des à-coups */
+  else if(TM.slow&&TM.fa<52&&tn-(TM.dprAt||0)>15000){ TM.slow=0; TM.dprAt=tn; }
   else if(TM.fa<36&&tn-(TM.dprAt||0)>8000&&TM.dpr+0.25<(TM.dprHi||TM.dprMax||2)+0.001&&TM.dpr+0.25<=(TM.dprMax||2)&&TM.dpr+0.25<(TM.dprHi||9)){ TM.dpr+=0.25; TM.dprAt=tn; } }
 function tmDraw(){
-  if(!TM.open) return; TM.raf=requestAnimationFrame(tmDraw); { const tn=performance.now(); if(TM.lastF&&tn-TM.lastF<30) return; const dF=TM.lastF?tn-TM.lastF:33; TM.lastF=tn; tmAdapt(dF); }   // 30 images par seconde au plus
+  if(!TM.open) return; TM.raf=requestAnimationFrame(tmDraw); { const tn=performance.now(); if(TM.lastF&&tn-TM.lastF<(TM.slow?48:30)) return; const dF=TM.lastF?tn-TM.lastF:33; TM.lastF=tn; tmAdapt(dF); }   // 30 images par seconde au plus
   const cv=TM.cv; if(!cv) return; const w=cv.clientWidth, h=cv.clientHeight; if(!w||!h) return;
   if(!TM.built){ TM.job=tmBuildGen(); TM.built=performance.now(); TM.loading=1; }   /* ouverture progressive : le jeu ne se fige plus pendant le calcul */
   if(TM.loading){ const t0=performance.now(); try{ while(performance.now()-t0<40){ if(TM.job.next().done){ TM.job=null; TM.loading=0; break; } } }catch(e){ TM.job=null; TM.loading=0; console.warn('aérogare',e); }
