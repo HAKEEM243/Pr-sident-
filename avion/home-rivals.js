@@ -219,3 +219,23 @@ function registerCityActions(){ ACTIONS.cityAll=()=>{ UI.cityAll=!UI.cityAll; re
 { const _ap=apPopHtml; apPopHtml=function(code){ const h=_ap(code), A=AP(code); if(!A) return h; const p=cityPop(code), py=paxYear(code);
   return h+`<div class="small">✈️ ≈ <b>${fmtN(py)}</b> voyageurs par an dans cet aéroport${p?` (${(py/(p*1e6)).toFixed(2).replace('.',',')} passage par habitant de la ville)`:''}.</div>`; }; }
 { const _c=countryAirHtml; countryAirHtml=function(cc){ return typeof withRouteIndex==='function'?withRouteIndex(()=>_c(cc)):_c(cc); }; }
+
+/* ---------- le monde bouge sans vous : les États agrandissent leurs aéroports, les compagnies desservent les aéroports vides ---------- */
+// chaque semaine, un gouvernement modernise l'un des aéroports les plus chargés du monde (jamais vos hubs ni vos aéroports : c'est à vous de les gérer)
+function worldGovBuilds(){ if(!S.ai||Math.random()>0.6) return null; const mine=new Set([...(S.myAp||[]).map(m=>m.code),...Object.keys(S.ownedAp||{}),...(S.hubs||[]),...Object.keys(S.playerAirportBuilds||{})]); S.upgrades=S.upgrades||{};   /* vos hubs et vos aéroports : c'est vous qui décidez */
+  const cand=AIRPORT_CODES.filter(c=>{ const a=AP(c); return a&&a.cls>=3&&a.traffic>=1.5&&!mine.has(c); }).map(c=>{ const a=AP(c), n=(S.upgrades[c]||[]).length; return {c,a,s:a.traffic/(1+n*1.5)}; }).sort((x,y)=>y.s-x.s).slice(0,40);
+  if(!cand.length) return null; const {c,a}=pick(cand); let type=null;
+  if(!a.ils&&a.surface==='Asphalte') type='ils'; else if((a.xp||0)===0) type='xp1'; else if((a.xp||0)===1) type='xp2'; else if((a.xp||0)===2) type='xp3'; else if((a.xp||0)===3&&a.traffic>=6) type='xp4'; else if((a.rwN||0)<2&&a.traffic>=10) type='rwx';
+  if(!type||!UPGRADES[type]) return null;
+  (S.upgrades[c]=S.upgrades[c]||[]).push(type); applyUpgrades(); if(typeof xpRefresh==='function') xpRefresh(c);
+  const g=govOf(a.cc), what={ils:'installe un balisage lumineux et un ILS',xp1:'agrandit le terminal',xp2:'construit une nouvelle jetée d’embarquement',xp3:'construit une deuxième piste',xp4:'construit un terminal 2',rwx:'construit une piste supplémentaire'}[type];
+  govNote(a.cc,`🏛️ ${ccWith(a.cc)} : le gouvernement du président ${g.leader} ${what} à ${a.city} (${c}).`,false); return {c,type}; }
+// chaque semaine, des compagnies ouvrent des lignes vers des aéroports qui n'en ont aucune (compagnie du pays d'abord, sinon la plus proche)
+function worldCoverEmpty(max){ if(!S.ai||!S.ai.list||typeof raceAddPair!=='function') return 0; aiIndexes(); const alive=S.ai.list.filter(e=>e.status!=='dead'&&e.hub&&AP(e.hub)); let done=0;
+  const empty=AIRPORT_CODES.filter(c=>{ const a=AP(c); if(!a||a.cls<2||a.traffic<0.03) return false; return !(AP_ROUTES[c]||[]).some(b=>carriersOn(c,b).length); }).sort((x,y)=>AP(y).traffic-AP(x).traffic);
+  for(const c of empty.slice(0,15)){ if(done>=(max||3)) break; const a=AP(c); if(typeof aiAirportMarketOpen==='function'&&!aiAirportMarketOpen(c)) continue;
+    const opts=alive.map(e=>({e,d:dist(e.hub,c)})).filter(o=>o.d>=150&&o.d<=(o.e.cc===a.cc?2500:1500)&&(typeof aiAirportMarketOpen!=='function'||aiAirportMarketOpen(o.e.hub))).sort((x,y)=>((y.e.cc===a.cc)-(x.e.cc===a.cc))||x.d-y.d).slice(0,6);
+    const o=opts.find(x=>typeof airspaceViolation!=='function'||!airspaceViolation(x.e.code,x.e.hub,c)); if(!o) continue;
+    if(raceAddPair(o.e,o.e.hub,c,2)){ done++; aiNews(`🛫 ${o.e.name} ouvre ${AP(o.e.hub).city} – ${a.city} : ${a.city} n’avait aucune ligne.`,'news'); } }
+  return done; }
+{ const _aw3=aiWeekly; aiWeekly=function(){ const wk=S.ai&&S.ai.lastWeek; _aw3(); if(window.SE_SAFE||!S.ai||S.ai.lastWeek===wk) return; try{ worldGovBuilds(); worldGovBuilds(); }catch(e){ console.warn(e); } try{ worldCoverEmpty(6); }catch(e){ console.warn(e); } }; }
