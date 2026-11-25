@@ -228,6 +228,11 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       const btn=/data-act="fleetRenew"/.test(pFleet()); const q=fleetRenewQuote(), c0=S.cash; S.cash=Math.max(S.cash,q.cost+1e6); const c1=S.cash; const r=fleetRenewDo();
       const allNew=L.every(a=>a.condition===100&&!maintOverdue(a)&&a.sinceA===0), freed=!L[0]||L[0].readyAt<=S.time, paid=Math.abs((c1-S.cash)-q.cost)<1, again=fleetRenewQuote().n; return {btn,n:q.n,cost:q.cost,allNew,freed,paid,again,ok:typeof r==='object'}; });
     ok(rn.btn&&rn.ok&&rn.allNew&&rn.freed&&rn.paid&&rn.n>=6,'Flotte : un seul bouton remet tous les avions à neuf (visites, état, pannes)',JSON.stringify(rn));
+    // agrandir son aéroport : pistes supplémentaires (plusieurs), terminaux, construits tout de suite et visibles sur la carte
+    const px=await p.evaluate(()=>{ S.cash+=3e9; const m=myApBuild('s','Ville pistes','Aéroport pistes',-6.1,23.6); const c=m.code, n0=runwaysOf(c).length; const e1=startProject(c,'rwx'), e2=startProject(c,'rwx'), e3=startProject(c,'xp1');
+      const n1=runwaysOf(c).length; applyUpgrades(); applyUpgrades(); const n2=runwaysOf(c).length, rwN=AP(c).rwN; const list=xpTabHtml().includes(c); let drawn=0; try{ map.setView([m.lat,m.lon],12,{animate:false}); drawRunways(true); L_runways.eachLayer(()=>drawn++); }catch(e){}
+      return {n0,n1,n2,rwN,xp:AP(c).xp,errs:[e1,e2,e3].filter(Boolean).join('|'),list,drawn}; });
+    ok(px.n0===2&&px.n1===6&&px.n2===6&&px.rwN===2&&px.xp===1&&!px.errs&&px.list&&px.drawn>0,'Mon aéroport : pistes supplémentaires et terminaux construits tout de suite, visibles sur la carte',JSON.stringify(px));
     ok(!errs.length,'Aucune erreur JavaScript dans le jeu',errs.slice(0,3).join(' | '));
 
     // 8 bis. construire un aéroport dans son pays (et pas à l'étranger), y ouvrir une ligne, racheter un aéroport, photo dans l'aérogare

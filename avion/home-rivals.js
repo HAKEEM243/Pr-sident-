@@ -15,7 +15,7 @@ startProject=function(code,type){
   if(!u.can(a)) return 'Projet non disponible ici';
   const c=u.cost(a); book('investissements',-c);
   (S.upgrades[code]=S.upgrades[code]||[]).push(type); applyUpgrades();
-  if(type.startsWith('xp')||type==='terminal'||type==='extend') (S.playerAirportBuilds=S.playerAirportBuilds||{})[code]=S.time;
+  if(type.startsWith('xp')||type==='rwx'||type==='terminal'||type==='extend') (S.playerAirportBuilds=S.playerAirportBuilds||{})[code]=S.time;
   if(S.ai){ S.playerBuildRouteQueue=S.playerBuildRouteQueue||[]; S.playerBuildRouteQueue=S.playerBuildRouteQueue.filter(x=>x.code!==code); S.playerBuildRouteQueue.push({code,type,t:S.time}); if(S.playerBuildRouteQueue.length>20) S.playerBuildRouteQueue.shift(); }
   logMsg(`🏗️ ${u.name} à ${a.city} : terminé (${fmtMoney(c)}).`,'drc');
   if(type.startsWith('xp')||type==='terminal'||type==='extend') logMsg(`🛡️ ${a.city} : vous avez 6 mois d’avance, aucune nouvelle compagnie ne peut s’y installer d’ici là.`,'ok');
