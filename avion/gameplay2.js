@@ -140,4 +140,19 @@ function registerGameplayActions(){ Object.assign(ACTIONS,{
   uneOpen:()=>{ const n=UI.une&&UI.une.list[0]; UI.newsTab=n&&/guerre|séisme|cyclone|inondation|éruption|épidémie|sécheresse|réfugiés|récession|essor|cessez-le-feu|bruits de bottes|évacu/i.test(n.text)?'monde':n&&/président|gouvernement|ministre|état |ciel ouvert|taxe|🏛️/i.test(n.text)?'pays':n&&/accident|crash|victimes|💥|🔥/i.test(n.text)?'crash':'actu'; setTab('news'); if(typeof renderPanel==='function') renderPanel(); },
   // voir un décollage / atterrissage depuis la carte 2D ou la liste des vols : ouvre la 3D puis saute au moment
   watchGo:async d=>{ if(typeof fxAudioUnlock==='function') fxAudioUnlock(); if($('#globe').hidden){ const ok=await open3D(); if(!ok) return; } UI.fl=false; if(typeof renderFlightList==='function') renderFlightList(); setTimeout(()=>ACTIONS.watchEvent({k:d.k}),250); },
+  fleetRenew:()=>{ const q=fleetRenewQuote(); if(!q.n) return toast('✅ Toute votre flotte est déjà à neuf.','good'); showModal('🔧 Remettre toute la flotte à neuf',`<div>${q.n} avion${q.n>1?'s':''} sur ${S.fleet.length} ont besoin d’entretien (${q.over} en retard de visite, ${q.down} immobilisé${q.down>1?'s':''} par une panne, état moyen ${q.avg} %).</div><div class="small mut" style="margin-top:6px">Toutes les visites dues (Check A, C, D) sont faites d’un coup, l’état revient à 100 % et les avions en panne sont réparés tout de suite. Prix : chaque visite au prorata de l’usure${q.base?', −35 % dans vos bases de maintenance':''}.</div><div class="btns" style="margin-top:10px"><button class="btn ${S.cash>=q.cost?'gold':''}" data-act="fleetRenewGo">🔧 Tout remettre à neuf · ${fmtMoney(q.cost)}</button></div>`); },
+  fleetRenewGo:()=>{ const r=fleetRenewDo(); if(typeof r==='string') return toast(r,'bad'); try{ closeModal(); }catch(e){} toast(`🔧 ${r.n} avion${r.n>1?'s':''} remis à neuf pour ${fmtMoney(r.cost)} : état 100 %, visites à jour, pannes réparées.`,'good'); if(typeof renderPanel==='function') renderPanel(); if(typeof renderTop==='function') renderTop(); },
   accLevel:d=>{ S.accMult=+d.k; toast('⚠️ Accidents : '+(ACC_LEVELS.find(x=>x[1]===S.accMult)||['—'])[0],'info'); if(typeof renderPanel==='function') renderPanel(); } }); }
+
+/* ---------- 🔧 remise à neuf de toute la flotte en un seul bouton (grandes flottes) ---------- */
+function fleetRenewAc(ac){ const m=modelOf(ac), base=AP(ac.loc)&&AP(ac.loc).mbase; let c=0;
+  for(const k of ['A','C','D']) c+=MAINT[k].cost(m)*Math.min(1,(ac['since'+k]||0)/MAINT[k].every);
+  c+=MAINT.C.cost(m)*Math.max(0,100-(ac.condition||0))/100*0.5; return Math.round(c*(base?0.65:1)); }
+function fleetRenewNeeds(ac){ return (ac.condition||0)<99.5||maintOverdue(ac)||(ac.sinceA||0)>MAINT.A.every*0.5||ac.status==='maint'||(ac.status==='idle'&&(ac.readyAt||0)>S.time+HOUR); }
+function fleetRenewQuote(){ let n=0,cost=0,over=0,down=0,sum=0,base=false; for(const ac of S.fleet){ sum+=ac.condition||0; if(!fleetRenewNeeds(ac)) continue; n++; cost+=fleetRenewAc(ac); if(maintOverdue(ac)) over++; if(ac.status==='maint'||(ac.status==='idle'&&(ac.readyAt||0)>S.time+HOUR)) down++; if(AP(ac.loc)&&AP(ac.loc).mbase) base=true; }
+  return {n,cost:Math.round(cost),over,down,avg:S.fleet.length?Math.round(sum/S.fleet.length):100,base}; }
+function fleetRenewDo(){ const q=fleetRenewQuote(); if(!q.n) return 'Toute la flotte est déjà à neuf'; if(S.cash<q.cost) return `Trésorerie insuffisante : il faut ${fmtMoney(q.cost)}`;
+  book('maintenance',-q.cost); let n=0;
+  for(const ac of S.fleet){ if(!fleetRenewNeeds(ac)) continue; n++; ac.sinceA=0; ac.sinceC=0; ac.sinceD=0; ac.condition=100;
+    if(ac.status==='maint'){ ac.status='idle'; ac.maintType=null; ac.readyAt=S.time; } else if(ac.status==='idle'&&(ac.readyAt||0)>S.time) ac.readyAt=S.time; }
+  logMsg(`🔧 Remise à neuf de la flotte : ${n} avion${n>1?'s':''} pour ${fmtMoney(q.cost)}.`,'ok'); return {n,cost:q.cost}; }
