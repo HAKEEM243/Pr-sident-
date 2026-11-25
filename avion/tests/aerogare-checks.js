@@ -223,6 +223,11 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     const acc=await p.evaluate(()=>{ const ac=S.fleet[0], m=modelOf(ac), leg={from:'FIH',to:'BZV',dep:S.time,pax:100}; const c0=ac.condition, h0=ac.hours; ac.condition=90; const pa=accidentRisk(ac,leg,m); ac.condition=c0;
       const L=S.ai.list.filter(e=>e.status!=='dead'), ar=L.reduce((t,e)=>t+aiRisk(e),0)*52; return {pa,perAn:Math.round(ar*10)/10,lv:S.lvFreq||'rare'}; });
     ok(acc.pa<6e-5&&acc.perAn<12&&acc.lv==='rare','Accidents et pannes : fréquences réalistes',`risque d’accident par vol ${acc.pa.toExponential(1)} (1 sur ${Math.round(1/acc.pa)}) ; accidents des autres compagnies ≈ ${acc.perAn} par an ; événements en vol : ${acc.lv}`);
+    // remise à neuf de toute la flotte en un seul bouton
+    const rn=await p.evaluate(()=>{ for(let k=0;k<6;k++){ try{ addAircraft('A20N',{hub:'FIH'}); }catch(e){} } const L=S.fleet.filter(a=>a.status==='idle').slice(0,6); L.forEach((a,i)=>{ a.condition=40+i*5; a.sinceA=900; a.sinceC=3500; a.sinceD=5000; }); if(L[0]) L[0].readyAt=S.time+30*HOUR;
+      const btn=/data-act="fleetRenew"/.test(pFleet()); const q=fleetRenewQuote(), c0=S.cash; S.cash=Math.max(S.cash,q.cost+1e6); const c1=S.cash; const r=fleetRenewDo();
+      const allNew=L.every(a=>a.condition===100&&!maintOverdue(a)&&a.sinceA===0), freed=!L[0]||L[0].readyAt<=S.time, paid=Math.abs((c1-S.cash)-q.cost)<1, again=fleetRenewQuote().n; return {btn,n:q.n,cost:q.cost,allNew,freed,paid,again,ok:typeof r==='object'}; });
+    ok(rn.btn&&rn.ok&&rn.allNew&&rn.freed&&rn.paid&&rn.n>=6,'Flotte : un seul bouton remet tous les avions à neuf (visites, état, pannes)',JSON.stringify(rn));
     ok(!errs.length,'Aucune erreur JavaScript dans le jeu',errs.slice(0,3).join(' | '));
 
     // 8 bis. construire un aéroport dans son pays (et pas à l'étranger), y ouvrir une ligne, racheter un aéroport, photo dans l'aérogare

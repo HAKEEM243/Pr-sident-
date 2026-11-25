@@ -383,7 +383,7 @@ function acStatus(ac){
 }
 function pFleet(){
   const byHub={}; for(const ac of S.fleet) (byHub[ac.hub]=byHub[ac.hub]||[]).push(ac);
-  return `<div class="btns">${isSimple()?'':'<button class="btn gold" data-tab="shop">🛒 Acheter un avion</button>'}<button class="btn sm" data-act="editor">🛠️ Éditeur d’avion</button></div>
+  return `<div class="btns">${isSimple()?'':'<button class="btn gold" data-tab="shop">🛒 Acheter un avion</button>'}<button class="btn sm" data-act="editor">🛠️ Éditeur d’avion</button>${S.fleet.length&&typeof fleetRenewQuote==='function'?(()=>{ const q=fleetRenewQuote(); return q.n?`<button class="btn sm ${q.over||q.down?'gold':''}" data-act="fleetRenew">🔧 Toute la flotte à neuf (${q.n} avion${q.n>1?'s':''})</button>`:''; })():''}</div>
   ${(S.orders||[]).length?`<h3>Commandes en cours (${S.orders.length})</h3>${S.orders.slice().sort((a,b)=>a.due-b.due).map(o=>{ const m=getModel(o.model); return `<div class="card row"><div class="grow"><b>${m.name}</b> → ${AP(o.hub).city}<br>${bar((S.time-o.ordered)/(o.due-o.ordered))}<span class="small mut">Livraison le ${fmtDate(o.due)} · solde ${fmtMoney(o.total-o.paid)} à payer</span></div><button class="btn sm danger" data-act="cancelOrder" data-id="${o.id}">Annuler</button></div>`; }).join('')}`:''}
   <label class="tog"><input type="checkbox" data-in="autoMaint" ${S.autoMaint?'checked':''}> Maintenance automatique (check A 600 h · C 3 000 h · D 12 000 h)</label>
   ${fleetBoard()}`;
