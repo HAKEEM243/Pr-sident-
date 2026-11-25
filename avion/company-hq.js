@@ -204,7 +204,7 @@ function coSettings(){
     <label class="tog"><input type="checkbox" data-in="notif" ${S.notifications?'checked':''}> Notifications du navigateur</label></div>
   <h3>⚡ Événements en vol</h3>
   <div class="small mut">Panne, orage, passager malade, ministre, célébrité : le jeu se met en pause et vous décidez. Sans réponse en 90 s, le commandant choisit la solution prudente.</div>
-  <div class="chips">${typeof LV_FREQ!=='undefined'?Object.entries(LV_FREQ).map(([k,[l]])=>`<button class="chip ${(S.lvFreq||'normal')===k?'on':''}" data-act="lvFreq" data-k="${k}">${l}</button>`).join(''):''}</div>
+  <div class="chips">${typeof LV_FREQ!=='undefined'?Object.entries(LV_FREQ).map(([k,[l]])=>`<button class="chip ${(S.lvFreq||'rare')===k?'on':''}" data-act="lvFreq" data-k="${k}">${l}</button>`).join(''):''}</div>
   ${(S.lvLog||[]).slice(0,5).map(l=>`<div class="small"><span class="mut">${fmtDate(l.t)}</span> ${l.txt}</div>`).join('')}
   <div class="btns"><button class="btn sm" data-act="guideReset">🎓 Recommencer le tutoriel</button><button class="btn sm" data-act="manual">📖 Guide du jeu</button><button class="btn sm" data-act="saves">💾 Sauvegardes</button><button class="btn sm danger" data-act="reset">Nouvelle partie</button></div>`;
 }

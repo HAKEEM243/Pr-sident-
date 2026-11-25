@@ -39,9 +39,9 @@ function lvReview(stars,text){ (S.reviews=S.reviews||[]).unshift({t:S.time,stars
 const LV={cur:null, timer:null, nextAt:0};
 function lvTick(){
   if(typeof booted==='undefined'||!booted||!S||!S.fleet||UI.modal||!$('#modal').hidden||UI.catching||document.hidden||S.paused||document.body.classList.contains('piloting')) return;
-  const f=LV_FREQ[S.lvFreq||'normal'][1]; if(!f) return;
+  const f=LV_FREQ[S.lvFreq||'rare'][1]; if(!f) return;
   const now=Date.now(); if(!LV.nextAt){ LV.nextAt=now+(6-f)*60e3; return; } if(now<LV.nextAt) return;
-  LV.nextAt=now+(f===3?4:f===2?9:20)*60e3*(0.7+Math.random()*0.6);   // environ toutes les 9 minutes réelles en « normal »
+  LV.nextAt=now+(f===3?6:f===2?14:30)*60e3*(0.7+Math.random()*0.6);   // environ toutes les 9 minutes réelles en « normal »
   const fly=S.fleet.filter(a=>a.status==='flight'&&a.flight&&a.flight.legs&&a.flight.legs[a.flight.li]&&a.flight.legs[a.flight.li].pax); if(!fly.length) return;
   const ac=pick(fly), L=ac.flight.legs[ac.flight.li];
   const types=LV_TYPES.filter(t=>!t.home||AP(L.from).cc===homeCC()||AP(L.to).cc===homeCC()); let r=Math.random()*types.reduce((s,t)=>s+t.w,0), T=types[0]; for(const t of types){ r-=t.w; if(r<=0){ T=t; break; } }

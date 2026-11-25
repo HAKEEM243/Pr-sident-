@@ -107,8 +107,8 @@ function aiStep(e,oilF){
   // Expansion prioritaire des jeunes compagnies : les investisseurs financent
   // les ouvertures et une petite commande même si le compte est déficitaire.
   if(e.startup&&e.cash<e.fleet*14e6) e.cash+=Math.min(18e6,Math.max(6e6,e.fleet*2e6));
-  if(((e.startup&&e.fleet<30)||margin>0.035&&e.cash>e.fleet*34e6) && Math.random()<(e.startup?0.38:0.16)){
-    const n=Math.max(1,Math.round(e.fleet*rnd(0.01,0.05))), m=modelFor(e);
+  if(((e.startup&&e.fleet<30)||margin>0.02&&e.cash>e.fleet*20e6) && Math.random()<(e.startup?0.45:0.26)){   /* compagnies plus ambitieuses : commandes plus fréquentes */
+    const n=Math.max(1,Math.round(e.fleet*rnd(0.02,0.06))), m=modelFor(e);
     e.fleet+=n; e.cash-=n*9e6;
     if(n>=6) aiNews(`🛒 ${e.name} commande ${n} ${m.name} — flotte portée à ${e.fleet} avions.`,'news',e.fleet>=100&&n>=10);
     else if(e.startup) aiNews(`🛒 ${e.name} (nouvelle compagnie) reçoit un ${m.name} : ${e.fleet} avions.`,'news');
@@ -121,10 +121,10 @@ function aiStep(e,oilF){
     if(e.startup&&aiOpenRoutes(e)<Math.max(4,Math.min(30,e.fleet*1.5))){
       if(aiRoute(e,'open')) e.lastRouteMonth=routeMonth;
     } else if(distressed&&e.routes>4){ aiRoute(e,'close'); e.lastRouteMonth=routeMonth; }
-    else if(!distressed&&margin>0.025&&e.cash>e.fleet*28e6&&e.routes<e.fleet*0.9){ if(aiRoute(e,'open')) e.lastRouteMonth=routeMonth; }
+    else if(!distressed&&margin>0.01&&e.cash>e.fleet*16e6&&e.routes<e.fleet*1.1){   /* ouvrent des lignes plus tôt */ if(aiRoute(e,'open')) e.lastRouteMonth=routeMonth; }
   }
   // sécurité
-  if(Math.random()<(typeof aiRisk==='function'?aiRisk(e):0.0034*Math.sqrt(Math.max(1,e.fleet)/100)/e.safety*(e.startup?1.4:1))) aiAccident(e);
+  if(Math.random()<(typeof aiRisk==='function'?aiRisk(e):0.00085*Math.sqrt(Math.max(1,e.fleet)/100)/e.safety*(e.startup?1.4:1))) aiAccident(e);
   // difficultés financières
   if(!e.startup&&e.cash<-e.fleet*6e6){
     e.debt=(e.debt||0)+1;

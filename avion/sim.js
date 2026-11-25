@@ -669,7 +669,7 @@ function completeLeg(ac){
   if(fl.kind==='route'){ if(delay>15){ S.stats.late=(S.stats.late||0)+1; } else S.stats.onTime=(S.stats.onTime||0)+1; }
   if(delay>15 && route) route.stats.late=(route.stats.late||0)+1;
   // incidents
-  let pInc = 0.0015 + (100-ac.condition)/100*0.02 + (overdue?0.03:0);
+  let pInc = 0.0004 + (100-ac.condition)/100*0.005 + (overdue?0.012:0);   /* panne technique : environ 1 vol sur 600 pour un avion bien entretenu (avant 1 sur 130) */
   if(S.recallRisk && S.recallRisk.fam===m.fam && S.time<S.recallRisk.until) pInc*=4;
   if(Math.random()<pInc) incident(ac, arr);
   if(typeof onFlightDone==='function') onFlightDone(ac,leg,{delay,rev,cost,route,paxCount,hrs});
