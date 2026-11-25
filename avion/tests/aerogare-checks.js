@@ -71,7 +71,7 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     const r3=await p.evaluate(()=>{ const code='FIH', T0=S.time, A=AP(code); let n=0,bad=0,miss=0;
       for(let t=T0;t<T0+3*HOUR;t+=15*MIN){ S.time=t; TM.code=code; TM.cache={}; TM.built=0; tmBuild(); const sh=rivPresentShown(code,t), pres=new Set(sh.map(x=>x.reg)), mov=new Set();
         for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++){ const q=rivalPos(r,i,t); if(q&&q.gnd&&gcDist(q.p,A)<12) mov.add(rivReg(R,r,i)); } }
-        const stand=new Set(), onRw=q=>q&&q.y!==TM.L.rwyY&&q.y!==TM.L.rwyA; for(const d of [...TM.L.deps,...(TM.L.taxi||[])]) if(d.f.riv&&d.f.reg&&onRw(tmDepPlane(d,t))) stand.add(d.f.reg); for(const a of TM.L.arrs) if(a.f.riv&&a.f.reg&&onRw(tmArrPlane(a,t))) stand.add(a.f.reg);   /* sur la piste (décollage, atterrissage) : vérifié à part */
+        const stand=new Set(), onRw=q=>q&&q.y!==TM.L.rwyY&&!(TM.L.rwyAs||[TM.L.rwyA]).includes(q.y); for(const d of [...TM.L.deps,...(TM.L.taxi||[])]) if(d.f.riv&&d.f.reg&&onRw(tmDepPlane(d,t))) stand.add(d.f.reg); for(const a of TM.L.arrs) if(a.f.riv&&a.f.reg&&onRw(tmArrPlane(a,t))) stand.add(a.f.reg);   /* sur la piste (décollage, atterrissage) : vérifié à part */
         for(const r of stand){ n++; if(!pres.has(r)&&!mov.has(r)) bad++; }
         const per=TM.L.parkPer||1, rem=sh.filter(x=>!stand.has(x.reg)).length+(TM.F.parked||[]).length; if(rem>Math.min(8,TM.L.parkRows||0)*per) miss++; }
       S.time=T0; return {n,bad,miss}; });
@@ -138,7 +138,7 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       const own=S.fleet.map(a=>{ const g=gateSlot(code,a); return g.lat.toFixed(6)+','+g.lon.toFixed(6); }), uniq=new Set(own).size===own.length, ownSet=new Set(own);
       let clash=0; { const x=Math.floor((T0+ahStd(code)*HOUR-12*HOUR)/DAY); for(const Lv of rivGateBlock(code,x,true).values()) for(const v of Lv){ const n=rivGateN(code), g=v.k<n?slotPt(code,v.k):rivRemotePt(code,v.k-n); if(ownSet.has(g.lat.toFixed(6)+','+g.lon.toFixed(6))) clash++; } }
       let land=0, tko=0; S.time=T0+(((9-ahLocalHour(code,T0))+24)%24)*HOUR; const t0=S.time;
-      for(let t=t0;t<t0+3*HOUR;t+=5*MIN){ S.time=t; TM.code=code; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; for(let t2=t;t2<t+5*MIN;t2+=15000){ for(const a of L.arrs){ const q=tmArrPlane(a,t2); if(q&&q.y===L.rwyA) land++; } for(const d of [...L.deps,...(L.taxi||[])]){ const q=tmDepPlane(d,t2); if(q&&Math.abs(q.y-L.rwyY)<8&&q.air>0) tko++; } } }
+      for(let t=t0;t<t0+3*HOUR;t+=5*MIN){ S.time=t; TM.code=code; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; for(let t2=t;t2<t+5*MIN;t2+=15000){ for(const a of L.arrs){ const q=tmArrPlane(a,t2); if(q&&(L.rwyAs||[L.rwyA]).includes(q.y)) land++; } for(const d of [...L.deps,...(L.taxi||[])]){ const q=tmDepPlane(d,t2); if(q&&Math.abs(q.y-L.rwyY)<8&&q.air>0) tko++; } } }
       const Lz=TM.L, rowsOk=Lz.parkTop!=null&&Lz.parkTop+30>Lz.rwyY+30&&Lz.rwyA<Lz.rwyY-60;
       S.time=T0; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; return {uniq,n:own.length,clash,land,tko,rowsOk}; });
     ok(rw.uniq&&rw.clash===0,'Vos avions : un poste unique chacun à Kinshasa, jamais pris par une autre compagnie',`${rw.n} avion(s), postes uniques : ${rw.uniq}, ${rw.clash} poste(s) pris par une autre compagnie`);
@@ -239,6 +239,22 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
         S.time=P.dep?w.s-20*MIN:w.s+35*MIN; const q2=tmPresPath(tmNow()); res.salon=!!q2&&q2.inside; S.time=w.s+6*HOUR; res.parti=!tmPresPath(tmNow()); }
       S.time=T0; return res; });
     ok(pr.trouve&&pr.vu&&pr.salon&&pr.parti,'Le président Félix Antoine Tshisekedi apparaît pendant le mouvement présidentiel (tapis rouge, pavillon, cortège)',JSON.stringify(pr));
+    // mouvement présidentiel : FARDC et police, zone bouclée, tout le monde s'écarte
+    const sec=await p.evaluate(async()=>{ const T0=S.time; let w=null; for(let t=T0;t<T0+40*DAY&&!w;t+=30*MIN){ const P=tmPresWin(t); if(P&&!P.dep) w=P.w; } if(!w) return {w:false};
+      TM.code=null; tmOpen('FIH'); await new Promise(r=>setTimeout(r,2500)); S.time=w.s+23*MIN; TM.scKey=null; await new Promise(r=>setTimeout(r,700)); const C=TM._cord; let inside=0;
+      if(C) for(const z of TM.pts||[]){ const p2=z[2]; if(p2&&!p2.staff&&z[0]>C.x0&&z[0]<C.x1&&z[1]>C.y0&&z[1]<C.y1) inside++; } const pres=!!TM._presP; tmClose(); S.time=T0; return {w:true,cordon:!!C,inside,pres}; });
+    ok(sec.w&&sec.cordon&&sec.inside===0&&sec.pres,'Mouvement présidentiel : FARDC et police, zone bouclée, tout le monde s’écarte',JSON.stringify(sec));
+    // pistes construites : les avions s'en servent (carte, 3D, aérogare)
+    const ru=await p.evaluate(()=>{ S.cash+=5e9; const c='FBM'; const e=[startProject(c,'rwx'),startProject(c,'rwx')].filter(Boolean).join('|'); const used=new Set(); let n=0;
+      for(const [R,r] of rivRoutesAt(c).slice(0,80)){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++) for(const dir of ['AB','BA']){ const to=dir==='AB'?r.b:r.a, from=dir==='AB'?r.a:r.b; if(to!==c) continue; for(let cyc0=0;cyc0<4;cyc0++){ const cyc=Math.floor((S.time-K.anchors[i])/K.P)+cyc0; const pth=legPath({from,to,dist:K.d,ownerCode:r.c||'',seed:cyc*16+i*2+(dir==='AB'?0:1)},K.m); if(pth.arr&&pth.arr.xp) used.add(String(pth.arr.id).replace(/^\d+/,'')); n++; } } }
+      TM.code=c; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const strips=new Set(TM.L.arrs.map(a=>a.rwy)); return {e,nx:xpNx(c),carte:used.size,n,aerogare:strips.size,bandes:(TM.L.rwyAs||[]).length}; });
+    ok(!ru.e&&ru.nx===2&&ru.carte>=2&&ru.aerogare>=2&&ru.bandes===2,'Pistes construites : les avions atterrissent sur toutes les nouvelles pistes (carte, 3D, aérogare)',JSON.stringify(ru));
+    // le monde bouge sans vous : des compagnies desservent les aéroports vides, les États agrandissent leurs aéroports (jamais les vôtres)
+    const wd=await p.evaluate(()=>{ aiIndexes(); const emptyN=()=>AIRPORT_CODES.filter(c=>{ const a=AP(c); if(!a||a.cls<2||a.traffic<0.03) return false; return !(AP_ROUTES[c]||[]).some(b=>carriersOn(c,b).length); }).length;
+      const mine=[...(S.myAp||[]).map(m=>m.code),...Object.keys(S.ownedAp||{}),...(S.hubs||[])], before=JSON.stringify(mine.map(c=>S.upgrades[c]||[]));
+      const e0=emptyN(); let cov=0; for(let k=0;k<4;k++) cov+=worldCoverEmpty(6); const e1=emptyN(); let ups=0, last=null; for(let k=0;k<30&&ups<3;k++){ const r=worldGovBuilds(); if(r){ ups++; last=r; } }
+      const after=JSON.stringify(mine.map(c=>S.upgrades[c]||[])); return {e0,e1,cov,ups,last,miensIntacts:before===after}; });
+    ok(wd.cov>=12&&wd.e1<wd.e0&&wd.ups>=1&&wd.miensIntacts,'Le monde bouge : des compagnies desservent les aéroports sans ligne, les États agrandissent leurs aéroports',JSON.stringify(wd));
     ok(!errs.length,'Aucune erreur JavaScript dans le jeu',errs.slice(0,3).join(' | '));
 
     // 8 bis. construire un aéroport dans son pays (et pas à l'étranger), y ouvrir une ligne, racheter un aéroport, photo dans l'aérogare

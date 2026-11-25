@@ -24,7 +24,7 @@ const tmNow=()=>typeof gSimNow==='function'&&typeof G!=='undefined'&&G?gSimNow()
 const tmHM=t=>{ try{ return fmtTime(t).split(' ').pop(); }catch(e){ const d=new Date(t); return d.getUTCHours()+':'+String(d.getUTCMinutes()).padStart(2,'0'); } };
 function tmD(a,l){ const k=a.id+'|'+l.dep, c=TM.cache[k]; if(c&&performance.now()-c.at<20000) return c.D;
   let D=null; try{ D=pfData(a,l); const s2=legProf(l,modelOf(a)).segs.find(x=>x.ph===2); const pr=legProf(l,modelOf(a)); if(D&&s2) D.tko=l.dep+s2.t0; const s8=pr.segs.find(x=>x.ph===8); if(D&&s8) D.td=l.dep+s8.t0;
-    const ho=pr.segs.find(x=>x.hold==='out'), hi=pr.segs.find(x=>x.hold==='in'), ga=pr.segs.find(x=>x.ga); if(D){ D.hold=ho?[l.dep+ho.t0,l.dep+ho.t1]:null; D.holdIn=hi?[l.dep+hi.t0,l.dep+hi.t1]:null; D.ga=ga?[l.dep+ga.t0,l.dep+ga.t1]:null; D.late=Math.round(((l.hOut||0)+(l.hIn||0)+(l.ga||0))/MIN); } }catch(e){} TM.cache[k]={D,at:performance.now()}; return D; }   // tko : décollage réel (comme en 3D)
+    const ho=pr.segs.find(x=>x.hold==='out'), hi=pr.segs.find(x=>x.hold==='in'), ga=pr.segs.find(x=>x.ga); if(D){ D.hold=ho?[l.dep+ho.t0,l.dep+ho.t1]:null; D.holdIn=hi?[l.dep+hi.t0,l.dep+hi.t1]:null; D.ga=ga?[l.dep+ga.t0,l.dep+ga.t1]:null; D.late=Math.round(((l.hOut||0)+(l.hIn||0)+(l.ga||0))/MIN); D.rwKey=typeof xpLegKey==='function'?xpLegKey(l):''; } }catch(e){} TM.cache[k]={D,at:performance.now()}; return D; }   // tko : décollage réel (comme en 3D)
 // vols de vos avions qui passent par cet aéroport en ce moment
 function tmFlights(code){
   const now=tmNow(), deps=[], arrs=[];
@@ -54,8 +54,8 @@ function tmFlights(code){
   return F;
 }
 // vols des autres compagnies : horaires réels du jeu (rivalSched), passagers estimés selon l'avion
-function tmFakeD(key,A,B,P,arr,N,X){ const intl=A.cc!==B.cc, h=hashStr(key), P0=X&&X.P0||P;
-  return {key,A,B,intl,P,arr,total:N,...(X?{tko:X.tko,td:X.td,holdIn:X.holdIn,ga:X.ga,late:X.late}:{}),ci:{open:P0-(intl?180:120)*MIN,close:P0-(intl?60:40)*MIN,online:Math.round(N*0.3)},sec:{close:P-25*MIN},pol:{close:P-20*MIN},
+function tmFakeD(key,A,B,P,arr,N,X){ const intl=A.cc!==B.cc, h=hashStr(key), P0=X&&X.P0||P, rwKey=X&&X.r&&typeof xpLegKey==='function'?xpLegKey({ownerCode:X.r.c||'',seed:X.cyc*16+X.i*2+(X.dir==='AB'?0:1)}):'';
+  return {key,A,B,intl,P,arr,total:N,rwKey,...(X?{tko:X.tko,td:X.td,holdIn:X.holdIn,ga:X.ga,late:X.late}:{}),ci:{open:P0-(intl?180:120)*MIN,close:P0-(intl?60:40)*MIN,online:Math.round(N*0.3)},sec:{close:P-25*MIN},pol:{close:P-20*MIN},
     gate:{name:String.fromCharCode(66+h%5)+(1+h%28),open:P-40*MIN,last:P-14*MIN,close:P-6*MIN,noShow:h%3},
     imm:{open:arr+6*MIN,close:arr+(N>200?55:40)*MIN},bag:{first:arr+(14+h%6)*MIN,last:arr+(30+h%14)*MIN},cus:{close:arr+70*MIN}}; }
 function tmFakeMan(D,N,m){ try{ const j=Math.round(N*0.08); return manifestFor({id:'R'+D.key},{from:D.A.code,to:D.B.code,dep:D.P,pax:{f:0,j,w:0,y:N-j}}); }catch(e){ return null; } }
@@ -199,13 +199,14 @@ function tmLayout(F){
   if(shape==='ndjili') L.poi.push({k:'visa',arr:1,x0:676,y0:46,x1:800,y1:150,lab:'Visa à l’arrivée · 90 $',ico:'🛂'});   /* N'Djili : salle des visas à l'arrivée pour les étrangers */
   if(shape==='ndjili'){ L.nd=1; const xs=ndjStands().map(s2=>s2.x).concat(L.deps.map(d=>d.stand.x),L.arrs.map(a=>a.door.x)); L.bx0=Math.min(-1240,Math.min(...xs)-200); L.bx1=Math.max(2120,Math.max(...xs)+200); }   /* N'Djili : aire 1 (MONUSCO) à gauche, aire 2 devant les aérogares, aire 3 et fret à droite */
   { const np=Math.round(((F.parked||[]).length+(F.rivN||0))*1.15)+1, per=Math.max(1,Math.floor((L.bx1-40-(L.bx0+60))/TM_PK_X)+1), rows=Math.min(8,Math.ceil(np/per)); if(np>1) L.top-=58+rows*TM_PK_Y; L.parkRows=rows; L.parkPer=per; }   /* assez de rangées de postes éloignés pour tous les avions présents (comme en 3D) */   // postes éloignés pour les avions stationnés
-  L.parkTop=L.top; L.rwyY=L.top-64; L.rwyA=L.rwyY-80; L.top-=216;   /* deux pistes au-dessus de l'aire de stationnement : décollages (la plus proche) et atterrissages */
+  L.parkTop=L.top; L.rwyY=L.top-64; L.rwyA=L.rwyY-80; L.top-=216; { const nX=typeof xpNx==='function'?xpNx(TM.code):0; L.rwyAs=[L.rwyA]; for(let k=1;k<nX;k++) L.rwyAs.push(L.rwyA-80*k); L.top-=80*(L.rwyAs.length-1); }   /* pistes construites par le joueur : une piste d'atterrissage de plus chacune */   /* deux pistes au-dessus de l'aire de stationnement : décollages (la plus proche) et atterrissages */
   TW.top=L.top;
   const aCols=na>4?Math.ceil(na/2):na, aSlot=[]; { const sl=[]; for(let c=0;c<aCols;c+=2) sl.push(c); for(let c=1;c<aCols;c+=2) sl.push(aCols+c); for(let c=1;c<aCols;c+=2) sl.push(c); for(let c=0;c<aCols;c+=2) sl.push(aCols+c);   /* gros porteurs jamais côte à côte */
     const ord=F.arrs.map((f,i)=>i).sort((a,b)=>(tmPSc(F.arrs[b])>=0.95)-(tmPSc(F.arrs[a])>=0.95)||a-b); ord.forEach((i,j)=>aSlot[i]=sl[j]!=null?sl[j]:j); }
   F.arrs.forEach((f,i)=>{ const bw=340/na, x0=660+i*bw+3, x1=660+(i+1)*bw-3, si=aSlot[i], row=si<aCols?0:1, col=row?si-aCols:si, sw=340/aCols, cx=row?Math.min(992,660+(col+1)*sw):660+(col+0.5)*sw;   /* arrivées : deux rangées décalées, 85 px entre deux avions */
     const BP=[(i%2)?915:745,492+Math.floor((i%8)/2)*92]; if(L.nd){ const gp=ndjGate(f,TM.code,1), gx=ndjX(gp), ax=gx!=null?gx:850+((i*5)%8)*100; L.arrs.push({f,x0,x1,door:{x:ax,y:38},sy:ndjY(gp),ent:{x:830,y:4},pn:ndjPn(ax,ndjY(gp))||'éloigné',belt:{cx:BP[0],cy:BP[1],rx:56,ry:24,n:(i%8)+1}}); return; } L.arrs.push({f,x0,x1,door:{x:cx,y:38},sy:row?-175:-60,belt:{cx:BP[0],cy:BP[1],rx:56,ry:24,n:(i%8)+1}}); });
-  if(L.nd) for(const a of L.arrs){ L.bx0=Math.min(L.bx0,a.door.x-200); L.bx1=Math.max(L.bx1,a.door.x+200); }   /* aire éloignée : le tarmac va jusqu'au dernier avion */
+  if(L.nd) for(const a of L.arrs){ L.bx0=Math.min(L.bx0,a.door.x-200); L.bx1=Math.max(L.bx1,a.door.x+200); }
+  for(const a of L.arrs){ const k=typeof xpArrIdx==='function'?xpArrIdx(TM.code,a.f.D.rwKey||''):0; a.rwy=L.rwyAs?L.rwyAs[Math.min(k,L.rwyAs.length-1)]:null; }   /* même piste que sur la carte et en 3D */   /* aire éloignée : le tarmac va jusqu'au dernier avion */
   L.rx0=L.bx0; L.rx1=L.bx1; L.bx0-=780; L.bx1+=420;   /* raquettes d'attente au bout de la voie de circulation, des deux côtés */
   L.secQ=tmPath(tmSnake(600,880,110,940,4));   /* entrée côté couloir, avance vers les scanners */ L.secQp=tmPath([{x:38,y:944},{x:38,y:900},{x:24,y:900},{x:24,y:878}]); L.polQ=tmPath(tmSnake(330,760,630,800,3)); L.immQn=tmPath(tmSnake(672,334,808,404,4).reverse()); L.immQf=tmPath(tmSnake(818,334,955,404,4).reverse());
   return L; }
@@ -943,6 +944,7 @@ function tmRunwayDraw(g,L,txt){ const W=tmRwys(L); let n1='',n2='';
   link(L.rx0-30,W.d.y); link(L.rx1+30,W.a.y);
   const rwy=(R2,lab)=>{ const {x0,x1,y}=R2; g.fillStyle='#1f2937'; g.fillRect(x0,y-24,x1-x0,48); g.fillStyle='#e5e7eb'; for(let x=x0+60;x<x1-60;x+=60) g.fillRect(x,y-1.2,32,2.4); for(const xe of [x0+6,x1-36]) for(let k=0;k<8;k++) g.fillRect(xe,y-21+k*5.5,30,3); g.fillRect(x0,y-24,x1-x0,1.2); g.fillRect(x0,y+22.8,x1-x0,1.2); txt(lab,x0+50,y-30,11,'#e5e7eb',1);
     if(TM.night){ g.fillStyle='#fef3c7'; for(let x=x0;x<x1;x+=50){ g.fillRect(x,y-25,2,2); g.fillRect(x,y+23,2,2); } g.fillStyle='#22c55e'; g.fillRect(x0,y-24,3,48); g.fillStyle='#ef4444'; g.fillRect(x1-3,y-24,3,48); } };
+  (L.rwyAs||[]).slice(1).forEach((y,k)=>{ link(L.rx1+30,y); rwy({...W.a,y},'🛬 Piste '+(k+3)+' · construite par vous'); });
   rwy(W.a,'🛬 Piste des atterrissages'+(n2?' · '+n1+'L':'')); rwy(W.d,'🛫 Piste des décollages'+(n1?' · '+n1+'R':'')); }
 function tmHoldRank(d,now,hx){ let j=0; for(const e of [...TM.L.deps,...(TM.L.taxi||[])]){ if(e===d) continue; const E=e.f.D, u=now-E.P; if(u<3*MIN||u>((E.tko||E.P+7*MIN)-E.P)+4*MIN) continue; if(e._rt){ if(e._rt.hx!==hx) continue; } else if(TM.L.rwyY==null){ const a2=e.stand.a+e.turn*Math.PI/2; if(Math.abs(Math.cos(a2))>=0.02) continue; if((-Math.sin(a2)<0?-1:1)!==hx) continue; }   /* avec la piste des décollages, tous attendent à la même raquette */ if(E.P<d.f.D.P||(E.P===d.f.D.P&&e.f.fn<d.f.fn)) j++; } return j; }
 function tmArrPlane(a,now){ const Lr=TM.L; if(Lr&&Lr.rwyY!=null&&Lr.rx0!=null) return tmArrPlaneR(a,now,Lr);
@@ -957,7 +959,7 @@ function tmArrPlaneR(a,now,Lr){ const D=a.f.D, A=D.arr, sy=a.sy||-60, U=Math.max
   if(now>U){ if(a.same) return null; const u=(now-U)/(4*MIN); return u<0.5?{x:a.door.x,y:sy+(TM_TWY-sy)*u*2,a:sy<TM_TWY?Math.PI:0,push:1}:{x:a.door.x+700*(u-0.5)*2,y:TM_TWY,a:Math.PI/2}; }   // repoussé puis remorqué une fois vide
   if(now<td&&a.f.rr&&typeof rivalPos==='function'){ const q=rivalPos(a.f.rr,a.f.ri,now); if(q&&!q.gnd&&(q.holding||q.ph<6)) return null; }   // encore en attente ou loin en 3D
   if(now>=A){ if(now>A+20*MIN&&a.f.rr&&typeof rivalPos==='function'&&rivalPos(a.f.rr,a.f.ri,now)) return null; return {x:a.door.x,y:sy,a:sy<TM_TWY?Math.PI:0,at:1}; }   /* reparti en 3D : il n'est plus au poste */
-  const ex=Lr.rx1+30, dir=1, ry=Lr.rwyA!=null?Lr.rwyA:Lr.rwyY, aR=-Math.PI/2, tdd=Math.min(1500,tmRwys(Lr).len-170);
+  const ex=Lr.rx1+30, dir=1, ry=a.rwy!=null?a.rwy:(Lr.rwyA!=null?Lr.rwyA:Lr.rwyY), aR=-Math.PI/2, tdd=Math.min(1500,tmRwys(Lr).len-170);
   if(now<td-60000){ const w=(now-(td-90000))/30000; return {x:ex-dir*(tdd+800*(1-w)),y:ry,a:aR,air:1-w}; }   /* en finale, puis toucher des roues */
   if(now<td){ const s2=(now-(td-60000))/60000, e=1-(1-s2)*(1-s2); return {x:ex-dir*tdd*(1-e),y:ry,a:aR}; }   /* freinage sur la piste des atterrissages */
   const tE=A-2*MIN; if(now<tE){ const L1=Math.abs(TM_TWY-ry), L2=Math.abs(a.door.x-ex), w=Math.min(1,(now-td)/Math.max(30000,tE-td)), dd=w*(L1+L2); if(dd<L1) return {x:ex,y:ry+(TM_TWY-ry)*dd/L1,a:0}; return {x:ex+(a.door.x-ex)*(dd-L1)/Math.max(1,L2),y:TM_TWY,a:a.door.x<ex?Math.PI/2:-Math.PI/2}; }
@@ -991,6 +993,15 @@ function tmPresPath(now){ if(TM.code!=='FIH'||!TM.L||!TM.L.nd) return null; cons
         at(w.s-12*MIN,top,'sort du pavillon, tapis rouge'); at(w.s-9*MIN,mid,'marche sur le tapis rouge vers son avion'); at(w.s-7*MIN,st,'salue les autorités au pied de l’avion'); at(w.s-5*MIN,{x:st.x,y:st.y-14},'monte à bord de l’avion présidentiel'); }
       TM._presK={key,K,st,car,door,mid,top}; }
   const R=TM._presK, q=tmAt(R.K,now); return q?{...q,R,inside:/au salon/.test(q.st)}:null; }
+function tmPresSecurity(g,now,sc){ TM._cord=null; const q=tmPresPath(now), R=TM._presK; if(!R||!R.K||!R.K.length) return; const K=R.K; if(now<K[0].t-6*MIN||now>K[K.length-1].t+3*MIN) return;
+  const C={x0:Math.min(R.st.x,R.top.x)-60,x1:1310,y0:-112,y1:-6}; TM._cord=C;   /* zone bouclée : tout le monde s'écarte */
+  g.save(); g.lineWidth=1.6; g.setLineDash([5,4]); g.strokeStyle='#dc2626'; g.strokeRect(C.x0,C.y0,C.x1-C.x0,C.y1-C.y0); g.lineDashOffset=4.5; g.strokeStyle='#f8fafc'; g.strokeRect(C.x0,C.y0,C.x1-C.x0,C.y1-C.y0); g.restore();   /* ruban de sécurité */
+  const man=(x,y,uni,cap,face)=>{ g.fillStyle='rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(x+0.8,y+3.6,2.6,1.2,0,0,6.283); g.fill(); g.fillStyle=uni; g.fillRect(x-1.8,y-1,3.6,4.4); if(uni==='#3f5a2a'){ g.fillStyle='#2b3d1c'; g.fillRect(x-1.8,y+0.6,1.4,1.2); g.fillRect(x+0.4,y+2,1.4,1.2); } g.fillStyle='#3f2516'; g.beginPath(); g.arc(x,y-2.4,1.5,0,6.283); g.fill(); g.fillStyle=cap; g.beginPath(); g.arc(x,y-2.9,1.6,Math.PI,0); g.fill(); g.fillStyle='#111'; g.fillRect(x+(face||1)*1.6,y,1.8,0.7); };   /* militaire (tenue camouflée, casque, arme) ou policier */
+  const xa=Math.min(R.st.x,R.top.x)-4, xb=Math.max(R.st.x,R.top.x)+4;
+  for(let x=xa+4;x<xb;x+=13){ man(x,-55,'#3f5a2a','#2b3d1c',1); man(x+6,-33,'#3f5a2a','#2b3d1c',-1); }   /* FARDC le long du tapis rouge */
+  for(let y=-30;y<-8;y+=11){ man(R.top.x-14,y,'#3f5a2a','#2b3d1c',1); man(R.top.x+14,y,'#3f5a2a','#2b3d1c',-1); }
+  for(let x=C.x0+8;x<C.x1;x+=26){ man(x,C.y0-6,'#1e3a8a','#0f172a',1); man(x+13,C.y1+6,'#1e3a8a','#0f172a',-1); } for(let y=C.y0+10;y<C.y1;y+=24){ man(C.x0-6,y,'#1e3a8a','#0f172a',1); man(C.x1+6,y,'#1e3a8a','#0f172a',-1); }   /* police tout autour */
+  const px=Math.max(7,9/sc); g.font=`800 ${px}px system-ui`; g.fillStyle='#fecaca'; g.fillText('🪖 FARDC · 👮 Police nationale · zone bouclée',C.x0+4,C.y0-12-px*0.2); }
 function tmPresPerson(g,now,sc){ const q=tmPresPath(now); TM._presP=null; if(!q||q.inside) return; const R=q.R, x=q.x, y=q.y;
   { const xa=Math.min(R.st.x,R.top.x)-4, xb=Math.max(R.st.x,R.top.x)+4; g.fillStyle='#b91c1c'; g.fillRect(xa,-48,xb-xa,8); g.fillRect(R.st.x-4,R.st.y,8,-44-R.st.y+4); g.fillRect(R.top.x-7,-48,14,34); g.fillStyle='#facc15'; g.fillRect(xa,-48,xb-xa,1); g.fillRect(xa,-41,xb-xa,1); }   /* tapis rouge : de l'escalier de l'avion au pavillon présidentiel */
   for(const [dx,dy] of [[-9,-7],[9,-7],[-9,7],[9,7],[-15,0],[15,0]]){ g.fillStyle='rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(x+dx+1,y+dy+4,2.6,1.2,0,0,6.283); g.fill(); g.fillStyle='#14532d'; g.fillRect(x+dx-1.8,y+dy-1,3.6,4.4); g.fillStyle='#3f2516'; g.beginPath(); g.arc(x+dx,y+dy-2.4,1.5,0,6.283); g.fill(); g.fillStyle='#b91c1c'; g.fillRect(x+dx-1.6,y+dy-4.3,3.2,1.2); }   /* garde républicaine autour */
@@ -1258,7 +1269,7 @@ function tmDraw(){
     { const pq=tmPres(now); if(pq){ tmPresDraw(g,pq); if(pq.at) tmStairsDraw(g,{x:pq.x,y:pq.y,a:0},{model:'B737',N:150}); } }   /* avion présidentiel */
     if(TM.storm){ g.strokeStyle='rgba(191,219,254,.55)'; g.lineWidth=1; g.beginPath(); for(let k=0;k<90;k++){ const x=L.bx0+((k*137+now/9)%(L.bx1-L.bx0)), y=TW.top+((k*71+now/4)%(-TW.top+30)); g.moveTo(x,y); g.lineTo(x-3,y+9); } g.stroke(); } }
   { const E=tmEv(now); if(E.vipOn||E.vipSoon) tmVipDraw(g,L,now,E); }
-  try{ tmPresPerson(g,now,s); }catch(e){}   /* le président en personne */
+  try{ tmPresSecurity(g,now,s); tmPresPerson(g,now,s); }catch(e){}   /* sécurité (FARDC, police) et le président en personne */
   // valises : tapis, tri, soutes, tapis de livraison
   for(const b of TM.bags||[]){ let q=null;
     if(now>=b.t0&&now<b.t0+b.dur) q=tmPathAt(b.P,(now-b.t0)/b.dur);
@@ -1281,7 +1292,7 @@ function tmDraw(){
   for(const p of TM.ppl){ let q; if(!toPl&&p._off&&rtN-p._qr<320&&p._qt<=now) q=p._q; else { q=tmAt(p.K,now); p._q=q; p._qr=rtN; p._qt=now; p._off=false; } if(!q) continue;   /* hors de l'écran : position recalculée ~3 fois/s seulement */ if(p.crew){ cnt.crew=(cnt.crew||0)+1; } else if(p.staff){ cnt.staff=(cnt.staff||0)+1; } else if(p.greet){ cnt.greet=(cnt.greet||0)+1; } else { n++; p.dep?nd++:na++; }
     { const k=tmCat(q.st,q.q); if(k) cnt[k]++; }
     if(q.bus){ const bk=Math.round(q.x/10)+','+Math.round(q.y/10); if(!BUS.has(bk)) BUS.set(bk,[q.x,q.y]); continue; }   /* dans le bus de piste : on dessine le bus, pas les passagers */
-    const x=q.x+((p.i*13)%7-3)*0.7, y=q.y+((p.i*7)%5-2)*0.7; pts.push([x,y,p,q]); { const X=tmFx(x), Y=tmFy(y); if(X<vx0||X>vx1||Y<vy0||Y>vy1){ if(p._qr===rtN) p._off=X<vx0-60||X>vx1+60||Y<vy0-60||Y>vy1+60; continue; } }
+    let x=q.x+((p.i*13)%7-3)*0.7, y=q.y+((p.i*7)%5-2)*0.7; { const C=TM._cord; if(C&&x>C.x0-10&&x<C.x1+10&&y>C.y0-10&&y<C.y1+10){ const dl=x-C.x0, dr=C.x1-x, dt=y-C.y0, db=C.y1-y, m=Math.min(dl,dr,dt,db); if(m===db) y=C.y1+14+(p.i%3)*4; else if(m===dt) y=C.y0-14-(p.i%3)*4; else if(m===dl) x=C.x0-14-(p.i%3)*4; else x=C.x1+14+(p.i%3)*4; } }   /* mouvement présidentiel : tout le monde s'écarte derrière le cordon */ pts.push([x,y,p,q]); { const X=tmFx(x), Y=tmFy(y); if(X<vx0||X>vx1||Y<vy0||Y>vy1){ if(p._qr===rtN) p._off=X<vx0-60||X>vx1+60||Y<vy0-60||Y>vy1+60; continue; } }
     const r0=r00, px=r0*s, ph=q.walk?Math.sin(now/140+p.i):0, carry=(p.dep===1?(p.bag&&now<p.ckDone):(p.dep===0&&p.hasBag&&now>=p.bagT&&!p.trol)), L=tmLook(p);
     const trol=p.staff==='porter'||(p.dep===1&&p.row&&p.row.bags>=2&&now<p.ckDone)||(!p.dep&&p.hasBag&&now>=p.bagT);   // chariot à bagages poussé devant soi
     if(trol&&px>=2.2){ const fx=p.face||1, tx=x+fx*r0*1.6, ty=y+r0*1.0; g.fillStyle='#94a3b8'; g.fillRect(tx-r0*0.9,ty-r0*0.35,r0*1.8,r0*0.7); g.fillStyle=TM_BAGC[p.i%8]; g.fillRect(tx-r0*0.75,ty-r0*1.05,r0*1.5,r0*0.75); if(p.row&&p.row.bags>=2){ g.fillStyle=TM_BAGC[(p.i+3)%8]; g.fillRect(tx-r0*0.6,ty-r0*1.6,r0*1.2,r0*0.6); } g.fillStyle='#111'; g.beginPath(); g.arc(tx-r0*0.7,ty+r0*0.45,r0*0.16,0,6.283); g.arc(tx+r0*0.7,ty+r0*0.45,r0*0.16,0,6.283); g.fill(); }

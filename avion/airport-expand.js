@@ -68,13 +68,18 @@ function apGates(code){ const A=AP(code); if(!A) return null; const key=(A.xp||0
              {id:oid+(side>0?'L':'R')+suf, hdg:(main.hdg+180)%360, thr:p2, end:p1, len:main.len, wid:main.wid||45, hard:true, xp:true}); }
   out._xp=true; return out; }; }
 // pistes spécialisées : les arrivées se posent sur la nouvelle piste, les départs gardent l'ancienne
-let _xpCall=-1;
-{ const _lp=legPath; legPath=function(leg,m){ _xpCall=0; try{ return _lp(leg,m); } finally{ _xpCall=-1; } }; }
+let _xpCall=-1, _xpLeg=null;
+{ const _lp=legPath; legPath=function(leg,m){ _xpCall=0; _xpLeg=leg; try{ return _lp(leg,m); } finally{ _xpCall=-1; _xpLeg=null; } }; }
+// identité d'un vol pour répartir les arrivées sur les pistes ajoutées (la même partout : carte, 3D, aérogare)
+function xpLegKey(leg){ return leg?((leg.ownerCode||'')+'|'+(leg.seed!=null?'s'+leg.seed:'d'+Math.round((leg.dep||0)/60000))):''; }
+function xpNx(code){ const a=AP(code); return a&&a.rw2?Math.max(1,(a.rwN||0)+((a.xp||0)>=3?1:0)):0; }
+function xpArrIdx(code,key){ const n=xpNx(code); return n>1?hashStr(code+'|'+key)%n:0; }
 { const _br=bestRunway; bestRunway=function(code,course,m){ const role=_xpCall>=0?(_xpCall++===0?'dep':'arr'):null; const a=AP(code);
   if(!a||!a.rw2) return _br(code,course,m);
   const all=runwaysOf(code), real=all.filter(r=>!r.xp), virt=all.filter(r=>r.xp);
   const pickIn=list=>list.slice().sort((x,y)=>angDiff(x.hdg,course)-angDiff(y.hdg,course))[0];
-  return role==='arr'&&virt.length? pickIn(virt) : (pickIn(real)||_br(code,course,m)); }; }
+  if(role==='arr'&&virt.length){ const b=pickIn(virt), same=virt.filter(r=>angDiff(r.hdg,b.hdg)<20); return same[Math.min(same.length-1,xpArrIdx(code,xpLegKey(_xpLeg)))]||b; }   /* chaque arrivée sur l'une des pistes ajoutées : toutes servent */
+  return pickIn(real)||_br(code,course,m); }; }
 
 /* ---------- interface : où agrandir ---------- */
 function xpTabHtml(){
