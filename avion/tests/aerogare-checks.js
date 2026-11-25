@@ -233,6 +233,12 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       const n1=runwaysOf(c).length; applyUpgrades(); applyUpgrades(); const n2=runwaysOf(c).length, rwN=AP(c).rwN; const list=xpTabHtml().includes(c); let drawn=0; try{ map.setView([m.lat,m.lon],12,{animate:false}); drawRunways(true); L_runways.eachLayer(()=>drawn++); }catch(e){}
       return {n0,n1,n2,rwN,xp:AP(c).xp,errs:[e1,e2,e3].filter(Boolean).join('|'),list,drawn}; });
     ok(px.n0===2&&px.n1===6&&px.n2===6&&px.rwN===2&&px.xp===1&&!px.errs&&px.list&&px.drawn>0,'Mon aéroport : pistes supplémentaires et terminaux construits tout de suite, visibles sur la carte',JSON.stringify(px));
+    // le président (Félix Antoine Tshisekedi) apparaît pendant le mouvement présidentiel : avion → tapis rouge → pavillon → cortège
+    const pr=await p.evaluate(()=>{ const T0=S.time; let res={trouve:false}; for(let t=T0;t<T0+40*DAY&&!res.trouve;t+=30*MIN){ const P=tmPresWin(t); if(!P) continue; const w=P.w; res.trouve=true; res.dep=P.dep;
+        S.time=P.dep?w.s-9*MIN:w.s+23*MIN; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); tmPres(tmNow()); const q=tmPresPath(tmNow()); res.vu=!!q&&!q.inside; res.st=q&&q.st;
+        S.time=P.dep?w.s-20*MIN:w.s+35*MIN; const q2=tmPresPath(tmNow()); res.salon=!!q2&&q2.inside; S.time=w.s+6*HOUR; res.parti=!tmPresPath(tmNow()); }
+      S.time=T0; return res; });
+    ok(pr.trouve&&pr.vu&&pr.salon&&pr.parti,'Le président Félix Antoine Tshisekedi apparaît pendant le mouvement présidentiel (tapis rouge, pavillon, cortège)',JSON.stringify(pr));
     ok(!errs.length,'Aucune erreur JavaScript dans le jeu',errs.slice(0,3).join(' | '));
 
     // 8 bis. construire un aéroport dans son pays (et pas à l'étranger), y ouvrir une ligne, racheter un aéroport, photo dans l'aérogare
