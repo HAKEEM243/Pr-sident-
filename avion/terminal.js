@@ -980,12 +980,29 @@ function tmPres(now){ if(TM.code!=='FIH'||!TM.L||!TM.L.nd) return null; const P=
 function tmPresDraw(g,q){ const sc=0.7, air=q.air||0, s2=sc*(1+air*0.55); if(air>0){ g.save(); g.globalAlpha=0.22*(1-air*0.5); g.fillStyle='#020617'; g.translate(q.x+air*22,q.y+air*30); g.rotate(q.a); g.beginPath(); g.ellipse(0,-50*sc,8*sc,46*sc,0,0,6.283); g.ellipse(0,-50*sc,52*sc,7*sc,0,0,6.283); g.fill(); g.restore(); }
   tmPlane(g,q.x,q.y,'#0369a1',q.a,s2,1,null); g.save(); g.translate(q.x,q.y); g.rotate(q.a||0); g.scale(s2,s2); for(const [dx,c] of [[-3.2,'#0ea5e9'],[-2.1,'#facc15'],[-1.1,'#dc2626']]){ g.fillStyle=c; g.fillRect(dx,-86,0.9,76); g.fillRect(-dx-0.9,-86,0.9,76); } g.restore();   /* bande aux couleurs du drapeau */
   if(q.at||q.hold){ g.font='700 7px system-ui'; g.fillStyle='#fef08a'; g.fillText('🇨🇩 Avion présidentiel · République démocratique du Congo',q.x+18,q.y-58); } }
+// le président de la République (Félix Antoine Tshisekedi) : descend de son avion, tapis rouge, salon du pavillon présidentiel, cortège (ou l'inverse au départ)
+const TM_PRES_NAME='Félix Antoine Tshisekedi';
+function tmPresPath(now){ if(TM.code!=='FIH'||!TM.L||!TM.L.nd) return null; const P=tmPresWin(now); if(!P) return null; const w=P.w, o=TM._pres; if(!o) return null;
+  const key=o.key+'|path'; if(!TM._presK||TM._presK.key!==key){ const st=tmStairs({x:o.X,y:-64,a:0},{model:'B737',N:150}), door={x:1119,y:82}, car={x:1052+80+5*22+8,y:-26}, mid={x:st.x,y:-44}, top={x:1119,y:-44}, foot={x:1119,y:-10}; const K=[];
+      const at=(t,p,txt)=>K.push({t,x:p.x,y:p.y,st:txt});
+      if(!o.dep){ at(w.s+18*MIN,{x:st.x,y:st.y-14},'descend de l’avion présidentiel'); at(w.s+19*MIN,st,'accueilli au pied de l’avion par les autorités'); at(w.s+21*MIN,st,'salue les autorités, honneurs militaires'); at(w.s+22*MIN,mid,'marche sur le tapis rouge'); at(w.s+24*MIN,top,'marche sur le tapis rouge'); at(w.s+26*MIN,door,'entre au pavillon présidentiel');
+        at(Math.max(w.s+40*MIN,w.e-6*MIN),door,'au salon du pavillon présidentiel'); at(Math.max(w.s+41*MIN,w.e-5*MIN),foot,'sort du pavillon présidentiel'); at(Math.max(w.s+42*MIN,w.e-4*MIN),car,'monte dans le cortège'); at(Math.max(w.s+43*MIN,w.e-3*MIN),{x:car.x+60,y:car.y},'le cortège quitte l’aéroport'); }
+      else { at(w.s-40*MIN,{x:car.x+60,y:car.y},'arrive avec le cortège'); at(w.s-38*MIN,car,'descend de voiture'); at(w.s-37*MIN,foot,'tapis rouge vers le pavillon'); at(w.s-36*MIN,door,'entre au pavillon présidentiel'); at(w.s-14*MIN,door,'au salon du pavillon présidentiel');
+        at(w.s-12*MIN,top,'sort du pavillon, tapis rouge'); at(w.s-9*MIN,mid,'marche sur le tapis rouge vers son avion'); at(w.s-7*MIN,st,'salue les autorités au pied de l’avion'); at(w.s-5*MIN,{x:st.x,y:st.y-14},'monte à bord de l’avion présidentiel'); }
+      TM._presK={key,K,st,car,door,mid,top}; }
+  const R=TM._presK, q=tmAt(R.K,now); return q?{...q,R,inside:/au salon/.test(q.st)}:null; }
+function tmPresPerson(g,now,sc){ const q=tmPresPath(now); TM._presP=null; if(!q||q.inside) return; const R=q.R, x=q.x, y=q.y;
+  { const xa=Math.min(R.st.x,R.top.x)-4, xb=Math.max(R.st.x,R.top.x)+4; g.fillStyle='#b91c1c'; g.fillRect(xa,-48,xb-xa,8); g.fillRect(R.st.x-4,R.st.y,8,-44-R.st.y+4); g.fillRect(R.top.x-7,-48,14,34); g.fillStyle='#facc15'; g.fillRect(xa,-48,xb-xa,1); g.fillRect(xa,-41,xb-xa,1); }   /* tapis rouge : de l'escalier de l'avion au pavillon présidentiel */
+  for(const [dx,dy] of [[-9,-7],[9,-7],[-9,7],[9,7],[-15,0],[15,0]]){ g.fillStyle='rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(x+dx+1,y+dy+4,2.6,1.2,0,0,6.283); g.fill(); g.fillStyle='#14532d'; g.fillRect(x+dx-1.8,y+dy-1,3.6,4.4); g.fillStyle='#3f2516'; g.beginPath(); g.arc(x+dx,y+dy-2.4,1.5,0,6.283); g.fill(); g.fillStyle='#b91c1c'; g.fillRect(x+dx-1.6,y+dy-4.3,3.2,1.2); }   /* garde républicaine autour */
+  const k=1.5; g.fillStyle='rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(x+1,y+5.5*k,3*k,1.4*k,0,0,6.283); g.fill(); g.fillStyle='#0f172a'; g.fillRect(x-2.2*k,y-1*k,4.4*k,5.6*k); g.fillStyle='#f8fafc'; g.fillRect(x-0.7*k,y-1*k,1.4*k,2.2*k); g.fillStyle='#1d4ed8'; g.fillRect(x-0.3*k,y-0.6*k,0.6*k,2.4*k); g.fillStyle='#4a2c1a'; g.beginPath(); g.arc(x,y-2.6*k,1.8*k,0,6.283); g.fill(); g.fillStyle='#111'; g.fillRect(x-1.4*k,y-3*k,2.8*k,0.5*k);   /* costume sombre, cravate, lunettes */
+  const px=Math.max(8,11/sc), t='🇨🇩 Président '+TM_PRES_NAME; g.font=`800 ${px}px system-ui`; const tw=g.measureText(t).width; g.fillStyle='rgba(127,29,29,.92)'; g.fillRect(x-tw/2-px*0.4,y-6*k-px*1.6,tw+px*0.8,px*1.35); g.fillStyle='#fde68a'; g.fillText(t,x-tw/2,y-6*k-px*0.55);   /* nom lisible à toutes les échelles */
+  TM._presP={x,y,st:q.st}; }
 // mouvement présidentiel : cortège (motards, berlines noires, ambulance) devant le salon d'honneur, tapis rouge
 function tmVipDraw(g,L,now,E){ const x0=1052, y0=L.nd?-24:-52, on=E.vipOn; g.save();
   g.fillStyle='#b91c1c'; g.fillRect(x0+60,y0+8,14,90); g.fillStyle='#facc15'; g.fillRect(x0+60,y0+8,2,90); g.fillRect(x0+72,y0+8,2,90);   // tapis rouge vers le salon d'honneur
-  const n=on?7:4; for(let k=0;k<n;k++){ const x=x0+k*22, y=y0-6, moto=k===0||k===n-1; g.fillStyle='rgba(15,23,42,.3)'; g.fillRect(x+1,y+1,moto?6:16,moto?3:8); g.fillStyle=moto?'#e5e7eb':(k===n-2&&on?'#f8fafc':'#0f172a'); g.fillRect(x,y,moto?6:16,moto?3:8); if(!moto){ g.fillStyle='rgba(148,163,184,.8)'; g.fillRect(x+3,y+1,4,6); } if(moto||k===1){ g.fillStyle=(Math.floor(now/250+k)%2)?'#3b82f6':'#ef4444'; g.fillRect(x+(moto?2:6),y-1.5,3,1.5); } }
+  const n=on?7:4; for(let k=0;k<n;k++){ const x=x0+80+k*22, y=y0-6, moto=k===0||k===n-1; g.fillStyle='rgba(15,23,42,.3)'; g.fillRect(x+1,y+1,moto?6:16,moto?3:8); g.fillStyle=moto?'#e5e7eb':(k===n-2&&on?'#f8fafc':'#0f172a'); g.fillRect(x,y,moto?6:16,moto?3:8); if(!moto){ g.fillStyle='rgba(148,163,184,.8)'; g.fillRect(x+3,y+1,4,6); } if(moto||k===1){ g.fillStyle=(Math.floor(now/250+k)%2)?'#3b82f6':'#ef4444'; g.fillRect(x+(moto?2:6),y-1.5,3,1.5); } }
   for(let k=0;k<6;k++){ const px=x0+40+k*7, py=y0+4+(k%2)*94; g.fillStyle='#14532d'; g.beginPath(); g.arc(px,py,2.2,0,6.283); g.fill(); }   // garde républicaine
-  g.font='700 7px system-ui'; g.fillStyle='#fecaca'; g.fillText(on?'🚨 Cortège présidentiel':'🚨 Cortège en attente',x0,y0-12); g.restore(); }
+  g.font='700 7px system-ui'; g.fillStyle='#fecaca'; g.fillText(on?'🚨 Cortège présidentiel':'🚨 Cortège en attente',x0+80,y0-12); g.restore(); }
 // N'Djili : aire 1 et aérogare de la MONUSCO, tour de contrôle, hangar de l'aire 3, noms des aires (OpenStreetMap)
 function tmNdjDraw(g,L,now,fit){
   g.fillStyle='rgba(15,23,42,.3)'; g.fillRect(-1196,34,200,90); g.fillStyle='#f1f5f9'; g.fillRect(-1200,30,200,90); g.fillStyle='#1d4ed8'; g.fillRect(-1200,30,200,8); fit('🇺🇳 Aérogare MONUSCO (ONU)',-1190,62,180,16,'#fff','#1d4ed8'); fit('Aire 1 · vols des Nations unies',-1190,86,180,10,'#334155');
@@ -1241,6 +1258,7 @@ function tmDraw(){
     { const pq=tmPres(now); if(pq){ tmPresDraw(g,pq); if(pq.at) tmStairsDraw(g,{x:pq.x,y:pq.y,a:0},{model:'B737',N:150}); } }   /* avion présidentiel */
     if(TM.storm){ g.strokeStyle='rgba(191,219,254,.55)'; g.lineWidth=1; g.beginPath(); for(let k=0;k<90;k++){ const x=L.bx0+((k*137+now/9)%(L.bx1-L.bx0)), y=TW.top+((k*71+now/4)%(-TW.top+30)); g.moveTo(x,y); g.lineTo(x-3,y+9); } g.stroke(); } }
   { const E=tmEv(now); if(E.vipOn||E.vipSoon) tmVipDraw(g,L,now,E); }
+  try{ tmPresPerson(g,now,s); }catch(e){}   /* le président en personne */
   // valises : tapis, tri, soutes, tapis de livraison
   for(const b of TM.bags||[]){ let q=null;
     if(now>=b.t0&&now<b.t0+b.dur) q=tmPathAt(b.P,(now-b.t0)/b.dur);
@@ -1351,6 +1369,7 @@ function tmOpen(code){
     const dx=e.clientX-o.x, dy=e.clientY-o.y; moved+=Math.abs(dx)+Math.abs(dy); TM.cam.x-=dx/TM.cam.s; TM.cam.y-=dy/TM.cam.s; P.set(e.pointerId,{x:e.clientX,y:e.clientY}); });
   const up=e=>{ const had=P.has(e.pointerId); P.delete(e.pointerId); if(P.size<2) pinch=null; if(!had||moved>8||!TM.cam) return;
     const r=TM.cv.getBoundingClientRect(), wx=tmFx(TM.cam.x+(e.clientX-r.left)/TM.cam.s), wy=tmFy(TM.cam.y+(e.clientY-r.top)/TM.cam.s); let best=null, bd=(16/TM.cam.s)**2;
+    if(TM._presP&&Math.hypot(TM._presP.x-wx,TM._presP.y-wy)<Math.max(14,24/TM.cam.s)){ tmInfo(`<b>🇨🇩 Son Excellence ${TM_PRES_NAME}</b><br>Président de la République démocratique du Congo<br>En ce moment : <b>${esc(TM._presP.st)}</b><br><span style="color:#94a3b8">Garde républicaine · tapis rouge · cortège présidentiel · pistes fermées pendant le mouvement</span>`); return; }
     for(const z of TM.pts||[]){ const d=(z[0]-wx)**2+(z[1]-wy)**2; if(d<bd){ bd=d; best=z[2]; } }
     if(best){ TM.sel=best; TM.selAt=0; TM.dash=false; return; } TM.sel=null; if(TM.dash) return;
     const g=(TM.L.deps.find(d=>(wx>=d.lounge.x0&&wx<=d.lounge.x1&&wy>=d.lounge.y0&&wy<=d.lounge.y1)||Math.hypot(wx-d.stand.x,wy-d.stand.y)<60))||(TM.L.arrs.find(a=>wx>=a.x0&&wx<=a.x1&&wy>=-130&&wy<=60));
