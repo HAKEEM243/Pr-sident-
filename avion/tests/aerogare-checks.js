@@ -264,6 +264,14 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
           for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){ n++; const A=P[i],B=P[j]; if(A[4]!==B[4]&&Math.abs(A[0]-B[0])<(A[2]+B[2])*0.8&&Math.abs(A[1]-B[1])<(A[3]+B[3])*0.8) hit++; } } }
       S.time=T0; return {nx:xpNx(code),nD,nA,usedD:usedD.size,usedA:usedA.size,paires:n,colles:hit}; });
     ok(c4.nx===3&&c4.nD===2&&c4.nA===2&&c4.usedD===2&&c4.usedA===2&&c4.colles<=2,'4 pistes : 2 pour les décollages, 2 pour les atterrissages, toutes utilisées, avions qui ne se collent pas',JSON.stringify(c4));
+    // version ordinateur (desktop.js) : s'active sur ordinateur (souris, écran large), jamais sur téléphone
+    const dk=await (async()=>{ const phoneDsk=await p.evaluate(()=>document.body.classList.contains('dsk'));
+      const c2=await b.newContext({viewport:{width:1400,height:900},serviceWorkers:'block'}), p2=await c2.newPage(), e2=[]; p2.on('pageerror',e=>e2.push(e.message)); p2.on('dialog',d=>d.accept());
+      await c2.route('**/*',r=>r.request().url().startsWith('http://localhost')?r.continue():r.abort()); await p2.goto(`http://localhost:${PORT}/avion/index.html`); await p2.waitForTimeout(1500);
+      await p2.evaluate(()=>{ UI.ng=null; newGameModal(); UI.ng.hub='FIH'; }); await p2.click('[data-act="ngGo"]'); await p2.waitForTimeout(2500);
+      const r=await p2.evaluate(()=>{ const b2=document.body, on=b2.classList.contains('dsk'), tog=!!document.getElementById('dsk-ptog'), grip=!!document.getElementById('dsk-grip'), imm=!!document.getElementById('dsk-btn-imm'); document.getElementById('dsk-ptog').click(); const col=b2.classList.contains('dsk-pcol'); document.getElementById('dsk-ptog').click(); return {on,tog,grip,imm,col,back:!b2.classList.contains('dsk-pcol')}; });
+      await c2.close(); return {phoneDsk,...r,errs:e2.slice(0,3)}; })();
+    ok(!dk.phoneDsk&&dk.on&&dk.tog&&dk.grip&&dk.imm&&dk.col&&dk.back&&!dk.errs.length,'Version ordinateur : panneau réglable, ambiance, mode immersif (jamais sur téléphone)',JSON.stringify(dk));
     ok(!errs.length,'Aucune erreur JavaScript dans le jeu',errs.slice(0,3).join(' | '));
 
     // 8 bis. construire un aéroport dans son pays (et pas à l'étranger), y ouvrir une ligne, racheter un aéroport, photo dans l'aérogare
