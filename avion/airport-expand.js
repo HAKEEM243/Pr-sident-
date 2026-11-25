@@ -64,8 +64,8 @@ function apGates(code){ const A=AP(code); if(!A) return null; const key=(A.xp||0
   const id=String(main.id||'').replace(/\D/g,'')||'09', opp=out.find(r=>r.thr===main.end)||null, oid=opp?String(opp.id||'').replace(/\D/g,''):'27';
   const nX=Math.max(1,(a.rwN||0)+((a.xp||0)>=3?1:0));   /* nombre de pistes ajoutées : deuxième piste (étape 3) + pistes supplémentaires */
   for(let k=1;k<=Math.min(5,nX);k++){ const off=side*1050*k, p1=fromRw(main,0,off), p2=fromRw(main,main.len,off), suf=k===1?'':String(k);
-    out.push({id:id+(side>0?'R':'L')+suf, hdg:main.hdg, thr:p1, end:p2, len:main.len, wid:main.wid||45, hard:true, xp:true},
-             {id:oid+(side>0?'L':'R')+suf, hdg:(main.hdg+180)%360, thr:p2, end:p1, len:main.len, wid:main.wid||45, hard:true, xp:true}); }
+    out.push({id:id+(side>0?'R':'L')+suf, hdg:main.hdg, thr:p1, end:p2, len:main.len, wid:main.wid||45, hard:true, xp:true, xk:k},
+             {id:oid+(side>0?'L':'R')+suf, hdg:(main.hdg+180)%360, thr:p2, end:p1, len:main.len, wid:main.wid||45, hard:true, xp:true, xk:k}); }
   out._xp=true; return out; }; }
 // pistes spécialisées : les arrivées se posent sur la nouvelle piste, les départs gardent l'ancienne
 let _xpCall=-1, _xpLeg=null;
@@ -73,12 +73,17 @@ let _xpCall=-1, _xpLeg=null;
 // identité d'un vol pour répartir les arrivées sur les pistes ajoutées (la même partout : carte, 3D, aérogare)
 function xpLegKey(leg){ return leg?((leg.ownerCode||'')+'|'+(leg.seed!=null?'s'+leg.seed:'d'+Math.round((leg.dep||0)/60000))):''; }
 function xpNx(code){ const a=AP(code); return a&&a.rw2?Math.max(1,(a.rwN||0)+((a.xp||0)>=3?1:0)):0; }
-function xpArrIdx(code,key){ const n=xpNx(code); return n>1?hashStr(code+'|'+key)%n:0; }
+// pistes : n° 0 = piste d'origine, 1, 2, 3… = pistes ajoutées. Les paires (0, 2, 4…) servent aux décollages, les impaires (1, 3…) aux atterrissages : 4 pistes = 2 + 2
+const xpDepN=code=>{ const T=1+xpNx(code); return T<2?1:Math.ceil(T/2); }, xpArrN=code=>{ const T=1+xpNx(code); return T<2?1:Math.floor(T/2); };
+function xpArrIdx(code,key){ const n=xpArrN(code); return n>1?hashStr(code+'|'+key)%n:0; }
+function xpDepIdx(code,key){ const n=xpDepN(code); return n>1?hashStr(code+'|d|'+key)%n:0; }
 { const _br=bestRunway; bestRunway=function(code,course,m){ const role=_xpCall>=0?(_xpCall++===0?'dep':'arr'):null; const a=AP(code);
   if(!a||!a.rw2) return _br(code,course,m);
   const all=runwaysOf(code), real=all.filter(r=>!r.xp), virt=all.filter(r=>r.xp);
   const pickIn=list=>list.slice().sort((x,y)=>angDiff(x.hdg,course)-angDiff(y.hdg,course))[0];
-  if(role==='arr'&&virt.length){ const b=pickIn(virt), same=virt.filter(r=>angDiff(r.hdg,b.hdg)<20); return same[Math.min(same.length-1,xpArrIdx(code,xpLegKey(_xpLeg)))]||b; }   /* chaque arrivée sur l'une des pistes ajoutées : toutes servent */
+  if(virt.length&&role){ const b=pickIn(all), same=all.filter(r=>angDiff(r.hdg,b.hdg)<20), k=r=>r.xp?(r.xk||1):0;   /* pistes de même sens, rangées par numéro */
+    if(role==='arr'){ const L=same.filter(r=>k(r)%2===1).sort((x,y)=>k(x)-k(y)); if(L.length) return L[Math.min(L.length-1,xpArrIdx(code,xpLegKey(_xpLeg)))]; }
+    else { const L=same.filter(r=>k(r)%2===0).sort((x,y)=>k(x)-k(y)); if(L.length) return L[Math.min(L.length-1,xpDepIdx(code,xpLegKey(_xpLeg)))]; } }   /* chaque vol sur l'une des pistes : toutes servent */
   return pickIn(real)||_br(code,course,m); }; }
 
 /* ---------- interface : où agrandir ---------- */

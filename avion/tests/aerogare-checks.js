@@ -71,7 +71,7 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     const r3=await p.evaluate(()=>{ const code='FIH', T0=S.time, A=AP(code); let n=0,bad=0,miss=0;
       for(let t=T0;t<T0+3*HOUR;t+=15*MIN){ S.time=t; TM.code=code; TM.cache={}; TM.built=0; tmBuild(); const sh=rivPresentShown(code,t), pres=new Set(sh.map(x=>x.reg)), mov=new Set();
         for(const [R,r] of rivRoutesAt(code)){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++){ const q=rivalPos(r,i,t); if(q&&q.gnd&&gcDist(q.p,A)<12) mov.add(rivReg(R,r,i)); } }
-        const stand=new Set(), onRw=q=>q&&q.y!==TM.L.rwyY&&!(TM.L.rwyAs||[TM.L.rwyA]).includes(q.y); for(const d of [...TM.L.deps,...(TM.L.taxi||[])]) if(d.f.riv&&d.f.reg&&onRw(tmDepPlane(d,t))) stand.add(d.f.reg); for(const a of TM.L.arrs) if(a.f.riv&&a.f.reg&&onRw(tmArrPlane(a,t))) stand.add(a.f.reg);   /* sur la piste (décollage, atterrissage) : vérifié à part */
+        const stand=new Set(), onRw=q=>q&&!(TM.L.rwyDs||[TM.L.rwyY]).includes(q.y)&&!(TM.L.rwyAs||[TM.L.rwyA]).includes(q.y); for(const d of [...TM.L.deps,...(TM.L.taxi||[])]) if(d.f.riv&&d.f.reg&&onRw(tmDepPlane(d,t))) stand.add(d.f.reg); for(const a of TM.L.arrs) if(a.f.riv&&a.f.reg&&onRw(tmArrPlane(a,t))) stand.add(a.f.reg);   /* sur la piste (décollage, atterrissage) : vérifié à part */
         for(const r of stand){ n++; if(!pres.has(r)&&!mov.has(r)) bad++; }
         const per=TM.L.parkPer||1, rem=sh.filter(x=>!stand.has(x.reg)).length+(TM.F.parked||[]).length; if(rem>Math.min(8,TM.L.parkRows||0)*per) miss++; }
       S.time=T0; return {n,bad,miss}; });
@@ -138,7 +138,7 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
       const own=S.fleet.map(a=>{ const g=gateSlot(code,a); return g.lat.toFixed(6)+','+g.lon.toFixed(6); }), uniq=new Set(own).size===own.length, ownSet=new Set(own);
       let clash=0; { const x=Math.floor((T0+ahStd(code)*HOUR-12*HOUR)/DAY); for(const Lv of rivGateBlock(code,x,true).values()) for(const v of Lv){ const n=rivGateN(code), g=v.k<n?slotPt(code,v.k):rivRemotePt(code,v.k-n); if(ownSet.has(g.lat.toFixed(6)+','+g.lon.toFixed(6))) clash++; } }
       let land=0, tko=0; S.time=T0+(((9-ahLocalHour(code,T0))+24)%24)*HOUR; const t0=S.time;
-      for(let t=t0;t<t0+3*HOUR;t+=5*MIN){ S.time=t; TM.code=code; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; for(let t2=t;t2<t+5*MIN;t2+=15000){ for(const a of L.arrs){ const q=tmArrPlane(a,t2); if(q&&(L.rwyAs||[L.rwyA]).includes(q.y)) land++; } for(const d of [...L.deps,...(L.taxi||[])]){ const q=tmDepPlane(d,t2); if(q&&Math.abs(q.y-L.rwyY)<8&&q.air>0) tko++; } } }
+      for(let t=t0;t<t0+3*HOUR;t+=5*MIN){ S.time=t; TM.code=code; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; for(let t2=t;t2<t+5*MIN;t2+=15000){ for(const a of L.arrs){ const q=tmArrPlane(a,t2); if(q&&(L.rwyAs||[L.rwyA]).includes(q.y)) land++; } for(const d of [...L.deps,...(L.taxi||[])]){ const q=tmDepPlane(d,t2); if(q&&(L.rwyDs||[L.rwyY]).some(y=>Math.abs(q.y-y)<8)&&q.air>0) tko++; } } }
       const Lz=TM.L, rowsOk=Lz.parkTop!=null&&Lz.parkTop+30>Lz.rwyY+30&&Lz.rwyA<Lz.rwyY-60;
       S.time=T0; TM.code='FIH'; TM.th=null; TM.cache={}; TM.built=0; return {uniq,n:own.length,clash,land,tko,rowsOk}; });
     ok(rw.uniq&&rw.clash===0,'Vos avions : un poste unique chacun à Kinshasa, jamais pris par une autre compagnie',`${rw.n} avion(s), postes uniques : ${rw.uniq}, ${rw.clash} poste(s) pris par une autre compagnie`);
@@ -246,15 +246,24 @@ const srv=http.createServer((q,r)=>{ const p=path.join(ROOT,decodeURIComponent(q
     ok(sec.w&&sec.cordon&&sec.inside===0&&sec.pres,'Mouvement présidentiel : FARDC et police, zone bouclée, tout le monde s’écarte',JSON.stringify(sec));
     // pistes construites : les avions s'en servent (carte, 3D, aérogare)
     const ru=await p.evaluate(()=>{ S.cash+=5e9; const c='FBM'; const e=[startProject(c,'rwx'),startProject(c,'rwx')].filter(Boolean).join('|'); const used=new Set(); let n=0;
-      for(const [R,r] of rivRoutesAt(c).slice(0,80)){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++) for(const dir of ['AB','BA']){ const to=dir==='AB'?r.b:r.a, from=dir==='AB'?r.a:r.b; if(to!==c) continue; for(let cyc0=0;cyc0<4;cyc0++){ const cyc=Math.floor((S.time-K.anchors[i])/K.P)+cyc0; const pth=legPath({from,to,dist:K.d,ownerCode:r.c||'',seed:cyc*16+i*2+(dir==='AB'?0:1)},K.m); if(pth.arr&&pth.arr.xp) used.add(String(pth.arr.id).replace(/^\d+/,'')); n++; } } }
-      TM.code=c; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const strips=new Set(TM.L.arrs.map(a=>a.rwy)); return {e,nx:xpNx(c),carte:used.size,n,aerogare:strips.size,bandes:(TM.L.rwyAs||[]).length}; });
-    ok(!ru.e&&ru.nx===2&&ru.carte>=2&&ru.aerogare>=2&&ru.bandes===2,'Pistes construites : les avions atterrissent sur toutes les nouvelles pistes (carte, 3D, aérogare)',JSON.stringify(ru));
+      for(const [R,r] of rivRoutesAt(c).slice(0,80)){ const K=rivalSched(r); if(!K) continue; for(let i=0;i<K.nP;i++) for(const dir of ['AB','BA']){ const to=dir==='AB'?r.b:r.a, from=dir==='AB'?r.a:r.b; if(to!==c) continue; for(let cyc0=0;cyc0<4;cyc0++){ const cyc=Math.floor((S.time-K.anchors[i])/K.P)+cyc0; const pth=legPath({from,to,dist:K.d,ownerCode:r.c||'',seed:cyc*16+i*2+(dir==='AB'?0:1)},K.m); if(pth.arr&&pth.arr.xp) used.add('a'+(pth.arr.xk||1)); n++; } for(let cyc0=0;cyc0<4;cyc0++){ const cyc=Math.floor((S.time-K.anchors[i])/K.P)+cyc0; const pd=legPath({from:to,to:from,dist:K.d,ownerCode:r.c||'',seed:cyc*16+i*2+(dir==='AB'?1:0)},K.m); if(pd.dep) used.add('d'+(pd.dep.xp?(pd.dep.xk||1):0)); } } }
+      TM.code=c; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const sD=new Set(TM.L.deps.map(d=>d.rwy)); return {e,nx:xpNx(c),carte:[...used].sort().join(' '),n,aerogareDep:sD.size,bandesDep:(TM.L.rwyDs||[]).length,bandesArr:(TM.L.rwyAs||[]).length}; });
+    ok(!ru.e&&ru.nx===2&&ru.carte==='a1 d0 d2'&&ru.aerogareDep===2&&ru.bandesDep===2&&ru.bandesArr===1,'Pistes construites : 3 pistes = 2 pour les décollages, 1 pour les atterrissages, toutes utilisées (carte, 3D, aérogare)',JSON.stringify(ru));
     // le monde bouge sans vous : des compagnies desservent les aéroports vides, les États agrandissent leurs aéroports (jamais les vôtres)
     const wd=await p.evaluate(()=>{ aiIndexes(); const emptyN=()=>AIRPORT_CODES.filter(c=>{ const a=AP(c); if(!a||a.cls<2||a.traffic<0.03) return false; return !(AP_ROUTES[c]||[]).some(b=>carriersOn(c,b).length); }).length;
       const mine=[...(S.myAp||[]).map(m=>m.code),...Object.keys(S.ownedAp||{}),...(S.hubs||[])], before=JSON.stringify(mine.map(c=>S.upgrades[c]||[]));
       const e0=emptyN(); let cov=0; for(let k=0;k<4;k++) cov+=worldCoverEmpty(6); const e1=emptyN(); let ups=0, last=null; for(let k=0;k<30&&ups<3;k++){ const r=worldGovBuilds(); if(r){ ups++; last=r; } }
       const after=JSON.stringify(mine.map(c=>S.upgrades[c]||[])); return {e0,e1,cov,ups,last,miensIntacts:before===after}; });
     ok(wd.cov>=12&&wd.e1<wd.e0&&wd.ups>=1&&wd.miensIntacts,'Le monde bouge : des compagnies desservent les aéroports sans ligne, les États agrandissent leurs aéroports',JSON.stringify(wd));
+    // 4 pistes : 2 pour les décollages, 2 pour les atterrissages ; toutes servent ; les avions ne se collent pas (voie de circulation, pistes, alignement)
+    const c4=await p.evaluate(()=>{ const T0=S.time; S.cash+=9e9; const code='FBM'; while(xpNx(code)<3){ if(startProject(code,'rwx')) break; }
+      const box=(q,f)=>{ const sc=tmPSc(f), dx=-Math.sin(q.a||0), dy=Math.cos(q.a||0); return [q.x,q.y,Math.abs(dy)*54*sc+Math.abs(dx)*52*sc,Math.abs(dx)*54*sc+Math.abs(dy)*52*sc,f.reg||f.fn]; };
+      let hit=0, n=0; const usedD=new Set(), usedA=new Set(); let nD=0,nA=0;
+      for(let t=T0;t<T0+2*HOUR;t+=10*MIN){ S.time=t; TM.code=code; TM.th=null; TM.cache={}; TM.built=0; tmBuild(); const L=TM.L; nD=L.rwyDs.length; nA=L.rwyAs.length; for(const d of L.deps) usedD.add(d.rwy); for(const a of L.arrs) usedA.add(a.rwy);
+        for(let t2=t;t2<t+10*MIN;t2+=30000){ const P=[]; for(const d of [...L.deps,...(L.taxi||[])]){ const q=tmDepPlane(d,t2); if(q&&!q.at&&!(q.air>0.3)) P.push(box(q,d.f)); } for(const a of L.arrs){ const q=tmArrPlane(a,t2); if(q&&!q.at&&!(q.air>0.3)) P.push(box(q,a.f)); }
+          for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){ n++; const A=P[i],B=P[j]; if(A[4]!==B[4]&&Math.abs(A[0]-B[0])<(A[2]+B[2])*0.8&&Math.abs(A[1]-B[1])<(A[3]+B[3])*0.8) hit++; } } }
+      S.time=T0; return {nx:xpNx(code),nD,nA,usedD:usedD.size,usedA:usedA.size,paires:n,colles:hit}; });
+    ok(c4.nx===3&&c4.nD===2&&c4.nA===2&&c4.usedD===2&&c4.usedA===2&&c4.colles<=2,'4 pistes : 2 pour les décollages, 2 pour les atterrissages, toutes utilisées, avions qui ne se collent pas',JSON.stringify(c4));
     ok(!errs.length,'Aucune erreur JavaScript dans le jeu',errs.slice(0,3).join(' | '));
 
     // 8 bis. construire un aéroport dans son pays (et pas à l'étranger), y ouvrir une ligne, racheter un aéroport, photo dans l'aérogare
