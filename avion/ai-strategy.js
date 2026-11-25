@@ -36,7 +36,7 @@ function asStep(e){
   if(mine&&mode==='retrench'){ e.plan={mode:'grow',until:S.time+8*7*DAY}; e.cash=Math.max(e.cash,e.fleet*8e6); }
   const m=(e.plan&&e.plan.mode)||'steady';
   // ouvrir : en croissance (ou compagnie de votre pays) si le réseau est plus petit que la flotte ne le permet
-  if((m==='grow'||mine||(m==='steady'&&(e.mavg||0)>0.05))&&e.routes<e.fleet*(mine?2:1.6)&&Math.random()<(mine?0.6:m==='grow'?0.3:0.08)){
+  if((m==='grow'||mine||(m==='steady'&&(e.mavg||0)>0.03))&&e.routes<e.fleet*(mine?2:1.6)&&Math.random()<(mine?0.6:m==='grow'?0.45:0.15)){   /* compagnies plus offensives */
     const to=asBestPair(e); if(to&&raceAddPair(e,e.hub,to,2)&&(e.fleet>=40||mine))
       aiNews(`${mine?'🇨🇩':'🧭'} ${e.name} ouvre ${keyCity(e.hub)} – ${keyCity(to)} (forte demande, ${carriersOn(e.hub,to).length-1} concurrent${carriersOn(e.hub,to).length>2?'s':''}).`,'news',mine);
   }

@@ -12,7 +12,7 @@ const ACC_LEVELS=[['Rares',0.4],['Réalistes',1],['Fréquents',3]];
 const accMult=()=>S.accMult===undefined?1:S.accMult;
 function accidentRisk(ac,leg,m){
   const B=AP(leg.to), over=maintOverdue(ac), storm=(typeof stormAt==='function')&&stormAt(B.lat,B.lon);
-  let p=0.00012;
+  let p=0.000015;   /* accident : environ 1 vol sur 65 000 (avant 1 sur 8 000 : beaucoup trop) */
   if(ac.condition<55) p*=1+(55-ac.condition)/10;
   if(over) p*=4;
   if(storm) p*=2.5;

@@ -1,7 +1,7 @@
 /* =========================================================
    Sky Empire — 🏗️ Mes aéroports
    • Construire un nouvel aéroport dans votre pays : touchez l'endroit sur la carte,
-     choisissez la taille, le chantier dure plusieurs mois ; une fois fini, l'aéroport
+     choisissez la taille : l'aéroport est construit tout de suite ; il
      existe partout (carte, 3D, lignes, aérogare) et il est gardé dans la sauvegarde.
    • Racheter la concession d'un aéroport existant (dans votre pays ou à l'étranger) :
      il vous rapporte des redevances chaque jour ; vous pouvez le revendre.
@@ -22,7 +22,9 @@ function myApRegister(m){ if(!m||m.done>((S&&S.time)||0)) return false; if(AIRPO
   const o={code:m.code,icao:'FZ'+m.code.slice(1),name:m.name,city:m.city,cc:m.cc,prov:'',region:'',lat:m.lat,lon:m.lon,runway:m.runway,surface:'Asphalte',cls:m.cls,traffic:m.traffic,large:m.cls>=4,utc:n.utc!=null?n.utc:Math.round(m.lon/15),drc:m.cc==='CD',elev:n.elev||0,_mine:true};
   AIRPORTS[m.code]=o; try{ AP_BASE[m.code]=JSON.parse(JSON.stringify(o)); }catch(e){} if(!AIRPORT_CODES.includes(m.code)) AIRPORT_CODES.push(m.code);
   try{ if(typeof _cAP!=='undefined') delete _cAP[m.cc]; }catch(e){} return true; }
-function myApRegisterAll(){ if(typeof S==='undefined'||!S) return; S.myAp=Array.isArray(S.myAp)?S.myAp:[]; S.ownedAp=S.ownedAp&&typeof S.ownedAp==='object'?S.ownedAp:{}; for(const m of S.myAp) myApRegister(m); }
+function myApRegisterAll(){ if(typeof S==='undefined'||!S) return; S.myAp=Array.isArray(S.myAp)?S.myAp:[]; S.ownedAp=S.ownedAp&&typeof S.ownedAp==='object'?S.ownedAp:{};
+  for(const m of S.myAp) if(!m.ok){ m.done=Math.min(m.done||S.time,S.time||0); m.ok=true; S.ownedAp[m.code]=S.ownedAp[m.code]||{t:S.time,price:m.cost,built:true}; }   /* construction immédiate : les chantiers lancés avant sont terminés */
+  for(const m of S.myAp) myApRegister(m); }
 // au chargement d'une partie : les aéroports construits existent AVANT que les lignes qui y vont soient utilisées
 { const _mg=migrate; migrate=function(){ try{ myApRegisterAll(); }catch(e){ console.warn('mes aéroports',e); } return _mg.apply(this,arguments); }; }
 // chaque jour : fin des chantiers, redevances des aéroports possédés
@@ -36,6 +38,9 @@ const myApIncome=a=>myApPrice(a)*0.10/365;
 /* ---------- carte : chantiers en cours ---------- */
 let _myApLayer=null;
 function myApMap(){ try{ if(typeof map==='undefined'||!map||typeof L==='undefined') return; if(!_myApLayer) _myApLayer=L.layerGroup().addTo(map); _myApLayer.clearLayers();
+    for(const m of S.myAp||[]) if(m.ok&&AP(m.code)){ try{ for(const rw of runwaysOf(m.code).filter((r,i)=>i%2===0)){ const ll=[[rw.thr.lat,rw.thr.lon],[rw.end.lat,rw.end.lon]]; L.polyline(ll,{color:'#1f2937',weight:7,opacity:0.95,interactive:false}).addTo(_myApLayer); L.polyline(ll,{color:'#f8fafc',weight:1.5,dashArray:'6 6',opacity:0.95,interactive:false}).addTo(_myApLayer); } }catch(e){}   /* piste de votre aéroport */
+      L.circleMarker([m.lat,m.lon],{radius:7,color:'#7f1d1d',weight:2,fillColor:'#dc2626',fillOpacity:1}).bindTooltip(`🛫 ${esc(m.name)} (${m.code}) · votre aéroport · piste ${m.runway} m`,{direction:'top'}).addTo(_myApLayer);
+      L.marker([m.lat,m.lon],{interactive:false,icon:L.divIcon({className:'',html:`<div style="font:700 11px system-ui;color:#fff;background:#b91c1c;border-radius:8px;padding:1px 6px;white-space:nowrap;transform:translate(10px,-22px);box-shadow:0 1px 4px #0006">🛫 ${esc(m.city)} · ${m.code}</div>`,iconAnchor:[0,0]})}).addTo(_myApLayer); }   /* point rouge et nom */
     for(const m of S.myAp||[]) if(!m.ok&&m.done>S.time) L.marker([m.lat,m.lon],{icon:L.divIcon({className:'',html:`<div style="font:700 12px system-ui;background:#f59e0b;color:#111;border-radius:10px;padding:2px 6px;white-space:nowrap;box-shadow:0 1px 4px #0006">🏗️ ${esc(m.city)} · ${Math.max(1,Math.ceil((m.done-S.time)/DAY))} j</div>`,iconAnchor:[10,10]})}).addTo(_myApLayer);
     if(typeof drawAirports==='function') drawAirports(); }catch(e){ console.warn(e); } }
 /* ---------- construire : toucher la carte ---------- */
@@ -50,11 +55,11 @@ function myApFormHtml(){ const p=UI.myApPick||{};
   return `<div class="small mut">Emplacement choisi : ${p.lat.toFixed(3)}, ${p.lon.toFixed(3)} · à ${p.dist} km de ${esc(p.near)}</div>
     <label class="small" style="display:block;margin-top:8px">Ville desservie<input id="myApCity" class="inp" style="width:100%" value="${esc(p.near)} Nord" maxlength="30"></label>
     <label class="small" style="display:block;margin-top:6px">Nom de l’aéroport<input id="myApName" class="inp" style="width:100%" value="Aéroport international" maxlength="40"></label>
-    ${MYAP_SIZES.map(z=>`<div class="card row" style="margin-top:6px"><div class="grow"><b>${z.name}</b><br><span class="small">${z.desc}</span><br><span class="small mut">${fmtMoney(z.cost)} · chantier ${z.days} jours · ${z.traffic>=1?z.traffic+' M':Math.round(z.traffic*1000)+' k'} voyageurs/an au départ</span></div><button class="btn ${S.cash>=z.cost?'gold':''}" data-act="myApBuild" data-k="${z.k}">Construire</button></div>`).join('')}`; }
+    ${MYAP_SIZES.map(z=>`<div class="card row" style="margin-top:6px"><div class="grow"><b>${z.name}</b><br><span class="small">${z.desc}</span><br><span class="small mut">${fmtMoney(z.cost)} · ouvert tout de suite · ${z.traffic>=1?z.traffic+' M':Math.round(z.traffic*1000)+' k'} voyageurs/an au départ</span></div><button class="btn ${S.cash>=z.cost?'gold':''}" data-act="myApBuild" data-k="${z.k}">Construire</button></div>`).join('')}`; }
 function myApBuild(k,city,name,lat,lon){ const z=MYAP_SIZES.find(x=>x.k===k); if(!z) return 'taille inconnue'; if(S.cash<z.cost) return 'Trésorerie insuffisante';
   city=String(city||'').trim().slice(0,30)||'Nouvelle ville'; name=String(name||'').trim().slice(0,40)||('Aéroport de '+city);
-  const m={code:myApCode(city),name,city,lat,lon,cc:myApHomeCc(),cls:z.cls,runway:z.runway,traffic:z.traffic,cost:z.cost,start:S.time,done:S.time+z.days*DAY,ok:false};
-  book('investissements',-z.cost); (S.myAp=S.myAp||[]).push(m); myApMap(); return m; }
+  const m={code:myApCode(city),name,city,lat,lon,cc:myApHomeCc(),cls:z.cls,runway:z.runway,traffic:z.traffic,cost:z.cost,start:S.time,done:S.time,ok:true};   /* construit tout de suite */
+  book('investissements',-z.cost); (S.myAp=S.myAp||[]).push(m); myApRegister(m); S.ownedAp=S.ownedAp||{}; S.ownedAp[m.code]={t:S.time,price:m.cost,built:true}; logMsg(`🛫 Votre nouvel aéroport ${esc(m.name)} (${m.code}) est ouvert !`,'drc'); myApMap(); return m; }
 /* ---------- racheter / revendre ---------- */
 function myApBuy(code){ const a=AP(code); if(!a) return 'aéroport inconnu'; S.ownedAp=S.ownedAp||{}; if(S.ownedAp[code]) return 'déjà à vous'; const p=myApPrice(a); if(S.cash<p) return 'Trésorerie insuffisante';
   book('investissements',-p); S.ownedAp[code]={t:S.time,price:p}; logMsg(`🏦 Vous rachetez la concession de ${esc(a.name||a.city)} pour ${fmtMoney(p)}.`,'good'); return true; }
@@ -96,7 +101,7 @@ if(typeof window!=='undefined') window.addEventListener('load',()=>setTimeout(()
   if(typeof airportHtml==='function'){ const _a=airportHtml; airportHtml=function(code){ const h=_a.apply(this,arguments); try{ return h+myApCardHtml(code); }catch(e){ return h; } }; }
   Object.assign(ACTIONS,{
     myApNew:()=>myApStartPick(),
-    myApBuild:d=>{ const p=UI.myApPick; if(!p) return; const r=myApBuild(d.k,(document.getElementById('myApCity')||{}).value,(document.getElementById('myApName')||{}).value,p.lat,p.lon); if(typeof r==='string') return toast(r,'bad'); try{ closeModal(); }catch(e){} toast(`🏗️ Chantier lancé : ${esc(r.name)} ouvrira le ${fmtDate(r.done)}`,'good'); try{ renderTop(); }catch(e){} },
+    myApBuild:d=>{ const p=UI.myApPick; if(!p) return; const r=myApBuild(d.k,(document.getElementById('myApCity')||{}).value,(document.getElementById('myApName')||{}).value,p.lat,p.lon); if(typeof r==='string') return toast(r,'bad'); try{ closeModal(); }catch(e){} toast(`🛫 ${esc(r.name)} (${r.code}) est construit et ouvert : il est sur la carte (point rouge et piste). Ouvrez des lignes vers ${esc(r.city)} !`,'good'); try{ map.setView([r.lat,r.lon],Math.max(map.getZoom(),7)); }catch(e){} try{ renderTop(); }catch(e){} },
     myApBuy:d=>{ const r=myApBuy(d.c); if(r!==true) return toast(r,'bad'); try{ closeModal(); }catch(e){} toast('🏦 Aéroport racheté','good'); try{ renderTop(); }catch(e){} },
     myApSell:d=>{ const r=myApSell(d.c); if(r!==true) return toast(r,'bad'); try{ closeModal(); }catch(e){} toast('🏦 Concession revendue','good'); },
     myApPic:d=>myApChoosePic(d.c), myApPicDel:d=>myApRemovePic(d.c) });
