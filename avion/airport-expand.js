@@ -20,10 +20,16 @@ const XP_STEPS=[
 ];
 const XPN=XP_STEPS.length;
 const xpHubCountries=()=>new Set((S.hubs||[]).map(h=>AP(h)&&AP(h).cc));
+const xpMine=a=>!!a&&(xpHubCountries().has(a.cc)||!!((S.ownedAp||{})[a.code])||(S.myAp||[]).some(m=>m.code===a.code));   /* pays d'un hub, ou aéroport à vous (construit ou racheté, même à l'étranger) */
 // chaque étape devient un chantier du jeu (même système que les autres investissements)
 XP_STEPS.forEach((st,i)=>{ UPGRADES[st.k]={name:`${st.name} (étape ${i+1}/${XPN})`, icon:st.icon, days:st.days, cost:a=>Math.round(st.cost(a)/1e5)*1e5,
-  can:a=>xpHubCountries().has(a.cc)&&(a.xp||0)===i&&a.cls>=2&&!(S.projects||[]).some(p=>p.code===a.code&&p.type.startsWith('xp')),
+  can:a=>xpMine(a)&&(a.xp||0)===i&&a.cls>=2&&!(S.projects||[]).some(p=>p.code===a.code&&p.type.startsWith('xp')),
   desc:st.desc, apply:a=>{ a.xp=i+1; a.traffic=+(a.traffic*st.traffic).toFixed(3); a.gatesX=XP_STEPS.slice(0,i+1).reduce((t,x)=>t+x.gates,0); if(st.k==='xp3') a.rw2=true; if(st.k==='xp4') a.cls=Math.min(5,a.cls+1); if(st.k==='xp5'){ a.lounge=true; a.terminal=true; } xpRefresh(a.code); }}; });
+// piste supplémentaire : se construit plusieurs fois (jusqu'à 4 de plus), chacune parallèle aux autres
+UPGRADES.rwx={name:'Piste supplémentaire', icon:'🛫', days:0, cost:a=>Math.round((50e6+a.traffic*10e6)*(1+0.25*(a.rwN||0))/1e5)*1e5,
+  can:a=>xpMine(a)&&a.cls>=2&&(a.rwN||0)<4,
+  desc:'Une nouvelle piste parallèle, construite tout de suite : plus de mouvements, moins d’attente, +5 % de voyageurs. Visible sur la carte et en 3D.',
+  apply:a=>{ a.rwN=Math.max(1,((S.upgrades||{})[a.code]||[]).filter(t=>t==='rwx').length); a.rw2=true; a.traffic=+(a.traffic*1.05).toFixed(3); xpRefresh(a.code); }};
 // les caches qui dépendent de l'aéroport sont recalculés
 function xpRefresh(code){ try{ delete _rwCache[code]; delete _apron[code]; delete _gates[code]; _pathCache.clear(); const cc=AP(code).cc; if(typeof _cTraffic!=='undefined') delete _cTraffic[cc]; }catch(e){}
   // la 3D et la carte 2D se redessinent tout de suite (nouvelle piste, nouveaux terminaux)
@@ -55,10 +61,11 @@ function apGates(code){ const A=AP(code); if(!A) return null; const key=(A.xp||0
 { const _rw=runwaysOf; runwaysOf=function(code){ const out=_rw(code); const a=AP(code); if(!a||!a.rw2||out._xp||!out.length) return out;
   out._xp=true;
   const main=out.reduce((x,y)=>y.len>x.len?y:x,out[0]), ap=apronOf(code), side=(ap&&ap.rw===main?-ap.side:-1);
-  const p1=fromRw(main,0,side*1050), p2=fromRw(main,main.len,side*1050), id=String(main.id||'').replace(/\D/g,'')||'09';
-  const opp=out.find(r=>r.thr===main.end)||null, oid=opp?String(opp.id||'').replace(/\D/g,''):'27';
-  out.push({id:id+(side>0?'R':'L'), hdg:main.hdg, thr:p1, end:p2, len:main.len, wid:main.wid||45, hard:true, xp:true},
-           {id:oid+(side>0?'L':'R'), hdg:(main.hdg+180)%360, thr:p2, end:p1, len:main.len, wid:main.wid||45, hard:true, xp:true});
+  const id=String(main.id||'').replace(/\D/g,'')||'09', opp=out.find(r=>r.thr===main.end)||null, oid=opp?String(opp.id||'').replace(/\D/g,''):'27';
+  const nX=Math.max(1,(a.rwN||0)+((a.xp||0)>=3?1:0));   /* nombre de pistes ajoutées : deuxième piste (étape 3) + pistes supplémentaires */
+  for(let k=1;k<=Math.min(5,nX);k++){ const off=side*1050*k, p1=fromRw(main,0,off), p2=fromRw(main,main.len,off), suf=k===1?'':String(k);
+    out.push({id:id+(side>0?'R':'L')+suf, hdg:main.hdg, thr:p1, end:p2, len:main.len, wid:main.wid||45, hard:true, xp:true},
+             {id:oid+(side>0?'L':'R')+suf, hdg:(main.hdg+180)%360, thr:p2, end:p1, len:main.len, wid:main.wid||45, hard:true, xp:true}); }
   out._xp=true; return out; }; }
 // pistes spécialisées : les arrivées se posent sur la nouvelle piste, les départs gardent l'ancienne
 let _xpCall=-1;
@@ -71,12 +78,12 @@ let _xpCall=-1;
 
 /* ---------- interface : où agrandir ---------- */
 function xpTabHtml(){
-  const ccs=xpHubCountries(); if(!ccs.size) return '';
-  const list=AIRPORT_CODES.filter(c=>ccs.has(AP(c).cc)&&AP(c).cls>=2).sort((x,y)=>(S.hubs.includes(y)-S.hubs.includes(x))||(AP(y).traffic-AP(x).traffic)).slice(0,12);
+  const ccs=xpHubCountries(); if(!ccs.size&&!(S.myAp||[]).length&&!Object.keys(S.ownedAp||{}).length) return '';
+  const own=new Set([...(S.myAp||[]).map(m=>m.code),...Object.keys(S.ownedAp||{})].filter(c=>AP(c))), list=[...own,...AIRPORT_CODES.filter(c=>!own.has(c)&&ccs.has(AP(c).cc)&&AP(c).cls>=2).sort((x,y)=>(S.hubs.includes(y)-S.hubs.includes(x))||(AP(y).traffic-AP(x).traffic)).slice(0,12)];
   return `<h3>🏗️ Agrandir les aéroports de vos pays</h3><div class="small mut">Dans les pays où vous avez un hub, vous pouvez agrandir les aéroports en ${XPN} étapes (jusqu’à 4 terminaux). Touchez un aéroport pour lancer le chantier.</div>
     ${list.map(c=>{ const a=AP(c), lv=a.xp||0, pr=(S.projects||[]).find(p=>p.code===c&&p.type.startsWith('xp')), nx=XP_STEPS[lv];
       return `<div class="card row" data-act="openAp" data-c="${c}" style="cursor:pointer"><div class="grow"><b>${esc(a.city)}</b> <span class="mut">${c}${S.hubs.includes(c)?' · 🏢 hub':''}</span><br>
-        <span class="small">${'▰'.repeat(lv)}${'▱'.repeat(XPN-lv)} étape ${lv}/${XPN} · ${a.traffic>=1?a.traffic.toFixed(1)+' M':Math.round(a.traffic*1000)+' k'} voyageurs/an${a.rw2?' · 2 pistes':''}</span><br>
+        <span class="small">${'▰'.repeat(lv)}${'▱'.repeat(XPN-lv)} étape ${lv}/${XPN} · ${a.traffic>=1?a.traffic.toFixed(1)+' M':Math.round(a.traffic*1000)+' k'} voyageurs/an${a.rw2?' · '+(1+Math.max(1,(a.rwN||0)+((a.xp||0)>=3?1:0)))+' pistes':''}${own.has(c)?' · ✅ à vous':''}</span><br>
         <span class="small ${pr?'warnt':'mut'}">${pr?`🏗️ Chantier en cours : ${XP_STEPS[+pr.type.slice(2)-1].name}, fin le ${fmtDate(pr.until)}`:nx?`Prochaine étape : ${nx.icon} ${nx.name} · ${fmtMoney(UPGRADES[nx.k].cost(a))} · immédiat`:'✅ Aéroport complètement agrandi'}</span></div></div>`; }).join('')}`;
 }
 
@@ -87,7 +94,7 @@ function registerXpActions(){
 /* ---------- carte 2D : les nouveaux terminaux se dessinent sur la carte ---------- */
 function xp2D(){ if(typeof drawRunways!=='function'||drawRunways._xp) return;
   const _dr=drawRunways; drawRunways=function(force){ const was=_rwDrawn; _dr(force); if(!_rwDrawn||_rwDrawn===was||!L_runways) return;
-    const z=map.getZoom(); if(z<13) return; const b=map.getBounds().pad(0.4), c0=map.getCenter().lng, LL=p=>[p.lat,unwrapLon(p.lon,c0)];
+    const z=map.getZoom(); if(z<11) return; const b=map.getBounds().pad(0.4), c0=map.getCenter().lng, LL=p=>[p.lat,unwrapLon(p.lon,c0)];
     for(const code of AIRPORT_CODES){ const A=AP(code); if(!(A.xp>=1)||!b.contains([A.lat,unwrapLon(A.lon,c0)])) continue;
       for(const t of apTerminals(code)){ if(t.n!=='T1'){ const ax=t.x-t.s*72, ap=[fromRw(t.r,t.a-t.L/2-50,ax-t.s*60),fromRw(t.r,t.a+t.L/2+50,ax-t.s*60),fromRw(t.r,t.a+t.L/2+50,t.x),fromRw(t.r,t.a-t.L/2-50,t.x)];
           L.polygon(ap.map(LL),{stroke:false,fillColor:'#9ca3af',fillOpacity:0.7,interactive:false}).addTo(L_runways); }
