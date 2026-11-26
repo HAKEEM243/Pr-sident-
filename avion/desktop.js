@@ -9,8 +9,12 @@
      fiche avion en verre dépoli plus compacte.
    • Immersion : ambiance jour/nuit sur la carte selon l'heure du
      jeu, vignettage cinéma, mode immersif plein écran (touche F).
-   Raccourcis : F = mode immersif · P = afficher/masquer le panneau
-                Échap = quitter le mode immersif
+   • Aérogare : plein écran (⛶ ou F), bâtiment cadré pour remplir
+     l'écran (🏢 ou B), image HD, double-clic pour voir les gens.
+   • Correctif : les avions ne traversent plus le bâtiment de l'aérogare.
+   Raccourcis carte : F = mode immersif · P = panneau · Échap = sortir
+   Raccourcis aérogare : F = plein écran · B = cadrer · G = voir les gens
+                         + / − = zoom · 0 = vue générale
    N'agit pas sur mobile / tablette (aucun changement là-bas).
    ============================================================ */
 (function () {
@@ -30,6 +34,15 @@
     kickT = setTimeout(function () { window.dispatchEvent(new Event('resize')); }, delay == null ? 60 : delay);
   }
   function $(id) { return document.getElementById(id); }
+
+  /* Le jeu réécrit parfois la classe de <body> : on mémorise nos classes
+     et on les remet aussitôt si elles disparaissent. */
+  var OUR = { 'dsk': false, 'dsk-pcol': false, 'dsk-imm': false, 'dsk-drag': false };
+  function cls(name, on) { OUR[name] = !!on; body.classList.toggle(name, !!on); }
+  function has(name) { return !!OUR[name]; }
+  new MutationObserver(function () {
+    for (var n in OUR) if (body.classList.contains(n) !== OUR[n]) body.classList.toggle(n, OUR[n]);
+  }).observe(body, { attributes: true, attributeFilter: ['class'] });
 
   /* ---------------- STYLES ---------------- */
   var CSS = [
@@ -125,7 +138,7 @@
   function applyW() { body.style.setProperty('--dsk-pw', clampW(panelW) + 'px'); }
 
   function setPanel(collapsed, silent) {
-    body.classList.toggle('dsk-pcol', !!collapsed);
+    cls('dsk-pcol', !!collapsed);
     var t = $('dsk-ptog');
     if (t) { t.textContent = collapsed ? '‹' : '›'; t.title = (collapsed ? 'Afficher' : 'Masquer') + ' le panneau (P)'; }
     if (!silent) LS.set('pcol', !!collapsed);
@@ -143,18 +156,18 @@
     panel.appendChild(grip);
     panel.appendChild(tog);
 
-    tog.addEventListener('click', function () { setPanel(!body.classList.contains('dsk-pcol')); });
+    tog.addEventListener('click', function () { setPanel(!has('dsk-pcol')); });
 
     grip.addEventListener('dblclick', function () { panelW = 440; applyW(); LS.set('panelW', panelW); kick(); });
     grip.addEventListener('pointerdown', function (e) {
       if (e.button !== 0) return;
       e.preventDefault();
       grip.setPointerCapture(e.pointerId);
-      grip.classList.add('on'); body.classList.add('dsk-drag');
+      grip.classList.add('on'); cls('dsk-drag', true);
       panel.style.transition = 'none';
       function move(ev) { panelW = clampW(window.innerWidth - ev.clientX); applyW(); kick(30); }
       function up() {
-        grip.classList.remove('on'); body.classList.remove('dsk-drag');
+        grip.classList.remove('on'); cls('dsk-drag', false);
         panel.style.transition = '';
         grip.removeEventListener('pointermove', move);
         grip.removeEventListener('pointerup', up);
@@ -168,7 +181,7 @@
 
     // Cliquer un onglet quand le panneau est replié le rouvre
     var tabs = $('tabs');
-    if (tabs) tabs.addEventListener('click', function () { if (body.classList.contains('dsk-pcol')) setPanel(false); });
+    if (tabs) tabs.addEventListener('click', function () { if (has('dsk-pcol')) setPanel(false); });
 
     applyW();
     setPanel(LS.get('pcol', false), true);
@@ -185,7 +198,7 @@
   function ambiance() {
     var pane = document.querySelector('#map .leaflet-tile-pane');
     if (!pane) return;
-    if (!ambOn || !body.classList.contains('dsk')) { pane.style.filter = ''; return; }
+    if (!ambOn || !has('dsk')) { pane.style.filter = ''; return; }
     var h = gameHour();
     if (h == null) return;
     // nuit : 0 en plein jour, 1 en pleine nuit (lever ~6 h, coucher ~18 h 15)
@@ -223,17 +236,17 @@
     if (tb) tb.addEventListener('mouseleave', function () { tb.classList.remove('dsk-peek'); });
   }
   function hudTick() {
-    if (!body.classList.contains('dsk-imm')) return;
+    if (!has('dsk-imm')) return;
     var t = $('tb-time'), c = $('tb-cash');
     var ht = $('dsk-hud-t'), hc = $('dsk-hud-c');
     if (t && ht) ht.textContent = t.textContent.trim();
     if (c && hc) hc.textContent = c.textContent.trim();
   }
   function setImmersive(on) {
-    if (on === body.classList.contains('dsk-imm')) return;
+    if (on === has('dsk-imm')) return;
     if (on) {
-      wasCollapsed = body.classList.contains('dsk-pcol');
-      body.classList.add('dsk-imm');
+      wasCollapsed = has('dsk-pcol');
+      cls('dsk-imm', true);
       setPanel(true, true);
       hudTick();
       if (hudHint) { hudHint.style.opacity = '.6'; setTimeout(function () { hudHint.style.opacity = '0'; }, 4000); }
@@ -242,7 +255,7 @@
         de.requestFullscreen().then(function () { weFs = true; }).catch(function () {});
       }
     } else {
-      body.classList.remove('dsk-imm');
+      cls('dsk-imm', false);
       var tb = $('topbar'); if (tb) tb.classList.remove('dsk-peek');
       setPanel(wasCollapsed, true);
       if (weFs && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () {});
@@ -267,7 +280,7 @@
     }
     var opts = null;
     for (var i = 0; i < mc.children.length; i++) if (/Options/.test(mc.children[i].textContent)) opts = mc.children[i];
-    var bImm = mk('dsk-btn-imm', '🎬 Immersion', 'Mode immersif plein écran (F)', function () { setImmersive(!body.classList.contains('dsk-imm')); });
+    var bImm = mk('dsk-btn-imm', '🎬 Immersion', 'Mode immersif plein écran (F)', function () { setImmersive(!has('dsk-imm')); });
     var bAmb = mk('dsk-btn-amb', '🌅 Ambiance', 'Lumière jour/nuit sur la carte selon l’heure du jeu', function (b) {
       ambOn = !ambOn; LS.set('ambiance', ambOn); b.classList.toggle('on', ambOn); ambiance();
       tip(ambOn ? 'Ambiance jour/nuit activée' : 'Ambiance jour/nuit désactivée');
@@ -278,15 +291,15 @@
 
   /* ---------------- CLAVIER ---------------- */
   document.addEventListener('keydown', function (e) {
-    if (!body.classList.contains('dsk')) return;
+    if (!has('dsk')) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     var t = e.target, tag = t && t.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
     if (body.classList.contains('pilot') || document.querySelector('#cockpit:not([hidden])[style*="block"]')) return; // ne gêne pas le pilotage
     var k = (e.key || '').toLowerCase();
-    if (k === 'f') { e.preventDefault(); setImmersive(!body.classList.contains('dsk-imm')); }
-    else if (k === 'p') { e.preventDefault(); setPanel(!body.classList.contains('dsk-pcol')); }
-    else if (k === 'escape' && body.classList.contains('dsk-imm')) { setImmersive(false); }
+    if (k === 'f') { e.preventDefault(); setImmersive(!has('dsk-imm')); }
+    else if (k === 'p') { e.preventDefault(); setPanel(!has('dsk-pcol')); }
+    else if (k === 'escape' && has('dsk-imm')) { setImmersive(false); }
   });
 
   /* ================================================================
@@ -304,9 +317,9 @@
   var tmZoomBusy = false;
   function tmOpenNow() {
     var ov = $('tmOv');
-    // l'aérogare est en position:fixed : offsetParent vaut toujours null, on demande donc au jeu
-    var open = false; try { open = (typeof TM !== 'undefined' && TM && TM.open); } catch (e) {}
-    return !!(ov && open && !ov.hidden && getComputedStyle(ov).display !== 'none');
+    if (!ov) return false;
+    var r = ov.getBoundingClientRect();
+    return getComputedStyle(ov).display !== 'none' && getComputedStyle(ov).visibility !== 'hidden' && r.width > 0 && r.height > 0;
   }
   function tmCam() { try { return (typeof TM !== 'undefined' && TM && TM.cam) ? TM.cam : null; } catch (e) { return null; } }
   // Zoom progressif en réutilisant la molette du jeu (même logique que la souris)
@@ -317,12 +330,22 @@
     if (cx == null) { cx = r.left + r.width / 2; cy = r.top + r.height / 2; }
     var steps = Math.round(Math.log(target / cam.s) / Math.log(1.15));
     if (!steps) return;
-    var n = Math.min(Math.abs(steps), 14), dir = steps > 0 ? -300 : 300, i = 0;
+    var n = Math.min(Math.abs(steps), 20), dir = steps > 0 ? -300 : 300, i = 0;
     tmZoomBusy = true;
     (function step() {
       cv.dispatchEvent(new WheelEvent('wheel', { deltaY: dir, clientX: cx, clientY: cy, bubbles: true, cancelable: true }));
       if (++i < n) setTimeout(step, 28); else tmZoomBusy = false;
     })();
+  }
+  // « Voir les gens » : si on est très loin, on va d'abord dans la zone la
+  // plus animée (le contrôle de sûreté), puis on zoome au niveau détaillé.
+  function tmSeePeople(cx, cy) {
+    var cam = tmCam(); if (!cam) return;
+    if (cam.s < 0.5 && cx == null) {
+      var zb = [].slice.call(document.querySelectorAll('#tmZones button')).filter(function (b) { return /S[ûu]ret/.test(b.textContent); })[0];
+      if (zb) { zb.click(); setTimeout(function () { tmZoomTo(1.6); }, 1600); return; }
+    }
+    tmZoomTo(Math.max(1.6, cam.s), cx, cy);
   }
   function setupTerminal() {
     var cv = $('tmCv');
@@ -330,7 +353,7 @@
     cv.__dsk = true;
     cv.addEventListener('mousemove', function (e) { tmMouse = [e.clientX, e.clientY]; });
     cv.addEventListener('dblclick', function (e) {
-      if (!body.classList.contains('dsk')) return;
+      if (!has('dsk')) return;
       var cam = tmCam(); if (!cam) return;
       e.preventDefault();
       if (e.shiftKey) tmZoomTo(Math.max(0.3, cam.s / 2.3), e.clientX, e.clientY);
@@ -346,7 +369,7 @@
     var wrapped = function () {
       var r = orig.apply(this, arguments);
       try {
-        if (tmHD && body.classList.contains('dsk') && TM) {
+        if (tmHD && has('dsk') && TM) {
           var floor = Math.min(window.devicePixelRatio || 1, 1.5);
           if (TM.dprMax < floor) TM.dprMax = floor;
           if (TM.dpr < floor) TM.dpr = floor;
@@ -369,7 +392,7 @@
       b.addEventListener('click', function (e) { e.stopPropagation(); fn(b); });
       return b;
     }
-    var bP = mk('dsk-tm-ppl', '👥', 'Voir les gens de près (G) · double-clic sur le plan pour zoomer', function () { tmZoomTo(1.6); });
+    var bP = mk('dsk-tm-ppl', '👥', 'Voir les gens de près (G) · double-clic sur le plan pour zoomer', function () { tmSeePeople(); });
     var bH = mk('dsk-tm-hd', 'HD', 'Image nette (désactive si le jeu rame)', function (b) {
       tmHD = !tmHD; LS.set('tmHD', tmHD); b.classList.toggle('dsk-off', !tmHD);
       tip(tmHD ? 'Aérogare en haute définition' : 'Aérogare en mode fluide (moins net)');
@@ -394,19 +417,19 @@
     if (!tmOpenNow()) return;
     setupTerminal();
     setupTerminalButtons();
-    if (!tmTipShown && body.classList.contains('dsk')) {
+    if (!tmTipShown && has('dsk')) {
       tmTipShown = true; LS.set('tmTip', true);
-      tip('Aérogare : <kbd>double-clic</kbd> pour voir les gens de près · <kbd>G</kbd> zoom sur la souris · <kbd>0</kbd> vue générale', 6500);
+      tip('Aérogare : <kbd>F</kbd> plein écran · <kbd>B</kbd> cadrer le bâtiment · <kbd>double-clic</kbd> voir les gens de près', 6500);
     }
   }
   document.addEventListener('keydown', function (e) {
-    if (!body.classList.contains('dsk') || !tmOpenNow()) return;
+    if (!has('dsk') || !tmOpenNow()) return;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     var t = e.target, tag = t && t.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
     var cam = tmCam(); if (!cam) return;
     var k = e.key;
-    if (k === 'g' || k === 'G') { e.stopImmediatePropagation(); e.preventDefault(); tmZoomTo(Math.max(1.6, cam.s), tmMouse && tmMouse[0], tmMouse && tmMouse[1]); }
+    if (k === 'g' || k === 'G') { e.stopImmediatePropagation(); e.preventDefault(); if (tmMouse) tmSeePeople(tmMouse[0], tmMouse[1]); else tmSeePeople(); }
     else if (k === '+' || k === '=') { e.stopImmediatePropagation(); e.preventDefault(); tmZoomTo(Math.min(3, cam.s * 1.5)); }
     else if (k === '-' || k === '_') { e.stopImmediatePropagation(); e.preventDefault(); tmZoomTo(Math.max(0.3, cam.s / 1.5)); }
     else if (k === '0') {
@@ -415,11 +438,126 @@
     }
   }, true);
 
+  /* ================================================================
+     AÉROGARE EN PLEIN ÉCRAN (comme un vrai jeu)
+     Bouton ⛶ dans la barre de l'aérogare (ou touche F quand l'aérogare
+     est ouverte) : l'aérogare passe en plein écran et le bâtiment est
+     cadré pour remplir tout l'écran. Échap pour sortir.
+     ================================================================ */
+  var tmFS = false;
+  function tmBuildingBox() {
+    try {
+      var P = TM.L && TM.L.poi; if (!P || !P.length) return null;
+      var b = [1e9, 1e9, -1e9, -1e9];
+      for (var i = 0; i < P.length; i++) {
+        b[0] = Math.min(b[0], P[i].x0); b[1] = Math.min(b[1], P[i].y0);
+        b[2] = Math.max(b[2], P[i].x1); b[3] = Math.max(b[3], P[i].y1);
+      }
+      return b;
+    } catch (e) { return null; }
+  }
+  // Cadre le bâtiment entier pour qu'il remplisse l'écran
+  // (dans le jeu : écran = (monde − cam) × s).
+  function tmFit() {
+    var cam = tmCam(), cv = $('tmCv'), b = tmBuildingBox();
+    if (!cam || !cv || !b) return;
+    var W = cv.clientWidth, H = cv.clientHeight;
+    // Marges : on laisse de la place aux barres du haut (titre, heure) et du bas (zones)
+    var cr = cv.getBoundingClientRect(), padT = 0, padB = 0;
+    var ov = $('tmOv'), kids = ov ? ov.querySelectorAll('#tmOv > *') : [];
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i]; if (k === cv || k.id === 'tmAnn') continue;
+      var r = k.getBoundingClientRect();
+      if (!r.width || !r.height || r.width < W * 0.3) continue;
+      if (r.top - cr.top < H * 0.2 && r.bottom - cr.top < H * 0.3) padT = Math.max(padT, r.bottom - cr.top + 6);
+      else if (cr.bottom - r.bottom < H * 0.2 && cr.bottom - r.top < H * 0.3) padB = Math.max(padB, cr.bottom - r.top + 6);
+    }
+    var bw = b[2] - b[0], bh = b[3] - b[1];
+    var s = Math.min(W / bw, (H - padT - padB) / bh) * 0.985;
+    cam.s = s;
+    cam.x = (b[0] + b[2]) / 2 - W / (2 * s);
+    cam.y = (b[1] + b[3]) / 2 - (padT + (H - padT - padB) / 2) / s;
+    try { TM.goal = null; } catch (e) {}
+  }
+  function tmFullscreen(on) {
+    var ov = $('tmOv'); if (!ov) return;
+    if (on) {
+      var el = document.documentElement;
+      if (el.requestFullscreen) el.requestFullscreen().then(function () {
+        tmFS = true; setTimeout(tmFit, 250);
+      }).catch(function () { tmFit(); });
+      else tmFit();
+    } else {
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () {});
+      tmFS = false;
+    }
+  }
+  document.addEventListener('fullscreenchange', function () {
+    if (!document.fullscreenElement && tmFS) tmFS = false;
+    var b = $('dsk-tm-fs'); if (b) b.textContent = document.fullscreenElement ? '🗗' : '⛶';
+  });
+  window.addEventListener('resize', function () { if (tmFS && tmOpenNow()) setTimeout(tmFit, 120); });
+  function setupTerminalFS() {
+    var top = $('tmTop');
+    if (!top || $('dsk-tm-fs')) return;
+    var host = top.querySelector('button') ? top.querySelector('button').parentElement : top;
+    var ref = host.querySelector('button');
+    var b = document.createElement('button');
+    b.id = 'dsk-tm-fs'; b.type = 'button'; b.className = (ref ? ref.className : '') + ' dsk-only dsk-tmb';
+    b.textContent = document.fullscreenElement ? '🗗' : '⛶';
+    b.title = 'Aérogare en plein écran (F) · Échap pour sortir';
+    b.addEventListener('click', function (e) { e.stopPropagation(); tmFullscreen(!document.fullscreenElement); });
+    host.insertBefore(b, ref);
+    var f = document.createElement('button');
+    f.id = 'dsk-tm-fit'; f.type = 'button'; f.className = (ref ? ref.className : '') + ' dsk-only dsk-tmb';
+    f.textContent = '🏢'; f.title = 'Cadrer tout le bâtiment à l’écran (B)';
+    f.addEventListener('click', function (e) { e.stopPropagation(); tmFit(); });
+    host.insertBefore(f, ref);
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!has('dsk') || !tmOpenNow()) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var t = e.target, tag = t && t.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+    if (e.key === 'f' || e.key === 'F') { e.stopImmediatePropagation(); e.preventDefault(); tmFullscreen(!document.fullscreenElement); }
+    else if (e.key === 'b' || e.key === 'B') { e.stopImmediatePropagation(); e.preventDefault(); tmFit(); }
+  }, true);
+  var tmWasOpen = false;
+  function terminalFSTick() {
+    var open = tmOpenNow();
+    if (open) setupTerminalFS();
+    // À l'ouverture sur PC : le bâtiment est directement cadré plein cadre
+    if (open && !tmWasOpen && has('dsk')) setTimeout(tmFit, 400);
+    if (!open && tmWasOpen && tmFS) tmFullscreen(false);
+    tmWasOpen = open;
+  }
+
+  /* ================================================================
+     CORRECTIF (tous appareils) : avions qui traversent l'aérogare
+     Certains vols au départ (surtout ceux des compagnies rivales)
+     continuent leur trajet vers le sud après le décollage et passent
+     à travers le bâtiment. Aucun avion ne doit se trouver au sud de la
+     façade côté pistes : on ne les dessine plus là.
+     ================================================================ */
+  function setupPlaneFix() {
+    if (typeof window.tmPlane !== 'function' || window.tmPlane.__dsk) return;
+    var orig = window.tmPlane, cacheL = null, topY = null;
+    var fixed = function (c, x, y, col, h, sc, al, p) {
+      try {
+        if (TM.L !== cacheL) { cacheL = TM.L; var b = tmBuildingBox(); topY = b ? b[1] : null; }
+        if (topY != null && p && (p.riv || p.man || p.soon) && y > topY + 20) return;
+      } catch (e) {}
+      return orig.apply(this, arguments);
+    };
+    fixed.__dsk = true;
+    window.tmPlane = fixed;
+  }
+
   /* ---------------- ACTIVATION ---------------- */
   function apply() {
     var on = MQ.matches;
-    body.classList.toggle('dsk', on);
-    if (!on) { setImmersive(false); body.classList.remove('dsk-pcol'); }
+    cls('dsk', on);
+    if (!on) { setImmersive(false); cls('dsk-pcol', false); }
     else { setPanel(LS.get('pcol', false), true); applyW(); }
     ambiance();
     kick();
@@ -431,11 +569,11 @@
     setupButtons();
     apply();
     if (MQ.addEventListener) MQ.addEventListener('change', apply); else if (MQ.addListener) MQ.addListener(apply);
-    window.addEventListener('resize', function () { if (body.classList.contains('dsk')) applyW(); });
+    window.addEventListener('resize', function () { if (has('dsk')) applyW(); });
     setInterval(ambiance, 2000);
     setInterval(hudTick, 1000);
-    setInterval(terminalTick, 700);
-    terminalTick();
+    setInterval(function () { setupPlaneFix(); terminalTick(); terminalFSTick(); }, 700);
+    setupPlaneFix(); terminalTick();
     if (MQ.matches && !LS.get('tipSeen', false)) {
       setTimeout(function () { tip('Nouveau sur ordinateur : <kbd>F</kbd> mode immersif · <kbd>P</kbd> panneau · bord du panneau = glisser pour l’élargir', 6000); }, 2500);
       LS.set('tipSeen', true);
