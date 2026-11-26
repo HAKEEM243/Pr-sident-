@@ -289,6 +289,132 @@
     else if (k === 'escape' && body.classList.contains('dsk-imm')) { setImmersive(false); }
   });
 
+  /* ================================================================
+     AÉROGARE (vue intérieure du terminal) — version ordinateur
+     • Image nette (HD) : la vue n'est plus calculée en basse résolution
+       puis étirée, les gens sont bien dessinés.
+     • Double-clic = zoom sur l'endroit visé, jusqu'au niveau où l'on voit
+       chaque personne en détail. Maj + double-clic = dézoomer.
+     • Touches : G = « voir les gens » (zoom là où est la souris),
+       + / − = zoom, 0 = vue générale.
+     • Bandeau d'annonces plus discret, centré.
+     ================================================================ */
+  var tmHD = LS.get('tmHD', true);
+  var tmMouse = null;            // dernière position de la souris sur le plan
+  var tmZoomBusy = false;
+  function tmOpenNow() {
+    var ov = $('tmOv');
+    // l'aérogare est en position:fixed : offsetParent vaut toujours null, on demande donc au jeu
+    var open = false; try { open = (typeof TM !== 'undefined' && TM && TM.open); } catch (e) {}
+    return !!(ov && open && !ov.hidden && getComputedStyle(ov).display !== 'none');
+  }
+  function tmCam() { try { return (typeof TM !== 'undefined' && TM && TM.cam) ? TM.cam : null; } catch (e) { return null; } }
+  // Zoom progressif en réutilisant la molette du jeu (même logique que la souris)
+  function tmZoomTo(target, cx, cy) {
+    var cv = $('tmCv'), cam = tmCam();
+    if (!cv || !cam || tmZoomBusy) return;
+    var r = cv.getBoundingClientRect();
+    if (cx == null) { cx = r.left + r.width / 2; cy = r.top + r.height / 2; }
+    var steps = Math.round(Math.log(target / cam.s) / Math.log(1.15));
+    if (!steps) return;
+    var n = Math.min(Math.abs(steps), 14), dir = steps > 0 ? -300 : 300, i = 0;
+    tmZoomBusy = true;
+    (function step() {
+      cv.dispatchEvent(new WheelEvent('wheel', { deltaY: dir, clientX: cx, clientY: cy, bubbles: true, cancelable: true }));
+      if (++i < n) setTimeout(step, 28); else tmZoomBusy = false;
+    })();
+  }
+  function setupTerminal() {
+    var cv = $('tmCv');
+    if (!cv || cv.__dsk) return !!cv;
+    cv.__dsk = true;
+    cv.addEventListener('mousemove', function (e) { tmMouse = [e.clientX, e.clientY]; });
+    cv.addEventListener('dblclick', function (e) {
+      if (!body.classList.contains('dsk')) return;
+      var cam = tmCam(); if (!cam) return;
+      e.preventDefault();
+      if (e.shiftKey) tmZoomTo(Math.max(0.3, cam.s / 2.3), e.clientX, e.clientY);
+      else tmZoomTo(cam.s < 0.8 ? 1.5 : Math.min(2.6, cam.s * 1.8), e.clientX, e.clientY);
+    });
+    return true;
+  }
+  // Netteté : le jeu baisse la résolution pour gagner en fluidité ; sur PC on
+  // garde au moins la résolution réelle de l'écran (plafonnée à 1,5).
+  function setupTerminalHD() {
+    if (typeof window.tmAdapt !== 'function' || window.tmAdapt.__dsk) return;
+    var orig = window.tmAdapt;
+    var wrapped = function () {
+      var r = orig.apply(this, arguments);
+      try {
+        if (tmHD && body.classList.contains('dsk') && TM) {
+          var floor = Math.min(window.devicePixelRatio || 1, 1.5);
+          if (TM.dprMax < floor) TM.dprMax = floor;
+          if (TM.dpr < floor) TM.dpr = floor;
+        }
+      } catch (e) {}
+      return r;
+    };
+    wrapped.__dsk = true;
+    window.tmAdapt = wrapped;
+  }
+  function setupTerminalButtons() {
+    var top = $('tmTop');
+    if (!top || $('dsk-tm-ppl')) return;
+    var host = top.querySelector('button') ? top.querySelector('button').parentElement : top;
+    var ref = host.querySelector('button');
+    function mk(id, label, title, fn) {
+      var b = document.createElement('button');
+      b.id = id; b.type = 'button'; b.className = (ref ? ref.className : '') + ' dsk-only dsk-tmb';
+      b.textContent = label; b.title = title;
+      b.addEventListener('click', function (e) { e.stopPropagation(); fn(b); });
+      return b;
+    }
+    var bP = mk('dsk-tm-ppl', '👥', 'Voir les gens de près (G) · double-clic sur le plan pour zoomer', function () { tmZoomTo(1.6); });
+    var bH = mk('dsk-tm-hd', 'HD', 'Image nette (désactive si le jeu rame)', function (b) {
+      tmHD = !tmHD; LS.set('tmHD', tmHD); b.classList.toggle('dsk-off', !tmHD);
+      tip(tmHD ? 'Aérogare en haute définition' : 'Aérogare en mode fluide (moins net)');
+    });
+    if (!tmHD) bH.classList.add('dsk-off');
+    host.insertBefore(bH, ref);
+    host.insertBefore(bP, ref);
+  }
+  var TM_CSS = [
+    'body.dsk #tmAnn{left:50%!important;right:auto!important;transform:translateX(-50%);width:auto!important;max-width:min(640px,calc(100% - 40px));padding:6px 14px!important;font-size:12px!important;line-height:1.35;opacity:.94;border-radius:12px!important;box-shadow:0 8px 24px rgba(0,0,0,.35)}',
+    'body.dsk #tmCv{cursor:grab}',
+    'body.dsk #tmCv:active{cursor:grabbing}',
+    'body.dsk .dsk-tmb{font-weight:700;min-width:36px}',
+    'body.dsk .dsk-tmb.dsk-off{opacity:.45;text-decoration:line-through}',
+    'body.dsk #tmZones button{transition:filter .15s,transform .1s}',
+    'body.dsk #tmZones button:hover{filter:brightness(1.2);transform:translateY(-1px)}'
+  ].join('\n');
+  styleEl.textContent += '\n' + TM_CSS;
+  var tmTipShown = LS.get('tmTip', false);
+  function terminalTick() {
+    setupTerminalHD();
+    if (!tmOpenNow()) return;
+    setupTerminal();
+    setupTerminalButtons();
+    if (!tmTipShown && body.classList.contains('dsk')) {
+      tmTipShown = true; LS.set('tmTip', true);
+      tip('Aérogare : <kbd>double-clic</kbd> pour voir les gens de près · <kbd>G</kbd> zoom sur la souris · <kbd>0</kbd> vue générale', 6500);
+    }
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!body.classList.contains('dsk') || !tmOpenNow()) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var t = e.target, tag = t && t.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+    var cam = tmCam(); if (!cam) return;
+    var k = e.key;
+    if (k === 'g' || k === 'G') { e.stopImmediatePropagation(); e.preventDefault(); tmZoomTo(Math.max(1.6, cam.s), tmMouse && tmMouse[0], tmMouse && tmMouse[1]); }
+    else if (k === '+' || k === '=') { e.stopImmediatePropagation(); e.preventDefault(); tmZoomTo(Math.min(3, cam.s * 1.5)); }
+    else if (k === '-' || k === '_') { e.stopImmediatePropagation(); e.preventDefault(); tmZoomTo(Math.max(0.3, cam.s / 1.5)); }
+    else if (k === '0') {
+      var z = $('tmZones'), b = z && z.querySelector('button');
+      if (b) { e.stopImmediatePropagation(); e.preventDefault(); b.click(); }
+    }
+  }, true);
+
   /* ---------------- ACTIVATION ---------------- */
   function apply() {
     var on = MQ.matches;
@@ -308,6 +434,8 @@
     window.addEventListener('resize', function () { if (body.classList.contains('dsk')) applyW(); });
     setInterval(ambiance, 2000);
     setInterval(hudTick, 1000);
+    setInterval(terminalTick, 700);
+    terminalTick();
     if (MQ.matches && !LS.get('tipSeen', false)) {
       setTimeout(function () { tip('Nouveau sur ordinateur : <kbd>F</kbd> mode immersif · <kbd>P</kbd> panneau · bord du panneau = glisser pour l’élargir', 6000); }, 2500);
       LS.set('tipSeen', true);
